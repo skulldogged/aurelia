@@ -40,6 +40,8 @@ struct MusicItem {
     item_type: String,
     album: Option<String>,
     artists: Option<Vec<String>>,
+    #[serde(rename = "artistIds")]
+    artist_ids: Option<Vec<String>>,
     path: Option<String>,
     duration: Option<f64>,
     #[serde(rename = "albumArtUrl")]
@@ -235,6 +237,16 @@ async fn get_music_library(server_url: String, token: String) -> Result<Vec<Musi
                 })
                 .filter(|v| !v.is_empty());
 
+            // Extract artist IDs from the "ArtistItems" array of objects
+            let artist_ids_vec = item["ArtistItems"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v["Id"].as_str().map(|s| s.to_string()))
+                        .collect::<Vec<String>>()
+                })
+                .filter(|v| !v.is_empty());
+
             let genres_vec = item["Genres"]
                 .as_array()
                 .map(|arr| {
@@ -258,6 +270,7 @@ async fn get_music_library(server_url: String, token: String) -> Result<Vec<Musi
                 item_type: item["Type"].as_str().unwrap_or("").to_string(),
                 album: item["Album"].as_str().map(|s| s.to_string()),
                 artists: artists_vec,
+                artist_ids: artist_ids_vec,
                 path: path_str.map(|s| s.to_string()),
                 duration: duration_seconds,
                 album_art_url,

@@ -1,81 +1,130 @@
 <script setup lang="ts">
-import { Home, Music, Users, Disc, ArrowLeft, ArrowRight, User } from 'lucide-vue-next'
-import ThemeToggle from './ThemeToggle.vue'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  import { Home, Music, Users, Disc, Settings } from 'lucide-vue-next'
 
-defineProps<{
-  currentView: string
-  canGoBack: boolean
-  canGoForward: boolean
-}>()
+  defineProps<{
+    currentView: string
+    isCollapsed: boolean
+  }>()
 
-const emit = defineEmits<{
-  'navigate': [view: string]
-  'navigate-back': []
-  'navigate-forward': []
-  'logout': []
-}>()
+  defineEmits<{
+    navigate: [view: string]
+  }>()
 </script>
 
 <template>
-  <div class="w-48 bg-gray-300 dark:bg-black flex flex-col flex-shrink-0">
-    <div class="px-4 py-3 h-12 flex items-center" data-tauri-drag-region>
-      <div class="flex items-center justify-between w-full">
-        <div class="flex items-center">
-          <Button @click="emit('navigate-back')" :disabled="!canGoBack" variant="ghost" size="icon">
-            <ArrowLeft class="h-4 w-4" />
-          </Button>
-          <Button @click="emit('navigate-forward')" :disabled="!canGoForward" variant="ghost" size="icon">
-            <ArrowRight class="h-4 w-4" />
-          </Button>
-        </div>
-
-        <!-- Draggable spacer between buttons -->
-        <div class="flex-1 h-9" data-tauri-drag-region></div>
-
-        <div class="flex items-center">
-          <ThemeToggle />
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button variant="ghost" size="icon">
-                <User class="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem @click="emit('logout')">
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+  <div
+    :class="[
+      'bg-gray-300 dark:bg-black flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out',
+      isCollapsed ? 'w-16' : 'w-48',
+    ]"
+  >
+    <nav class='flex flex-col flex-grow mx-2 mb-2'>
+      <div class='flex-grow space-y-2'>
+        <router-link
+          :class="[
+            'flex items-center h-10 rounded-md text-sm font-medium',
+            currentView === 'home'
+              ? 'bg-primary text-primary-foreground'
+              : 'hover:bg-muted',
+          ]"
+          to='/'
+        >
+          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+            <Home class='w-5 h-5' />
+          </div>
+          <div
+            :class="[
+              'overflow-hidden transition-all duration-200 ease-in-out',
+              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+            ]"
+          >
+            <span class='whitespace-nowrap'>Home</span>
+          </div>
+        </router-link>
+        <router-link
+          :class="[
+            'flex items-center h-10 rounded-md text-sm font-medium',
+            currentView === 'songs'
+              ? 'bg-primary text-primary-foreground'
+              : 'hover:bg-muted',
+          ]"
+          to='/songs'
+        >
+          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+            <Music class='w-5 h-5' />
+          </div>
+          <div
+            :class="[
+              'overflow-hidden transition-all duration-200 ease-in-out',
+              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+            ]"
+          >
+            <span class='whitespace-nowrap'>Songs</span>
+          </div>
+        </router-link>
+        <router-link
+          :class="[
+            'flex items-center h-10 rounded-md text-sm font-medium',
+            currentView === 'artists'
+              ? 'bg-primary text-primary-foreground'
+              : 'hover:bg-muted',
+          ]"
+          to='/artists'
+        >
+          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+            <Users class='w-5 h-5' />
+          </div>
+          <div
+            :class="[
+              'overflow-hidden transition-all duration-200 ease-in-out',
+              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+            ]"
+          >
+            <span class='whitespace-nowrap'>Artists</span>
+          </div>
+        </router-link>
+        <router-link
+          :class="[
+            'flex items-center h-10 rounded-md text-sm font-medium',
+            currentView === 'albums'
+              ? 'bg-primary text-primary-foreground'
+              : 'hover:bg-muted',
+          ]"
+          to='/albums'
+        >
+          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+            <Disc class='w-5 h-5' />
+          </div>
+          <div
+            :class="[
+              'overflow-hidden transition-all duration-200 ease-in-out',
+              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+            ]"
+          >
+            <span class='whitespace-nowrap'>Albums</span>
+          </div>
+        </router-link>
       </div>
-    </div>
-    <nav class="flex flex-col p-4 space-y-2">
-      <router-link to="/"
-        :class="['flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium', currentView === 'home' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">
-        <Home class="w-5 h-5" />
-        <span>Home</span>
-      </router-link>
-      <router-link to="/songs"
-        :class="['flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium', currentView === 'songs' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">
-        <Music class="w-5 h-5" />
-        <span>Songs</span>
-      </router-link>
-      <router-link to="/artists"
-        :class="['flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium', currentView === 'artists' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">
-        <Users class="w-5 h-5" />
-        <span>Artists</span>
-      </router-link>
-      <router-link to="/albums"
-        :class="['flex items-center space-x-3 px-4 py-2 rounded-md text-sm font-medium', currentView === 'albums' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted']">
-        <Disc class="w-5 h-5" />
-        <span>Albums</span>
+      <router-link
+        :class="[
+          'flex items-center h-10 rounded-md text-sm font-medium',
+          currentView === 'settings'
+            ? 'bg-primary text-primary-foreground'
+            : 'hover:bg-muted',
+        ]"
+        to='/settings'
+      >
+        <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+          <Settings class='w-5 h-5' />
+        </div>
+        <div
+          :class="[
+            'overflow-hidden transition-all duration-200 ease-in-out',
+            isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+          ]"
+        >
+          <span class='whitespace-nowrap'>Settings</span>
+        </div>
       </router-link>
     </nav>
   </div>
