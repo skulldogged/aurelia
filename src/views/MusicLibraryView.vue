@@ -8,7 +8,7 @@
           </h1>
           <Input
             v-model='searchQuery'
-            class='max-w-sm'
+            class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
             placeholder='Search songs...'
             type='text'
           />
@@ -49,7 +49,7 @@
 <script setup lang="ts">
   import { ref, computed, watch } from 'vue'
   import Fuse from 'fuse.js'
-  import SongList from './SongList.vue'
+  import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { MusicItem, ArtistInfo, AlbumInfo } from '@/types'

@@ -14,7 +14,7 @@
 <template>
   <div
     :class="[
-      'bg-gray-300 dark:bg-black flex flex-col flex-shrink-0 transition-all duration-300 ease-in-out',
+      'bg-sidebar flex flex-col flex-shrink-0 ease-in-out',
       isCollapsed ? 'w-16' : 'w-48',
     ]"
   >
@@ -24,8 +24,8 @@
           :class="[
             'flex items-center h-10 rounded-md text-sm font-medium',
             currentView === 'home'
-              ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-muted',
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-accent/20',
           ]"
           to='/'
         >
@@ -34,7 +34,7 @@
           </div>
           <div
             :class="[
-              'overflow-hidden transition-all duration-200 ease-in-out',
+              'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
             ]"
           >
@@ -45,8 +45,8 @@
           :class="[
             'flex items-center h-10 rounded-md text-sm font-medium',
             currentView === 'songs'
-              ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-muted',
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-accent/20',
           ]"
           to='/songs'
         >
@@ -55,7 +55,7 @@
           </div>
           <div
             :class="[
-              'overflow-hidden transition-all duration-200 ease-in-out',
+              'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
             ]"
           >
@@ -66,8 +66,8 @@
           :class="[
             'flex items-center h-10 rounded-md text-sm font-medium',
             currentView === 'artists'
-              ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-muted',
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-accent/20',
           ]"
           to='/artists'
         >
@@ -76,7 +76,7 @@
           </div>
           <div
             :class="[
-              'overflow-hidden transition-all duration-200 ease-in-out',
+              'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
             ]"
           >
@@ -87,8 +87,8 @@
           :class="[
             'flex items-center h-10 rounded-md text-sm font-medium',
             currentView === 'albums'
-              ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-muted',
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-accent/20',
           ]"
           to='/albums'
         >
@@ -97,7 +97,7 @@
           </div>
           <div
             :class="[
-              'overflow-hidden transition-all duration-200 ease-in-out',
+              'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
             ]"
           >
@@ -109,8 +109,8 @@
         :class="[
           'flex items-center h-10 rounded-md text-sm font-medium',
           currentView === 'settings'
-            ? 'bg-primary text-primary-foreground'
-            : 'hover:bg-muted',
+            ? 'bg-accent text-accent-foreground'
+            : 'hover:bg-accent/20',
         ]"
         to='/settings'
       >
@@ -119,7 +119,7 @@
         </div>
         <div
           :class="[
-            'overflow-hidden transition-all duration-200 ease-in-out',
+            'overflow-hidden transition-all duration-150 ease-in-out',
             isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
           ]"
         >

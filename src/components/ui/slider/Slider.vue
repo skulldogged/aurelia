@@ -28,7 +28,7 @@
       data-slot='slider-track'
     >
       <SliderRange
-        class='bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full'
+        class='bg-accent absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full'
         data-slot='slider-range'
       />
     </SliderTrack>
@@ -36,7 +36,7 @@
     <SliderThumb
       v-for='(_, key) in modelValue'
       :key='key'
-      class='border-primary bg-background ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50'
+      class='border-accent bg-background ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50'
       data-slot='slider-thumb'
     />
   </SliderRoot>

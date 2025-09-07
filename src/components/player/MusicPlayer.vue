@@ -1,5 +1,5 @@
 <template>
-  <div v-if='currentSong' class='bg-gray-300 dark:bg-black p-2'>
+  <div v-if='currentSong' class='bg-sidebar p-2'>
     <div class='mx-auto'>
       <div class='grid grid-cols-3 items-center px-2'>
         <!-- Song Info (Left) -->
@@ -7,20 +7,25 @@
           <div class='flex items-center space-x-4'>
             <div class='flex-shrink-0'>
               <img
+                @click="$emit('toggle-fullscreen')"
                 v-if='currentSong.albumArtUrl'
                 :src='currentSong.albumArtUrl'
                 alt='Album art'
-                class='w-12 h-12 rounded-md'
+                class='w-12 h-12 rounded-md cursor-pointer'
               >
-              <div v-else class='w-12 h-12 bg-muted rounded-md flex items-center justify-center'>
+              <div
+                @click="$emit('toggle-fullscreen')"
+                v-else
+                class='w-12 h-12 bg-muted rounded-md flex items-center justify-center cursor-pointer'
+              >
                 <Music2 class='w-6 h-6 text-muted-foreground' />
               </div>
             </div>
             <div class='flex-1 min-w-0'>
-              <h3 class='text-foreground font-medium truncate'>
+              <h3 class='text-foreground font-medium truncate select-text'>
                 {{ currentSong.name }}
               </h3>
-              <p class='text-muted-foreground text-sm truncate'>
+              <p class='text-muted-foreground text-sm truncate select-text'>
                 <template
                   v-if='
                     currentSong.artists
@@ -108,6 +113,10 @@
         <!-- Additional Controls (Right) -->
         <div class='flex justify-end'>
           <div class='flex items-center space-x-2'>
+            <!-- Fullscreen -->
+            <Button @click="$emit('toggle-fullscreen')" size='icon' variant='ghost'>
+              <Expand class='w-5 h-5' />
+            </Button>
             <!-- Shuffle -->
             <Button
               @click='toggleShuffle'
@@ -153,22 +162,31 @@
         </div>
       </div>
 
-      <!-- Hidden Audio Element -->
+      <!-- Hidden Audio Elements -->
       <audio
-        @canplay='onCanPlay'
-        @ended='onEnded'
-        @error='onError'
-        @loadedmetadata='onLoadedMetadata'
-        @timeupdate='onTimeUpdate'
-        ref='audioElement'
-        preload='metadata'
+        @canplaythrough='onCanPlay(0)'
+        @ended='onEnded(0)'
+        @error='onError(0)'
+        @loadedmetadata='onLoadedMetadata(0)'
+        @timeupdate='onTimeUpdate(0)'
+        ref='audioPlayer1'
+        preload='auto'
+      />
+      <audio
+        @canplaythrough='onCanPlay(1)'
+        @ended='onEnded(1)'
+        @error='onError(1)'
+        @loadedmetadata='onLoadedMetadata(1)'
+        @timeupdate='onTimeUpdate(1)'
+        ref='audioPlayer2'
+        preload='auto'
       />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+  import { ref, computed, watch, onMounted, onUnmounted, watchEffect } from 'vue'
   import { invoke } from '@tauri-apps/api/core'
   import {
     Music2,
@@ -184,10 +202,12 @@
     VolumeX,
     Loader2,
     ListMusic,
+    Expand,
   } from 'lucide-vue-next'
   import { Button } from '@/components/ui/button'
   import { Slider } from '@/components/ui/slider'
   import { MusicItem } from '@/types'
+  import { usePlayerState } from '@/composables/usePlayerState'
 
   const props = defineProps<{
     currentSong: MusicItem | null
@@ -198,37 +218,61 @@
   }>()
 
   const emit = defineEmits<{
-    songEnded:         []
-    songChanged:       [song: MusicItem]
-    updateCurrentSong: [song: MusicItem | null, isPlaying: boolean]
-    volumeChanged:     [volume: number]
-    'toggle-queue':    []
+    songEnded:           []
+    songChanged:         [song: MusicItem]
+    updateCurrentSong:   [song: MusicItem | null, isPlaying: boolean]
+    volumeChanged:       [volume: number]
+    'toggle-queue':      [],
+    'toggle-fullscreen': [],
   }>()
 
-  // Audio element
-  const audioElement = ref<HTMLAudioElement | null>(null)
+  const {
+    isPlaying,
+    currentTime,
+    duration,
+    progress,
+    isShuffled,
+    repeatMode,
+    hasPrevious,
+    hasNext,
+  } = usePlayerState()
+
+  // Audio elements
+  const audioPlayer1 = ref<HTMLAudioElement | null>(null)
+  const audioPlayer2 = ref<HTMLAudioElement | null>(null)
+  const activePlayerIndex = ref(0)
+  const players = [audioPlayer1, audioPlayer2]
+  const activePlayer = computed(() => players[activePlayerIndex.value].value)
+  const nextPlayer = computed(() => players[1 - activePlayerIndex.value].value)
 
   // Player state
-  const isPlaying = ref(false)
-  const currentTime = ref(0)
-  const duration = ref(0)
-  const progress = ref(0)
   const audioReady = ref(false)
   const isBuffering = ref(false)
-  const isSeeking = ref(false)
+  const nextSongReady = ref(false)
+  const isGaplessTransition = ref(false)
 
   // Playback controls
-  const isShuffled = ref(false)
-  const repeatMode = ref<'none' | 'all' | 'one'>('none')
   const currentIndex = ref(0)
 
   // Computed properties
-  const hasPrevious = computed(() => {
-    return props.playlist.length > 1 && currentIndex.value > 0
+  watchEffect(() => {
+    hasPrevious.value = props.playlist.length > 1 && currentIndex.value > 0
+    hasNext.value
+      = props.playlist.length > 1
+        && currentIndex.value > -1
+        && currentIndex.value < props.playlist.length - 1
   })
 
-  const hasNext = computed(() => {
-    return props.playlist.length > 1 && currentIndex.value > -1 && currentIndex.value < props.playlist.length - 1
+  const nextSongInQueue = computed(() => {
+    if (!hasNext.value) return null
+
+    let nextIndex
+    if (isShuffled.value) {
+      nextIndex = Math.floor(Math.random() * props.playlist.length)
+    } else {
+      nextIndex = currentIndex.value + 1
+    }
+    return props.playlist[nextIndex]
   })
 
   // Methods
@@ -239,70 +283,86 @@
   }
 
   const updateProgress = () => {
-    if (audioElement.value && duration.value > 0) {
+    if (activePlayer.value && duration.value > 0) {
       progress.value = (currentTime.value / duration.value) * 100
     }
   }
 
-  const onLoadedMetadata = () => {
-    if (audioElement.value) {
-      console.log('[MusicPlayer] Audio metadata loaded. Duration:', audioElement.value.duration)
-      // Prioritize pre-fetched duration, fall back to audio element's duration
-      if (props.currentSong?.duration) {
-        duration.value = props.currentSong.duration
-      } else {
-        duration.value = audioElement.value.duration || 0
+  const onLoadedMetadata = (playerIndex: number) => {
+    const player = players[playerIndex].value
+    if (player) {
+      if (playerIndex === activePlayerIndex.value) {
+        if (props.currentSong?.duration) {
+          duration.value = props.currentSong.duration
+        } else {
+          duration.value = player.duration || 0
+        }
+        currentTime.value = 0
+        progress.value = 0
       }
-
-      currentTime.value = 0
-      progress.value = 0
     }
   }
 
-  const onTimeUpdate = () => {
-    if (audioElement.value && !isSeeking.value) {
-      currentTime.value = audioElement.value.currentTime
-      updateProgress()
+  const onTimeUpdate = (playerIndex: number) => {
+    if (playerIndex === activePlayerIndex.value) {
+      const player = players[playerIndex].value
+      if (player) {
+        currentTime.value = player.currentTime
+        updateProgress()
+      }
     }
   }
 
-  const onCanPlay = () => {
-    console.log('[MusicPlayer] Audio can play.')
-    audioReady.value = true
+  const onCanPlay = (playerIndex: number) => {
+    if (playerIndex === activePlayerIndex.value) {
+      audioReady.value = true
+    } else {
+      nextSongReady.value = true
+    }
   }
 
-  const onError = () => {
-    audioReady.value = false
-    console.error('[MusicPlayer] Audio playback error:', audioElement.value?.error)
-    isBuffering.value = false
+  const onError = (playerIndex: number) => {
+    const player = players[playerIndex].value
+    console.error(`[MusicPlayer] Audio playback error on player ${playerIndex}:`, player?.error)
+    if (playerIndex === activePlayerIndex.value) {
+      audioReady.value = false
+      isBuffering.value = false
+    }
   }
 
-  const onEnded = () => {
+  const onEnded = (playerIndex: number) => {
+    if (playerIndex !== activePlayerIndex.value) return
+
     if (repeatMode.value === 'one') {
-      // Repeat current song
-      if (audioElement.value) {
-        audioElement.value.currentTime = 0
-        audioElement.value.play()
+      if (activePlayer.value) {
+        activePlayer.value.currentTime = 0
+        activePlayer.value.play()
       }
+    } else if (nextSongReady.value && nextSongInQueue.value) {
+      // Switch players for gapless playback
+      activePlayer.value?.pause()
+      isGaplessTransition.value = true
+      activePlayerIndex.value = 1 - activePlayerIndex.value
+
+      emit('songChanged', nextSongInQueue.value)
     } else if (repeatMode.value === 'all' || hasNext.value) {
-      // Play next song
+      // Fallback if next song is not ready
       nextSong()
     } else {
-      // Stop playback
       isPlaying.value = false
       emit('updateCurrentSong', props.currentSong, false)
     }
   }
 
   const togglePlayPause = async () => {
-    if (!audioElement.value || !audioReady.value) return
+    if (!activePlayer.value || !audioReady.value) return
 
     try {
       if (isPlaying.value) {
-        audioElement.value.pause()
+        activePlayer.value.pause()
         isPlaying.value = false
       } else {
-        await audioElement.value.play()
+        await activePlayer.value.play()
         isPlaying.value = true
       }
       emit('updateCurrentSong', props.currentSong, isPlaying.value)
@@ -311,45 +371,17 @@
     }
   }
 
-  const debounce = <P extends unknown[]>(
-    func: (...args: P) => void,
-    wait: number,
-    ): ((...args: P) => void) => {
-    let timeout: number | undefined
-
-    return (...args: P) => {
-      const later = () => {
-        clearTimeout(timeout)
-        func(...args)
-      }
-
-      clearTimeout(timeout)
-      timeout = setTimeout(later, wait)
-    }
-  }
-
-  const seekTo = (seekTime: number) => {
-    if (audioElement.value && isFinite(seekTime))
-      audioElement.value.currentTime = seekTime
-  }
-
-  const debouncedSeek = debounce((seekTime: number) => {
-    seekTo(seekTime)
-    isSeeking.value = false
-  }, 200)
-
   const onSeek = (value: number[] | undefined) => {
-    if (!value || !audioElement.value || !audioReady.value) return
+    if (!value || !activePlayer.value || !audioReady.value) return
 
-    isSeeking.value = true
     const progressValue = value[0]
     const seekTime = (progressValue / 100) * duration.value
 
-    // Update UI immediately
-    progress.value = progressValue
-    currentTime.value = seekTime
-
-    debouncedSeek(seekTime)
+    if (isFinite(seekTime)) {
+      activePlayer.value.currentTime = seekTime
+      currentTime.value = seekTime
+      progress.value = progressValue
+    }
   }
 
   const onVolumeInput = (value: number[] | undefined) => {
@@ -413,73 +445,127 @@
     }
   }
 
-  // Watch for song or playlist changes to update the current index
+  const loadSong = async (song: MusicItem | null, player: HTMLAudioElement | null) => {
+    if (!player || !song) {
+      if (player) player.src = ''
+      return
+    }
+
+    try {
+      const streamUrl = await invoke<string>('get_audio_stream_url', {
+        serverUrl: props.serverUrl,
+        token:     props.token,
+        itemId:    song.id,
+        container: song.container,
+      })
+      player.src = streamUrl
+      player.load()
+    } catch (error) {
+      console.error(`[MusicPlayer] Failed to load audio for song ${song.id}:`, error)
+    }
+  }
+
+  const playManuallyChangedSong = (song: MusicItem) => {
+    audioReady.value = false
+    nextSongReady.value = false
+    isBuffering.value = true
+
+    const execute = async () => {
+      await loadSong(song, activePlayer.value)
+      if (activePlayer.value) {
+        try {
+          await activePlayer.value.play()
+          isPlaying.value = true
+          emit('updateCurrentSong', props.currentSong, true)
+        } catch (error) {
+          console.error('[MusicPlayer] Failed to play audio:', error)
+          isPlaying.value = false
+        } finally {
+          isBuffering.value = false
+        }
+      } else {
+        isBuffering.value = false
+      }
+      await loadSong(nextSongInQueue.value, nextPlayer.value)
+    }
+    execute()
+  }
+
+  // Watch for song changes
+  watch(() => props.currentSong, (newSong, oldSong) => {
+    if (newSong && newSong.id !== oldSong?.id) {
+      if (isGaplessTransition.value) {
+        isGaplessTransition.value = false
+        if (activePlayer.value) {
+          isBuffering.value = true
+          activePlayer.value.play()
+            .then(() => {
+              isPlaying.value = true
+              emit('updateCurrentSong', newSong, true)
+            })
+            .catch(error => {
+              console.error('[MusicPlayer] Failed to play audio:', error)
+              isPlaying.value = false
+            })
+            .finally(() => {
+              isBuffering.value = false
+            })
+        }
+        loadSong(nextSongInQueue.value, nextPlayer.value)
+      } else {
+        playManuallyChangedSong(newSong)
+      }
+    } else if (!newSong) {
+      if (audioPlayer1.value) { audioPlayer1.value.src = ''; audioPlayer1.value.pause() }
+      if (audioPlayer2.value) { audioPlayer2.value.src = ''; audioPlayer2.value.pause() }
+      isPlaying.value = false
+    }
+  })
+
+  // Watch for playlist changes
   watch(
-    [() => props.currentSong, () => props.playlist],
-    ([newSong, newPlaylist]) => {
-      if (newSong && newPlaylist) {
-        const index = newPlaylist.findIndex(song => song.id === newSong.id)
+    () => props.playlist,
+    newPlaylist => {
+      if (props.currentSong) {
+        const index = newPlaylist.findIndex(song => song.id === props.currentSong!.id)
         currentIndex.value = index
+        loadSong(nextSongInQueue.value, nextPlayer.value)
       } else {
         currentIndex.value = -1
       }
     },
-    { deep: true, immediate: true },
+    { deep: true },
   )
 
-  // Initialize volume
+  // Initialize volume and first song
   onMounted(() => {
-    if (audioElement.value)
-      audioElement.value.volume = props.volume
+    if (audioPlayer1.value) audioPlayer1.value.volume = props.volume
+    if (audioPlayer2.value) audioPlayer2.value.volume = props.volume
 
-    const newSong = props.currentSong
-    if (newSong && audioElement.value) {
-      console.log('[MusicPlayer] Mounting for new song:', newSong.name)
-      audioReady.value = false
-      isBuffering.value = true
-
-      // Get stream URL from backend
-      invoke<string>('get_audio_stream_url', {
-        serverUrl: props.serverUrl,
-        token:     props.token,
-        itemId:    newSong.id,
-      })
-        .then(streamUrl => {
-          console.log('[MusicPlayer] Fetched stream URL:', streamUrl)
-
-          if (audioElement.value) {
-            audioElement.value.src = streamUrl
-            audioElement.value.load()
-            audioElement.value.play()
-              .then(() => {
-                isPlaying.value = true
-                emit('updateCurrentSong', props.currentSong, true)
-              })
-              .catch(error => {
-                console.error('[MusicPlayer] Failed to play audio:', error)
-              })
-              .finally(() => {
-                isBuffering.value = false
-              })
-          }
-        })
-        .catch(error => {
-          console.error('[MusicPlayer] Failed to load audio:', error)
-          isBuffering.value = false
-        })
+    if (props.currentSong) {
+      const index = props.playlist.findIndex(song => song.id === props.currentSong!.id)
+      currentIndex.value = index
+      playManuallyChangedSong(props.currentSong)
     }
   })
 
   watch(() => props.volume, newVolume => {
-    if (audioElement.value) {
-      audioElement.value.volume = newVolume
-    }
+    if (audioPlayer1.value) audioPlayer1.value.volume = newVolume
+    if (audioPlayer2.value) audioPlayer2.value.volume = newVolume
   })
 
   onUnmounted(() => {
-    if (audioElement.value) {
-      audioElement.value.pause()
-    }
+    if (audioPlayer1.value) audioPlayer1.value.pause()
+    if (audioPlayer2.value) audioPlayer2.value.pause()
+  })
+
+  defineExpose({
+    togglePlayPause,
+    previousSong,
+    nextSong,
+    toggleShuffle,
+    toggleRepeat,
+    onSeek,
   })
 </script>
 

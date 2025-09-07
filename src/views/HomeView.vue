@@ -2,7 +2,7 @@
   import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { MusicItem, AlbumInfo } from '@/types'
-  import Carousel from './Carousel.vue'
+  import Carousel from '@/components/shared/Carousel.vue'
   import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
   const router = useRouter()
@@ -183,7 +183,6 @@
           <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate'>
             <router-link
               :to="{ name: 'album-detail', params: { albumName: featuredAlbum.name } }"
-              class='hover:underline'
             >
               {{ featuredAlbum.name }}
             </router-link>
@@ -192,7 +191,6 @@
             <router-link
               v-if='featuredAlbum.artistId'
               :to="{ name: 'artist-detail', params: { artistId: featuredAlbum.artistId } }"
-              class='hover:underline'
             >
               {{ featuredAlbum.artist }}
             </router-link>

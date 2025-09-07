@@ -11,7 +11,7 @@
   import { Play, Pause, Heart } from 'lucide-vue-next'
   import { MusicItem } from '@/types'
   import { computed, ref, watch } from 'vue'
-  import { useImageCache } from '@/composables/useImageCache'
+  import ImagePlaceholder from './ImagePlaceholder.vue'
 
   const props = defineProps<{
     songs:            MusicItem[]
@@ -62,14 +62,6 @@
     return props.songs.slice(start, end)
   })
 
-  const songImageUrls = computed(() => {
-    return pagedSongs.value
-      .map(song => song.albumArtUrl)
-      .filter(url => !!url) as string[]
-  })
-
-  const { cachedUrls } = useImageCache(() => songImageUrls.value)
-
   const previousPage = () => {
     if (canPreviousPage.value) pageIndex.value -= 1
   }
@@ -119,11 +111,16 @@
           <TableCell @click="$emit('play-song', song)" class='relative p-2'>
             <img
               v-if='song.albumArtUrl'
-              :src='cachedUrls[song.albumArtUrl] || song.albumArtUrl'
+              :src='song.albumArtUrl'
               alt='Album art'
               class='w-10 h-10 rounded-md'
             >
-            <div v-else class='w-10 h-10 rounded-md bg-muted' />
+            <ImagePlaceholder
+              v-else
+              class='w-10 h-10 rounded-md'
+              size='small'
+              type='album-art'
+            />
             <div
               :class="[
                 'absolute top-2 left-2 w-10 h-10 flex items-center justify-center transition-opacity',
@@ -154,12 +151,12 @@
           >
             {{ pageIndex * pageSize + index + 1 }}
           </TableCell>
-          <TableCell @click="$emit('play-song', song)" class='font-medium overflow-hidden'>
+          <TableCell @click="$emit('play-song', song)" class='font-medium overflow-hidden select-text'>
             <span
               class='block truncate'
             >{{ song.name }}</span>
           </TableCell>
-          <TableCell v-if='showArtist' class='min-w-[150px] overflow-hidden'>
+          <TableCell v-if='showArtist' class='min-w-[150px] overflow-hidden select-text'>
             <span class='block truncate'>
               <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
                 <template v-for='(artist, artistIndex) in song.artists' :key='song.artistIds[artistIndex]'>
@@ -178,7 +175,7 @@
               </template>
             </span>
           </TableCell>
-          <TableCell v-if='showAlbum' class='min-w-[150px] overflow-hidden'>
+          <TableCell v-if='showAlbum' class='min-w-[150px] overflow-hidden select-text'>
             <router-link
               @click.stop
               v-if='song.album'
@@ -189,7 +186,11 @@
             </router-link>
             <span v-else class='block truncate'>{{ 'Unknown Album' }}</span>
           </TableCell>
-          <TableCell @click="$emit('play-song', song)" v-if='showYear' class='hidden md:table-cell text-right'>
+          <TableCell
+            @click="$emit('play-song', song)"
+            v-if='showYear'
+            class='hidden md:table-cell text-right select-text'
+          >
             {{
               song.year }}
           </TableCell>

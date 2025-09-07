@@ -1,15 +1,16 @@
+pub mod db;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct LoginResponse {
     token: String,
     #[serde(rename = "userId")]
     user_id: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Credentials {
     #[serde(rename = "serverUrl")]
     server_url: String,
@@ -19,13 +20,13 @@ struct Credentials {
     user_id: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct JellyfinUser {
     #[serde(rename = "Id")]
     id: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct JellyfinAuthResponse {
     #[serde(rename = "AccessToken")]
     access_token: String,
@@ -33,8 +34,16 @@ struct JellyfinAuthResponse {
     user: JellyfinUser,
 }
 
-#[derive(Serialize, Deserialize)]
-struct MusicItem {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NameIdPair {
+    #[serde(rename = "Name")]
+    name: String,
+    #[serde(rename = "Id")]
+    id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MusicItem {
     id: String,
     name: String,
     item_type: String,
@@ -59,6 +68,9 @@ struct MusicItem {
     premiere_date: Option<String>,
     #[serde(rename = "datePlayed")]
     date_played: Option<String>,
+    #[serde(rename = "albumArtists")]
+    album_artists: Option<Vec<NameIdPair>>,
+    lyrics: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -80,15 +92,62 @@ struct ArtistInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct LrcLibTrackResponse {
+    id: i64,
+    name: String,
+    #[serde(rename = "trackName")]
+    track_name: String,
+    #[serde(rename = "artistName")]
+    artist_name: String,
+    album_name: Option<String>,
+    duration: f64,
+    instrumental: bool,
+    #[serde(rename = "plainLyrics")]
+    plain_lyrics: Option<String>,
+    #[serde(rename = "syncedLyrics")]
+    synced_lyrics: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct ArtistItem {
     #[serde(rename = "Items")]
     items: Vec<ArtistInfo>,
 }
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+#[derive(Serialize, Deserialize, Debug)]
+struct AlbumInfo {
+    name: String,
+    artist: String,
+    #[serde(rename = "artistId")]
+    artist_id: Option<String>,
+    #[serde(rename = "albumArtUrl")]
+    album_art_url: Option<String>,
+    #[serde(rename = "songCount")]
+    song_count: i32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct AlbumWithSongs {
+    name: String,
+    artist: String,
+    #[serde(rename = "artistId")]
+    artist_id: Option<String>,
+    #[serde(rename = "albumArtUrl")]
+    album_art_url: Option<String>,
+    #[serde(rename = "songCount")]
+    song_count: i32,
+    songs: Vec<MusicItem>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ArtistWithSongs {
+    id: String,
+    name: String,
+    #[serde(rename = "songCount")]
+    song_count: i32,
+    #[serde(rename = "imageUrl")]
+    image_url: Option<String>,
+    songs: Vec<MusicItem>,
 }
 
 #[tauri::command]
@@ -179,9 +238,19 @@ fn get_saved_credentials() -> Result<Option<Credentials>, String> {
 
 #[tauri::command]
 async fn get_music_library(server_url: String, token: String) -> Result<Vec<MusicItem>, String> {
+    // Try to get from cache first
+    match db::get_cached_music_library() {
+        Ok(items) if !items.is_empty() => {
+            return Ok(items);
+        }
+        _ => {
+            // Cache is empty or there was an error, proceed to fetch from server
+        }
+    }
+
     let client = reqwest::Client::new();
     let library_url = format!(
-        "{}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate",
+        "{}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists",
         server_url.trim_end_matches('/')
     );
 
@@ -256,6 +325,10 @@ async fn get_music_library(server_url: String, token: String) -> Result<Vec<Musi
                 })
                 .filter(|v| !v.is_empty());
 
+            let album_artists: Option<Vec<NameIdPair>> = item["AlbumArtists"]
+                .as_array()
+                .and_then(|arr| serde_json::from_value(serde_json::Value::Array(arr.clone())).ok());
+
             let path_str = item["Path"].as_str();
             let container = path_str.and_then(|p| {
                 std::path::Path::new(p)
@@ -284,9 +357,16 @@ async fn get_music_library(server_url: String, token: String) -> Result<Vec<Musi
                 date_played: item["UserData"]["LastPlayedDate"]
                     .as_str()
                     .map(|s| s.to_string()),
+                album_artists,
+                lyrics: None, // Initialize lyrics to None
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
+
+    // Cache the library
+    if let Err(e) = db::cache_music_library(&items) {
+        eprintln!("Failed to cache music library: {}", e);
+    }
 
     Ok(items)
 }
@@ -387,18 +467,315 @@ async fn get_all_artists(server_url: String, token: String) -> Result<Vec<Artist
 }
 
 #[tauri::command]
+async fn get_albums_with_songs(
+    server_url: String,
+    token: String,
+) -> Result<Vec<AlbumWithSongs>, String> {
+    // First get all songs
+    let songs = get_music_library(server_url.clone(), token.clone()).await?;
+
+    // Group songs by album
+    let mut album_map: std::collections::HashMap<String, Vec<MusicItem>> =
+        std::collections::HashMap::new();
+
+    for song in songs {
+        let album_name = song
+            .album
+            .clone()
+            .unwrap_or_else(|| "Unknown Album".to_string());
+        album_map.entry(album_name).or_default().push(song);
+    }
+
+    // Convert to AlbumWithSongs
+    let mut albums_with_songs: Vec<AlbumWithSongs> = Vec::new();
+
+    for (album_name, songs) in album_map {
+        if songs.is_empty() {
+            continue;
+        }
+
+        // Get primary artist info from first song
+        let primary_song = &songs[0];
+        let primary_artist_name = primary_song
+            .artists
+            .as_ref()
+            .and_then(|artists| artists.first())
+            .unwrap_or(&"Unknown Artist".to_string())
+            .clone();
+
+        let primary_artist_id = primary_song
+            .artist_ids
+            .as_ref()
+            .and_then(|artist_ids| artist_ids.first())
+            .cloned();
+
+        let album_art_url = primary_song.album_art_url.clone();
+
+        // Sort songs by track number
+        let mut sorted_songs = songs;
+        sorted_songs.sort_by(|a, b| {
+            let a_track = a.track_number.unwrap_or(0);
+            let b_track = b.track_number.unwrap_or(0);
+            a_track.cmp(&b_track)
+        });
+
+        let album_with_songs = AlbumWithSongs {
+            name: album_name,
+            artist: primary_artist_name,
+            artist_id: primary_artist_id,
+            album_art_url,
+            song_count: sorted_songs.len() as i32,
+            songs: sorted_songs,
+        };
+
+        albums_with_songs.push(album_with_songs);
+    }
+
+    // Sort albums by name
+    albums_with_songs.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok(albums_with_songs)
+}
+
+#[tauri::command]
+async fn get_artists_with_songs(
+    server_url: String,
+    token: String,
+    album_artists_only: bool,
+) -> Result<Vec<ArtistWithSongs>, String> {
+    // First get all songs
+    let songs = get_music_library(server_url.clone(), token.clone()).await?;
+
+    // Get all artists to get artist metadata
+    let artists = get_all_artists(server_url, token).await?;
+
+    // Create case-insensitive maps for artist name lookup
+    let mut artist_name_to_info: std::collections::HashMap<String, ArtistInfo> =
+        std::collections::HashMap::new();
+    let mut artist_name_lower_to_original: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+
+    for artist in artists {
+        let original_name = artist.name.clone();
+        let lower_name = original_name.to_lowercase();
+
+        artist_name_to_info.insert(original_name.clone(), artist);
+        artist_name_lower_to_original.insert(lower_name, original_name);
+    }
+
+    // Debug: Log all artist names from the API
+    println!("Found {} artists from API", artist_name_to_info.len());
+
+    // Group songs by artist
+    let mut artist_map: std::collections::HashMap<String, Vec<MusicItem>> =
+        std::collections::HashMap::new();
+
+    if album_artists_only {
+        for song in &songs {
+            if let Some(artists) = &song.album_artists {
+                for artist in artists {
+                    artist_map
+                        .entry(artist.name.clone())
+                        .or_default()
+                        .push(song.clone());
+                }
+            }
+        }
+    } else {
+        // Collect all unique artist names from songs for debugging
+        let mut song_artist_names = std::collections::HashSet::new();
+
+        for song in &songs {
+            if let Some(artists) = &song.artists {
+                for artist_name in artists {
+                    song_artist_names.insert(artist_name.clone());
+                    artist_map
+                        .entry(artist_name.clone())
+                        .or_default()
+                        .push(song.clone());
+                }
+            } else {
+                // Handle songs with no artist
+                artist_map
+                    .entry("Unknown Artist".to_string())
+                    .or_default()
+                    .push(song.clone());
+            }
+        }
+        // Debug: Log all artist names from songs
+        println!(
+            "DEBUG: Found {} unique artists in songs",
+            song_artist_names.len()
+        );
+        for artist_name in &song_artist_names {
+            println!("DEBUG: Song Artist: '{}'", artist_name);
+        }
+    }
+
+    // Convert to ArtistWithSongs
+    let mut artists_with_songs: Vec<ArtistWithSongs> = Vec::new();
+
+    for (artist_name, songs) in artist_map {
+        if songs.is_empty() {
+            continue;
+        }
+
+        // Get artist info using case-insensitive lookup
+        let artist_info = artist_name_to_info.get(&artist_name).or_else(|| {
+            // Try case-insensitive lookup
+            let lower_name = artist_name.to_lowercase();
+            artist_name_lower_to_original
+                .get(&lower_name)
+                .and_then(|original_name| artist_name_to_info.get(original_name))
+        });
+
+        // Debug: Log artists without matching info
+        if artist_info.is_none() {
+            println!(
+                "DEBUG: No API match for artist: '{}' (tried case-insensitive)",
+                artist_name
+            );
+        } else {
+            println!(
+                "DEBUG: Found API match for artist: '{}' -> ID: '{}'",
+                artist_name,
+                artist_info.unwrap().id
+            );
+        }
+
+        let artist_with_songs = ArtistWithSongs {
+            id: artist_info.map(|a| a.id.clone()).unwrap_or_default(),
+            name: artist_name,
+            song_count: songs.len() as i32,
+            image_url: artist_info.and_then(|a| a.image_url.clone()),
+            songs,
+        };
+
+        artists_with_songs.push(artist_with_songs);
+    }
+
+    // Sort artists by name
+    artists_with_songs.sort_by(|a, b| a.name.cmp(&b.name));
+
+    Ok(artists_with_songs)
+}
+
+#[tauri::command]
 async fn get_audio_stream_url(
     server_url: String,
     token: String,
     item_id: String,
+    container: Option<String>,
 ) -> Result<String, String> {
-    let stream_url = format!(
-        "{}/Audio/{}/stream.flac?api_key={}",
-        server_url.trim_end_matches('/'),
-        item_id,
-        token
-    );
+    // Only add static=true for formats that support seeking
+    let supports_seeking = match container.as_deref() {
+        Some("flac") | Some("mp3") | Some("aac") | Some("ogg") => true,
+        _ => false, // ALAC and other formats don't work well with static=true
+    };
+
+    let stream_url = if supports_seeking {
+        format!(
+            "{}/Audio/{}/stream.flac?api_key={}&static=true",
+            server_url.trim_end_matches('/'),
+            item_id,
+            token
+        )
+    } else {
+        format!(
+            "{}/Audio/{}/stream.flac?api_key={}",
+            server_url.trim_end_matches('/'),
+            item_id,
+            token
+        )
+    };
+
     Ok(stream_url)
+}
+
+#[tauri::command]
+async fn get_lyrics(artist: String, title: String) -> Result<String, String> {
+    println!(
+        "[get_lyrics] Searching for artist: '{}', title: '{}'",
+        artist, title
+    );
+    let client = reqwest::Client::new();
+    let search_url = "https://lrclib.net/api/search";
+
+    let response = client
+        .get(search_url)
+        .query(&[("artist_name", &artist), ("track_name", &title)])
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    let status = response.status();
+    println!("[get_lyrics] API response status: {}", status);
+
+    if !status.is_success() {
+        let error_body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Could not read error body".to_string());
+        println!("[get_lyrics] API error body: {}", error_body);
+        return Err(format!("Failed to search for lyrics: HTTP {}", status));
+    }
+
+    // Read the full response text for logging
+    let response_text = response.text().await.map_err(|e| {
+        let err_msg = format!("Failed to read response body: {}", e);
+        println!("[get_lyrics] {}", err_msg);
+        err_msg
+    })?;
+
+    println!("[get_lyrics] API response body: {}", response_text);
+
+    // Try to parse it
+    let search_results: Vec<LrcLibTrackResponse> =
+        serde_json::from_str(&response_text).map_err(|e| {
+            let err_msg = format!("Failed to parse search results: {}", e);
+            println!("[get_lyrics] {}", err_msg);
+            err_msg
+        })?;
+
+    println!(
+        "[get_lyrics] Found {} search results.",
+        search_results.len()
+    );
+
+    if search_results.is_empty() {
+        println!("[get_lyrics] No lyrics found for '{}'", title);
+        return Err("No lyrics found".to_string());
+    }
+
+    // Log all found lyrics, as requested by the user.
+    for (i, track) in search_results.iter().enumerate() {
+        println!("[get_lyrics] Result {}: {:?}", i, track);
+        if let Some(lyrics) = &track.synced_lyrics {
+            println!("[get_lyrics] Result {} has synced lyrics.", i);
+            println!("[get_lyrics] Synced Lyrics (result {}): \n{}", i, lyrics);
+        }
+        if let Some(lyrics) = &track.plain_lyrics {
+            println!("[get_lyrics] Result {} has plain lyrics.", i);
+            println!("[get_lyrics] Plain Lyrics (result {}): \n{}", i, lyrics);
+        }
+    }
+
+    // The original logic only took the first result. I will keep it that way.
+    if let Some(track) = search_results.into_iter().next() {
+        if let Some(lyrics) = track.synced_lyrics.or(track.plain_lyrics) {
+            println!(
+                "[get_lyrics] Returning lyrics from the first result for '{}'",
+                title
+            );
+            return Ok(lyrics);
+        }
+    }
+
+    println!(
+        "[get_lyrics] No lyrics found in any results for '{}'",
+        title
+    );
+    Err("No lyrics found".to_string())
 }
 
 #[tauri::command]
@@ -425,6 +802,17 @@ fn get_saved_volume() -> Result<Option<f64>, String> {
     let volume: f64 =
         serde_json::from_str(&json).map_err(|e| format!("Failed to parse volume: {}", e))?;
     Ok(Some(volume))
+}
+
+#[tauri::command]
+fn clear_music_cache() -> Result<(), String> {
+    println!("DEBUG: Starting cache clear...");
+    let result = db::clear_music_cache();
+    match &result {
+        Ok(_) => println!("DEBUG: Cache cleared successfully"),
+        Err(e) => println!("DEBUG: Cache clear failed: {}", e),
+    }
+    result
 }
 
 #[tauri::command]
@@ -480,20 +868,28 @@ fn get_app_data_dir() -> Result<PathBuf, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize the database
+    if let Err(e) = db::initialize_database() {
+        // Handle error appropriately, maybe log it
+        eprintln!("Failed to initialize database: {}", e);
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
-            greet,
             login_to_jellyfin,
             save_credentials,
             get_saved_credentials,
             get_music_library,
             get_all_artists,
             get_artist_details,
+            get_albums_with_songs,
+            get_artists_with_songs,
             get_audio_stream_url,
             save_volume,
             get_saved_volume,
-            toggle_favorite_status
+            toggle_favorite_status,
+            clear_music_cache,
+            get_lyrics
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

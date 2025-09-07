@@ -1,56 +1,28 @@
 <script setup lang="ts">
   import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MusicItem, AlbumInfo, AlbumWithSongs } from '@/types'
+  import { MusicItem, AlbumWithSongs } from '@/types'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Play } from 'lucide-vue-next'
   import Fuse from 'fuse.js'
-  import { useImageCache } from '@/composables/useImageCache'
+  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
 
   const router = useRouter()
 
   const props = defineProps<{
-    songs:  MusicItem[]
-    albums: AlbumInfo[]
+    albums: AlbumWithSongs[]
   }>()
 
   const emit = defineEmits<{
     'play-songs':   [songs: MusicItem[]]
-    'select-album': [album: AlbumInfo]
+    'select-album': [album: AlbumWithSongs]
   }>()
 
   const searchQuery = ref('')
 
-  // Compute albums with songs
-  const albumsWithSongs = computed((): AlbumWithSongs[] => {
-    const albumMap = new Map<string, AlbumWithSongs>()
-
-    props.songs.forEach(song => {
-      const albumName = song.album || 'Unknown Album'
-      const primaryArtistName = song.artists?.[0] || 'Unknown Artist'
-      const primaryArtistId = song.artistIds?.[0]
-
-      if (!albumMap.has(albumName)) {
-        albumMap.set(albumName, {
-          name:        albumName,
-          artist:      primaryArtistName,
-          artistId:    primaryArtistId,
-          songCount:   0,
-          albumArtUrl: song.albumArtUrl,
-          songs:       [],
-        })
-      }
-      const album = albumMap.get(albumName)
-      if (album) {
-        album.songs.push(song)
-        album.songCount++
-      }
-    })
-
-    return Array.from(albumMap.values())
-      .sort((a, b) => a.name.localeCompare(b.name))
-  })
+  // Use albums directly from props
+  const albumsWithSongs = computed(() => props.albums)
 
   // Fuzzy search setup (Fuse.js)
   const albumsFuse = ref(new Fuse(albumsWithSongs.value, {
@@ -72,20 +44,9 @@
     return albumsFuse.value.search(searchQuery.value).map(result => result.item)
   })
 
-  const albumArtUrls = computed(() => {
-    return filteredAlbums.value
-      .map(album => album.albumArtUrl)
-      .filter(url => !!url) as string[]
-  })
-
-  const { cachedUrls } = useImageCache(() => albumArtUrls.value)
-
   const playAlbum = (album: AlbumWithSongs) => {
-    const albumSongs = album.songs
-      .sort((a: MusicItem, b: MusicItem) => (a.trackNumber || 0) - (b.trackNumber || 0))
-
-    if (albumSongs.length > 0) {
-      emit('play-songs', albumSongs)
+    if (album.songs.length > 0) {
+      emit('play-songs', album.songs)
     }
   }
 
@@ -102,7 +63,7 @@
       </h1>
       <Input
         v-model='searchQuery'
-        class='max-w-sm'
+        class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
         placeholder='Search albums...'
         type='text'
       />
@@ -119,21 +80,18 @@
           <img
             v-if='album.albumArtUrl'
             :alt='`${album.name} album art`'
-            :src='cachedUrls[album.albumArtUrl] || album.albumArtUrl'
+            :src='album.albumArtUrl'
             class='
               w-full aspect-square rounded-lg object-cover shadow-lg
               group-hover:opacity-75 transition-opacity
             '
           >
-          <div
+          <ImagePlaceholder
             v-else
-            class='
-              w-full aspect-square bg-muted rounded-lg flex items-center
-              justify-center shadow-lg group-hover:opacity-75 transition-opacity
-            '
-          >
-            <span class='text-4xl'>💿</span>
-          </div>
+            class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+            size='large'
+            type='album'
+          />
 
           <!-- Play button overlay -->
           <div

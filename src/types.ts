@@ -13,9 +13,16 @@ export interface MusicItem {
   isFavorite?:   boolean
   artistArtUrl?: string
   trackNumber?:  number
+  container?:    string
   genres?:       string[]
   premiereDate?: string
   datePlayed?:   string
+  albumArtists?: NameIdPair[]
+}
+
+export interface NameIdPair {
+  Name: string
+  Id:   string
 }
 
 export interface ArtistInfo {
@@ -45,4 +52,12 @@ export interface ArtistSummary {
 
 export interface AlbumWithSongs extends AlbumInfo {
   songs: MusicItem[]
+}
+
+export interface ArtistWithSongs {
+  id:        string
+  name:      string
+  songCount: number
+  imageUrl?: string
+  songs:     MusicItem[]
 }

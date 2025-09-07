@@ -1,47 +1,47 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Home from '@/components/Home.vue'
-import MusicLibrary from '@/components/MusicLibrary.vue'
-import Artists from '@/components/Artists.vue'
-import Albums from '@/components/Albums.vue'
-import Settings from '@/components/Settings.vue'
-import ArtistDetail from '@/components/ArtistDetail.vue'
-import AlbumDetail from '@/components/AlbumDetail.vue'
+import HomeView from '@/views/HomeView.vue'
+import MusicLibraryView from '@/views/MusicLibraryView.vue'
+import ArtistsView from '@/views/ArtistsView.vue'
+import AlbumsView from '@/views/AlbumsView.vue'
+import SettingsView from '@/views/SettingsView.vue'
+import ArtistDetailView from '@/views/ArtistDetailView.vue'
+import AlbumDetailView from '@/views/AlbumDetailView.vue'
 
 const routes = [
   {
     path:      '/',
     name:      'home',
-    component: Home,
+    component: HomeView,
   },
   {
     path:      '/songs',
     name:      'songs',
-    component: MusicLibrary,
+    component: MusicLibraryView,
   },
   {
     path:      '/songs/artist/:artistId',
     name:      'artist-detail',
-    component: ArtistDetail,
+    component: ArtistDetailView,
   },
   {
     path:      '/songs/album/:albumName',
     name:      'album-detail',
-    component: AlbumDetail,
+    component: AlbumDetailView,
   },
   {
     path:      '/artists',
     name:      'artists',
-    component: Artists,
+    component: ArtistsView,
   },
   {
     path:      '/albums',
     name:      'albums',
-    component: Albums,
+    component: AlbumsView,
   },
   {
     path:      '/settings',
     name:      'settings',
-    component: Settings,
+    component: SettingsView,
   },
 ]
 

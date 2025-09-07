@@ -35,6 +35,13 @@
     emit('global-search', globalSearchQuery.value)
   }
 
+  const handleSearchFocus = () => {
+    // If there's already a query and we're focusing back on the input, show results
+    if (globalSearchQuery.value.trim()) {
+      emit('global-search', globalSearchQuery.value)
+    }
+  }
+
   const clearSearch = () => {
     globalSearchQuery.value = ''
     emit('global-search', '')
@@ -59,7 +66,7 @@
 
 <template>
   <header
-    class='bg-gray-300 dark:bg-black flex-shrink-0 h-12 z-50 grid grid-cols-3 items-center'
+    class='bg-sidebar flex-shrink-0 h-12 z-50 grid grid-cols-3 items-center'
     data-tauri-drag-region
   >
     <!-- Left Controls -->
@@ -77,11 +84,16 @@
     <!-- Global Search -->
     <div class='flex items-center justify-center h-full' data-tauri-drag-region>
       <div class='relative w-96'>
-        <Search class='absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-white/60' />
+        <Search class='absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-foreground/60' />
         <Input
+          @focus='handleSearchFocus'
           @input='handleGlobalSearch'
           v-model='globalSearchQuery'
-          class='pl-8 h-9 bg-transparent border-0 text-white placeholder:text-white/60 focus-visible:ring-1 w-full'
+          class='
+            pl-8 h-9 bg-transparent border-0 text-foreground
+            placeholder:text-muted-foreground focus-visible:ring-1
+            focus-visible:ring-accent w-full
+          '
           placeholder='Search music...'
         />
       </div>
@@ -111,8 +123,8 @@
         <div
           @click='minimizeWindow'
           class='
-            cursor-default rounded-none bg-transparent text-black/90
-            hover:bg-black/[.05] active:bg-black/[.03] dark:text-white
+            cursor-default rounded-none bg-transparent text-foreground
+            hover:bg-black/[.05] active:bg-black/[.03]
             dark:hover:bg-white/[.06] dark:active:bg-white/[.04] inline-flex
             justify-center items-center w-[46px] h-full
           '
@@ -134,8 +146,8 @@
         <div
           @click='toggleMaximizeWindow'
           class='
-            cursor-default rounded-none bg-transparent text-black/90
-            hover:bg-black/[.05] active:bg-black/[.03] dark:text-white
+            cursor-default rounded-none bg-transparent text-foreground
+            hover:bg-black/[.05] active:bg-black/[.03]
             dark:hover:bg-white/[.06] dark:active:bg-white/[.04] inline-flex
             justify-center items-center w-[46px] h-full
           '
@@ -172,10 +184,10 @@
         <div
           @click='closeWindow'
           class='
-            cursor-default rounded-none bg-transparent text-black/90
-            hover:bg-[#c42b1c] hover:text-white active:bg-[#c42b1c]/90
-            dark:text-white inline-flex justify-center items-center w-[46px]
-            h-full
+            cursor-default rounded-none bg-transparent text-foreground
+            hover:bg-accent hover:text-accent-foreground
+            active:bg-accent/90 active:text-accent-foreground
+            inline-flex justify-center items-center w-[46px] h-full
           '
         >
           <svg

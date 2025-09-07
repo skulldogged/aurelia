@@ -1,9 +1,8 @@
 <script setup lang="ts">
   import { computed } from 'vue'
   import { useRoute } from 'vue-router'
-  import SongList from './SongList.vue'
+  import SongList from '@/components/shared/SongList.vue'
   import { MusicItem, AlbumInfo } from '@/types'
-  import { useImageCache } from '@/composables/useImageCache'
 
   const props = defineProps<{
     albums:      AlbumInfo[]
@@ -20,16 +19,6 @@
   const route = useRoute()
   const albumName = computed(() => decodeURIComponent(route.params.albumName as string))
   const album = computed(() => props.albums.find(a => a.name === albumName.value))
-
-  const imageUrls = computed(() => {
-    const urls = new Set<string>()
-    if (album.value && album.value.albumArtUrl) {
-      urls.add(album.value.albumArtUrl)
-    }
-    return Array.from(urls)
-  })
-
-  const { cachedUrls } = useImageCache(() => imageUrls.value)
 
   const albumSongs = computed(() => {
     if (!album.value) return []
@@ -70,16 +59,16 @@
     <div class='flex items-center space-x-6'>
       <img
         v-if='album.albumArtUrl'
-        :src='cachedUrls[album.albumArtUrl] || album.albumArtUrl'
+        :src='album.albumArtUrl'
         alt='Album art'
         class='w-32 h-32 rounded-md'
       >
       <div v-else class='w-32 h-32 rounded-md bg-muted flex-shrink-0' />
       <div>
-        <h1 class='text-5xl font-bold text-foreground'>
+        <h1 class='text-5xl font-bold text-foreground select-text'>
           {{ album.name }}
         </h1>
-        <p class='text-2xl text-muted-foreground mt-2'>
+        <p class='text-2xl text-muted-foreground mt-2 select-text'>
           {{ displayedArtist }}
         </p>
       </div>

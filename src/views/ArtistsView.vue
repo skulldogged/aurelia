@@ -1,26 +1,19 @@
 <script setup lang="ts">
   import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MusicItem, ArtistSummary } from '@/types'
+  import { MusicItem, ArtistWithSongs } from '@/types'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Shuffle } from 'lucide-vue-next'
   import Fuse from 'fuse.js'
-  import { useImageCache } from '@/composables/useImageCache'
-
-  interface ArtistWithSongs {
-    id:        string
-    name:      string
-    songCount: number
-    imageUrl?: string
-    songs:     MusicItem[]
-  }
+  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
 
   const router = useRouter()
+  const showAllArtists = ref(false)
 
   const props = defineProps<{
-    songs:   MusicItem[]
-    artists: ArtistSummary[]
+    artists:      ArtistWithSongs[]
+    albumArtists: ArtistWithSongs[]
   }>()
 
   const emit = defineEmits<{
@@ -30,48 +23,10 @@
   }>()
 
   const searchQuery = ref('')
+  const artistsToDisplay = computed(() => showAllArtists.value ? props.artists : props.albumArtists || [])
 
-  // Compute artists from songs with additional metadata
-  const artistsWithSongs = computed((): ArtistWithSongs[] => {
-    const artistMap = new Map<string, ArtistWithSongs>()
-
-    props.songs.forEach(song => {
-      if (!song.artists || song.artists.length === 0) {
-        const unknown = 'Unknown Artist'
-        if (!artistMap.has(unknown)) {
-          artistMap.set(unknown, {
-            id:        '',
-            name:      unknown,
-            songCount: 0,
-            imageUrl:  undefined,
-            songs:     [],
-          })
-        }
-        artistMap.get(unknown)!.songs.push(song)
-        artistMap.get(unknown)!.songCount++
-        return
-      }
-
-      song.artists.forEach(artistName => {
-        const artistInfo = props.artists.find(a => a.name === artistName)
-        if (!artistMap.has(artistName)) {
-          artistMap.set(artistName, {
-            id:        artistInfo?.id || '',
-            name:      artistName,
-            songCount: 0,
-            imageUrl:  artistInfo?.imageUrl,
-            songs:     [],
-          })
-        }
-        artistMap.get(artistName)!.songs.push(song)
-        artistMap.get(artistName)!.songCount++
-      })
-    })
-
-    return Array.from(artistMap.values())
-      .filter(artist => artist.songCount > 0)
-      .sort((a, b) => a.name.localeCompare(b.name))
-  })
+  // Use artists directly from props
+  const artistsWithSongs = computed(() => artistsToDisplay.value)
 
   // Fuzzy search setup (Fuse.js)
   const artistsFuse = ref(new Fuse(artistsWithSongs.value, {
@@ -90,14 +45,6 @@
     return artistsFuse.value.search(searchQuery.value).map(result => result.item)
   })
 
-  const artistImageUrls = computed(() => {
-    return filteredArtists.value
-      .map(artist => artist.imageUrl)
-      .filter(url => !!url) as string[]
-  })
-
-  const { cachedUrls } = useImageCache(() => artistImageUrls.value)
-
   const playArtistShuffle = (artist: ArtistWithSongs) => {
     const artistSongs = artist.songs
     if (artistSongs.length > 0) {
@@ -115,16 +62,21 @@
 
 <template>
   <div class='p-8 max-w-7xl mx-auto'>
-    <div class='mb-8'>
-      <h1 class='text-4xl font-bold mb-4'>
-        Artists
-      </h1>
-      <Input
-        v-model='searchQuery'
-        class='max-w-sm'
-        placeholder='Search artists...'
-        type='text'
-      />
+    <div class='mb-8 flex justify-between items-center'>
+      <div>
+        <h1 class='text-4xl font-bold mb-4'>
+          Artists
+        </h1>
+        <Input
+          v-model='searchQuery'
+          class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
+          placeholder='Search artists...'
+          type='text'
+        />
+      </div>
+      <Button @click='showAllArtists = !showAllArtists'>
+        {{ showAllArtists ? "Show Album Artists" : "Show All Artists" }}
+      </Button>
     </div>
 
     <div class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
@@ -138,18 +90,15 @@
           <img
             v-if='artist.imageUrl'
             :alt='`${artist.name} artist image`'
-            :src='cachedUrls[artist.imageUrl] || artist.imageUrl'
+            :src='artist.imageUrl'
             class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
           >
-          <div
+          <ImagePlaceholder
             v-else
-            class='
-              w-full aspect-square bg-muted rounded-lg flex items-center
-              justify-center shadow-lg group-hover:opacity-75 transition-opacity
-            '
-          >
-            <span class='text-4xl'>🎤</span>
-          </div>
+            class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+            size='large'
+            type='artist'
+          />
 
           <!-- Play button overlay -->
           <div
@@ -183,7 +132,7 @@
       </div>
     </div>
 
-    <div v-if='filteredArtists.length === 0' class='text-center py-12'>
+    <div v-if='filteredArtists && filteredArtists.length === 0' class='text-center py-12'>
       <p class='text-muted-foreground'>
         No artists found
       </p>

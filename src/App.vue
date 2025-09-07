@@ -1,14 +1,18 @@
 <script setup lang="ts">
-  import { ref, onMounted, watch, onUnmounted, computed } from 'vue'
+  import { ref, onMounted, watch, onUnmounted } from 'vue'
   import { useColorMode } from '@vueuse/core'
   import { useRouter, useRoute } from 'vue-router'
-  import Login from './components/Login.vue'
-  import MusicPlayer from './components/MusicPlayer.vue'
-  import Queue from './components/Queue.vue'
-  import MainLayout from './components/MainLayout.vue'
+  import Login from './views/LoginView.vue'
+  import MusicPlayer from './components/player/MusicPlayer.vue'
+  import Queue from './components/player/Queue.vue'
+  import MainLayout from './components/layout/MainLayout.vue'
   import { invoke } from '@tauri-apps/api/core'
-  import { MusicItem, AlbumInfo, ArtistInfo } from './types'
-  import SearchResults from '@/components/SearchResults.vue'
+  import { MusicItem, ArtistInfo, AlbumWithSongs, ArtistWithSongs } from './types'
+  import { useAccentColor } from '@/composables/useAccentColor'
+  import { useTheme } from '@/composables/useTheme'
+  import SearchResults from '@/views/SearchResultsView.vue'
+  import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
+  import { usePlayerState } from './composables/usePlayerState'
 
   // Define your interfaces here, or move them to a types.ts file
   // For brevity, I'll assume they are defined.
@@ -27,53 +31,33 @@
   }
 
   useColorMode()
+  useTheme()
+  useAccentColor()
 
   // Router setup
   const router = useRouter()
   const route = useRoute()
 
   // App state
-  const isLoggedIn = ref(false)
+  const authStatus = ref<'pending' | 'loggedIn' | 'loggedOut'>('pending')
   const credentials = ref<Credentials | null>(null)
   const currentSong = ref<MusicItem | null>(null)
   const playlist = ref<MusicItem[]>([])
   const volume = ref(0.5)
   const isQueueOpen = ref(false)
   const allSongs = ref<MusicItem[]>([])
-  const allAlbums = ref<AlbumInfo[]>([])
+  const allAlbums = ref<AlbumWithSongs[]>([])
   const allArtists = ref<ArtistInfo[]>([])
+  const allArtistsWithSongs = ref<ArtistWithSongs[]>([])
+  const albumArtistsWithSongs = ref<ArtistWithSongs[]>([])
   const libraryLoading = ref(false)
   const libraryError = ref('')
   const searchQuery = ref('')
   const isSearchVisible = ref(false)
+  const isFullScreenPlayerOpen = ref(false)
+  const musicPlayerRef = ref<InstanceType<typeof MusicPlayer> | null>(null)
 
-  const allArtistSummaries = computed(() => {
-    const artistMap = new Map<string, ArtistSummary>()
-    const allArtistsMap = new Map<string, ArtistInfo>(allArtists.value.map(a => [a.Name, a]))
-
-    allSongs.value.forEach(song => {
-      if (!song.artists || song.artists.length === 0) {
-        const unknown = 'Unknown Artist'
-        if (!artistMap.has(unknown))
-          artistMap.set(unknown, { id: '', name: unknown, songCount: 0, imageUrl: undefined })
-        artistMap.get(unknown)!.songCount++
-        return
-      }
-      song.artists.forEach(artistName => {
-        const artistInfo = allArtistsMap.get(artistName)
-        if (!artistMap.has(artistName)) {
-          artistMap.set(artistName, {
-            id:        artistInfo?.Id || '',
-            name:      artistName,
-            songCount: 0,
-            imageUrl:  artistInfo?.imageUrl,
-          })
-        }
-        artistMap.get(artistName)!.songCount++
-      })
-    })
-    return Array.from(artistMap.values()).filter(a => a.songCount > 0).sort((a, b) => a.name.localeCompare(b.name))
-  })
+  const playerState = usePlayerState()
 
   // Current view from route
   const currentView = ref('home')
@@ -139,56 +123,52 @@
     router.push(`/songs/artist/${artist.id}`)
   }
 
-  const handleSelectAlbum = (album: AlbumInfo) => {
+  const handleSelectAlbum = (album: AlbumWithSongs) => {
     router.push(`/songs/album/${encodeURIComponent(album.name)}`)
   }
 
   const loadLibrary = async () => {
-    if (!credentials.value) return
+    console.log('DEBUG: loadLibrary called')
+    if (!credentials.value) {
+      console.log('DEBUG: No credentials, skipping loadLibrary')
+      return
+    }
     libraryLoading.value = true
     libraryError.value = ''
     try {
-      const [songs, artists] = await Promise.all([
-        invoke<MusicItem[]>('get_music_library', {
+      console.log('DEBUG: Fetching songs...')
+      const songs = await invoke<MusicItem[]>('get_music_library', {
+        serverUrl: credentials.value.serverUrl,
+        token:     credentials.value.token,
+      })
+      console.log(`DEBUG: Loaded ${songs.length} songs`)
+      allSongs.value = songs
+
+      // Since the other data is derived from songs, let's get them with the new commands
+      console.log('DEBUG: Fetching albums and artists...')
+      const [albums, artistsWithSongs, albumArtists] = await Promise.all([
+        invoke<AlbumWithSongs[]>('get_albums_with_songs', {
           serverUrl: credentials.value.serverUrl,
           token:     credentials.value.token,
         }),
-        invoke<ArtistInfo[]>('get_all_artists', {
-          serverUrl: credentials.value.serverUrl,
-          token:     credentials.value.token,
+        invoke<ArtistWithSongs[]>('get_artists_with_songs', {
+          serverUrl:        credentials.value.serverUrl,
+          token:            credentials.value.token,
+          albumArtistsOnly: false,
+        }),
+        invoke<ArtistWithSongs[]>('get_artists_with_songs', {
+          serverUrl:        credentials.value.serverUrl,
+          token:            credentials.value.token,
+          albumArtistsOnly: true,
         }),
       ])
-      allSongs.value = songs
-      allArtists.value = artists
-
-      // Compute albums from songs
-      const albumMap = new Map<string, AlbumInfo>()
-      songs.forEach(song => {
-        const albumName = song.album || 'Unknown Album'
-        // Find the primary artist ID from the song
-        const primaryArtistId = song.artistIds?.[0]
-        // Find the primary artist name from the song
-        const primaryArtistName = song.artists?.[0] || 'Unknown Artist'
-        // Find the corresponding artist object to get the ID
-        const artistInfo = primaryArtistId ? allArtists.value.find(a => a.Id === primaryArtistId) : null
-
-        if (!albumMap.has(albumName)) {
-          albumMap.set(albumName, {
-            name:        albumName,
-            artist:      primaryArtistName,
-            // Add artistId to AlbumInfo
-            artistId:    artistInfo?.Id,
-            songCount:   0,
-            albumArtUrl: song.albumArtUrl,
-          })
-        }
-        const album = albumMap.get(albumName)
-        if (album)
-          album.songCount++
-      })
-      allAlbums.value = Array.from(albumMap.values()).sort((a, b) => a.name.localeCompare(b.name))
-
+      console.log(`DEBUG: Loaded ${albums.length} albums and ${artistsWithSongs.length} artists with songs`)
+      allAlbums.value = albums
+      allArtistsWithSongs.value = artistsWithSongs
+      albumArtistsWithSongs.value = albumArtists
+      console.log('DEBUG: Library load completed successfully')
     } catch (err) {
+      console.error('DEBUG: Library load failed:', err)
       libraryError.value = err as string
     } finally {
       libraryLoading.value = false
@@ -208,14 +188,19 @@
       .then(saved => {
         if (saved && saved.token) {
           credentials.value = saved
-          isLoggedIn.value = true
+          authStatus.value = 'loggedIn'
+        } else {
+          authStatus.value = 'loggedOut'
         }
       })
-      .catch(err => console.error('Failed to get saved credentials:', err))
+      .catch(err => {
+        console.error('Failed to get saved credentials:', err)
+        authStatus.value = 'loggedOut'
+      })
   })
 
-  watch(isLoggedIn, (loggedIn: boolean) => {
-    if (loggedIn)
+  watch(authStatus, (status: string) => {
+    if (status === 'loggedIn')
       loadLibrary()
   })
 
@@ -226,19 +211,21 @@
   // Handle login success
   const handleLogin = async (loginCredentials: Credentials) => {
     credentials.value = loginCredentials
-    isLoggedIn.value = true
+    authStatus.value = 'loggedIn'
     await loadLibrary()
   }
 
   // Handle logout
   const handleLogout = () => {
     credentials.value = null
-    isLoggedIn.value = false
+    authStatus.value = 'loggedOut'
     currentSong.value = null
     playlist.value = []
     allSongs.value = []
     allAlbums.value = []
     allArtists.value = []
+    allArtistsWithSongs.value = []
+    albumArtistsWithSongs.value = []
     currentView.value = 'home'
   }
 
@@ -275,6 +262,17 @@
     isQueueOpen.value = !isQueueOpen.value
   }
 
+  const handleToggleFullScreenPlayer = () => {
+    isFullScreenPlayerOpen.value = !isFullScreenPlayerOpen.value
+  }
+
+  const handleTogglePlayPause = () => musicPlayerRef.value?.togglePlayPause()
+  const handlePreviousSong = () => musicPlayerRef.value?.previousSong()
+  const handleNextSong = () => musicPlayerRef.value?.nextSong()
+  const handleToggleShuffle = () => musicPlayerRef.value?.toggleShuffle()
+  const handleToggleRepeat = () => musicPlayerRef.value?.toggleRepeat()
+  const handleSeek = (value: number[]) => musicPlayerRef.value?.onSeek(value)
+
   // Handle song change from player
   const handleSongChanged = (song: MusicItem) => {
     currentSong.value = song
@@ -307,11 +305,24 @@
       })
   }
 
+  const handleClearCache = async () => {
+    console.log('DEBUG: Starting cache clear from UI...')
+    try {
+      await invoke('clear_music_cache')
+      console.log('DEBUG: Cache clear command completed, now loading library...')
+      await loadLibrary()
+      console.log('DEBUG: Library reload completed')
+    } catch (err) {
+      console.error('Failed to clear cache:', err)
+    }
+  }
+
 </script>
 
 <template>
   <div id='app' class='h-screen bg-background text-foreground'>
-    <Login @login='handleLogin' v-if='!isLoggedIn' />
+    <div v-if="authStatus === 'pending'" class='h-full w-full' />
+    <Login @login='handleLogin' v-else-if="authStatus === 'loggedOut'" />
     <MainLayout
       @global-search='handleGlobalSearch'
       @logout='handleLogout'
@@ -324,27 +335,32 @@
       :current-view='currentView'
     >
       <router-view v-slot='{ Component }'>
-        <component
-          :is='Component'
-          @logout='handleLogout'
-          @play-song='handlePlaySong'
-          @play-songs='handlePlaySongs'
-          @reload-library='loadLibrary'
-          @select-album='handleSelectAlbum'
-          @select-artist='handleSelectArtist'
-          @toggle-favorite='handleToggleFavorite'
-          :albums='allAlbums'
-          :artists='allArtistSummaries'
-          :credentials='credentials'
-          :current-song='currentSong'
-          :error='libraryError'
-          :is-playing='!!currentSong'
-          :loading='libraryLoading'
-          :server-url='credentials?.serverUrl'
-          :songs='allSongs'
-          :token='credentials?.token'
-          :user-id='credentials?.userId'
-        />
+        <transition mode='out-in' name='page-fade'>
+          <component
+            :is='Component'
+            @clear-cache='handleClearCache'
+            @logout='handleLogout'
+            @play-song='handlePlaySong'
+            @play-songs='handlePlaySongs'
+            @reload-library='loadLibrary'
+            @select-album='handleSelectAlbum'
+            @select-artist='handleSelectArtist'
+            @toggle-favorite='handleToggleFavorite'
+            :key='$route.path'
+            :album-artists='albumArtistsWithSongs'
+            :albums='allAlbums'
+            :artists='allArtistsWithSongs'
+            :credentials='credentials'
+            :current-song='currentSong'
+            :error='libraryError'
+            :is-playing='!!currentSong'
+            :loading='libraryLoading'
+            :server-url='credentials?.serverUrl'
+            :songs='allSongs'
+            :token='credentials?.token'
+            :user-id='credentials?.userId'
+          />
+        </transition>
       </router-view>
 
       <template #search-results='{ onResultClick }'>
@@ -363,11 +379,13 @@
       <template #player>
         <MusicPlayer
           @song-changed='handleSongChanged'
+          @toggle-fullscreen='handleToggleFullScreenPlayer'
           @toggle-queue='handleToggleQueue'
           @update-current-song='handleUpdateCurrentSong'
           @volume-changed='handleVolumeChange'
           v-if='currentSong'
           :key='currentSong.id'
+          ref='musicPlayerRef'
           :current-song='currentSong'
           :playlist='playlist'
           :server-url='credentials!.serverUrl'
@@ -384,5 +402,25 @@
         />
       </template>
     </MainLayout>
+
+    <FullscreenPlayer
+      @close='handleToggleFullScreenPlayer'
+      @next-song='handleNextSong'
+      @previous-song='handlePreviousSong'
+      @seek='handleSeek'
+      @toggle-play-pause='handleTogglePlayPause'
+      @toggle-repeat='handleToggleRepeat'
+      @toggle-shuffle='handleToggleShuffle'
+      :current-time='playerState.currentTime'
+      :duration='playerState.duration'
+      :has-next='playerState.hasNext'
+      :has-previous='playerState.hasPrevious'
+      :is-playing='playerState.isPlaying'
+      :is-shuffled='playerState.isShuffled'
+      :progress='playerState.progress'
+      :repeat-mode='playerState.repeatMode'
+      :show='isFullScreenPlayerOpen'
+      :song='currentSong'
+    />
   </div>
 </template>

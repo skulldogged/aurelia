@@ -4,7 +4,7 @@
       <div class='flex-shrink-0'>
         <img
           v-if='artist.imageUrl'
-          :src='cachedUrls[artist.imageUrl] || artist.imageUrl'
+          :src='artist.imageUrl'
           alt='Artist art'
           class='w-48 h-48 rounded-lg object-cover'
         >
@@ -108,38 +108,56 @@
                 v-for='album in artistAlbums'
                 @click="$emit('select-album', album)"
                 :key='album.name'
-                class='
-                  bg-card hover:bg-muted/50 rounded-md p-4 cursor-pointer
-                  transition-all group h-full flex flex-col
-                '
+                class='cursor-pointer group'
               >
-                <div class='relative'>
+                <div class='relative mb-4'>
                   <img
                     v-if='album.albumArtUrl'
-                    :src='cachedUrls[album.albumArtUrl] || album.albumArtUrl'
-                    alt='Album art'
-                    class='w-full object-cover rounded-md mb-4 aspect-square'
+                    :alt='`${album.name} album art`'
+                    :src='album.albumArtUrl'
+                    class='
+                      w-full aspect-square rounded-lg object-cover shadow-lg
+                      group-hover:opacity-75 transition-opacity
+                    '
                   >
-                  <div v-else class='w-full rounded-md mb-4 bg-muted aspect-square' />
+                  <ImagePlaceholder
+                    v-else
+                    class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+                    size='large'
+                    type='album'
+                  />
+                  <!-- Play button overlay -->
                   <div
                     class='
-                      absolute inset-0 flex items-center justify-center
-                      transition-opacity opacity-0 group-hover:opacity-100
+                      absolute inset-0 bg-black/50 rounded-lg opacity-0
+                      group-hover:opacity-100 transition-opacity flex items-center
+                      justify-center
                     '
                   >
                     <Button
-                      @click.stop="$emit('play-album', album)"
-                      class='w-12 h-12 rounded-full bg-background/75 text-foreground hover:bg-background'
+                      @click.stop="$emit('play-songs', album.songs)"
+                      class='
+                        bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
+                        border-white/20
+                      '
                       size='icon'
-                      variant='ghost'
                     >
-                      <Play class='w-8 h-8' />
+                      <Play class='h-4 w-4' />
                     </Button>
                   </div>
                 </div>
-                <h3 class='text-foreground font-medium truncate mt-auto'>
-                  {{ album.name }}
-                </h3>
+
+                <div>
+                  <h3 class='font-semibold truncate'>
+                    {{ album.name }}
+                  </h3>
+                  <p class='text-sm text-muted-foreground truncate'>
+                    {{ album.artist }}
+                  </p>
+                  <p class='text-xs text-muted-foreground'>
+                    {{ album.songCount }} songs
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -162,7 +180,7 @@
               <div class='relative mr-4'>
                 <img
                   v-if='song.albumArtUrl'
-                  :src='cachedUrls[song.albumArtUrl] || song.albumArtUrl'
+                  :src='song.albumArtUrl'
                   alt='Album art'
                   class='w-10 h-10 rounded-md'
                 >
@@ -240,7 +258,7 @@
         >
           <img
             v-if='relatedArtist.imageUrl'
-            :src='cachedUrls[relatedArtist.imageUrl] || relatedArtist.imageUrl'
+            :src='relatedArtist.imageUrl'
             alt='Artist art'
             class='w-32 h-32 rounded-full object-cover'
           >
@@ -267,12 +285,12 @@
   import { invoke } from '@tauri-apps/api/core'
   import { Button } from '@/components/ui/button'
   import { Music, ChevronLeft, ChevronRight, Play, Pause, Shuffle, Star, ExternalLink } from 'lucide-vue-next'
-  import { MusicItem, ArtistInfo, AlbumInfo, ArtistSummary } from '@/types'
-  import { useImageCache } from '@/composables/useImageCache'
+  import { MusicItem, ArtistInfo, AlbumWithSongs, ArtistSummary } from '@/types'
+  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
 
   const props = defineProps<{
     songs:       MusicItem[],
-    albums:      AlbumInfo[],
+    albums:      AlbumWithSongs[],
     artists:     ArtistSummary[],
     currentSong: MusicItem | null,
     isPlaying:   boolean,
@@ -283,8 +301,8 @@
 
   const emit = defineEmits<{
     'play-song':           [song: MusicItem],
-    'select-album':        [album: AlbumInfo],
-    'play-album':          [album: AlbumInfo],
+    'select-album':        [album: AlbumWithSongs],
+    'play-songs':          [songs: MusicItem[]],
     'play-artist-shuffle': [artist: ArtistSummary],
     'select-artist':       [artist: ArtistSummary],
   }>()
@@ -309,9 +327,9 @@
     if (!artist.value) return []
     const albumsForArtist = props.albums.filter(album => {
       // We need to find if any song in this album is by the current artist
-      return props.songs.some(song => song.album === album.name && song.artists?.includes(artist.value!.name))
+      return album.songs.some(song => song.artists?.includes(artist.value!.name))
     })
-    // Deduplicate albums
+    // Deduplicate albums by name and return AlbumWithSongs[]
     const uniqueAlbums = Array.from(new Map(albumsForArtist.map(album => [album.name, album])).values())
     return uniqueAlbums
   })
@@ -385,36 +403,6 @@
       }
     })
   })
-
-  const allImageUrls = computed(() => {
-    const urls = new Set<string>()
-
-    if (artist.value && artist.value.imageUrl) {
-      urls.add(artist.value.imageUrl)
-    }
-
-    artistAlbums.value.forEach(album => {
-      if (album.albumArtUrl) {
-        urls.add(album.albumArtUrl)
-      }
-    })
-
-    artistSongs.value.slice(0, 5).forEach(song => {
-      if (song.albumArtUrl) {
-        urls.add(song.albumArtUrl)
-      }
-    })
-
-    relatedArtists.value.forEach(artist => {
-      if (artist.imageUrl) {
-        urls.add(artist.imageUrl)
-      }
-    })
-
-    return Array.from(urls)
-  })
-
-  const { cachedUrls } = useImageCache(() => allImageUrls.value)
 
   const primarySongs = computed(() => {
     return artistSongs.value.filter(song => song.artists?.[0] === artist.value?.name)
