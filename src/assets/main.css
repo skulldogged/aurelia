@@ -143,7 +143,7 @@
 }
 
 .os-scrollbar-handle:hover {
-  background-color: var(--ring) !important;
+  background-color: var(--accent) !important;
 }
 
 /* Page transition animations */

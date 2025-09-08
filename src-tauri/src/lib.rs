@@ -150,6 +150,20 @@ struct ArtistWithSongs {
     songs: Vec<MusicItem>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+struct JellyfinLyrics {
+    #[serde(rename = "Lyrics")]
+    lyrics: Vec<JellyfinLyricLine>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct JellyfinLyricLine {
+    #[serde(rename = "Text")]
+    text: String,
+    #[serde(rename = "Start")]
+    timestamp: Option<i64>,
+}
+
 #[tauri::command]
 async fn login_to_jellyfin(
     server_url: String,
@@ -693,11 +707,80 @@ async fn get_audio_stream_url(
 }
 
 #[tauri::command]
-async fn get_lyrics(artist: String, title: String) -> Result<String, String> {
-    println!(
-        "[get_lyrics] Searching for artist: '{}', title: '{}'",
-        artist, title
-    );
+async fn get_lyrics(
+    id: String,
+    artist: String,
+    title: String,
+    _path: Option<String>,
+) -> Result<String, String> {
+    // First, try to get lyrics from Jellyfin API
+    if let Ok(Some(creds)) = get_saved_credentials() {
+        let client = reqwest::Client::new();
+        let lyrics_url = format!(
+            "{}/Audio/{}/Lyrics",
+            creds.server_url.trim_end_matches('/'),
+            id
+        );
+        println!(
+            "[get_lyrics] Attempting to fetch lyrics from Jellyfin API at {}",
+            lyrics_url
+        );
+
+        match client
+            .get(&lyrics_url)
+            .header(
+                "Authorization",
+                format!("MediaBrowser Token=\"{}\"", creds.token),
+            )
+            .send()
+            .await
+        {
+            Ok(response) => {
+                let status = response.status();
+                if status.is_success() {
+                    match response.json::<JellyfinLyrics>().await {
+                        Ok(lyrics_response) => {
+                            println!("[get_lyrics] Lyrics: {:?}", lyrics_response);
+                            if !lyrics_response.lyrics.is_empty() {
+                                let mut lrc_content = String::new();
+                                for line in lyrics_response.lyrics {
+                                    if let Some(timestamp) = line.timestamp {
+                                        let total_seconds = timestamp / 10_000_000;
+                                        let minutes = total_seconds / 60;
+                                        let seconds = total_seconds % 60;
+                                        let milliseconds = (timestamp % 10_000_000) / 10_000;
+                                        lrc_content.push_str(&format!(
+                                            "[{:02}:{:02}.{:03}] {}\n",
+                                            minutes, seconds, milliseconds, line.text
+                                        ));
+                                    } else {
+                                        lrc_content.push_str(&format!("{}\n", line.text));
+                                    }
+                                }
+                                println!("[get_lyrics] Using lyrics from Jellyfin API");
+                                return Ok(lrc_content);
+                            }
+                        }
+                        Err(e) => {
+                            println!(
+                                "[get_lyrics] Failed to parse Jellyfin lyrics response: {}",
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                println!(
+                    "[get_lyrics] Network error when fetching from Jellyfin API: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    // Fallback to lrclib.net
+    println!("[get_lyrics] No lyrics found on Jellyfin server. Fetching from lrclib.net...");
     let client = reqwest::Client::new();
     let search_url = "https://lrclib.net/api/search";
 
@@ -709,14 +792,8 @@ async fn get_lyrics(artist: String, title: String) -> Result<String, String> {
         .map_err(|e| format!("Network error: {}", e))?;
 
     let status = response.status();
-    println!("[get_lyrics] API response status: {}", status);
 
     if !status.is_success() {
-        let error_body = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Could not read error body".to_string());
-        println!("[get_lyrics] API error body: {}", error_body);
         return Err(format!("Failed to search for lyrics: HTTP {}", status));
     }
 
@@ -726,8 +803,6 @@ async fn get_lyrics(artist: String, title: String) -> Result<String, String> {
         println!("[get_lyrics] {}", err_msg);
         err_msg
     })?;
-
-    println!("[get_lyrics] API response body: {}", response_text);
 
     // Try to parse it
     let search_results: Vec<LrcLibTrackResponse> =
@@ -741,24 +816,6 @@ async fn get_lyrics(artist: String, title: String) -> Result<String, String> {
         "[get_lyrics] Found {} search results.",
         search_results.len()
     );
-
-    if search_results.is_empty() {
-        println!("[get_lyrics] No lyrics found for '{}'", title);
-        return Err("No lyrics found".to_string());
-    }
-
-    // Log all found lyrics, as requested by the user.
-    for (i, track) in search_results.iter().enumerate() {
-        println!("[get_lyrics] Result {}: {:?}", i, track);
-        if let Some(lyrics) = &track.synced_lyrics {
-            println!("[get_lyrics] Result {} has synced lyrics.", i);
-            println!("[get_lyrics] Synced Lyrics (result {}): \n{}", i, lyrics);
-        }
-        if let Some(lyrics) = &track.plain_lyrics {
-            println!("[get_lyrics] Result {} has plain lyrics.", i);
-            println!("[get_lyrics] Plain Lyrics (result {}): \n{}", i, lyrics);
-        }
-    }
 
     // The original logic only took the first result. I will keep it that way.
     if let Some(track) = search_results.into_iter().next() {
@@ -823,6 +880,11 @@ async fn toggle_favorite_status(
     item_id: String,
     is_favorite: bool,
 ) -> Result<bool, String> {
+    println!(
+        "[toggle_favorite_status] Item ID: {}, is_favorite: {}",
+        item_id, is_favorite
+    );
+
     let client = reqwest::Client::new();
     let fav_url = format!(
         "{}/Users/{}/FavoriteItems/{}",
@@ -832,17 +894,17 @@ async fn toggle_favorite_status(
     );
 
     let response = if is_favorite {
-        // If it's currently a favorite, we want to unfavorite it
+        // If we want it to be a favorite, POST
         client
-            .delete(&fav_url)
+            .post(&fav_url)
             .header("Authorization", format!("MediaBrowser Token=\"{}\"", token))
             .send()
             .await
             .map_err(|e| format!("Network error: {}", e))?
     } else {
-        // If it's not a favorite, we want to favorite it
+        // If we want it to not be a favorite, DELETE
         client
-            .post(&fav_url)
+            .delete(&fav_url)
             .header("Authorization", format!("MediaBrowser Token=\"{}\"", token))
             .send()
             .await
@@ -856,8 +918,14 @@ async fn toggle_favorite_status(
         ));
     }
 
-    // The API returns the new user data, we can just return the opposite of the previous state
-    Ok(!is_favorite)
+    let response_body = response.text().await.map_err(|e| e.to_string())?;
+    println!(
+        "[toggle_favorite_status] Response from Jellyfin API: {}",
+        response_body
+    );
+
+    // The API returns the new user data, we can just return what we set it to
+    Ok(is_favorite)
 }
 
 fn get_app_data_dir() -> Result<PathBuf, String> {

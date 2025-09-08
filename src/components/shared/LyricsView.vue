@@ -1,5 +1,5 @@
 <template>
-  <div class='h-full flex flex-col'>
+  <div class='h-full w-full flex flex-col'>
     <div
       v-if='isLoading'
       class='flex-grow flex items-center justify-center'
@@ -17,14 +17,17 @@
       ref='lyricsContainerRef'
       class='lyrics-container flex-grow overflow-y-auto'
     >
-      <p
-        v-for='(line, index) in parsedLyrics'
-        :key='line.time + line.text'
-        :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
-        :class="['lyric-line', { 'active': index === currentLineIndex }]"
-      >
-        {{ line.text }}
-      </p>
+      <div class='lyrics-content'>
+        <p
+          v-for='(line, index) in parsedLyrics'
+          @click='handleLineClick(line.time)'
+          :key='line.time + line.text'
+          :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
+          :class="['lyric-line', { 'active': index === currentLineIndex }]"
+        >
+          {{ line.text }}
+        </p>
+      </div>
     </div>
     <div
       v-else-if='lyrics'
@@ -54,6 +57,12 @@
   const props = defineProps<{
     song:        MusicItem | null
     currentTime: number
+    duration:    number
+  }>()
+
+  const emit = defineEmits<{
+    (e: 'seek', time: number): void
+    (e: 'lyrics-loaded', hasLyrics: boolean): void
   }>()
 
   const isLoading = ref(false)
@@ -65,6 +74,11 @@
   const areLyricsSynced = computed(() => {
     return lyrics.value ? /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyrics.value) : false
   })
+  const handleLineClick = (time: number) => {
+    if (props.duration > 0) {
+      emit('seek', time)
+    }
+  }
 
   const parseLrc = (lrc: string): LyricLine[] => {
     const lines = lrc.split('\n')
@@ -95,6 +109,7 @@
       try {
         if (newSong.artists && newSong.artists.length > 0) {
           const fetchedLyrics = await invoke<string>('get_lyrics', {
+            id:     newSong.id,
             artist: newSong.artists[0],
             title:  newSong.name,
           })
@@ -115,6 +130,7 @@
         }
       } finally {
         isLoading.value = false
+        emit('lyrics-loaded', !!lyrics.value)
       }
     }
   }, { immediate: true })
@@ -128,11 +144,20 @@
     if (!areLyricsSynced.value || parsedLyrics.value.length === 0) {
       return -1
     }
-    const index = parsedLyrics.value.findIndex(line => line.time > props.currentTime)
-    if (index === -1) {
-      return parsedLyrics.value.length - 1
+
+    // Find the line closest to the current time
+    let closestIndex = 0
+    let smallestDiff = Math.abs(parsedLyrics.value[0].time - props.currentTime)
+
+    for (let i = 1; i < parsedLyrics.value.length; i++) {
+      const diff = Math.abs(parsedLyrics.value[i].time - props.currentTime)
+      if (diff < smallestDiff) {
+        smallestDiff = diff
+        closestIndex = i
+      }
     }
-    return Math.max(0, index - 1)
+
+    return closestIndex
   })
 
   watch(currentLineIndex, async (newIndex, oldIndex) => {
@@ -144,16 +169,49 @@
       })
     }
   })
+
+  // Watch for when lyrics are loaded and center on the first lyric
+  watch(parsedLyrics, async newLyrics => {
+    if (newLyrics && newLyrics.length > 0 && currentLineIndex.value === -1) {
+      await nextTick()
+      const firstLineRef = getFirstLineRef()
+      if (firstLineRef) {
+        firstLineRef.scrollIntoView({
+          behavior: 'smooth',
+          block:    'center',
+        })
+      }
+    }
+  }, { immediate: true })
+
+  const getFirstLineRef = (): HTMLParagraphElement | null => {
+    const lyricsContainer = document.querySelector('.lyrics-content')
+    if (lyricsContainer) {
+      return lyricsContainer.querySelector('p.lyric-line') as HTMLParagraphElement
+    }
+    return null
+  }
 </script>
 
 <style scoped>
 .lyrics-container {
+  padding: 0 48px;
   text-align: center;
   overflow-x: hidden;
   /* For Firefox */
   scrollbar-width: none;
   /* For IE and Edge */
   -ms-overflow-style: none;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+}
+
+.lyrics-content {
+  padding: 50vh 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* For Chrome, Safari, and Opera */
@@ -165,14 +223,17 @@
   padding: 8px 0;
   transition: all 0.3s ease;
   opacity: 0.5;
-  font-size: 1.1rem;
+  font-size: 2rem;
+  filter: blur(2px);
+  cursor: pointer;
 }
 
 .lyric-line.active {
   opacity: 1;
   font-weight: bold;
-  transform: scale(1.1);
+  transform: scale(1.15);
   color: var(--primary);
+  filter: blur(0);
 }
 
 .prose {

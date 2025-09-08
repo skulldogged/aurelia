@@ -1,5 +1,5 @@
 <template>
-  <div v-if='currentSong' class='bg-sidebar p-2'>
+  <div v-if='currentSong' class='bg-sidebar px-2 py-3'>
     <div class='mx-auto'>
       <div class='grid grid-cols-3 items-center px-2'>
         <!-- Song Info (Left) -->
@@ -64,6 +64,16 @@
         <div class='flex-grow px-4'>
           <div class='flex justify-center'>
             <div class='flex items-center space-x-2'>
+              <!-- Shuffle -->
+              <Button
+                @click='toggleShuffle'
+                size='icon'
+                variant='ghost'
+              >
+                <Shuffle
+                  :class="['w-5 h-5', isShuffled ? 'text-foreground' : 'text-muted-foreground']"
+                />
+              </Button>
               <!-- Previous -->
               <Button
                 @click='previousSong'
@@ -94,6 +104,24 @@
               >
                 <SkipForward class='w-4 h-4' />
               </Button>
+              <!-- Repeat -->
+              <Button
+                @click='toggleRepeat'
+                size='icon'
+                variant='ghost'
+              >
+                <Repeat1
+                  v-if="repeatMode === 'one'"
+                  class='w-5 h-5 text-foreground'
+                />
+                <Repeat
+                  v-else
+                  :class="[
+                    'w-5 h-5',
+                    repeatMode !== 'none' ? 'text-foreground' : 'text-muted-foreground',
+                  ]"
+                />
+              </Button>
             </div>
           </div>
           <!-- Progress Bar -->
@@ -113,37 +141,31 @@
         <!-- Additional Controls (Right) -->
         <div class='flex justify-end'>
           <div class='flex items-center space-x-2'>
+            <!-- Like -->
+            <Button
+              @click="$emit('toggle-favorite', currentSong)"
+              size='icon'
+              variant='ghost'
+            >
+              <Heart
+                :class="[
+                  'w-5 h-5',
+                  currentSong.isFavorite
+                    ? 'text-foreground fill-current'
+                    : 'text-muted-foreground',
+                ]"
+              />
+            </Button>
             <!-- Fullscreen -->
             <Button @click="$emit('toggle-fullscreen')" size='icon' variant='ghost'>
-              <Expand class='w-5 h-5' />
+              <Expand class='w-5 h-5 text-muted-foreground' />
             </Button>
-            <!-- Shuffle -->
-            <Button
-              @click='toggleShuffle'
-              :class="[isShuffled ? 'text-primary' : 'text-muted-foreground']"
-              size='icon'
-              variant='ghost'
-            >
-              <Shuffle class='w-5 h-5' />
-            </Button>
-
-            <!-- Repeat -->
-            <Button
-              @click='toggleRepeat'
-              :class="[repeatMode !== 'none' ? 'text-primary' : 'text-muted-foreground']"
-              size='icon'
-              variant='ghost'
-            >
-              <Repeat1 v-if="repeatMode === 'one'" class='w-5 h-5' />
-              <Repeat v-else class='w-5 h-5' />
-            </Button>
-
             <!-- Volume -->
             <div class='flex items-center space-x-2'>
               <Button @click='toggleMute' size='icon' variant='ghost'>
-                <Volume2 v-if='props.volume > 0.5' class='w-5 h-5' />
-                <Volume1 v-else-if='props.volume > 0' class='w-5 h-5' />
-                <VolumeX v-else class='w-5 h-5' />
+                <Volume2 v-if='props.volume > 0.5' class='w-5 h-5 text-muted-foreground' />
+                <Volume1 v-else-if='props.volume > 0' class='w-5 h-5 text-muted-foreground' />
+                <VolumeX v-else class='w-5 h-5 text-muted-foreground' />
               </Button>
               <Slider
                 @update:model-value='onVolumeInput'
@@ -203,6 +225,7 @@
     Loader2,
     ListMusic,
     Expand,
+    Heart,
   } from 'lucide-vue-next'
   import { Button } from '@/components/ui/button'
   import { Slider } from '@/components/ui/slider'
@@ -218,12 +241,12 @@
   }>()
 
   const emit = defineEmits<{
-    songEnded:           []
     songChanged:         [song: MusicItem]
     updateCurrentSong:   [song: MusicItem | null, isPlaying: boolean]
     volumeChanged:       [volume: number]
     'toggle-queue':      [],
     'toggle-fullscreen': [],
+    'toggle-favorite':   [song: MusicItem],
   }>()
 
   const {
@@ -494,6 +517,10 @@
   // Watch for song changes
   watch(() => props.currentSong, (newSong, oldSong) => {
     if (newSong && newSong.id !== oldSong?.id) {
+      const newIndex = props.playlist.findIndex(s => s.id === newSong.id)
+      if (newIndex !== -1)
+        currentIndex.value = newIndex
+
       if (isGaplessTransition.value) {
         isGaplessTransition.value = false
         if (activePlayer.value) {

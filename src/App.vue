@@ -13,6 +13,7 @@
   import SearchResults from '@/views/SearchResultsView.vue'
   import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
   import { usePlayerState } from './composables/usePlayerState'
+  import WindowControls from '@/components/shared/WindowControls.vue'
 
   // Define your interfaces here, or move them to a types.ts file
   // For brevity, I'll assume they are defined.
@@ -271,7 +272,7 @@
   const handleNextSong = () => musicPlayerRef.value?.nextSong()
   const handleToggleShuffle = () => musicPlayerRef.value?.toggleShuffle()
   const handleToggleRepeat = () => musicPlayerRef.value?.toggleRepeat()
-  const handleSeek = (value: number[]) => musicPlayerRef.value?.onSeek(value)
+  const handleSeek = (value: number) => musicPlayerRef.value?.onSeek([value])
 
   // Handle song change from player
   const handleSongChanged = (song: MusicItem) => {
@@ -285,8 +286,11 @@
 
   // Favorite a song
   const handleToggleFavorite = (song: MusicItem) => {
-    if (!credentials.value)
+    console.log('Toggling favorite for song:', song.name, 'Current status:', song.isFavorite)
+    if (!credentials.value) {
+      console.error('Cannot toggle favorite: no credentials')
       return
+    }
 
     invoke<boolean>('toggle_favorite_status', {
       serverUrl:  credentials.value.serverUrl,
@@ -296,9 +300,15 @@
       isFavorite: !song.isFavorite,
     })
       .then(newStatus => {
+        console.log('Favorite status updated to:', newStatus)
         const songInLibrary = allSongs.value.find(s => s.id === song.id)
         if (songInLibrary)
           songInLibrary.isFavorite = newStatus
+        const songInPlaylist = playlist.value.find(s => s.id === song.id)
+        if (songInPlaylist)
+          songInPlaylist.isFavorite = newStatus
+        if (currentSong.value && currentSong.value.id === song.id)
+          currentSong.value.isFavorite = newStatus
       })
       .catch(err => {
         console.error('Failed to toggle favorite status:', err)
@@ -333,6 +343,8 @@
       :can-go-back='canGoBack'
       :can-go-forward='canGoForward'
       :current-view='currentView'
+      :has-player='!!currentSong'
+      :is-queue-open='isQueueOpen'
     >
       <router-view v-slot='{ Component }'>
         <transition mode='out-in' name='page-fade'>
@@ -376,15 +388,26 @@
         />
       </template>
 
+      <template #queue>
+        <Queue
+          @play-song='handlePlaySong'
+          @remove-song='handleRemoveSong'
+          @update:playlist='handleUpdatePlaylist'
+          v-if='isQueueOpen'
+          :current-song='currentSong'
+          :playlist='playlist'
+        />
+      </template>
+
       <template #player>
         <MusicPlayer
           @song-changed='handleSongChanged'
+          @toggle-favorite='handleToggleFavorite'
           @toggle-fullscreen='handleToggleFullScreenPlayer'
           @toggle-queue='handleToggleQueue'
           @update-current-song='handleUpdateCurrentSong'
           @volume-changed='handleVolumeChange'
           v-if='currentSong'
-          :key='currentSong.id'
           ref='musicPlayerRef'
           :current-song='currentSong'
           :playlist='playlist'
@@ -392,35 +415,33 @@
           :token='credentials!.token'
           :volume='volume'
         />
-        <Queue
-          @play-song='handlePlaySong'
-          @remove-song='handleRemoveSong'
-          @update:playlist='handleUpdatePlaylist'
-          v-model='isQueueOpen'
-          :current-song='currentSong'
-          :playlist='playlist'
-        />
       </template>
     </MainLayout>
 
     <FullscreenPlayer
       @close='handleToggleFullScreenPlayer'
       @next-song='handleNextSong'
+      @play-song='handlePlaySong'
       @previous-song='handlePreviousSong'
+      @remove-song='handleRemoveSong'
       @seek='handleSeek'
       @toggle-play-pause='handleTogglePlayPause'
       @toggle-repeat='handleToggleRepeat'
       @toggle-shuffle='handleToggleShuffle'
+      @update:playlist='handleUpdatePlaylist'
       :current-time='playerState.currentTime'
       :duration='playerState.duration'
       :has-next='playerState.hasNext'
       :has-previous='playerState.hasPrevious'
       :is-playing='playerState.isPlaying'
       :is-shuffled='playerState.isShuffled'
+      :playlist='playlist'
       :progress='playerState.progress'
       :repeat-mode='playerState.repeatMode'
       :show='isFullScreenPlayerOpen'
       :song='currentSong'
     />
+
+    <WindowControls v-if='!isFullScreenPlayerOpen' class='fixed top-0 right-0 z-[100]' />
   </div>
 </template>

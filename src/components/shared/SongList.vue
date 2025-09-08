@@ -22,7 +22,11 @@
     showYear?:        boolean
     showTrackNumber?: boolean
     showDuration?:    boolean
+    showAlbumArt?:    boolean
   }>()
+
+  // Default showAlbumArt to true if not explicitly set
+  const shouldShowAlbumArt = computed(() => props.showAlbumArt !== false)
 
   defineEmits<{
     'play-song':       [song: MusicItem]
@@ -82,8 +86,8 @@
     <Table class='table-fixed w-full'>
       <TableHeader>
         <TableRow>
-          <TableHead class='w-14' />
-          <TableHead class='w-12' />
+          <TableHead v-if='shouldShowAlbumArt' class='w-14' />
+          <TableHead class='w-8' />
           <TableHead v-if='showTrackNumber' class='w-12 text-right'>
             #
           </TableHead>
@@ -107,17 +111,21 @@
         </TableRow>
       </TableHeader>
       <TableBody>
-        <TableRow v-for='(song, index) in pagedSongs' :key='song.id' class='cursor-pointer group'>
-          <TableCell @click="$emit('play-song', song)" class='relative p-2'>
+        <TableRow
+          v-for='(song, index) in pagedSongs'
+          :key='song.id'
+          class='cursor-pointer group hover:bg-sidebar transition-colors'
+        >
+          <TableCell @click="$emit('play-song', song)" v-if='shouldShowAlbumArt' class='relative p-2 group/album-art'>
             <img
               v-if='song.albumArtUrl'
               :src='song.albumArtUrl'
               alt='Album art'
-              class='w-10 h-10 rounded-md'
+              class='w-10 h-10 rounded-md group-hover/album-art:opacity-75 transition-opacity'
             >
             <ImagePlaceholder
               v-else
-              class='w-10 h-10 rounded-md'
+              class='w-10 h-10 rounded-md group-hover/album-art:opacity-75 transition-opacity'
               size='small'
               type='album-art'
             />
@@ -126,22 +134,24 @@
                 'absolute top-2 left-2 w-10 h-10 flex items-center justify-center transition-opacity',
                 currentSong?.id === song.id && isPlaying
                   ? 'opacity-100'
-                  : 'opacity-0 group-hover:opacity-100',
+                  : 'opacity-0 group-hover/album-art:opacity-100',
               ]"
             >
               <Button
-                class='w-8 h-8 rounded-full bg-background/75 text-foreground hover:bg-background'
+                class='
+                  bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
+                  border-white/20 size-7
+                '
                 size='icon'
-                variant='ghost'
               >
-                <Pause v-if='currentSong?.id === song.id && isPlaying' class='w-5 h-5' />
-                <Play v-else class='w-5 h-5' />
+                <Pause v-if='currentSong?.id === song.id && isPlaying' class='h-3 w-3' />
+                <Play v-else class='h-3 w-3' />
               </Button>
             </div>
           </TableCell>
           <TableCell class='text-center'>
             <Button @click.stop="$emit('toggle-favorite', song)" size='icon' variant='ghost'>
-              <Heart :class="['w-5 h-5', song.isFavorite ? 'text-primary fill-current' : 'text-muted-foreground']" />
+              <Heart :class="['w-5 h-5', song.isFavorite ? 'text-foreground fill-current' : 'text-muted-foreground']" />
             </Button>
           </TableCell>
           <TableCell

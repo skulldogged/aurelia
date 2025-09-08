@@ -107,21 +107,13 @@
 
 .carousel-container::before {
   left: 0;
-  background-image: linear-gradient(to right, hsl(0 0% 100%), transparent);
+  background-image: linear-gradient(to right, var(--background), transparent);
   opacity: var(--left-fade-opacity, 0);
-}
-
-.dark .carousel-container::before {
-  background-image: linear-gradient(to right, hsl(240 10% 3.9%), transparent);
 }
 
 .carousel-container::after {
   right: 0;
-  background-image: linear-gradient(to left, hsl(0 0% 100%), transparent);
+  background-image: linear-gradient(to left, var(--background), transparent);
   opacity: var(--right-fade-opacity, 0);
-}
-
-.dark .carousel-container::after {
-  background-image: linear-gradient(to left, hsl(240 10% 3.9%), transparent);
 }
 </style>

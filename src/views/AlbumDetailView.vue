@@ -84,6 +84,7 @@
         @toggle-favorite="(song) => $emit('toggle-favorite', song)"
         :current-song='props.currentSong'
         :is-playing='props.isPlaying'
+        :show-album-art='false'
         :show-duration='true'
         :show-track-number='true'
         :songs='albumSongs'

@@ -1,34 +1,22 @@
 <script setup lang="ts">
-  import { computed, ref } from 'vue'
-  import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-  } from '@/components/ui/sheet'
+  import { ref } from 'vue'
   import { Sortable } from 'sortablejs-vue3'
+  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import QueueItem from './QueueItem.vue'
   import { MusicItem } from '@/types'
 
   const props = defineProps<{
-    modelValue:  boolean
     playlist:    MusicItem[]
     currentSong: MusicItem | null
   }>()
 
   const emit = defineEmits<{
-    'update:modelValue': [value: boolean]
-    'update:playlist':   [playlist: MusicItem[]]
-    'remove-song':       [song: MusicItem]
-    'play-song':         [song: MusicItem]
+    'update:playlist': [playlist: MusicItem[]]
+    'remove-song':     [song: MusicItem]
+    'play-song':       [song: MusicItem]
   }>()
 
   const isDragging = ref(false)
-
-  const isOpen = computed({
-    get: () => props.modelValue,
-    set: value => emit('update:modelValue', value),
-  })
 
   const handleRemove = (song: MusicItem) => {
     emit('remove-song', song)
@@ -57,34 +45,34 @@
 </script>
 
 <template>
-  <Sheet v-model:open='isOpen'>
-    <SheetContent class='w-[400px] sm:w-[540px] flex flex-col bg-card'>
-      <SheetHeader>
-        <SheetTitle>Up Next</SheetTitle>
-      </SheetHeader>
-      <div class='flex-grow overflow-y-auto custom-scrollbar px-4'>
-        <Sortable
-          @end='handleDragEnd'
-          @start='handleDragStart'
-          :list='playlist'
-          :options="{ animation: 150, ghostClass: 'ghost', dragClass: 'drag' }"
-          handle='.handle'
-          item-key='id'
-        >
-          <template #item='{ element: song }: { element: MusicItem }'>
-            <QueueItem
-              @play='handlePlay'
-              @remove='handleRemove'
-              :is-current='currentSong?.id === song.id'
-              :is-dragging='isDragging'
-              :song='song'
-              class='mb-1'
-            />
-          </template>
-        </Sortable>
-      </div>
-    </SheetContent>
-  </Sheet>
+  <div class='w-64 lg:w-72 xl:w-80 flex flex-col bg-sidebar'>
+    <div class='p-4'>
+      <h2 class='text-lg font-semibold'>
+        Up Next
+      </h2>
+    </div>
+    <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='flex-grow px-2' defer>
+      <Sortable
+        @end='handleDragEnd'
+        @start='handleDragStart'
+        :list='playlist'
+        :options="{ animation: 150, ghostClass: 'ghost', dragClass: 'drag' }"
+        handle='.handle'
+        item-key='id'
+      >
+        <template #item='{ element: song }: { element: MusicItem }'>
+          <QueueItem
+            @play='handlePlay'
+            @remove='handleRemove'
+            :is-current='currentSong?.id === song.id'
+            :is-dragging='isDragging'
+            :song='song'
+            class='mb-1'
+          />
+        </template>
+      </Sortable>
+    </OverlayScrollbarsComponent>
+  </div>
 </template>
 
 <style scoped>

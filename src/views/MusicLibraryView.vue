@@ -34,6 +34,7 @@
             :current-song='props.currentSong'
             :is-playing='props.isPlaying'
             :show-album='true'
+            :show-album-art='true'
             :show-artist='true'
             :show-duration='true'
             :show-track-number='true'

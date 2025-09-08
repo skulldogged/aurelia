@@ -3,7 +3,8 @@
   import { useRouter } from 'vue-router'
   import { MusicItem, AlbumInfo } from '@/types'
   import Carousel from '@/components/shared/Carousel.vue'
-  import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
+  import { Button } from '@/components/ui/button'
+  import { ChevronLeft, ChevronRight, Play } from 'lucide-vue-next'
 
   const router = useRouter()
 
@@ -147,6 +148,18 @@
       router.push(`/songs/album/${encodeURIComponent(featuredAlbum.value.name)}`)
     }
   }
+
+  const playAlbumSongs = (album: AlbumInfo) => {
+    // Get all songs from the album
+    const albumSongs = props.songs
+      .filter(song => song.album === album.name)
+      .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0))
+
+    if (albumSongs.length > 0) {
+      // Play the songs
+      emit('play-songs', albumSongs)
+    }
+  }
 </script>
 
 <template>
@@ -244,13 +257,35 @@
         :key='song.id'
         class='cursor-pointer group'
       >
-        <img
-          v-if='song.albumArtUrl'
-          :src='song.albumArtUrl'
-          alt='Album art'
-          class='w-full h-auto rounded-lg mb-2 shadow-lg group-hover:opacity-75 aspect-square object-cover'
-        >
-        <div v-else class='w-full h-48 bg-muted rounded-lg mb-2' />
+        <div class='relative mb-2'>
+          <img
+            v-if='song.albumArtUrl'
+            :src='song.albumArtUrl'
+            alt='Album art'
+            class='album-art-image'
+          >
+          <div v-else class='w-full h-48 bg-muted rounded-lg' />
+
+          <!-- Play button overlay -->
+          <div
+            class='
+              absolute inset-0 bg-black/50 rounded-lg opacity-0
+              group-hover:opacity-100 transition-opacity flex items-center
+              justify-center
+            '
+          >
+            <Button
+              @click.stop='playSongs(mostPlayed, song)'
+              class='
+                bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
+                border-white/20
+              '
+              size='icon'
+            >
+              <Play class='h-4 w-4' />
+            </Button>
+          </div>
+        </div>
         <p class='font-semibold truncate'>
           {{ song.name }}
         </p>
@@ -281,13 +316,35 @@
         :key='song.id'
         class='cursor-pointer group'
       >
-        <img
-          v-if='song.albumArtUrl'
-          :src='song.albumArtUrl'
-          alt='Album art'
-          class='w-full h-auto rounded-lg mb-2 shadow-lg group-hover:opacity-75 aspect-square object-cover'
-        >
-        <div v-else class='w-full h-48 bg-muted rounded-lg mb-2' />
+        <div class='relative mb-2'>
+          <img
+            v-if='song.albumArtUrl'
+            :src='song.albumArtUrl'
+            alt='Album art'
+            class='album-art-image'
+          >
+          <div v-else class='w-full h-48 bg-muted rounded-lg' />
+
+          <!-- Play button overlay -->
+          <div
+            class='
+              absolute inset-0 bg-black/50 rounded-lg opacity-0
+              group-hover:opacity-100 transition-opacity flex items-center
+              justify-center
+            '
+          >
+            <Button
+              @click.stop='playSongs(recentlyPlayed, song)'
+              class='
+                bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
+                border-white/20
+              '
+              size='icon'
+            >
+              <Play class='h-4 w-4' />
+            </Button>
+          </div>
+        </div>
         <p class='font-semibold truncate'>
           {{ song.name }}
         </p>
@@ -318,13 +375,35 @@
         :key='album.name'
         class='cursor-pointer group'
       >
-        <img
-          v-if='album.albumArtUrl'
-          :src='album.albumArtUrl'
-          alt='Album art'
-          class='w-full h-auto rounded-lg mb-2 shadow-lg group-hover:opacity-75 aspect-square object-cover'
-        >
-        <div v-else class='w-full h-48 bg-muted rounded-lg mb-2' />
+        <div class='relative mb-2'>
+          <img
+            v-if='album.albumArtUrl'
+            :src='album.albumArtUrl'
+            alt='Album art'
+            class='album-art-image'
+          >
+          <div v-else class='w-full h-48 bg-muted rounded-lg' />
+
+          <!-- Play button overlay -->
+          <div
+            class='
+              absolute inset-0 bg-black/50 rounded-lg opacity-0
+              group-hover:opacity-100 transition-opacity flex items-center
+              justify-center
+            '
+          >
+            <Button
+              @click.stop='playAlbumSongs(album)'
+              class='
+                bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
+                border-white/20
+              '
+              size='icon'
+            >
+              <Play class='h-4 w-4' />
+            </Button>
+          </div>
+        </div>
         <p class='font-semibold truncate'>
           {{ album.name }}
         </p>
@@ -349,13 +428,35 @@
         :key='album.name'
         class='cursor-pointer group'
       >
-        <img
-          v-if='album.albumArtUrl'
-          :src='album.albumArtUrl'
-          alt='Album art'
-          class='w-full h-auto rounded-lg mb-2 shadow-lg group-hover:opacity-75 aspect-square object-cover'
-        >
-        <div v-else class='w-full h-48 bg-muted rounded-lg mb-2' />
+        <div class='relative mb-2'>
+          <img
+            v-if='album.albumArtUrl'
+            :src='album.albumArtUrl'
+            alt='Album art'
+            class='album-art-image'
+          >
+          <div v-else class='w-full h-48 bg-muted rounded-lg' />
+
+          <!-- Play button overlay -->
+          <div
+            class='
+              absolute inset-0 bg-black/50 rounded-lg opacity-0
+              group-hover:opacity-100 transition-opacity flex items-center
+              justify-center
+            '
+          >
+            <Button
+              @click.stop='playAlbumSongs(album)'
+              class='
+                bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
+                border-white/20
+              '
+              size='icon'
+            >
+              <Play class='h-4 w-4' />
+            </Button>
+          </div>
+        </div>
         <p class='font-semibold truncate'>
           {{ album.name }}
         </p>
@@ -374,3 +475,9 @@
     </Carousel>
   </div>
 </template>
+
+<style scoped>
+.album-art-image {
+  @apply w-full h-auto rounded-lg shadow-lg group-hover:opacity-75 aspect-square object-cover transition-opacity;
+}
+</style>

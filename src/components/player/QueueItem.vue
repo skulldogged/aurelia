@@ -34,19 +34,18 @@
     <ContextMenuTrigger>
       <div
         :class="{
-          'bg-muted border-border': isCurrent,
-          'border-transparent': !isCurrent,
-          'hover:bg-muted/50': !isCurrent && !isDragging,
+          'bg-accent': isCurrent,
+          'hover:bg-accent/20': !isCurrent && !isDragging,
         }"
-        class='flex items-center p-2 rounded-lg transition-colors group border'
+        class='flex items-center p-2 rounded-lg transition-colors group'
       >
-        <Button class='handle cursor-grab' size='icon' variant='ghost'>
+        <Button class='handle cursor-grab w-4 h-8 p-1' variant='ghost'>
           <GripVertical
-            :class="{
-              'text-muted-foreground': isCurrent,
-              'group-hover:text-muted-foreground': !isDragging,
-            }"
-            class='w-4 h-4 text-muted-foreground/40 transition-colors'
+            :class="[
+              'w-2 h-4 transition-colors',
+              isCurrent ? 'text-accent-foreground' : 'text-muted-foreground',
+              !isDragging ? 'group-hover:text-muted-foreground' : ''
+            ]"
           />
         </Button>
         <img
@@ -54,14 +53,18 @@
           alt='Album Art'
           class='w-10 h-10 rounded-md mx-2'
         >
-        <div @click="emit('play', song)" class='flex-grow cursor-pointer'>
-          <p class='font-semibold text-sm'>
+        <div @click="emit('play', song)" class='flex-grow cursor-pointer min-w-0'>
+          <p :class="['font-semibold text-sm truncate', isCurrent ? 'text-accent-foreground' : '']" :title='song.name'>
             {{ song.name }}
           </p>
-          <p class='text-xs text-muted-foreground'>
+          <p
+            :class="['text-xs truncate', isCurrent ? 'text-accent-foreground' : 'text-muted-foreground']"
+            :title='song.artists?.join(", ") || "Unknown Artist"'
+          >
             <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
               <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
                 <router-link
+                  @click.stop
                   :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
                   class='hover:underline'
                 >
@@ -75,7 +78,10 @@
             </template>
           </p>
         </div>
-        <p v-if='song.duration' class='text-sm text-muted-foreground w-12 text-right'>
+        <p
+          v-if='song.duration'
+          :class="['text-sm w-12 text-right ml-2', isCurrent ? 'text-accent-foreground' : 'text-muted-foreground']"
+        >
           {{ formatDuration(song.duration) }}
         </p>
       </div>
