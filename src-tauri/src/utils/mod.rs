@@ -1,0 +1,68 @@
+//! Utility functions and constants
+
+use std::path::PathBuf;
+
+/// Application constants
+pub mod constants {
+    /// Jellyfin client information
+    pub const JELLYFIN_CLIENT: &str = "JellyfinMusicPlayer";
+    pub const JELLYFIN_DEVICE: &str = "Desktop";
+    pub const JELLYFIN_VERSION: &str = "1.0.0";
+    pub const JELLYFIN_DEVICE_ID: &str = "1";
+
+    /// LrcLib API endpoint
+    pub const LRCLIB_SEARCH_URL: &str = "https://lrclib.net/api/search";
+
+    /// Application directory name
+    pub const APP_DIR_NAME: &str = "JellyfinMusicPlayer";
+
+    /// Audio containers that support seeking
+    pub const SEEKABLE_CONTAINERS: &[&str] = &["flac", "mp3", "aac", "ogg"];
+}
+
+/// Get the application data directory
+pub fn get_app_data_dir() -> Result<PathBuf, String> {
+    let mut app_dir = dirs::data_dir().ok_or("Failed to get data directory")?;
+    app_dir.push(constants::APP_DIR_NAME);
+    Ok(app_dir)
+}
+
+/// Create the application data directory if it doesn't exist
+pub fn ensure_app_data_dir() -> Result<PathBuf, String> {
+    let app_dir = get_app_data_dir()?;
+    std::fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("Failed to create app directory: {}", e))?;
+    Ok(app_dir)
+}
+
+/// Check if an audio container supports seeking
+pub fn supports_seeking(container: Option<&str>) -> bool {
+    container
+        .map(|c| {
+            let c_lower = c.to_lowercase();
+            constants::SEEKABLE_CONTAINERS
+                .iter()
+                .any(|&supported| supported == c_lower)
+        })
+        .unwrap_or(false)
+}
+
+/// Build Jellyfin authorization header
+pub fn build_jellyfin_auth_header() -> String {
+    format!(
+        "MediaBrowser Client=\"{}\", Device=\"{}\", DeviceId=\"{}\", Version=\"{}\", Token=\"\"",
+        constants::JELLYFIN_CLIENT,
+        constants::JELLYFIN_DEVICE,
+        constants::JELLYFIN_DEVICE_ID,
+        constants::JELLYFIN_VERSION
+    )
+}
+
+/// Build Jellyfin API URL
+pub fn build_jellyfin_url(server_url: &str, endpoint: &str) -> String {
+    format!(
+        "{}/{}",
+        server_url.trim_end_matches('/'),
+        endpoint.trim_start_matches('/')
+    )
+}

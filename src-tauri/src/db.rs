@@ -8,7 +8,7 @@ use std::path::PathBuf;
 pub type DbPool = Pool<SqliteConnectionManager>;
 
 fn get_db_path() -> PathBuf {
-    let mut db_path = crate::get_app_data_dir().expect("Failed to get app data dir");
+    let mut db_path = crate::utils::get_app_data_dir().expect("Failed to get app data dir");
     db_path.push("library.db");
     db_path
 }
@@ -37,6 +37,9 @@ pub fn initialize_database() -> Result<()> {
             is_favorite BOOLEAN,
             track_number INTEGER,
             container TEXT,
+            bit_rate INTEGER,
+            sample_rate INTEGER,
+            codec TEXT,
             premiere_date TEXT,
             date_played TEXT,
             lyrics TEXT
@@ -75,8 +78,8 @@ pub fn cache_music_library(items: &[MusicItem]) -> Result<()> {
     for item in items {
         // Insert or replace song
         tx.execute(
-            "INSERT OR REPLACE INTO songs (id, name, item_type, album, path, duration, album_art_url, year, play_count, is_favorite, track_number, container, premiere_date, date_played, lyrics)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            "INSERT OR REPLACE INTO songs (id, name, item_type, album, path, duration, album_art_url, year, play_count, is_favorite, track_number, container, premiere_date, date_played, lyrics, bit_rate, sample_rate, codec)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 item.id,
                 item.name,
@@ -93,6 +96,9 @@ pub fn cache_music_library(items: &[MusicItem]) -> Result<()> {
                 item.premiere_date,
                 item.date_played,
                 item.lyrics,
+                item.bit_rate,
+                item.sample_rate,
+                item.codec,
             ],
         )?;
 
@@ -145,6 +151,9 @@ pub fn get_cached_music_library() -> Result<Vec<MusicItem>> {
         "SELECT s.id, s.name, s.item_type, s.album, s.path, s.duration, s.album_art_url, s.year,
                 s.play_count, s.is_favorite, s.track_number, s.container, s.premiere_date, s.date_played,
                 s.lyrics,
+                s.bit_rate,
+                s.sample_rate,
+                s.codec,
                 GROUP_CONCAT(DISTINCT a.name, '\x1F') as artists,
                 GROUP_CONCAT(DISTINCT a.id, '\x1F') as artist_ids,
                 GROUP_CONCAT(DISTINCT aa.name, '\x1F') as album_artist_names,
@@ -158,10 +167,13 @@ pub fn get_cached_music_library() -> Result<Vec<MusicItem>> {
     )?;
 
     let music_items = stmt.query_map([], |row| {
-        let artists_str: Option<String> = row.get(15)?;
-        let artist_ids_str: Option<String> = row.get(16)?;
-        let album_artist_names_str: Option<String> = row.get(17)?;
-        let album_artist_ids_str: Option<String> = row.get(18)?;
+        let bit_rate: Option<i64> = row.get(15)?;
+        let sample_rate: Option<i64> = row.get(16)?;
+        let codec: Option<String> = row.get(17)?;
+        let artists_str: Option<String> = row.get(18)?;
+        let artist_ids_str: Option<String> = row.get(19)?;
+        let album_artist_names_str: Option<String> = row.get(20)?;
+        let album_artist_ids_str: Option<String> = row.get(21)?;
 
         let artists = artists_str
             .map(|s| {
@@ -218,6 +230,9 @@ pub fn get_cached_music_library() -> Result<Vec<MusicItem>> {
             genres: None, // You might want to implement genre caching as well
             album_artists,
             lyrics: row.get(14)?,
+            bit_rate,
+            sample_rate,
+            codec,
         })
     })?;
 
@@ -234,67 +249,32 @@ pub fn clear_music_cache() -> Result<(), String> {
         .get()
         .expect("Failed to get DB connection from pool");
 
-    // Check counts before deletion
-    let songs_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM songs", [], |row| row.get(0))
-        .unwrap_or(0);
-    let artists_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM artists", [], |row| row.get(0))
-        .unwrap_or(0);
-    let song_artists_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM song_artists", [], |row| row.get(0))
-        .unwrap_or(0);
-    let song_album_artists_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM song_album_artists", [], |row| {
-            row.get(0)
-        })
-        .unwrap_or(0);
-
-    println!(
-        "DEBUG: Before clear - Songs: {}, Artists: {}, SongArtists: {}, SongAlbumArtists: {}",
-        songs_count, artists_count, song_artists_count, song_album_artists_count
+    // Drop all tables to ensure schema is updated
+    let drop_result = conn.execute_batch(
+        "
+        DROP TABLE IF EXISTS song_artists;
+        DROP TABLE IF EXISTS song_album_artists;
+        DROP TABLE IF EXISTS artists;
+        DROP TABLE IF EXISTS songs;
+        ",
     );
 
-    let result = conn
-        .execute_batch(
-            "
-        DELETE FROM song_artists;
-        DELETE FROM song_album_artists;
-        DELETE FROM artists;
-        DELETE FROM songs;
-        ",
-        )
-        .map_err(|e| format!("Failed to clear music cache: {}", e));
-
-    match &result {
-        Ok(_) => {
-            // Check counts after deletion
-            let songs_count_after: i64 = conn
-                .query_row("SELECT COUNT(*) FROM songs", [], |row| row.get(0))
-                .unwrap_or(0);
-            let artists_count_after: i64 = conn
-                .query_row("SELECT COUNT(*) FROM artists", [], |row| row.get(0))
-                .unwrap_or(0);
-            let song_artists_count_after: i64 = conn
-                .query_row("SELECT COUNT(*) FROM song_artists", [], |row| row.get(0))
-                .unwrap_or(0);
-            let song_album_artists_count_after: i64 = conn
-                .query_row("SELECT COUNT(*) FROM song_album_artists", [], |row| {
-                    row.get(0)
-                })
-                .unwrap_or(0);
-
-            println!(
-                "DEBUG: After clear - Songs: {}, Artists: {}, SongArtists: {}, SongAlbumArtists: {}",
-                songs_count_after,
-                artists_count_after,
-                song_artists_count_after,
-                song_album_artists_count_after
-            );
-            println!("DEBUG: DB cache cleared successfully");
-        }
-        Err(e) => println!("DEBUG: DB cache clear failed: {}", e),
+    if let Err(e) = drop_result {
+        let err_msg = format!("Failed to drop tables: {}", e);
+        println!("DEBUG: {}", err_msg);
+        return Err(err_msg);
     }
 
-    result
+    println!("DEBUG: Tables dropped successfully. Re-initializing database.");
+    if let Err(e) = initialize_database() {
+        let err_msg = format!(
+            "Failed to re-initialize database after clearing cache: {}",
+            e
+        );
+        println!("DEBUG: {}", err_msg);
+        return Err(err_msg);
+    }
+
+    println!("DEBUG: DB cache cleared and re-initialized successfully");
+    Ok(())
 }

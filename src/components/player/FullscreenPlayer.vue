@@ -1,168 +1,190 @@
 <template>
-  <transition name='slide-fade'>
+  <div
+    v-if='show'
+    :class="['fullscreen-player fixed inset-0 bg-background z-50 flex flex-col', { 'lyrics-active': showLyrics }]"
+  >
+    <!-- Album Art Background (visible on thin screens) -->
     <div
-      v-if='show'
-      class='fullscreen-player fixed inset-0 bg-background z-50 flex flex-col'
+      v-if='song?.albumArtUrl'
+      class='absolute inset-0 z-0 album-art-bg'
     >
-      <!-- Background -->
+      <!-- Blurred album art (top portion) -->
       <div
-        :style='{ backgroundImage: `url(${song?.albumArtUrl})` }'
-        class='absolute inset-0 bg-cover bg-center filter blur-3xl opacity-30 z-0'
+        :style='{ backgroundImage: `url(${song.albumArtUrl})` }'
+        class='absolute inset-0 bg-cover bg-center filter blur-xl album-art-blurred'
       />
+      <!-- Clear album art (bottom portion) -->
+      <div
+        :style='{ backgroundImage: `url(${song.albumArtUrl})` }'
+        class='absolute inset-0 bg-cover bg-center album-art-clear'
+      />
+    </div>
 
-      <!-- Content Wrapper -->
-      <div class='relative z-10 flex flex-col h-full'>
-        <!-- Top Corner Buttons -->
-        <div class='absolute top-4 left-4 right-4 flex justify-between items-center z-20'>
-          <Button
-            @click="$emit('close')"
-            class='bg-black/20 hover:bg-black/40 backdrop-blur-sm text-white border-white/20'
-            size='icon'
-            variant='ghost'
-          >
-            <ChevronDown class='w-5 h-5' />
-          </Button>
-          <Button
-            @click='showLyrics = !showLyrics'
-            v-if='hasLyrics'
-            class='bg-black/20 hover:bg-black/40 backdrop-blur-sm text-white border-white/20'
-            size='icon'
-            variant='ghost'
-          >
-            <Mic2 v-if='!showLyrics' class='w-5 h-5' />
-            <Album v-else class='w-5 h-5' />
-          </Button>
-        </div>
+    <!-- Background -->
+    <div
+      :style='{ backgroundImage: `url(${song?.albumArtUrl})` }'
+      class='absolute inset-0 bg-cover bg-center filter blur-3xl opacity-30 z-0'
+    />
 
-        <!-- Main Content & Footer -->
-        <div
-          class='flex-grow flex flex-col items-center p-8 gap-8 overflow-hidden'
+    <!-- Content Wrapper -->
+    <div class='relative z-10 flex flex-col h-full'>
+      <!-- Top Corner Buttons -->
+      <div class='absolute top-4 left-4 right-4 flex justify-between items-center z-20'>
+        <Button
+          @click="$emit('close')"
+          class='bg-black/20 hover:bg-black/40 backdrop-blur-sm text-white border-white/20'
+          size='icon'
+          variant='ghost'
         >
-          <div class='relative flex-1 w-full min-h-0 flex flex-col items-center justify-center gap-6'>
-            <!-- Album Art / Lyrics Area -->
+          <ChevronDown class='w-5 h-5' />
+        </Button>
+        <Button
+          @click='showLyrics = !showLyrics'
+          class='bg-black/20 hover:bg-black/40 backdrop-blur-sm text-white border-white/20'
+          size='icon'
+          variant='ghost'
+        >
+          <Mic2 v-if='!showLyrics' class='w-5 h-5' />
+          <Album v-else class='w-5 h-5' />
+        </Button>
+      </div>
+
+      <!-- Main Content & Footer -->
+      <div
+        class='flex-grow flex flex-col items-center p-8 gap-8 overflow-hidden'
+      >
+        <div class='relative flex-1 w-full min-h-0 flex flex-col items-center justify-center gap-6'>
+          <!-- Album Art / Lyrics Area -->
+          <div class='relative w-full h-full'>
+            <!-- Album Art -->
             <div
-              class='relative grid place-items-center aspect-square album-art-container'
+              :class="[
+                'flex justify-center items-center w-full h-full transition-opacity duration-300 ease-in-out',
+                showLyrics ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              ]"
             >
-              <transition name='fade'>
-                <div
-                  v-show='!showLyrics'
-                  class='w-full h-full [grid-area:1/1] overflow-hidden rounded-lg'
+              <div class='album-art-container aspect-square'>
+                <img
+                  v-if='song?.albumArtUrl'
+                  :src='song.albumArtUrl'
+                  alt='Album art'
+                  class='w-full h-full object-cover rounded-lg shadow-2xl'
                 >
-                  <img
-                    v-if='song?.albumArtUrl'
-                    :src='song.albumArtUrl'
-                    alt='Album art'
-                    class='w-full h-full object-cover rounded-lg shadow-2xl'
-                  >
-                  <div
-                    v-else
-                    class='flex items-center justify-center
+                <div
+                  v-else
+                  class='flex items-center justify-center
                            w-full h-full rounded-lg bg-muted'
-                  >
-                    <Music2 class='w-24 h-24 text-muted-foreground' />
-                  </div>
-                </div>
-              </transition>
-              <transition name='fade'>
-                <div
-                  v-show='showLyrics'
-                  class='w-full h-full [grid-area:1/1] rounded-lg overflow-hidden'
                 >
-                  <LyricsView
-                    @lyrics-loaded='onLyricsLoaded'
-                    @seek='handleLyricsSeek'
-                    :current-time='currentTime.value'
-                    :duration='duration.value'
-                    :song='song'
-                    class='w-full h-full'
-                  />
+                  <Music2 class='w-24 h-24 text-muted-foreground' />
                 </div>
-              </transition>
+              </div>
+            </div>
+            <!-- Lyrics -->
+            <div
+              :class="[
+                'absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out',
+                showLyrics ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              ]"
+            >
+              <div class='w-full h-full'>
+                <LyricsView
+                  @lyrics-loaded='onLyricsLoaded'
+                  @seek='handleLyricsSeek'
+                  :current-time='currentTime.value'
+                  :duration='duration.value'
+                  :song='song'
+                  :visible='showLyrics'
+                  class='w-full h-full'
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Player Controls -->
+          <div class='w-full max-w-md mx-auto'>
+            <!-- Song Info -->
+            <div class='w-full text-center mb-4'>
+              <h1 class='text-2xl font-bold text-foreground truncate'>
+                {{ song?.name || 'Unknown Song' }}
+              </h1>
+              <p class='text-md text-muted-foreground truncate'>
+                {{ song?.artists?.join(', ') || 'Unknown Artist' }}
+              </p>
+              <p class='text-sm text-muted-foreground truncate'>
+                {{ song?.album || 'Unknown Album' }}
+              </p>
+              <p v-if='songFormatInfo' class='text-xs text-muted-foreground/80 truncate mt-1'>
+                {{ songFormatInfo }}
+              </p>
+            </div>
+
+            <!-- Progress Bar -->
+            <div>
+              <Slider
+                @update:model-value='$event && $emit("seek", $event[0])'
+                :max='100'
+                :model-value='[progress.value]'
+                :step='0.1'
+                class='w-full'
+              />
+              <div class='flex justify-between text-xs text-muted-foreground mt-2'>
+                <span>{{ formatTime(currentTime.value) }}</span>
+                <span>{{ formatTime(duration.value) }}</span>
+              </div>
             </div>
 
             <!-- Player Controls -->
-            <div class='w-full max-w-md mx-auto'>
-              <!-- Song Info -->
-              <div class='w-full text-center mb-4'>
-                <h1 class='text-2xl font-bold text-foreground truncate'>
-                  {{ song?.name || 'Unknown Song' }}
-                </h1>
-                <p class='text-md text-muted-foreground truncate'>
-                  {{ song?.artists?.join(', ') || 'Unknown Artist' }}
-                </p>
-                <p class='text-sm text-muted-foreground truncate'>
-                  {{ song?.album || 'Unknown Album' }}
-                </p>
-              </div>
-
-              <!-- Progress Bar -->
-              <div>
-                <Slider
-                  @update:model-value='$event && $emit("seek", $event[0])'
-                  :max='100'
-                  :model-value='[progress.value]'
-                  :step='0.1'
-                  class='w-full'
-                />
-                <div class='flex justify-between text-xs text-muted-foreground mt-2'>
-                  <span>{{ formatTime(currentTime.value) }}</span>
-                  <span>{{ formatTime(duration.value) }}</span>
-                </div>
-              </div>
-
-              <!-- Player Controls -->
-              <div class='flex items-center justify-center space-x-4'>
-                <Button
-                  @click='$emit("toggle-shuffle")'
-                  :class="[isShuffled.value ? 'text-primary' : 'text-muted-foreground']"
-                  size='icon'
-                  variant='ghost'
-                >
-                  <Shuffle class='w-5 h-5' />
-                </Button>
-                <Button
-                  @click='$emit("previous-song")'
-                  :disabled='!hasPrevious.value'
-                  size='icon'
-                  variant='ghost'
-                >
-                  <SkipBack class='w-6 h-6' />
-                </Button>
-                <Button
-                  @click='$emit("toggle-play-pause")'
-                  class='rounded-full w-16 h-16'
-                >
-                  <Pause v-if='isPlaying.value' class='w-8 h-8' />
-                  <Play v-else class='w-8 h-8' />
-                </Button>
-                <Button
-                  @click='$emit("next-song")'
-                  :disabled='!hasNext.value'
-                  size='icon'
-                  variant='ghost'
-                >
-                  <SkipForward class='w-6 h-6' />
-                </Button>
-                <Button
-                  @click='$emit("toggle-repeat")'
-                  :class="[repeatMode.value !== 'none' ? 'text-primary' : 'text-muted-foreground']"
-                  size='icon'
-                  variant='ghost'
-                >
-                  <Repeat1 v-if="repeatMode.value === 'one'" class='w-5 h-5' />
-                  <Repeat v-else class='w-5 h-5' />
-                </Button>
-              </div>
+            <div class='flex items-center justify-center space-x-4'>
+              <Button
+                @click='$emit("toggle-shuffle")'
+                :class="[isShuffled.value ? 'text-primary' : 'text-muted-foreground']"
+                size='icon'
+                variant='ghost'
+              >
+                <Shuffle class='w-5 h-5' />
+              </Button>
+              <Button
+                @click='$emit("previous-song")'
+                :disabled='!hasPrevious.value'
+                size='icon'
+                variant='ghost'
+              >
+                <SkipBack class='w-6 h-6' />
+              </Button>
+              <Button
+                @click='$emit("toggle-play-pause")'
+                class='rounded-full w-16 h-16'
+              >
+                <Pause v-if='isPlaying.value' class='w-8 h-8' />
+                <Play v-else class='w-8 h-8' />
+              </Button>
+              <Button
+                @click='$emit("next-song")'
+                :disabled='!hasNext.value'
+                size='icon'
+                variant='ghost'
+              >
+                <SkipForward class='w-6 h-6' />
+              </Button>
+              <Button
+                @click='$emit("toggle-repeat")'
+                :class="[repeatMode.value !== 'none' ? 'text-primary' : 'text-muted-foreground']"
+                size='icon'
+                variant='ghost'
+              >
+                <Repeat1 v-if="repeatMode.value === 'one'" class='w-5 h-5' />
+                <Repeat v-else class='w-5 h-5' />
+              </Button>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </transition>
+  </div>
 </template>
 
 <script setup lang="ts">
-  import { ref, watch } from 'vue'
+  import { ref, watch, computed } from 'vue'
   import {
     ChevronDown,
     Music2,
@@ -273,34 +295,103 @@
     const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
+
+  const songFormatInfo = computed(() => {
+    if (!props.song) return ''
+    const parts: string[] = []
+    if (props.song.codec) parts.push(props.song.codec.toUpperCase())
+    if (props.song.sampleRate) parts.push(`${props.song.sampleRate / 1000} kHz`)
+    if (props.song.bitRate) parts.push(`${Math.round(props.song.bitRate / 1000)} kbps`)
+    return parts.join(' / ')
+  })
 </script>
 
 <style scoped>
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-  transition: all 0.3s ease-out;
-}
-
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-  transform: translateY(100%);
-  opacity: 0;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
 .album-art-container {
-  max-height: min(40vh, 50rem);
-  max-width: min(50vw, 50rem);
-  height: min(40vh, 50vw, 50rem);
-  width: min(40vh, 50vw, 50rem);
+  /* Always maintain square aspect ratio */
+  aspect-ratio: 1;
+  /* Size based on available space, but always square */
+  width: min(50vw, 50vh, 40rem);
+  height: min(50vw, 50vh, 40rem);
+  max-width: 40rem;
+  max-height: 40rem;
 }
+
+/* Album art background - hidden by default, visible on thin screens */
+.album-art-bg {
+  opacity: 0;
+}
+
+.album-art-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0);
+  z-index: 2;
+  transition: background-color 0.3s ease-in-out;
+  pointer-events: none;
+}
+
+/* Blurred album art - shows through at bottom */
+.album-art-blurred {
+  /* Ensure this layer sits above the clear album art */
+  z-index: 1;
+  pointer-events: none;
+
+  /* Strong blur and slight darkening so controls are readable */
+  filter: blur(28px) brightness(0.6) saturate(0.9);
+
+  /* Prevent blur edge cropping and include corners */
+  top: -56px;
+  right: -56px;
+  bottom: -56px;
+  left: -56px;
+  transform: scale(1.02);
+
+  /* Only show this blur near the bottom, fading upward */
+  -webkit-mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 22%,
+    rgba(0, 0, 0, 0.95) 36%,
+    rgba(0, 0, 0, 0) 62%
+  );
+  mask-image: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 1) 22%,
+    rgba(0, 0, 0, 0.95) 36%,
+    rgba(0, 0, 0, 0) 62%
+  );
+}
+
+.album-art-blurred::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Darken bottom area further with a soft gradient like Cider */
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.70) 0%,
+    rgba(0, 0, 0, 0.55) 24%,
+    rgba(0, 0, 0, 0.28) 48%,
+    rgba(0, 0, 0, 0) 70%
+  );
+}
+
+/* Show album art background on thin screens */
+@media (max-width: 768px) {
+  .album-art-bg {
+    opacity: 1;
+  }
+
+  .fullscreen-player.lyrics-active .album-art-bg::before {
+    background-color: rgba(0, 0, 0, 0.6);
+  }
+
+  /* Hide the foreground album art on thin screens */
+  .album-art-container {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
 </style>

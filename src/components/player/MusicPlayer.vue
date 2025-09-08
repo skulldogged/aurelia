@@ -56,6 +56,9 @@
                 </router-link>
                 <span v-else>{{ 'Unknown Album' }}</span>
               </p>
+              <p v-if='songFormatInfo' class='text-xs text-muted-foreground/80 truncate select-text'>
+                {{ songFormatInfo }}
+              </p>
             </div>
           </div>
         </div>
@@ -296,6 +299,15 @@
       nextIndex = currentIndex.value + 1
     }
     return props.playlist[nextIndex]
+  })
+
+  const songFormatInfo = computed(() => {
+    if (!props.currentSong) return ''
+    const parts: string[] = []
+    if (props.currentSong.codec) parts.push(props.currentSong.codec.toUpperCase())
+    if (props.currentSong.sampleRate) parts.push(`${props.currentSong.sampleRate / 1000} kHz`)
+    if (props.currentSong.bitRate) parts.push(`${Math.round(props.currentSong.bitRate / 1000)} kbps`)
+    return parts.join(' / ')
   })
 
   // Methods

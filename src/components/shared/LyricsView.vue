@@ -1,5 +1,5 @@
 <template>
-  <div class='h-full w-full flex flex-col'>
+  <div class='h-full w-full flex flex-col overflow-hidden'>
     <div
       v-if='isLoading'
       class='flex-grow flex items-center justify-center'
@@ -58,6 +58,7 @@
     song:        MusicItem | null
     currentTime: number
     duration:    number
+    visible:     boolean
   }>()
 
   const emit = defineEmits<{
@@ -145,27 +146,34 @@
       return -1
     }
 
-    // Find the line closest to the current time
-    let closestIndex = 0
-    let smallestDiff = Math.abs(parsedLyrics.value[0].time - props.currentTime)
-
-    for (let i = 1; i < parsedLyrics.value.length; i++) {
-      const diff = Math.abs(parsedLyrics.value[i].time - props.currentTime)
-      if (diff < smallestDiff) {
-        smallestDiff = diff
-        closestIndex = i
+    // Find the last lyric whose time is less than or equal to current time (with tolerance)
+    const tolerance = 0.01 // 10ms tolerance for floating point precision
+    for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
+      if (parsedLyrics.value[i].time <= props.currentTime + tolerance) {
+        return i
       }
     }
 
-    return closestIndex
+    // If no lyric has started yet, return -1
+    return -1
   })
 
   watch(currentLineIndex, async (newIndex, oldIndex) => {
-    if (newIndex !== oldIndex) {
+    if (newIndex !== oldIndex && newIndex !== -1) {
       await nextTick()
       activeLineRef.value?.scrollIntoView({
         behavior: 'smooth',
         block:    'center',
+      })
+    }
+  })
+
+  // Scroll to active lyric when lyrics view becomes visible
+  watch(() => props.visible, async (isVisible, wasVisible) => {
+    if (isVisible && !wasVisible && areLyricsSynced.value && currentLineIndex.value !== -1) {
+      await nextTick()
+      activeLineRef.value?.scrollIntoView({
+        block: 'center',
       })
     }
   })
@@ -195,7 +203,7 @@
 
 <style scoped>
 .lyrics-container {
-  padding: 0 48px;
+  padding: 0 32px;
   text-align: center;
   overflow-x: hidden;
   /* For Firefox */
@@ -207,8 +215,8 @@
 }
 
 .lyrics-content {
-  padding: 50vh 0;
-  min-height: 100vh;
+  padding: 20vh 0;
+  min-height: 60vh;
   display: flex;
   flex-direction: column;
   justify-content: center;

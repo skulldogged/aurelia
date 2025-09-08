@@ -477,6 +477,8 @@
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .album-art-image {
   @apply w-full h-auto rounded-lg shadow-lg group-hover:opacity-75 aspect-square object-cover transition-opacity;
 }

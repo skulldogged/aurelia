@@ -87,7 +87,7 @@
       <TableHeader>
         <TableRow>
           <TableHead v-if='shouldShowAlbumArt' class='w-14' />
-          <TableHead class='w-8' />
+          <TableHead class='w-6' />
           <TableHead v-if='showTrackNumber' class='w-12 text-right'>
             #
           </TableHead>
@@ -116,7 +116,7 @@
           :key='song.id'
           class='cursor-pointer group hover:bg-sidebar transition-colors'
         >
-          <TableCell @click="$emit('play-song', song)" v-if='shouldShowAlbumArt' class='relative p-2 group/album-art'>
+          <TableCell @click="$emit('play-song', song)" v-if='shouldShowAlbumArt' class='relative group/album-art'>
             <img
               v-if='song.albumArtUrl'
               :src='song.albumArtUrl'

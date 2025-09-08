@@ -14,6 +14,9 @@ export interface MusicItem {
   artistArtUrl?: string
   trackNumber?:  number
   container?:    string
+  bitRate?:      number
+  sampleRate?:   number
+  codec?:        string
   genres?:       string[]
   premiereDate?: string
   datePlayed?:   string
