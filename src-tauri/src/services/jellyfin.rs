@@ -79,7 +79,7 @@ impl JellyfinClient {
     pub async fn get_music_library(&self, user_id: &str) -> AppResult<Vec<MusicItem>> {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
-            &format!("/Users/{}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams", user_id)
+            &format!("/Users/{}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated", user_id)
         );
 
         let response = self
@@ -144,8 +144,10 @@ impl JellyfinClient {
         let (bit_rate, sample_rate, codec) = if let Some(streams) = item["MediaStreams"].as_array()
         {
             if let Some(stream) = streams.iter().find(|s| s["Type"] == "Audio") {
-                let bit_rate = stream["BitRate"].as_i64();
-                let sample_rate = stream["SampleRate"].as_i64();
+                let bit_rate = stream["BitRate"].as_i64().and_then(|n| n.try_into().ok());
+                let sample_rate = stream["SampleRate"]
+                    .as_i64()
+                    .and_then(|n| n.try_into().ok());
                 let codec = stream["Codec"].as_str().map(|s| s.to_string());
                 (bit_rate, sample_rate, codec)
             } else {
@@ -165,8 +167,12 @@ impl JellyfinClient {
             path: item["Path"].as_str().map(|s| s.to_string()),
             duration: duration_seconds,
             album_art_url,
-            year: item["ProductionYear"].as_i64(),
-            play_count: item["UserData"]["PlayCount"].as_i64(),
+            year: item["ProductionYear"]
+                .as_i64()
+                .and_then(|n| n.try_into().ok()),
+            play_count: item["UserData"]["PlayCount"]
+                .as_i64()
+                .and_then(|n| n.try_into().ok()),
             is_favorite: item["UserData"]["IsFavorite"].as_bool(),
             track_number: item["IndexNumber"].as_i64().and_then(|n| n.try_into().ok()),
             container,
@@ -178,6 +184,7 @@ impl JellyfinClient {
             date_played: item["UserData"]["LastPlayedDate"]
                 .as_str()
                 .map(|s| s.to_string()),
+            date_created: item["DateCreated"].as_str().map(|s| s.to_string()),
             album_artists,
             lyrics: None,
         })

@@ -25,3 +25,17 @@ dist-ssr
 
 .cache
 .direnv/
+
+
+# START Ruler Generated Files
+/.cursor/rules/ruler_cursor_instructions.mdc
+/.cursor/rules/ruler_cursor_instructions.mdc.bak
+/.github/copilot-instructions.md
+/.github/copilot-instructions.md.bak
+/.trae/rules/project_rules.md
+/.trae/rules/project_rules.md.bak
+/AGENTS.md
+/AGENTS.md.bak
+/CLAUDE.md
+/CLAUDE.md.bak
+# END Ruler Generated Files

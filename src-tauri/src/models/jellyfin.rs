@@ -1,9 +1,10 @@
 //! Jellyfin API-specific data models
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 /// Jellyfin lyrics response
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Type)]
 pub struct JellyfinLyrics {
     /// List of lyric lines with timestamps
     #[serde(rename = "Lyrics")]
@@ -11,7 +12,7 @@ pub struct JellyfinLyrics {
 }
 
 /// Individual lyric line with optional timestamp
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Type)]
 pub struct JellyfinLyricLine {
     /// Lyric text
     #[serde(rename = "Text")]

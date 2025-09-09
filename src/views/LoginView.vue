@@ -66,12 +66,14 @@
 
 <script setup lang="ts">
   import { ref, onMounted } from 'vue'
-  import { invoke } from '@tauri-apps/api/core'
   import { Loader2 } from 'lucide-vue-next'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Label } from '@/components/ui/label'
   import { Checkbox } from '@/components/ui/checkbox'
+  import { useTauri } from '@/composables/useTauri'
+
+  const { loginToJellyfin, saveCredentials, getSavedCredentials } = useTauri()
 
   interface LoginForm {
     serverUrl: string
@@ -98,46 +100,44 @@
     error.value = ''
     loading.value = true
 
-    invoke<{ token: string; userId: string }>('login_to_jellyfin', {
-      serverUrl: form.value.serverUrl,
-      username:  form.value.username,
-      password:  form.value.password,
-    })
-      .then(result => {
-        if (form.value.remember) {
-          invoke('save_credentials', {
-            serverUrl: form.value.serverUrl,
-            username:  form.value.username,
-            token:     result.token,
-            userId:    result.userId,
-          })
-        }
+    try {
+      const result = await loginToJellyfin(
+        form.value.serverUrl,
+        form.value.username,
+        form.value.password,
+      )
 
-        emit('login', {
-          serverUrl: form.value.serverUrl,
-          username:  form.value.username,
-          token:     result.token,
-          userId:    result.userId,
-        })
+      if (form.value.remember) {
+        await saveCredentials(
+          form.value.serverUrl,
+          form.value.username,
+          result.token,
+          result.userId,
+        )
+      }
+
+      emit('login', {
+        serverUrl: form.value.serverUrl,
+        username:  form.value.username,
+        token:     result.token,
+        userId:    result.userId,
       })
-      .catch(err => {
-        error.value = `Login failed: ${err}`
-      })
-      .finally(() => {
-        loading.value = false
-      })
+    } catch (err) {
+      error.value = `Login failed: ${err}`
+    } finally {
+      loading.value = false
+    }
   }
 
-  onMounted(() => {
-    invoke<{ serverUrl: string; username: string; token: string }>('get_saved_credentials')
-      .then(saved => {
-        if (saved) {
-          form.value.serverUrl = saved.serverUrl
-          form.value.username = saved.username
-        }
-      })
-      .catch(() => {
-        console.log('No saved credentials')
-      })
+  onMounted(async () => {
+    try {
+      const saved = await getSavedCredentials()
+      if (saved) {
+        form.value.serverUrl = saved.serverUrl
+        form.value.username = saved.username
+      }
+    } catch {
+      console.log('No saved credentials')
+    }
   })
 </script>

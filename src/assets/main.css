@@ -124,6 +124,10 @@
     font-family: "Rubik", sans-serif;
     user-select: none;
   }
+
+  .blur-card {
+    @apply backdrop-blur-md bg-card/80 border border-border/50;
+  }
 }
 
 /* OverlayScrollbars Theme */

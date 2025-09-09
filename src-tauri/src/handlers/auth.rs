@@ -7,6 +7,7 @@ use std::fs;
 
 /// Login to Jellyfin server
 #[tauri::command]
+#[specta::specta]
 pub async fn login_to_jellyfin(
     server_url: String,
     username: String,
@@ -21,6 +22,7 @@ pub async fn login_to_jellyfin(
 
 /// Save user credentials to disk
 #[tauri::command]
+#[specta::specta]
 pub fn save_credentials(
     server_url: String,
     username: String,
@@ -45,6 +47,7 @@ pub fn save_credentials(
 
 /// Load saved credentials from disk
 #[tauri::command]
+#[specta::specta]
 pub fn get_saved_credentials() -> Result<Option<Credentials>, String> {
     let app_dir = utils::get_app_data_dir()?;
     let credentials_path = app_dir.join("credentials.json");
@@ -64,6 +67,7 @@ pub fn get_saved_credentials() -> Result<Option<Credentials>, String> {
 
 /// Save user volume preference
 #[tauri::command]
+#[specta::specta]
 pub fn save_volume(volume: f64) -> Result<(), String> {
     let app_dir = utils::ensure_app_data_dir()?;
     let volume_path = app_dir.join("volume.json");
@@ -76,6 +80,7 @@ pub fn save_volume(volume: f64) -> Result<(), String> {
 
 /// Load saved volume preference
 #[tauri::command]
+#[specta::specta]
 pub fn get_saved_volume() -> Result<Option<f64>, String> {
     let app_dir = utils::get_app_data_dir()?;
     let volume_path = app_dir.join("volume.json");

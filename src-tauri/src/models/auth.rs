@@ -1,9 +1,10 @@
 //! Authentication-related data models
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 /// Response from successful Jellyfin login
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Type)]
 pub struct LoginResponse {
     /// User authentication token
     pub token: String,
@@ -13,7 +14,7 @@ pub struct LoginResponse {
 }
 
 /// User credentials for Jellyfin authentication
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Type)]
 pub struct Credentials {
     /// Jellyfin server URL
     #[serde(rename = "serverUrl")]
@@ -28,7 +29,7 @@ pub struct Credentials {
 }
 
 /// Jellyfin user information
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Type)]
 pub struct JellyfinUser {
     /// User ID
     #[serde(rename = "Id")]
@@ -36,7 +37,7 @@ pub struct JellyfinUser {
 }
 
 /// Jellyfin authentication response
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Type)]
 pub struct JellyfinAuthResponse {
     /// Access token for API calls
     #[serde(rename = "AccessToken")]

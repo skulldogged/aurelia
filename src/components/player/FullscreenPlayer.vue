@@ -90,8 +90,8 @@
                 <LyricsView
                   @lyrics-loaded='onLyricsLoaded'
                   @seek='handleLyricsSeek'
-                  :current-time='currentTime.value'
-                  :duration='duration.value'
+                  :current-time='currentTime'
+                  :duration='duration'
                   :song='song'
                   :visible='showLyrics'
                   class='w-full h-full'
@@ -123,13 +123,13 @@
               <Slider
                 @update:model-value='$event && $emit("seek", $event[0])'
                 :max='100'
-                :model-value='[progress.value]'
+                :model-value='[progress]'
                 :step='0.1'
                 class='w-full'
               />
               <div class='flex justify-between text-xs text-muted-foreground mt-2'>
-                <span>{{ formatTime(currentTime.value) }}</span>
-                <span>{{ formatTime(duration.value) }}</span>
+                <span>{{ formatTime(currentTime) }}</span>
+                <span>{{ formatTime(duration) }}</span>
               </div>
             </div>
 
@@ -137,7 +137,7 @@
             <div class='flex items-center justify-center space-x-4'>
               <Button
                 @click='$emit("toggle-shuffle")'
-                :class="[isShuffled.value ? 'text-primary' : 'text-muted-foreground']"
+                :class="[isShuffled ? 'text-primary' : 'text-muted-foreground']"
                 size='icon'
                 variant='ghost'
               >
@@ -145,7 +145,7 @@
               </Button>
               <Button
                 @click='$emit("previous-song")'
-                :disabled='!hasPrevious.value'
+                :disabled='!hasPrevious'
                 size='icon'
                 variant='ghost'
               >
@@ -155,12 +155,12 @@
                 @click='$emit("toggle-play-pause")'
                 class='rounded-full w-16 h-16'
               >
-                <Pause v-if='isPlaying.value' class='w-8 h-8' />
+                <Pause v-if='isPlaying' class='w-8 h-8' />
                 <Play v-else class='w-8 h-8' />
               </Button>
               <Button
                 @click='$emit("next-song")'
-                :disabled='!hasNext.value'
+                :disabled='!hasNext'
                 size='icon'
                 variant='ghost'
               >
@@ -168,11 +168,11 @@
               </Button>
               <Button
                 @click='$emit("toggle-repeat")'
-                :class="[repeatMode.value !== 'none' ? 'text-primary' : 'text-muted-foreground']"
+                :class="[repeatMode !== 'none' ? 'text-primary' : 'text-muted-foreground']"
                 size='icon'
                 variant='ghost'
               >
-                <Repeat1 v-if="repeatMode.value === 'one'" class='w-5 h-5' />
+                <Repeat1 v-if="repeatMode === 'one'" class='w-5 h-5' />
                 <Repeat v-else class='w-5 h-5' />
               </Button>
             </div>
@@ -202,7 +202,7 @@
   import { Slider } from '@/components/ui/slider'
   import LyricsView from '@/components/shared/LyricsView.vue'
   import { MusicItem } from '@/types'
-  import { PropType, Ref } from 'vue'
+  import { PropType } from 'vue'
 
   const props = defineProps({
     show: {
@@ -214,35 +214,35 @@
       default: null,
     },
     isPlaying: {
-      type:     Object as PropType<Ref<boolean>>,
+      type:     Boolean,
       required: true,
     },
     progress: {
-      type:     Object as PropType<Ref<number>>,
+      type:     Number,
       required: true,
     },
     currentTime: {
-      type:     Object as PropType<Ref<number>>,
+      type:     Number,
       required: true,
     },
     duration: {
-      type:     Object as PropType<Ref<number>>,
+      type:     Number,
       required: true,
     },
     isShuffled: {
-      type:     Object as PropType<Ref<boolean>>,
+      type:     Boolean,
       required: true,
     },
     repeatMode: {
-      type:     Object as PropType<Ref<'none' | 'all' | 'one'>>,
+      type:     String as PropType<'none' | 'all' | 'one'>,
       required: true,
     },
     hasPrevious: {
-      type:     Object as PropType<Ref<boolean>>,
+      type:     Boolean,
       required: true,
     },
     hasNext: {
-      type:     Object as PropType<Ref<boolean>>,
+      type:     Boolean,
       required: true,
     },
     startWithLyrics: {
@@ -284,8 +284,8 @@
   })
 
   const handleLyricsSeek = (time: number) => {
-    if (props.duration.value > 0) {
-      const percentage = (time / props.duration.value) * 100
+    if (props.duration > 0) {
+      const percentage = (time / props.duration) * 100
       emit('seek', percentage)
     }
   }

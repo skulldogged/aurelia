@@ -31,49 +31,30 @@
       .slice(0, 10)
   })
 
-  const newReleases = computed(() => {
-    // Get albums that were recently added to the library
-    // We'll use the most recent song's datePlayed or a fallback to track when albums were added
-    const oneMonthAgo = new Date()
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
-
+  const recentlyAdded = computed(() => {
+    // Get albums that were recently added to the user's Jellyfin server
+    // Sort by the most recently added song in each album
     return props.albums
       .filter(album => {
-        // Find the most recent song from this album
+        // Find songs from this album
         const albumSongs = props.songs.filter(s => s.album === album.name)
-        if (albumSongs.length === 0) return false
-
-        // Use datePlayed if available, otherwise use a fallback based on song order
-        const mostRecentSong = albumSongs.reduce((latest, current) => {
-          if (current.datePlayed && latest.datePlayed) {
-            return new Date(current.datePlayed) > new Date(latest.datePlayed) ? current : latest
-          }
-          return latest
-        })
-
-        // If we have datePlayed data, use it; otherwise consider it recent if it's in the library
-        if (mostRecentSong.datePlayed) {
-          return new Date(mostRecentSong.datePlayed) > oneMonthAgo
-        }
-
-        // Fallback: consider albums with songs as "recently added" if we don't have datePlayed data
-        return true
+        return albumSongs.length > 0
       })
       .sort((a, b) => {
-        // Sort by the most recent activity (datePlayed or fallback to album name for consistency)
+        // Sort by the most recent dateCreated of songs in each album
         const albumASongs = props.songs.filter(s => s.album === a.name)
         const albumBSongs = props.songs.filter(s => s.album === b.name)
 
-        const getMostRecentDate = (songs: typeof props.songs) => {
-          const withDates = songs.filter(s => s.datePlayed)
+        const getMostRecentDateCreated = (songs: typeof props.songs) => {
+          const withDates = songs.filter(s => s.dateCreated)
           if (withDates.length > 0) {
-            return Math.max(...withDates.map(s => new Date(s.datePlayed!).getTime()))
+            return Math.max(...withDates.map(s => new Date(s.dateCreated!).getTime()))
           }
-          return 0 // Fallback for albums without datePlayed data
+          return 0 // Fallback for albums without dateCreated data
         }
 
-        const dateA = getMostRecentDate(albumASongs)
-        const dateB = getMostRecentDate(albumBSongs)
+        const dateA = getMostRecentDateCreated(albumASongs)
+        const dateB = getMostRecentDateCreated(albumBSongs)
 
         if (dateA === dateB) {
           // If dates are equal or both 0, sort alphabetically
@@ -368,9 +349,9 @@
       </div>
     </Carousel>
 
-    <Carousel title='New Releases'>
+    <Carousel title='Recently Added'>
       <div
-        v-for='album in newReleases'
+        v-for='album in recentlyAdded'
         @click="$emit('select-album', album)"
         :key='album.name'
         class='cursor-pointer group'

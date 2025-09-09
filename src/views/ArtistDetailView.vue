@@ -282,7 +282,7 @@
 <script setup lang="ts">
   import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
   import { useRoute } from 'vue-router'
-  import { invoke } from '@tauri-apps/api/core'
+  import { useTauri } from '@/composables/useTauri'
   import { Button } from '@/components/ui/button'
   import { Music, ChevronLeft, ChevronRight, Play, Pause, Shuffle, Star, ExternalLink } from 'lucide-vue-next'
   import { MusicItem, ArtistInfo, AlbumWithSongs, ArtistSummary } from '@/types'
@@ -310,6 +310,8 @@
   const route = useRoute()
   const artistId = computed(() => route.params.artistId as string)
   const artist = computed(() => props.artists.find(a => a.id === artistId.value))
+
+  const { getArtistDetails } = useTauri()
 
   const scrollContainer = ref<HTMLElement | null>(null)
   const canScrollLeft = ref(false)
@@ -422,12 +424,12 @@
       return
     }
     try {
-      const details: ArtistInfo = await invoke('get_artist_details', {
-        artistId:  artist.value.id,
-        serverUrl: props.serverUrl,
-        token:     props.token,
-        userId:    props.userId,
-      })
+      const details = await getArtistDetails(
+        props.serverUrl,
+        props.token,
+        props.userId,
+        artist.value.id,
+      )
       artistDetails.value = details
     } catch (error) {
       console.error('Failed to fetch artist details:', error)

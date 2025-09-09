@@ -42,6 +42,7 @@ pub fn initialize_database() -> Result<()> {
             codec TEXT,
             premiere_date TEXT,
             date_played TEXT,
+            date_created TEXT,
             lyrics TEXT
         );
         CREATE TABLE IF NOT EXISTS artists (
@@ -78,8 +79,8 @@ pub fn cache_music_library(items: &[MusicItem]) -> Result<()> {
     for item in items {
         // Insert or replace song
         tx.execute(
-            "INSERT OR REPLACE INTO songs (id, name, item_type, album, path, duration, album_art_url, year, play_count, is_favorite, track_number, container, premiere_date, date_played, lyrics, bit_rate, sample_rate, codec)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
+            "INSERT OR REPLACE INTO songs (id, name, item_type, album, path, duration, album_art_url, year, play_count, is_favorite, track_number, container, premiere_date, date_played, date_created, lyrics, bit_rate, sample_rate, codec)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
             params![
                 item.id,
                 item.name,
@@ -95,6 +96,7 @@ pub fn cache_music_library(items: &[MusicItem]) -> Result<()> {
                 item.container,
                 item.premiere_date,
                 item.date_played,
+                item.date_created,
                 item.lyrics,
                 item.bit_rate,
                 item.sample_rate,
@@ -150,6 +152,7 @@ pub fn get_cached_music_library() -> Result<Vec<MusicItem>> {
     let mut stmt = conn.prepare(
         "SELECT s.id, s.name, s.item_type, s.album, s.path, s.duration, s.album_art_url, s.year,
                 s.play_count, s.is_favorite, s.track_number, s.container, s.premiere_date, s.date_played,
+                s.date_created,
                 s.lyrics,
                 s.bit_rate,
                 s.sample_rate,
@@ -167,13 +170,13 @@ pub fn get_cached_music_library() -> Result<Vec<MusicItem>> {
     )?;
 
     let music_items = stmt.query_map([], |row| {
-        let bit_rate: Option<i64> = row.get(15)?;
-        let sample_rate: Option<i64> = row.get(16)?;
-        let codec: Option<String> = row.get(17)?;
-        let artists_str: Option<String> = row.get(18)?;
-        let artist_ids_str: Option<String> = row.get(19)?;
-        let album_artist_names_str: Option<String> = row.get(20)?;
-        let album_artist_ids_str: Option<String> = row.get(21)?;
+        let bit_rate: Option<i32> = row.get(16)?;
+        let sample_rate: Option<i32> = row.get(17)?;
+        let codec: Option<String> = row.get(18)?;
+        let artists_str: Option<String> = row.get(19)?;
+        let artist_ids_str: Option<String> = row.get(20)?;
+        let album_artist_names_str: Option<String> = row.get(21)?;
+        let album_artist_ids_str: Option<String> = row.get(22)?;
 
         let artists = artists_str
             .map(|s| {
@@ -225,11 +228,12 @@ pub fn get_cached_music_library() -> Result<Vec<MusicItem>> {
             container: row.get(11)?,
             premiere_date: row.get(12)?,
             date_played: row.get(13)?,
+            date_created: row.get(14)?,
             artists,
             artist_ids,
             genres: None, // You might want to implement genre caching as well
             album_artists,
-            lyrics: row.get(14)?,
+            lyrics: row.get(15)?,
             bit_rate,
             sample_rate,
             codec,

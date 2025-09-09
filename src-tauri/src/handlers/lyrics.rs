@@ -5,6 +5,7 @@ use crate::services::{JellyfinClient, LrcLibClient};
 
 /// Get lyrics for a track
 #[tauri::command]
+#[specta::specta]
 pub async fn get_lyrics(
     id: String,
     artist: String,

@@ -26,6 +26,7 @@ export default ts.config(
       'dist/**',
       'src-tauri/**',
       '*.d.ts',
+      'src/components/ui/**',
     ],
   },
 

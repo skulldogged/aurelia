@@ -45,7 +45,7 @@
 
 <script setup lang="ts">
   import { ref, watch, computed, nextTick } from 'vue'
-  import { invoke } from '@tauri-apps/api/core'
+  import { useTauri } from '@/composables/useTauri'
   import { Loader2 } from 'lucide-vue-next'
   import { MusicItem } from '@/types'
 
@@ -71,6 +71,8 @@
   const error = ref<string | null>(null)
   const parsedLyrics = ref<LyricLine[]>([])
   const activeLineRef = ref<HTMLParagraphElement | null>(null)
+
+  const { getLyrics } = useTauri()
 
   const areLyricsSynced = computed(() => {
     return lyrics.value ? /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyrics.value) : false
@@ -109,11 +111,11 @@
       isLoading.value = true
       try {
         if (newSong.artists && newSong.artists.length > 0) {
-          const fetchedLyrics = await invoke<string>('get_lyrics', {
-            id:     newSong.id,
-            artist: newSong.artists[0],
-            title:  newSong.name,
-          })
+          const fetchedLyrics = await getLyrics(
+            newSong.id,
+            newSong.artists[0],
+            newSong.name,
+          )
           lyrics.value = fetchedLyrics
           if (areLyricsSynced.value && fetchedLyrics) {
             parsedLyrics.value = parseLrc(fetchedLyrics)

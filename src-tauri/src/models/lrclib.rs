@@ -1,12 +1,13 @@
 //! LrcLib API data models
 
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 /// LrcLib track response containing lyrics
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Type)]
 pub struct LrcLibTrackResponse {
     /// Track ID in LrcLib
-    pub id: i64,
+    pub id: i32,
     /// Track name
     pub name: String,
     /// Alternative track name

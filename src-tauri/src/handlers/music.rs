@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 /// Get music library, using cache if available
 #[tauri::command]
+#[specta::specta]
 pub async fn get_music_library(
     server_url: String,
     token: String,
@@ -45,6 +46,7 @@ pub async fn get_music_library(
 
 /// Get artist details
 #[tauri::command]
+#[specta::specta]
 pub async fn get_artist_details(
     server_url: String,
     token: String,
@@ -60,6 +62,7 @@ pub async fn get_artist_details(
 
 /// Get all artists from the server
 #[tauri::command]
+#[specta::specta]
 pub async fn get_all_artists(server_url: String, token: String) -> Result<Vec<ArtistInfo>, String> {
     let client = JellyfinClient::with_auth(server_url, token);
     client.get_all_artists().await.map_err(|e| e.to_string())
@@ -67,6 +70,7 @@ pub async fn get_all_artists(server_url: String, token: String) -> Result<Vec<Ar
 
 /// Get albums with their songs
 #[tauri::command]
+#[specta::specta]
 pub async fn get_albums_with_songs(
     server_url: String,
     token: String,
@@ -138,6 +142,7 @@ pub async fn get_albums_with_songs(
 
 /// Get artists with their songs
 #[tauri::command]
+#[specta::specta]
 pub async fn get_artists_with_songs(
     server_url: String,
     token: String,
@@ -230,6 +235,7 @@ pub async fn get_artists_with_songs(
 
 /// Get audio stream URL
 #[tauri::command]
+#[specta::specta]
 pub async fn get_audio_stream_url(
     server_url: String,
     token: String,
@@ -242,6 +248,7 @@ pub async fn get_audio_stream_url(
 
 /// Toggle favorite status for a track
 #[tauri::command]
+#[specta::specta]
 pub async fn toggle_favorite_status(
     server_url: String,
     token: String,
@@ -261,6 +268,7 @@ pub async fn toggle_favorite_status(
 
 /// Clear the music cache
 #[tauri::command]
+#[specta::specta]
 pub fn clear_music_cache() -> Result<(), String> {
     db::clear_music_cache()
 }

@@ -6,13 +6,11 @@
   import MusicPlayer from './components/player/MusicPlayer.vue'
   import Queue from './components/player/Queue.vue'
   import MainLayout from './components/layout/MainLayout.vue'
-  import { invoke } from '@tauri-apps/api/core'
   import { MusicItem, ArtistInfo, AlbumWithSongs, ArtistWithSongs } from './types'
-  import { useAccentColor } from '@/composables/useAccentColor'
-  import { useTheme } from '@/composables/useTheme'
+  import { useTauri } from '@/composables/useTauri'
   import SearchResults from '@/views/SearchResultsView.vue'
   import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
-  import { usePlayerState } from './composables/usePlayerState'
+  import { usePlayerStore } from '@/stores'
   import WindowControls from '@/components/shared/WindowControls.vue'
 
   // Define your interfaces here, or move them to a types.ts file
@@ -32,12 +30,20 @@
   }
 
   useColorMode()
-  useTheme()
-  useAccentColor()
 
   // Router setup
   const router = useRouter()
   const route = useRoute()
+
+  // Tauri commands
+  const {
+    getMusicLibrary,
+    getAlbumsWithSongs,
+    getArtistsWithSongs,
+    getSavedCredentials,
+    toggleFavoriteStatus,
+    clearMusicCache,
+  } = useTauri()
 
   // App state
   const authStatus = ref<'pending' | 'loggedIn' | 'loggedOut'>('pending')
@@ -58,7 +64,7 @@
   const isFullScreenPlayerOpen = ref(false)
   const musicPlayerRef = ref<InstanceType<typeof MusicPlayer> | null>(null)
 
-  const playerState = usePlayerState()
+  const playerStore = usePlayerStore()
 
   // Current view from route
   const currentView = ref('home')
@@ -138,30 +144,19 @@
     libraryError.value = ''
     try {
       console.log('DEBUG: Fetching songs...')
-      const songs = await invoke<MusicItem[]>('get_music_library', {
-        serverUrl: credentials.value.serverUrl,
-        token:     credentials.value.token,
-      })
+      const songs = await getMusicLibrary(
+        credentials.value.serverUrl,
+        credentials.value.token,
+      )
       console.log(`DEBUG: Loaded ${songs.length} songs`)
       allSongs.value = songs
 
       // Since the other data is derived from songs, let's get them with the new commands
       console.log('DEBUG: Fetching albums and artists...')
       const [albums, artistsWithSongs, albumArtists] = await Promise.all([
-        invoke<AlbumWithSongs[]>('get_albums_with_songs', {
-          serverUrl: credentials.value.serverUrl,
-          token:     credentials.value.token,
-        }),
-        invoke<ArtistWithSongs[]>('get_artists_with_songs', {
-          serverUrl:        credentials.value.serverUrl,
-          token:            credentials.value.token,
-          albumArtistsOnly: false,
-        }),
-        invoke<ArtistWithSongs[]>('get_artists_with_songs', {
-          serverUrl:        credentials.value.serverUrl,
-          token:            credentials.value.token,
-          albumArtistsOnly: true,
-        }),
+        getAlbumsWithSongs(credentials.value.serverUrl, credentials.value.token),
+        getArtistsWithSongs(credentials.value.serverUrl, credentials.value.token, false),
+        getArtistsWithSongs(credentials.value.serverUrl, credentials.value.token, true),
       ])
       console.log(`DEBUG: Loaded ${albums.length} albums and ${artistsWithSongs.length} artists with songs`)
       allAlbums.value = albums
@@ -178,14 +173,10 @@
 
   // Check for saved credentials on app start
   onMounted(() => {
-    invoke<number>('get_saved_volume')
-      .then(savedVolume => {
-        if (savedVolume !== null)
-          volume.value = savedVolume
-      })
-      .catch(err => console.error('Failed to get saved volume:', err))
+    // Initialize volume from player store (which loads from localStorage)
+    volume.value = playerStore.volume
 
-    invoke<Credentials>('get_saved_credentials')
+    getSavedCredentials()
       .then(saved => {
         if (saved && saved.token) {
           credentials.value = saved
@@ -205,10 +196,6 @@
       loadLibrary()
   })
 
-  watch(volume, newVolume => {
-    invoke('save_volume', { volume: newVolume })
-  })
-
   // Handle login success
   const handleLogin = async (loginCredentials: Credentials) => {
     credentials.value = loginCredentials
@@ -220,6 +207,11 @@
   const handleLogout = () => {
     credentials.value = null
     authStatus.value = 'loggedOut'
+    // Reset player store state
+    playerStore.setCurrentSong(null)
+    playerStore.setPlaylist([])
+    playerStore.setCurrentIndex(-1)
+    // Reset local state
     currentSong.value = null
     playlist.value = []
     allSongs.value = []
@@ -233,18 +225,28 @@
   // Handle volume changes from player
   const handleVolumeChange = (newVolume: number) => {
     volume.value = newVolume
+    // Player store setVolume already handles persistence
+    playerStore.setVolume(newVolume)
   }
 
   const handlePlaySong = (song: MusicItem) => {
     currentSong.value = song
+    playerStore.setCurrentSong(song)
     if (!playlist.value.find((s: MusicItem) => s.id === song.id)) {
       playlist.value.push(song)
+      playerStore.setPlaylist([...playlist.value])
+    }
+    // Update current index in store
+    const index = playlist.value.findIndex(s => s.id === song.id)
+    if (index !== -1) {
+      playerStore.setCurrentIndex(index)
     }
   }
 
   // Handle playing a full album or any list of songs
   const handlePlaySongs = (songs: MusicItem[]) => {
     playlist.value = songs
+    playerStore.setPlaylist(songs)
     if (songs.length > 0) {
       handlePlaySong(songs[0])
     }
@@ -253,6 +255,12 @@
   // Handle playlist updates from queue
   const handleUpdatePlaylist = (newPlaylist: MusicItem[]) => {
     playlist.value = newPlaylist
+    playerStore.setPlaylist(newPlaylist)
+    // Update current index if current song is still in playlist
+    if (currentSong.value) {
+      const index = newPlaylist.findIndex(s => s.id === currentSong.value!.id)
+      playerStore.setCurrentIndex(index)
+    }
   }
 
   const handleRemoveSong = (song: MusicItem) => {
@@ -267,21 +275,36 @@
     isFullScreenPlayerOpen.value = !isFullScreenPlayerOpen.value
   }
 
-  const handleTogglePlayPause = () => musicPlayerRef.value?.togglePlayPause()
-  const handlePreviousSong = () => musicPlayerRef.value?.previousSong()
-  const handleNextSong = () => musicPlayerRef.value?.nextSong()
-  const handleToggleShuffle = () => musicPlayerRef.value?.toggleShuffle()
-  const handleToggleRepeat = () => musicPlayerRef.value?.toggleRepeat()
+  const handleTogglePlayPause = () => {
+    // Only use the MusicPlayer's method - it handles both audio control and store state updates
+    musicPlayerRef.value?.togglePlayPause()
+  }
+  const handlePreviousSong = () => {
+    playerStore.previousSong()
+    musicPlayerRef.value?.previousSong()
+  }
+  const handleNextSong = () => {
+    playerStore.nextSong()
+    musicPlayerRef.value?.nextSong()
+  }
+  const handleToggleShuffle = () => {
+    playerStore.toggleShuffle()
+  }
+  const handleToggleRepeat = () => {
+    playerStore.cycleRepeatMode()
+  }
   const handleSeek = (value: number) => musicPlayerRef.value?.onSeek([value])
 
   // Handle song change from player
   const handleSongChanged = (song: MusicItem) => {
     currentSong.value = song
+    playerStore.setCurrentSong(song)
   }
 
   // Handle player state updates
   const handleUpdateCurrentSong = (song: MusicItem | null) => {
     currentSong.value = song
+    playerStore.setCurrentSong(song)
   }
 
   // Favorite a song
@@ -292,13 +315,13 @@
       return
     }
 
-    invoke<boolean>('toggle_favorite_status', {
-      serverUrl:  credentials.value.serverUrl,
-      token:      credentials.value.token,
-      userId:     credentials.value.userId,
-      itemId:     song.id,
-      isFavorite: !song.isFavorite,
-    })
+    toggleFavoriteStatus(
+      credentials.value.serverUrl,
+      credentials.value.token,
+      credentials.value.userId,
+      song.id,
+      !song.isFavorite,
+    )
       .then(newStatus => {
         console.log('Favorite status updated to:', newStatus)
         const songInLibrary = allSongs.value.find(s => s.id === song.id)
@@ -318,7 +341,7 @@
   const handleClearCache = async () => {
     console.log('DEBUG: Starting cache clear from UI...')
     try {
-      await invoke('clear_music_cache')
+      await clearMusicCache()
       console.log('DEBUG: Cache clear command completed, now loading library...')
       await loadLibrary()
       console.log('DEBUG: Library reload completed')
@@ -409,11 +432,8 @@
           @volume-changed='handleVolumeChange'
           v-if='currentSong'
           ref='musicPlayerRef'
-          :current-song='currentSong'
-          :playlist='playlist'
           :server-url='credentials!.serverUrl'
           :token='credentials!.token'
-          :volume='volume'
         />
       </template>
     </MainLayout>
@@ -429,15 +449,15 @@
       @toggle-repeat='handleToggleRepeat'
       @toggle-shuffle='handleToggleShuffle'
       @update:playlist='handleUpdatePlaylist'
-      :current-time='playerState.currentTime'
-      :duration='playerState.duration'
-      :has-next='playerState.hasNext'
-      :has-previous='playerState.hasPrevious'
-      :is-playing='playerState.isPlaying'
-      :is-shuffled='playerState.isShuffled'
+      :current-time='playerStore.currentTime'
+      :duration='playerStore.duration'
+      :has-next='playerStore.hasNext'
+      :has-previous='playerStore.hasPrevious'
+      :is-playing='playerStore.isPlaying'
+      :is-shuffled='playerStore.isShuffled'
       :playlist='playlist'
-      :progress='playerState.progress'
-      :repeat-mode='playerState.repeatMode'
+      :progress='playerStore.progress'
+      :repeat-mode='playerStore.repeatMode'
       :show='isFullScreenPlayerOpen'
       :song='currentSong'
     />
