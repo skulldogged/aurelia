@@ -47,7 +47,7 @@
   import { ref, watch, computed, nextTick } from 'vue'
   import { useTauri } from '@/composables/useTauri'
   import { Loader2 } from 'lucide-vue-next'
-  import { MusicItem } from '@/types'
+  import { Song } from '@/bindings'
 
   interface LyricLine {
     time: number
@@ -55,7 +55,7 @@
   }
 
   const props = defineProps<{
-    song:        MusicItem | null
+    song:        Song | null
     currentTime: number
     duration:    number
     visible:     boolean

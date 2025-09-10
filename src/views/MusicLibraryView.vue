@@ -14,16 +14,16 @@
           />
         </div>
 
-        <div v-if='props.loading' class='flex justify-center items-center py-12'>
+        <div v-if='loading' class='flex justify-center items-center py-12'>
           <div class='text-muted-foreground'>
             Loading songs...
           </div>
         </div>
-        <div v-else-if='props.error' class='text-center py-12'>
+        <div v-else-if='error' class='text-center py-12'>
           <p class='text-destructive mb-4'>
-            {{ props.error }}
+            {{ error }}
           </p>
-          <Button @click="$emit('reload-library')" variant='destructive'>
+          <Button @click='fetchMusicLibrary' variant='destructive'>
             Try Again
           </Button>
         </div>
@@ -33,6 +33,7 @@
             @toggle-favorite='handleToggleFavorite'
             :current-song='props.currentSong'
             :is-playing='props.isPlaying'
+            :server-url='props.serverUrl'
             :show-album='true'
             :show-album-art='true'
             :show-artist='true'
@@ -40,6 +41,7 @@
             :show-track-number='true'
             :show-year='true'
             :songs='filteredSongs'
+            :token='props.token'
           />
         </div>
       </div>
@@ -48,36 +50,51 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch } from 'vue'
+  import { ref, computed, watch, onMounted } from 'vue'
   import Fuse from 'fuse.js'
   import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
-  import { MusicItem, ArtistInfo, AlbumInfo } from '@/types'
+  import { Song } from '@/bindings'
+  import { useTauri } from '@/composables/useTauri'
 
   // Define props from parent
   const props = defineProps<{
-    songs:       MusicItem[]
-    artists:     ArtistInfo[]
-    albums:      AlbumInfo[]
-    loading:     boolean
-    error:       string
-    currentSong: MusicItem | null
+    currentSong: Song | null
     isPlaying:   boolean
+    serverUrl:   string
+    token:       string
   }>()
 
   // Define emits for parent
   const emit = defineEmits<{
-    'play-song':       [song: MusicItem]
-    'toggle-favorite': [song: MusicItem]
-    'reload-library':  []
+    'play-song':       [song: Song]
+    'toggle-favorite': [song: Song]
   }>()
 
   // Component state
   const searchQuery = ref('')
+  const songs = ref<Song[]>([])
+  const loading = ref(false)
+  const error = ref('')
+  const { getMusicLibrary } = useTauri()
+
+  const fetchMusicLibrary = async () => {
+    loading.value = true
+    error.value = ''
+    try {
+      songs.value = await getMusicLibrary(props.serverUrl, props.token)
+    } catch (e) {
+      error.value = e as string
+    } finally {
+      loading.value = false
+    }
+  }
+
+  onMounted(fetchMusicLibrary)
 
   // Fuzzy Search setup
-  const songFuse = ref(new Fuse(props.songs, {
+  const songFuse = ref(new Fuse(songs.value, {
     keys: [
       { name: 'name', weight: 0.5 },
       { name: 'artists', weight: 0.3 },
@@ -88,20 +105,20 @@
     minMatchCharLength: 2,
   }))
 
-  watch(() => props.songs, newSongs => songFuse.value.setCollection(newSongs))
+  watch(songs, newSongs => songFuse.value.setCollection(newSongs))
 
   // Computed properties for filtering
   const filteredSongs = computed(() => {
-    if (!searchQuery.value || searchQuery.value.length < 2) return props.songs
+    if (!searchQuery.value || searchQuery.value.length < 2) return songs.value
     return songFuse.value.search(searchQuery.value).map(result => result.item)
   })
 
   // Methods
-  const playSong = (song: MusicItem) => {
+  const playSong = (song: Song) => {
     emit('play-song', song)
   }
 
-  const handleToggleFavorite = (song: MusicItem) => {
+  const handleToggleFavorite = (song: Song) => {
     emit('toggle-favorite', song)
   }
 </script>

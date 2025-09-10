@@ -8,21 +8,23 @@
           @mouseleave='onTitleMouseLeave'
           :class="['flex items-center space-x-4 min-w-0', shouldMarquee ? 'marquee-enabled' : '']"
         >
-          <div class='flex-shrink-0'>
-            <img
-              @click="$emit('toggle-fullscreen')"
-              v-if='playerStore.currentSong.albumArtUrl'
-              :src='playerStore.currentSong.albumArtUrl'
+          <div @click="$emit('toggle-fullscreen')" class='flex-shrink-0'>
+            <ImageLoader
+              v-if='playerStore.currentSong'
+              :item-id='playerStore.currentSong.albumId || playerStore.currentSong.id'
+              :server-url='serverUrl'
+              :token='token'
               alt='Album art'
               class='w-12 h-12 rounded-md cursor-pointer'
             >
-            <div
-              @click="$emit('toggle-fullscreen')"
-              v-else
-              class='w-12 h-12 bg-muted rounded-md flex items-center justify-center cursor-pointer'
-            >
-              <Music2 class='w-6 h-6 text-muted-foreground' />
-            </div>
+              <template #fallback>
+                <div
+                  class='w-12 h-12 bg-muted rounded-md flex items-center justify-center cursor-pointer'
+                >
+                  <Music2 class='w-6 h-6 text-muted-foreground' />
+                </div>
+              </template>
+            </ImageLoader>
           </div>
           <div class='flex-1 min-w-0'>
             <div ref='titleContainerRef' class='text-foreground font-medium select-text overflow-hidden'>
@@ -266,8 +268,9 @@
   } from 'lucide-vue-next'
   import { Button } from '@/components/ui/button'
   import { Slider } from '@/components/ui/slider'
-  import { MusicItem } from '@/types'
+  import { Song } from '@/bindings'
   import { usePlayerStore } from '@/stores'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
 
   const props = defineProps<{
     serverUrl: string
@@ -277,7 +280,7 @@
   defineEmits<{
     'toggle-queue':      []
     'toggle-fullscreen': []
-    'toggle-favorite':   [song: MusicItem]
+    'toggle-favorite':   [song: Song]
   }>()
 
   const playerStore = usePlayerStore()
@@ -549,13 +552,15 @@
     playerStore.cycleRepeatMode()
   }
 
-  const loadSong = async (song: MusicItem | null, player: HTMLAudioElement | null) => {
+  const loadSong = async (song: Song | null, player: HTMLAudioElement | null) => {
     if (!player || !song) {
       if (player) player.src = ''
       return
     }
 
     try {
+      console.log(`[MusicPlayer] Loading audio for song: ${song.name} (ID: ${song.id})`)
+
       const streamUrl = await getAudioStreamUrl(
         props.serverUrl,
         props.token,
@@ -571,11 +576,11 @@
         playerStore.setBuffering(true)
       }
     } catch (error) {
-      console.error(`[MusicPlayer] Failed to load audio for song ${song.id}:`, error)
+      console.error(`[MusicPlayer] Failed to load audio for song ${song.name} (ID: ${song.id}):`, error)
     }
   }
 
-  const playManuallyChangedSong = (song: MusicItem) => {
+  const playManuallyChangedSong = (song: Song) => {
     playerStore.setAudioReady(false)
     nextSongReady.value = false
     playerStore.setBuffering(true)

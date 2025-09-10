@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { MusicItem } from '@/types'
+import type { Song } from '@/bindings'
 
 export interface PlayerState {
   isPlaying:   boolean
@@ -81,8 +81,8 @@ export const usePlayerStore = defineStore('player', () => {
   const hasNext = ref(false)
 
   // New centralized state
-  const currentSong = ref<MusicItem | null>(null)
-  const playlist = ref<MusicItem[]>([])
+  const currentSong = ref<Song | null>(null)
+  const playlist = ref<Song[]>([])
   const currentIndex = ref(-1)
   const audioReady = ref(false)
   const isBuffering = ref(false)
@@ -155,11 +155,11 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   // New actions for centralized state
-  const setCurrentSong = (song: MusicItem | null) => {
+  const setCurrentSong = (song: Song | null) => {
     currentSong.value = song
   }
 
-  const setPlaylist = (songs: MusicItem[]) => {
+  const setPlaylist = (songs: Song[]) => {
     playlist.value = songs
   }
 

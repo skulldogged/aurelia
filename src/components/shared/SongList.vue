@@ -9,13 +9,14 @@
     TableRow,
   } from '@/components/ui/table'
   import { Play, Pause, Heart } from 'lucide-vue-next'
-  import { MusicItem } from '@/types'
+  import { Song } from '@/bindings'
   import { computed, ref, watch } from 'vue'
   import ImagePlaceholder from './ImagePlaceholder.vue'
+  import ImageLoader from './ImageLoader.vue'
 
   const props = defineProps<{
-    songs:            MusicItem[]
-    currentSong:      MusicItem | null
+    songs:            Song[]
+    currentSong:      Song | null
     isPlaying:        boolean
     showArtist?:      boolean
     showAlbum?:       boolean
@@ -23,18 +24,20 @@
     showTrackNumber?: boolean
     showDuration?:    boolean
     showAlbumArt?:    boolean
+    serverUrl:        string
+    token:            string
   }>()
 
   // Default showAlbumArt to true if not explicitly set
   const shouldShowAlbumArt = computed(() => props.showAlbumArt !== false)
 
   defineEmits<{
-    'play-song':       [song: MusicItem]
-    'toggle-favorite': [song: MusicItem]
+    'play-song':       [song: Song]
+    'toggle-favorite': [song: Song]
   }>()
 
-  const formatDuration = (seconds?: number) => {
-    if (seconds === undefined) return '?:??'
+  const formatDuration = (seconds?: number | null) => {
+    if (seconds === undefined || seconds === null) return '?:??'
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, '0')}`
@@ -117,18 +120,21 @@
           class='cursor-pointer group hover:bg-sidebar transition-colors'
         >
           <TableCell @click="$emit('play-song', song)" v-if='shouldShowAlbumArt' class='relative group/album-art'>
-            <img
-              v-if='song.albumArtUrl'
-              :src='song.albumArtUrl'
+            <ImageLoader
+              :item-id='song.albumId || song.id'
+              :server-url='serverUrl'
+              :token='token'
               alt='Album art'
               class='w-10 h-10 rounded-md group-hover/album-art:opacity-75 transition-opacity'
             >
-            <ImagePlaceholder
-              v-else
-              class='w-10 h-10 rounded-md group-hover/album-art:opacity-75 transition-opacity'
-              size='small'
-              type='album-art'
-            />
+              <template #fallback>
+                <ImagePlaceholder
+                  class='w-10 h-10 rounded-md group-hover/album-art:opacity-75 transition-opacity'
+                  size='small'
+                  type='album-art'
+                />
+              </template>
+            </ImageLoader>
             <div
               :class="[
                 'absolute top-2 left-2 w-10 h-10 flex items-center justify-center transition-opacity',
@@ -205,7 +211,7 @@
               song.year }}
           </TableCell>
           <TableCell class='text-right'>
-            {{ song.playCount }}
+            {{ song.playCount ?? 0 }}
           </TableCell>
           <TableCell v-if='showDuration' class='text-right'>
             {{ formatDuration(song.duration) }}

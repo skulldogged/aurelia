@@ -27,6 +27,7 @@ export default ts.config(
       'src-tauri/**',
       '*.d.ts',
       'src/components/ui/**',
+      'src/bindings.ts',
     ],
   },
 

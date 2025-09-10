@@ -1,28 +1,59 @@
 <script setup lang="ts">
-  import { computed, ref, watch } from 'vue'
+  import { computed, ref, watch, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MusicItem, AlbumWithSongs } from '@/types'
+  import { Song, Album } from '@/bindings'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Play } from 'lucide-vue-next'
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import { useTauri } from '@/composables/useTauri'
 
   const router = useRouter()
+  const { getMusicLibrary } = useTauri()
 
   const props = defineProps<{
-    albums: AlbumWithSongs[]
+    serverUrl: string,
+    token:     string,
   }>()
 
   const emit = defineEmits<{
-    'play-songs':   [songs: MusicItem[]]
-    'select-album': [album: AlbumWithSongs]
+    'play-songs':   [songs: Song[]]
+    'select-album': [album: Album]
   }>()
 
   const searchQuery = ref('')
+  const allSongs = ref<Song[]>([])
 
-  // Use albums directly from props
-  const albumsWithSongs = computed(() => props.albums)
+  onMounted(async () => {
+    allSongs.value = await getMusicLibrary(props.serverUrl, props.token)
+  })
+
+  const albumsWithSongs = computed(() => {
+    const albumsMap = new Map<string, Album>()
+
+    allSongs.value.forEach(song => {
+      if (song.album && song.albumId) {
+        if (!albumsMap.has(song.albumId)) {
+          albumsMap.set(song.albumId, {
+            id:          song.albumId,
+            name:        song.album,
+            artist:      song.artists?.[0] || 'Unknown Artist',
+            artistId:    song.artistIds?.[0] || null,
+            albumArtUrl: song.albumArtUrl,
+            songCount:   0,
+            songs:       [],
+          })
+        }
+        const album = albumsMap.get(song.albumId)!
+        album.songs!.push(song)
+        album.songCount = album.songs!.length
+      }
+    })
+
+    return Array.from(albumsMap.values())
+  })
 
   // Fuzzy search setup (Fuse.js)
   const albumsFuse = ref(new Fuse(albumsWithSongs.value, {
@@ -44,13 +75,13 @@
     return albumsFuse.value.search(searchQuery.value).map(result => result.item)
   })
 
-  const playAlbum = (album: AlbumWithSongs) => {
-    if (album.songs.length > 0) {
+  const playAlbum = (album: Album) => {
+    if (album.songs && album.songs.length > 0) {
       emit('play-songs', album.songs)
     }
   }
 
-  const selectAlbum = (album: AlbumWithSongs) => {
+  const selectAlbum = (album: Album) => {
     router.push(`/songs/album/${encodeURIComponent(album.name)}`)
   }
 </script>
@@ -77,21 +108,24 @@
         class='cursor-pointer group'
       >
         <div class='relative mb-4'>
-          <img
-            v-if='album.albumArtUrl'
+          <ImageLoader
             :alt='`${album.name} album art`'
-            :src='album.albumArtUrl'
+            :item-id='album.id || album.name'
+            :server-url='serverUrl'
+            :token='token'
             class='
               w-full aspect-square rounded-lg object-cover shadow-lg
               group-hover:opacity-75 transition-opacity
             '
           >
-          <ImagePlaceholder
-            v-else
-            class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-            size='large'
-            type='album'
-          />
+            <template #fallback>
+              <ImagePlaceholder
+                class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+                size='large'
+                type='album'
+              />
+            </template>
+          </ImageLoader>
 
           <!-- Play button overlay -->
           <div
@@ -115,22 +149,14 @@
         </div>
 
         <div>
-          <h3 class='font-semibold truncate'>
+          <p class='font-semibold truncate'>
             {{ album.name }}
-          </h3>
-          <p class='text-sm text-muted-foreground truncate'>
-            <router-link
-              @click.stop
-              v-if='album.artistId'
-              :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
-              class='hover:underline'
-            >
-              {{ album.artist }}
-            </router-link>
-            <span v-else>{{ album.artist }}</span>
           </p>
-          <p class='text-xs text-muted-foreground'>
-            {{ album.songCount }} songs
+          <p class='text-sm text-muted-foreground truncate'>
+            {{ album.artist }}
+          </p>
+          <p v-if='album.songs' class='text-sm text-muted-foreground truncate'>
+            {{ album.songs.length }} songs
           </p>
         </div>
       </div>

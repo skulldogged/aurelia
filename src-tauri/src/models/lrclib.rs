@@ -5,6 +5,7 @@ use specta::Type;
 
 /// LrcLib track response containing lyrics
 #[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
 pub struct LrcLibTrackResponse {
     /// Track ID in LrcLib
     pub id: i32,

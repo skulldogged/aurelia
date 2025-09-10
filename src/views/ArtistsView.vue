@@ -1,29 +1,45 @@
 <script setup lang="ts">
-  import { computed, ref, watch } from 'vue'
+  import { computed, ref, watch, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MusicItem, ArtistWithSongs } from '@/types'
+  import { Song, Artist } from '@/bindings'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Shuffle } from 'lucide-vue-next'
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import { useTauri } from '@/composables/useTauri'
 
   const router = useRouter()
+  const { getArtistsWithSongs } = useTauri()
+
   const showAllArtists = ref(false)
 
   const props = defineProps<{
-    artists:      ArtistWithSongs[]
-    albumArtists: ArtistWithSongs[]
+    serverUrl: string,
+    token:     string,
   }>()
 
   const emit = defineEmits<{
-    'play-song':     [song: MusicItem]
-    'play-songs':    [songs: MusicItem[]]
-    'select-artist': [artist: ArtistWithSongs]
+    'play-song':     [song: Song]
+    'play-songs':    [songs: Song[]]
+    'select-artist': [artist: Artist]
   }>()
 
   const searchQuery = ref('')
-  const artistsToDisplay = computed(() => showAllArtists.value ? props.artists : props.albumArtists || [])
+  const artists = ref<Artist[]>([])
+  const albumArtists = ref<Artist[]>([])
+
+  onMounted(async () => {
+    const [all, albumOnly] = await Promise.all([
+      getArtistsWithSongs(props.serverUrl, props.token, false),
+      getArtistsWithSongs(props.serverUrl, props.token, true),
+    ])
+    artists.value = all
+    albumArtists.value = albumOnly
+  })
+
+  const artistsToDisplay = computed(() => showAllArtists.value ? artists.value : albumArtists.value || [])
 
   // Use artists directly from props
   const artistsWithSongs = computed(() => artistsToDisplay.value)
@@ -45,16 +61,16 @@
     return artistsFuse.value.search(searchQuery.value).map(result => result.item)
   })
 
-  const playArtistShuffle = (artist: ArtistWithSongs) => {
+  const playArtistShuffle = (artist: Artist) => {
     const artistSongs = artist.songs
-    if (artistSongs.length > 0) {
+    if (artistSongs && artistSongs.length > 0) {
       // Shuffle the songs
       const shuffledSongs = [...artistSongs].sort(() => 0.5 - Math.random())
       emit('play-songs', shuffledSongs)
     }
   }
 
-  const selectArtist = (artist: ArtistWithSongs) => {
+  const selectArtist = (artist: Artist) => {
     if (artist.id)
       router.push(`/songs/artist/${artist.id}`)
   }
@@ -87,18 +103,21 @@
         class='cursor-pointer group'
       >
         <div class='relative mb-4'>
-          <img
-            v-if='artist.imageUrl'
+          <ImageLoader
             :alt='`${artist.name} artist image`'
-            :src='artist.imageUrl'
+            :item-id='artist.id'
+            :server-url='serverUrl'
+            :token='token'
             class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
           >
-          <ImagePlaceholder
-            v-else
-            class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-            size='large'
-            type='artist'
-          />
+            <template #fallback>
+              <ImagePlaceholder
+                class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+                size='large'
+                type='artist'
+              />
+            </template>
+          </ImageLoader>
 
           <!-- Play button overlay -->
           <div
@@ -122,11 +141,11 @@
         </div>
 
         <div class='text-center'>
-          <h3 class='font-semibold truncate'>
+          <p class='font-semibold truncate'>
             {{ artist.name }}
-          </h3>
-          <p class='text-sm text-muted-foreground'>
-            {{ artist.songCount }} songs
+          </p>
+          <p v-if='artist.songs' class='text-sm text-muted-foreground truncate'>
+            {{ artist.songs.length }} songs
           </p>
         </div>
       </div>

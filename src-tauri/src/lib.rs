@@ -1,7 +1,8 @@
-//! Jellyfin Music Player - Rust Backend
-//!
-//! This is the main library for the Tauri application backend.
-//! It provides a clean, modular interface to Jellyfin media server APIs.
+//! Main library entry point
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
 pub mod db;
 pub mod error;
@@ -10,34 +11,34 @@ pub mod models;
 pub mod services;
 pub mod utils;
 
-// Re-export commonly used types for convenience
-pub use models::*;
-
-// Specta imports for type generation
 use specta_typescript::Typescript;
 use tauri_specta::{collect_commands, Builder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    if let Err(e) = db::initialize_database() {
-        eprintln!("Failed to initialize database: {}", e);
-    }
+    // Initialize the database
+    tauri::async_runtime::block_on(async {
+        if let Err(e) = db::initialize_database().await {
+            eprintln!("Failed to initialize database: {}", e);
+        }
+    });
 
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
-        handlers::login_to_jellyfin,
-        handlers::save_credentials,
-        handlers::get_saved_credentials,
-        handlers::get_music_library,
-        handlers::get_all_artists,
-        handlers::get_artist_details,
-        handlers::get_albums_with_songs,
-        handlers::get_artists_with_songs,
-        handlers::get_audio_stream_url,
-        handlers::save_volume,
-        handlers::get_saved_volume,
-        handlers::toggle_favorite_status,
-        handlers::clear_music_cache,
-        handlers::get_lyrics
+        handlers::auth::login_to_jellyfin,
+        handlers::auth::save_credentials,
+        handlers::auth::get_saved_credentials,
+        handlers::auth::save_volume,
+        handlers::auth::get_saved_volume,
+        handlers::music::get_music_library,
+        handlers::music::get_all_albums,
+        handlers::music::get_all_artists,
+        handlers::music::get_artists_with_songs,
+        handlers::music::get_audio_stream_url,
+        handlers::music::toggle_favorite_status,
+        handlers::music::clear_music_cache,
+        handlers::music::get_recently_played,
+        handlers::music::get_artist_details,
+        handlers::lyrics::get_lyrics,
     ]);
 
     #[cfg(debug_assertions)] // <- Only export on non-release builds
@@ -51,7 +52,6 @@ pub fn run() {
         .setup(move |app| {
             // This is also required if you want to use events
             builder.mount_events(app);
-
             Ok(())
         })
         .run(tauri::generate_context!())

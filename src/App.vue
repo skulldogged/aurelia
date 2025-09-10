@@ -1,33 +1,17 @@
 <script setup lang="ts">
-  import { ref, onMounted, watch, onUnmounted } from 'vue'
+  import { ref, onMounted, watch, onUnmounted, computed } from 'vue'
   import { useColorMode } from '@vueuse/core'
   import { useRouter, useRoute } from 'vue-router'
   import Login from './views/LoginView.vue'
   import MusicPlayer from './components/player/MusicPlayer.vue'
   import Queue from './components/player/Queue.vue'
   import MainLayout from './components/layout/MainLayout.vue'
-  import { MusicItem, ArtistInfo, AlbumWithSongs, ArtistWithSongs } from './types'
+  import { Song, Album, Artist, Credentials } from './bindings'
   import { useTauri } from '@/composables/useTauri'
-  import SearchResults from '@/views/SearchResultsView.vue'
+  import SearchResults from '@/components/shared/SearchResultsView.vue'
   import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
   import { usePlayerStore } from '@/stores'
   import WindowControls from '@/components/shared/WindowControls.vue'
-
-  // Define your interfaces here, or move them to a types.ts file
-  // For brevity, I'll assume they are defined.
-  interface Credentials {
-    serverUrl: string
-    username:  string
-    token:     string
-    userId:    string
-  }
-
-  interface ArtistSummary {
-    id:        string
-    name:      string
-    songCount: number
-    imageUrl?: string
-  }
 
   useColorMode()
 
@@ -38,7 +22,6 @@
   // Tauri commands
   const {
     getMusicLibrary,
-    getAlbumsWithSongs,
     getArtistsWithSongs,
     getSavedCredentials,
     toggleFavoriteStatus,
@@ -48,15 +31,14 @@
   // App state
   const authStatus = ref<'pending' | 'loggedIn' | 'loggedOut'>('pending')
   const credentials = ref<Credentials | null>(null)
-  const currentSong = ref<MusicItem | null>(null)
-  const playlist = ref<MusicItem[]>([])
+  const currentSong = ref<Song | null>(null)
+  const playlist = ref<Song[]>([])
   const volume = ref(0.5)
   const isQueueOpen = ref(false)
-  const allSongs = ref<MusicItem[]>([])
-  const allAlbums = ref<AlbumWithSongs[]>([])
-  const allArtists = ref<ArtistInfo[]>([])
-  const allArtistsWithSongs = ref<ArtistWithSongs[]>([])
-  const albumArtistsWithSongs = ref<ArtistWithSongs[]>([])
+  const allSongs = ref<Song[]>([])
+  const allArtists = ref<Artist[]>([])
+  const allArtistsWithSongs = ref<Artist[]>([])
+  const albumArtistsWithSongs = ref<Artist[]>([])
   const libraryLoading = ref(false)
   const libraryError = ref('')
   const searchQuery = ref('')
@@ -65,6 +47,29 @@
   const musicPlayerRef = ref<InstanceType<typeof MusicPlayer> | null>(null)
 
   const playerStore = usePlayerStore()
+
+  const allAlbums = computed(() => {
+    const albumsMap = new Map<string, Album>()
+    allSongs.value.forEach(song => {
+      if (song.album && song.albumId) {
+        if (!albumsMap.has(song.albumId)) {
+          albumsMap.set(song.albumId, {
+            id:          song.albumId,
+            name:        song.album,
+            artist:      song.artists?.[0] || 'Unknown Artist',
+            artistId:    song.artistIds?.[0] || null,
+            albumArtUrl: song.albumArtUrl,
+            songCount:   0,
+            songs:       [],
+          })
+        }
+        const album = albumsMap.get(song.albumId)!
+        album.songs!.push(song)
+        album.songCount = album.songs!.length
+      }
+    })
+    return Array.from(albumsMap.values())
+  })
 
   // Current view from route
   const currentView = ref('home')
@@ -126,11 +131,11 @@
     }
   }
 
-  const handleSelectArtist = (artist: ArtistSummary) => {
+  const handleSelectArtist = (artist: Artist) => {
     router.push(`/songs/artist/${artist.id}`)
   }
 
-  const handleSelectAlbum = (album: AlbumWithSongs) => {
+  const handleSelectAlbum = (album: Album) => {
     router.push(`/songs/album/${encodeURIComponent(album.name)}`)
   }
 
@@ -152,14 +157,12 @@
       allSongs.value = songs
 
       // Since the other data is derived from songs, let's get them with the new commands
-      console.log('DEBUG: Fetching albums and artists...')
-      const [albums, artistsWithSongs, albumArtists] = await Promise.all([
-        getAlbumsWithSongs(credentials.value.serverUrl, credentials.value.token),
+      console.log('DEBUG: Fetching artists...')
+      const [artistsWithSongs, albumArtists] = await Promise.all([
         getArtistsWithSongs(credentials.value.serverUrl, credentials.value.token, false),
         getArtistsWithSongs(credentials.value.serverUrl, credentials.value.token, true),
       ])
-      console.log(`DEBUG: Loaded ${albums.length} albums and ${artistsWithSongs.length} artists with songs`)
-      allAlbums.value = albums
+      console.log(`DEBUG: Loaded ${artistsWithSongs.length} artists with songs`)
       allArtistsWithSongs.value = artistsWithSongs
       albumArtistsWithSongs.value = albumArtists
       console.log('DEBUG: Library load completed successfully')
@@ -172,23 +175,18 @@
   }
 
   // Check for saved credentials on app start
-  onMounted(() => {
+  onMounted(async () => {
     // Initialize volume from player store (which loads from localStorage)
     volume.value = playerStore.volume
 
-    getSavedCredentials()
-      .then(saved => {
-        if (saved && saved.token) {
-          credentials.value = saved
-          authStatus.value = 'loggedIn'
-        } else {
-          authStatus.value = 'loggedOut'
-        }
-      })
-      .catch(err => {
-        console.error('Failed to get saved credentials:', err)
-        authStatus.value = 'loggedOut'
-      })
+    const savedCredentials = await getSavedCredentials()
+    if (savedCredentials && savedCredentials.token) {
+      console.log('App.vue: Credentials loaded')
+      credentials.value = savedCredentials
+      authStatus.value = 'loggedIn'
+    } else {
+      authStatus.value = 'loggedOut'
+    }
   })
 
   watch(authStatus, (status: string) => {
@@ -229,10 +227,17 @@
     playerStore.setVolume(newVolume)
   }
 
-  const handlePlaySong = (song: MusicItem) => {
+  const handlePlaySong = (song: Song) => {
+    console.log('App handlePlaySong called with song:', song?.name || 'undefined', 'ID:', song?.id || 'undefined')
+
+    if (!song || !song.id) {
+      console.error('App: Invalid song passed to handlePlaySong:', song)
+      return
+    }
+
     currentSong.value = song
     playerStore.setCurrentSong(song)
-    if (!playlist.value.find((s: MusicItem) => s.id === song.id)) {
+    if (!playlist.value.find((s: Song) => s.id === song.id)) {
       playlist.value.push(song)
       playerStore.setPlaylist([...playlist.value])
     }
@@ -244,7 +249,21 @@
   }
 
   // Handle playing a full album or any list of songs
-  const handlePlaySongs = (songs: MusicItem[]) => {
+  const handlePlaySongs = (songs: Song[]) => {
+    console.log('App handlePlaySongs called with', songs.length, 'songs')
+    if (songs.length === 0) {
+      console.warn('App: No songs to play')
+      return
+    }
+
+    // Check if songs have valid IDs
+    const invalidSongs = songs.filter(song => !song || !song.id)
+    if (invalidSongs.length > 0) {
+      console.error('App: Found songs with invalid IDs:', invalidSongs)
+    }
+
+    console.log('App: First song:', songs[0]?.name || 'undefined', 'ID:', songs[0]?.id || 'undefined')
+
     playlist.value = songs
     playerStore.setPlaylist(songs)
     if (songs.length > 0) {
@@ -253,7 +272,7 @@
   }
 
   // Handle playlist updates from queue
-  const handleUpdatePlaylist = (newPlaylist: MusicItem[]) => {
+  const handleUpdatePlaylist = (newPlaylist: Song[]) => {
     playlist.value = newPlaylist
     playerStore.setPlaylist(newPlaylist)
     // Update current index if current song is still in playlist
@@ -263,7 +282,7 @@
     }
   }
 
-  const handleRemoveSong = (song: MusicItem) => {
+  const handleRemoveSong = (song: Song) => {
     playlist.value = playlist.value.filter(s => s.id !== song.id)
   }
 
@@ -296,19 +315,19 @@
   const handleSeek = (value: number) => musicPlayerRef.value?.onSeek([value])
 
   // Handle song change from player
-  const handleSongChanged = (song: MusicItem) => {
+  const handleSongChanged = (song: Song) => {
     currentSong.value = song
     playerStore.setCurrentSong(song)
   }
 
   // Handle player state updates
-  const handleUpdateCurrentSong = (song: MusicItem | null) => {
+  const handleUpdateCurrentSong = (song: Song | null) => {
     currentSong.value = song
     playerStore.setCurrentSong(song)
   }
 
   // Favorite a song
-  const handleToggleFavorite = (song: MusicItem) => {
+  const handleToggleFavorite = (song: Song) => {
     console.log('Toggling favorite for song:', song.name, 'Current status:', song.isFavorite)
     if (!credentials.value) {
       console.error('Cannot toggle favorite: no credentials')
@@ -340,8 +359,12 @@
 
   const handleClearCache = async () => {
     console.log('DEBUG: Starting cache clear from UI...')
+    if (!credentials.value) {
+      console.error('Failed to clear cache: No credentials available.')
+      return
+    }
     try {
-      await clearMusicCache()
+      await clearMusicCache(credentials.value.serverUrl, credentials.value.token)
       console.log('DEBUG: Cache clear command completed, now loading library...')
       await loadLibrary()
       console.log('DEBUG: Library reload completed')
@@ -382,16 +405,10 @@
             @select-artist='handleSelectArtist'
             @toggle-favorite='handleToggleFavorite'
             :key='$route.path'
-            :album-artists='albumArtistsWithSongs'
-            :albums='allAlbums'
-            :artists='allArtistsWithSongs'
             :credentials='credentials'
             :current-song='currentSong'
-            :error='libraryError'
             :is-playing='!!currentSong'
-            :loading='libraryLoading'
             :server-url='credentials?.serverUrl'
-            :songs='allSongs'
             :token='credentials?.token'
             :user-id='credentials?.userId'
           />
@@ -407,7 +424,9 @@
           :artists='allArtists'
           :is-visible='isSearchVisible'
           :query='searchQuery'
+          :server-url='credentials?.serverUrl'
           :songs='allSongs'
+          :token='credentials?.token'
         />
       </template>
 
@@ -458,8 +477,10 @@
       :playlist='playlist'
       :progress='playerStore.progress'
       :repeat-mode='playerStore.repeatMode'
+      :server-url='credentials?.serverUrl'
       :show='isFullScreenPlayerOpen'
       :song='currentSong'
+      :token='credentials?.token'
     />
 
     <WindowControls v-if='!isFullScreenPlayerOpen' class='fixed top-0 right-0 z-[100]' />

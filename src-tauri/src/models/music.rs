@@ -2,29 +2,45 @@
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
+use std::collections::HashMap;
 
 /// Generic name-ID pair used for artists and other entities
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
+#[specta(rename_all = "camelCase")]
 pub struct NameIdPair {
     /// Display name
     #[serde(rename = "Name")]
+    #[specta(rename = "name")]
     pub name: String,
     /// Unique identifier
     #[serde(rename = "Id")]
+    #[specta(rename = "id")]
     pub id: String,
 }
 
-/// Music item representing a song or audio file
+/// Wrapper for API responses that contain an Items array
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ItemsResponse<T> {
+    #[serde(rename = "Items")]
+    pub items: Vec<T>,
+}
+
+/// Song representing a music track or audio file
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
-pub struct MusicItem {
+#[specta(rename_all = "camelCase")]
+pub struct Song {
     /// Unique identifier
     pub id: String,
     /// Song title
     pub name: String,
     /// Type of item (usually "Audio")
+    #[serde(rename = "itemType")]
     pub item_type: String,
     /// Album name
     pub album: Option<String>,
+    /// Album ID
+    #[serde(rename = "albumId")]
+    pub album_id: Option<String>,
     /// List of artist names
     pub artists: Option<Vec<String>>,
     /// List of artist IDs corresponding to artists
@@ -76,93 +92,48 @@ pub struct MusicItem {
     pub lyrics: Option<String>,
 }
 
-/// Artist information
+/// Consolidated artist type with all information
 #[derive(Serialize, Deserialize, Debug, Type)]
-pub struct ArtistInfo {
+#[specta(rename_all = "camelCase")]
+pub struct Artist {
     /// Artist name
-    #[serde(rename = "Name")]
     pub name: String,
     /// Artist ID
-    #[serde(rename = "Id")]
     pub id: String,
     /// Image tags (metadata about available images)
-    #[serde(rename = "ImageTags")]
+    #[serde(skip)]
     #[specta(skip)]
     pub image_tags: Option<serde_json::Value>,
     /// URL to artist image
-    #[serde(rename = "imageUrl")]
     pub image_url: Option<String>,
     /// Artist biography/description
-    #[serde(rename = "Overview")]
     pub overview: Option<String>,
     /// External provider IDs (MusicBrainz, etc.)
-    #[serde(rename = "ProviderIds")]
-    #[specta(skip)]
-    pub provider_ids: Option<serde_json::Value>,
+    pub provider_ids: Option<HashMap<String, String>>,
     /// Community rating
-    #[serde(rename = "CommunityRating")]
     pub community_rating: Option<f32>,
-}
-
-/// Collection of artists
-#[derive(Serialize, Deserialize, Debug, Type)]
-pub struct ArtistItem {
-    /// List of artists
-    #[serde(rename = "Items")]
-    pub items: Vec<ArtistInfo>,
-}
-
-/// Album information with metadata
-#[derive(Serialize, Deserialize, Debug, Type)]
-pub struct AlbumInfo {
-    /// Album name
-    pub name: String,
-    /// Primary artist name
-    pub artist: String,
-    /// Primary artist ID
-    #[serde(rename = "artistId")]
-    pub artist_id: Option<String>,
-    /// URL to album artwork
-    #[serde(rename = "albumArtUrl")]
-    pub album_art_url: Option<String>,
-    /// Number of songs in album
-    #[serde(rename = "songCount")]
-    pub song_count: i32,
-}
-
-/// Album with all its songs
-#[derive(Serialize, Deserialize, Debug, Type)]
-pub struct AlbumWithSongs {
-    /// Album name
-    pub name: String,
-    /// Primary artist name
-    pub artist: String,
-    /// Primary artist ID
-    #[serde(rename = "artistId")]
-    pub artist_id: Option<String>,
-    /// URL to album artwork
-    #[serde(rename = "albumArtUrl")]
-    pub album_art_url: Option<String>,
-    /// Number of songs in album
-    #[serde(rename = "songCount")]
-    pub song_count: i32,
-    /// List of songs in this album
-    pub songs: Vec<MusicItem>,
-}
-
-/// Artist with all their songs
-#[derive(Serialize, Deserialize, Debug, Type)]
-pub struct ArtistWithSongs {
-    /// Artist ID
-    pub id: String,
-    /// Artist name
-    pub name: String,
     /// Number of songs by this artist
-    #[serde(rename = "songCount")]
+    pub song_count: Option<i32>,
+    /// Optional list of songs by this artist (only populated when needed)
+    pub songs: Option<Vec<Song>>,
+}
+
+/// Consolidated album type with all information
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct Album {
+    /// Album ID from Jellyfin
+    pub id: Option<String>,
+    /// Album name
+    pub name: String,
+    /// Primary artist name
+    pub artist: String,
+    /// Primary artist ID
+    pub artist_id: Option<String>,
+    /// URL to album artwork
+    pub album_art_url: Option<String>,
+    /// Number of songs in album
     pub song_count: i32,
-    /// URL to artist image
-    #[serde(rename = "imageUrl")]
-    pub image_url: Option<String>,
-    /// List of songs by this artist
-    pub songs: Vec<MusicItem>,
+    /// Optional list of songs in this album (only populated when needed)
+    pub songs: Option<Vec<Song>>,
 }

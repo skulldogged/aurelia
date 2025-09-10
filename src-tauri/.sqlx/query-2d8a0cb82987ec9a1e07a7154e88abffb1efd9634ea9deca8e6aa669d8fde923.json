@@ -1,0 +1,158 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT s.id, s.name, s.item_type, s.album_id, s.path, s.duration, s.album_art_url, s.year,\n               s.play_count, s.is_favorite, s.track_number, s.container, s.premiere_date, s.date_played,\n               s.date_created, s.lyrics, s.bit_rate, s.sample_rate, s.codec,\n               GROUP_CONCAT(a.name, '\\x1F') as artists,\n               GROUP_CONCAT(a.id, '\\x1F') as artist_ids,\n               (SELECT GROUP_CONCAT(aa.name, '\\x1F') FROM song_album_artists saa JOIN artists aa ON saa.artist_id = aa.id WHERE saa.song_id = s.id) as album_artist_names,\n               (SELECT GROUP_CONCAT(aa.id, '\\x1F') FROM song_album_artists saa JOIN artists aa ON saa.artist_id = aa.id WHERE saa.song_id = s.id) as album_artist_ids,\n               (SELECT name FROM albums WHERE id = s.album_id) as album_name\n        FROM songs s\n        LEFT JOIN song_artists sa ON s.id = sa.song_id\n        LEFT JOIN artists a ON sa.artist_id = a.id\n        GROUP BY s.id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "item_type",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "album_id",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "path",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "duration",
+        "ordinal": 5,
+        "type_info": "Float"
+      },
+      {
+        "name": "album_art_url",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "year",
+        "ordinal": 7,
+        "type_info": "Integer"
+      },
+      {
+        "name": "play_count",
+        "ordinal": 8,
+        "type_info": "Integer"
+      },
+      {
+        "name": "is_favorite",
+        "ordinal": 9,
+        "type_info": "Bool"
+      },
+      {
+        "name": "track_number",
+        "ordinal": 10,
+        "type_info": "Integer"
+      },
+      {
+        "name": "container",
+        "ordinal": 11,
+        "type_info": "Text"
+      },
+      {
+        "name": "premiere_date",
+        "ordinal": 12,
+        "type_info": "Text"
+      },
+      {
+        "name": "date_played",
+        "ordinal": 13,
+        "type_info": "Text"
+      },
+      {
+        "name": "date_created",
+        "ordinal": 14,
+        "type_info": "Text"
+      },
+      {
+        "name": "lyrics",
+        "ordinal": 15,
+        "type_info": "Text"
+      },
+      {
+        "name": "bit_rate",
+        "ordinal": 16,
+        "type_info": "Integer"
+      },
+      {
+        "name": "sample_rate",
+        "ordinal": 17,
+        "type_info": "Integer"
+      },
+      {
+        "name": "codec",
+        "ordinal": 18,
+        "type_info": "Text"
+      },
+      {
+        "name": "artists",
+        "ordinal": 19,
+        "type_info": "Text"
+      },
+      {
+        "name": "artist_ids",
+        "ordinal": 20,
+        "type_info": "Text"
+      },
+      {
+        "name": "album_artist_names",
+        "ordinal": 21,
+        "type_info": "Text"
+      },
+      {
+        "name": "album_artist_ids",
+        "ordinal": 22,
+        "type_info": "Text"
+      },
+      {
+        "name": "album_name",
+        "ordinal": 23,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "2d8a0cb82987ec9a1e07a7154e88abffb1efd9634ea9deca8e6aa669d8fde923"
+}

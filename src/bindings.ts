@@ -3,438 +3,411 @@
 
 /** user-defined commands **/
 
+
 export const commands = {
 /**
  * Login to Jellyfin server
  */
-  loginToJellyfin: async (serverUrl: string, username: string, password: string): Promise<Result<LoginResponse, string>> => {
+async loginToJellyfin(serverUrl: string, username: string, password: string) : Promise<Result<LoginResponse, string>> {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('login_to_jellyfin', { serverUrl, username, password }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
+    return { status: "ok", data: await TAURI_INVOKE("login_to_jellyfin", { serverUrl, username, password }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Save user credentials to disk
  */
-  saveCredentials: async (serverUrl: string, username: string, token: string, userId: string): Promise<Result<null, string>> => {
+async saveCredentials(serverUrl: string, username: string, token: string, userId: string) : Promise<Result<null, string>> {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('save_credentials', { serverUrl, username, token, userId }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
+    return { status: "ok", data: await TAURI_INVOKE("save_credentials", { serverUrl, username, token, userId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Load saved credentials from disk
  */
-  getSavedCredentials: async (): Promise<Result<Credentials | null, string>> => {
+async getSavedCredentials() : Promise<Result<Credentials | null, string>> {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_saved_credentials') }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
- * Get music library, using cache if available
- */
-  getMusicLibrary: async (serverUrl: string, token: string): Promise<Result<MusicItem[], string>> => {
-    try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_music_library', { serverUrl, token }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
- * Get all artists from the server
- */
-  getAllArtists: async (serverUrl: string, token: string): Promise<Result<ArtistInfo[], string>> => {
-    try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_all_artists', { serverUrl, token }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
- * Get artist details
- */
-  getArtistDetails: async (serverUrl: string, token: string, userId: string, artistId: string): Promise<Result<ArtistInfo, string>> => {
-    try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_artist_details', { serverUrl, token, userId, artistId }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
- * Get albums with their songs
- */
-  getAlbumsWithSongs: async (serverUrl: string, token: string): Promise<Result<AlbumWithSongs[], string>> => {
-    try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_albums_with_songs', { serverUrl, token }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
- * Get artists with their songs
- */
-  getArtistsWithSongs: async (serverUrl: string, token: string, albumArtistsOnly: boolean): Promise<Result<ArtistWithSongs[], string>> => {
-    try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_artists_with_songs', { serverUrl, token, albumArtistsOnly }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
- * Get audio stream URL
- */
-  getAudioStreamUrl: async (serverUrl: string, token: string, itemId: string, container: string | null): Promise<Result<string, string>> => {
-    try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_audio_stream_url', { serverUrl, token, itemId, container }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
+    return { status: "ok", data: await TAURI_INVOKE("get_saved_credentials") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Save user volume preference
  */
-  saveVolume: async (volume: number): Promise<Result<null, string>> => {
+async saveVolume(volume: number) : Promise<Result<null, string>> {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('save_volume', { volume }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
+    return { status: "ok", data: await TAURI_INVOKE("save_volume", { volume }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Load saved volume preference
  */
-  getSavedVolume: async (): Promise<Result<number | null, string>> => {
+async getSavedVolume() : Promise<Result<number | null, string>> {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_saved_volume') }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
+    return { status: "ok", data: await TAURI_INVOKE("get_saved_volume") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get music library, using cache if available
+ */
+async getMusicLibrary(serverUrl: string, token: string) : Promise<Result<Song[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_music_library", { serverUrl, token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get all artists from the server
+ */
+async getAllArtists(serverUrl: string, token: string) : Promise<Result<Artist[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_all_artists", { serverUrl, token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get artists with their songs
+ */
+async getArtistsWithSongs(serverUrl: string, token: string, albumArtistsOnly: boolean) : Promise<Result<Artist[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_artists_with_songs", { serverUrl, token, albumArtistsOnly }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get audio stream URL
+ */
+async getAudioStreamUrl(serverUrl: string, token: string, itemId: string, container: string | null) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_audio_stream_url", { serverUrl, token, itemId, container }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Toggle favorite status for a track
  */
-  toggleFavoriteStatus: async (serverUrl: string, token: string, userId: string, itemId: string, isFavorite: boolean): Promise<Result<boolean, string>> => {
+async toggleFavoriteStatus(serverUrl: string, token: string, userId: string, itemId: string, isFavorite: boolean) : Promise<Result<boolean, string>> {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('toggle_favorite_status', { serverUrl, token, userId, itemId, isFavorite }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
- * Clear the music cache
+    return { status: "ok", data: await TAURI_INVOKE("toggle_favorite_status", { serverUrl, token, userId, itemId, isFavorite }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Clear the music cache, then re-fetch and cache the library
  */
-  clearMusicCache: async (): Promise<Result<null, string>> => {
+async clearMusicCache(serverUrl: string, token: string) : Promise<Result<null, string>> {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('clear_music_cache') }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
-  /**
+    return { status: "ok", data: await TAURI_INVOKE("clear_music_cache", { serverUrl, token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get recently played songs
+ */
+async getRecentlyPlayed(serverUrl: string, token: string) : Promise<Result<Song[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_recently_played", { serverUrl, token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get details for a single artist
+ */
+async getArtistDetails(serverUrl: string, token: string, artistId: string) : Promise<Result<Artist, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_artist_details", { serverUrl, token, artistId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Get lyrics for a track
  */
-  getLyrics: async (id: string, artist: string, title: string, path: string | null): Promise<Result<string, string>> => {
+async getLyrics(id: string, artist: string, title: string, path: string | null) : Promise<Result<string, string>> {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('get_lyrics', { id, artist, title, path }) }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { status: 'error', error: e  as any }
-    }
-  },
+    return { status: "ok", data: await TAURI_INVOKE("get_lyrics", { id, artist, title, path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+}
 }
 
 /** user-defined events **/
 
+
+
 /** user-defined constants **/
+
+
 
 /** user-defined types **/
 
 /**
- * Album with all its songs
+ * Consolidated artist type with all information
  */
-export type AlbumWithSongs = {
-/**
- * Album name
- */
-  name:        string;
-  /**
- * Primary artist name
- */
-  artist:      string;
-  /**
- * Primary artist ID
- */
-  artistId:    string | null;
-  /**
- * URL to album artwork
- */
-  albumArtUrl: string | null;
-  /**
- * Number of songs in album
- */
-  songCount:   number;
-  /**
- * List of songs in this album
- */
-  songs:       MusicItem[] }
-/**
- * Artist information
- */
-export type ArtistInfo = {
+export type Artist = { 
 /**
  * Artist name
  */
-  Name:            string;
-  /**
+name: string; 
+/**
  * Artist ID
  */
-  Id:              string;
-  /**
+id: string; 
+/**
  * URL to artist image
  */
-  imageUrl:        string | null;
-  /**
+imageUrl: string | null; 
+/**
  * Artist biography/description
  */
-  Overview:        string | null;
-  /**
+overview: string | null; 
+/**
+ * External provider IDs (MusicBrainz, etc.)
+ */
+providerIds: Partial<{ [key in string]: string }> | null; 
+/**
  * Community rating
  */
-  CommunityRating: number | null }
+communityRating: number | null; 
 /**
- * Artist with all their songs
- */
-export type ArtistWithSongs = {
-/**
- * Artist ID
- */
-  id:        string;
-  /**
- * Artist name
- */
-  name:      string;
-  /**
  * Number of songs by this artist
  */
-  songCount: number;
-  /**
- * URL to artist image
+songCount: number | null; 
+/**
+ * Optional list of songs by this artist (only populated when needed)
  */
-  imageUrl:  string | null;
-  /**
- * List of songs by this artist
- */
-  songs:     MusicItem[] }
+songs: Song[] | null }
 /**
  * User credentials for Jellyfin authentication
  */
-export type Credentials = {
+export type Credentials = { 
 /**
  * Jellyfin server URL
  */
-  serverUrl: string;
-  /**
+serverUrl: string; 
+/**
  * Username
  */
-  username:  string;
-  /**
+username: string; 
+/**
  * Authentication token
  */
-  token:     string;
-  /**
+token: string; 
+/**
  * User ID
  */
-  userId:    string }
+userId: string }
 /**
  * Response from successful Jellyfin login
  */
-export type LoginResponse = {
+export type LoginResponse = { 
 /**
  * User authentication token
  */
-  token:  string;
-  /**
+token: string; 
+/**
  * User ID
  */
-  userId: string }
-/**
- * Music item representing a song or audio file
- */
-export type MusicItem = {
-/**
- * Unique identifier
- */
-  id:           string;
-  /**
- * Song title
- */
-  name:         string;
-  /**
- * Type of item (usually "Audio")
- */
-  item_type:    string;
-  /**
- * Album name
- */
-  album:        string | null;
-  /**
- * List of artist names
- */
-  artists:      string[] | null;
-  /**
- * List of artist IDs corresponding to artists
- */
-  artistIds:    string[] | null;
-  /**
- * File path
- */
-  path:         string | null;
-  /**
- * Duration in seconds
- */
-  duration:     number | null;
-  /**
- * URL to album artwork
- */
-  albumArtUrl:  string | null;
-  /**
- * Release year
- */
-  year:         number | null;
-  /**
- * Number of times played
- */
-  playCount:    number | null;
-  /**
- * Whether this item is marked as favorite
- */
-  isFavorite:   boolean | null;
-  /**
- * Track number in album
- */
-  trackNumber:  number | null;
-  /**
- * Audio container/format
- */
-  container:    string | null;
-  /**
- * Audio bitrate
- */
-  bitRate:      number | null;
-  /**
- * Audio sample rate
- */
-  sampleRate:   number | null;
-  /**
- * Audio codec
- */
-  codec:        string | null;
-  /**
- * Music genres
- */
-  genres:       string[] | null;
-  /**
- * Premiere/release date
- */
-  premiereDate: string | null;
-  /**
- * Last played date
- */
-  datePlayed:   string | null;
-  /**
- * Date created (when added to server)
- */
-  dateCreated:  string | null;
-  /**
- * Album artists (different from track artists)
- */
-  albumArtists: NameIdPair[] | null;
-  /**
- * Song lyrics
- */
-  lyrics:       string | null }
+userId: string }
 /**
  * Generic name-ID pair used for artists and other entities
  */
-export type NameIdPair = {
+export type NameIdPair = { 
 /**
  * Display name
  */
-  Name: string;
-  /**
+name: string; 
+/**
  * Unique identifier
  */
-  Id:   string }
+id: string }
+/**
+ * Song representing a music track or audio file
+ */
+export type Song = { 
+/**
+ * Unique identifier
+ */
+id: string; 
+/**
+ * Song title
+ */
+name: string; 
+/**
+ * Type of item (usually "Audio")
+ */
+itemType: string; 
+/**
+ * Album name
+ */
+album: string | null; 
+/**
+ * Album ID
+ */
+albumId: string | null; 
+/**
+ * List of artist names
+ */
+artists: string[] | null; 
+/**
+ * List of artist IDs corresponding to artists
+ */
+artistIds: string[] | null; 
+/**
+ * File path
+ */
+path: string | null; 
+/**
+ * Duration in seconds
+ */
+duration: number | null; 
+/**
+ * URL to album artwork
+ */
+albumArtUrl: string | null; 
+/**
+ * Release year
+ */
+year: number | null; 
+/**
+ * Number of times played
+ */
+playCount: number | null; 
+/**
+ * Whether this item is marked as favorite
+ */
+isFavorite: boolean | null; 
+/**
+ * Track number in album
+ */
+trackNumber: number | null; 
+/**
+ * Audio container/format
+ */
+container: string | null; 
+/**
+ * Audio bitrate
+ */
+bitRate: number | null; 
+/**
+ * Audio sample rate
+ */
+sampleRate: number | null; 
+/**
+ * Audio codec
+ */
+codec: string | null; 
+/**
+ * Music genres
+ */
+genres: string[] | null; 
+/**
+ * Premiere/release date
+ */
+premiereDate: string | null; 
+/**
+ * Last played date
+ */
+datePlayed: string | null; 
+/**
+ * Date created (when added to server)
+ */
+dateCreated: string | null; 
+/**
+ * Album artists (different from track artists)
+ */
+albumArtists: NameIdPair[] | null; 
+/**
+ * Song lyrics
+ */
+lyrics: string | null }
 
 /** tauri-specta globals **/
 
 import {
-  invoke as TAURI_INVOKE,
-  Channel as TAURI_CHANNEL,
-} from '@tauri-apps/api/core'
-import * as TAURI_API_EVENT from '@tauri-apps/api/event'
-import { type WebviewWindow as __WebviewWindow__ } from '@tauri-apps/api/webviewWindow'
+	invoke as TAURI_INVOKE,
+	Channel as TAURI_CHANNEL,
+} from "@tauri-apps/api/core";
+import * as TAURI_API_EVENT from "@tauri-apps/api/event";
+import { type WebviewWindow as __WebviewWindow__ } from "@tauri-apps/api/webviewWindow";
 
 type __EventObj__<T> = {
-  listen: (
-    cb: TAURI_API_EVENT.EventCallback<T>,
-  ) => ReturnType<typeof TAURI_API_EVENT.listen<T>>;
-  once: (
-    cb: TAURI_API_EVENT.EventCallback<T>,
-  ) => ReturnType<typeof TAURI_API_EVENT.once<T>>;
-  emit: null extends T
-    ? (payload?: T) => ReturnType<typeof TAURI_API_EVENT.emit>
-    : (payload: T) => ReturnType<typeof TAURI_API_EVENT.emit>;
-}
+	listen: (
+		cb: TAURI_API_EVENT.EventCallback<T>,
+	) => ReturnType<typeof TAURI_API_EVENT.listen<T>>;
+	once: (
+		cb: TAURI_API_EVENT.EventCallback<T>,
+	) => ReturnType<typeof TAURI_API_EVENT.once<T>>;
+	emit: null extends T
+		? (payload?: T) => ReturnType<typeof TAURI_API_EVENT.emit>
+		: (payload: T) => ReturnType<typeof TAURI_API_EVENT.emit>;
+};
 
 export type Result<T, E> =
-	| { status: 'ok'; data: T }
-	| { status: 'error'; error: E }
+	| { status: "ok"; data: T }
+	| { status: "error"; error: E };
 
-const __makeEvents__ = <T extends Record<string, any>>(mappings: Record<keyof T, string>) => new Proxy(
-  {} as unknown as {
-    [K in keyof T]: __EventObj__<T[K]> & {
-      (handle: __WebviewWindow__): __EventObj__<T[K]>;
-    };
-  },
-  {
-    get: (_, event) => {
-      const name = mappings[event as keyof T]
+function __makeEvents__<T extends Record<string, any>>(
+	mappings: Record<keyof T, string>,
+) {
+	return new Proxy(
+		{} as unknown as {
+			[K in keyof T]: __EventObj__<T[K]> & {
+				(handle: __WebviewWindow__): __EventObj__<T[K]>;
+			};
+		},
+		{
+			get: (_, event) => {
+				const name = mappings[event as keyof T];
 
-      return new Proxy((() => {}) as any, {
-        apply: (_, __, [window]: [__WebviewWindow__]) => ({
-          listen: (arg: any) => window.listen(name, arg),
-          once:   (arg: any) => window.once(name, arg),
-          emit:   (arg: any) => window.emit(name, arg),
-        }),
-        get: (_, command: keyof __EventObj__<any>) => {
-          switch (command) {
-            case 'listen':
-              return (arg: any) => TAURI_API_EVENT.listen(name, arg)
-            case 'once':
-              return (arg: any) => TAURI_API_EVENT.once(name, arg)
-            case 'emit':
-              return (arg: any) => TAURI_API_EVENT.emit(name, arg)
-          }
-        },
-      })
-    },
-  },
-)
+				return new Proxy((() => {}) as any, {
+					apply: (_, __, [window]: [__WebviewWindow__]) => ({
+						listen: (arg: any) => window.listen(name, arg),
+						once: (arg: any) => window.once(name, arg),
+						emit: (arg: any) => window.emit(name, arg),
+					}),
+					get: (_, command: keyof __EventObj__<any>) => {
+						switch (command) {
+							case "listen":
+								return (arg: any) => TAURI_API_EVENT.listen(name, arg);
+							case "once":
+								return (arg: any) => TAURI_API_EVENT.once(name, arg);
+							case "emit":
+								return (arg: any) => TAURI_API_EVENT.emit(name, arg);
+						}
+					},
+				});
+			},
+		},
+	);
+}

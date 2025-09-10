@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            a.id,\n            a.name,\n            ar.name as \"artist\",\n            a.artist_id,\n            a.album_art_url,\n            (SELECT COUNT(*) FROM songs s WHERE s.album_id = a.id) as \"song_count: i32\"\n        FROM albums a\n        LEFT JOIN artists ar ON a.artist_id = ar.id\n        ORDER BY a.name\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "artist",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "artist_id",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "album_art_url",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "song_count: i32",
+        "ordinal": 5,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "f8f5d1f7eddb323764114aca9b95e4de17d847c1f4d4bf401e151fa54ced95b8"
+}

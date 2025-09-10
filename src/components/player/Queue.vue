@@ -3,26 +3,26 @@
   import { Sortable } from 'sortablejs-vue3'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import QueueItem from './QueueItem.vue'
-  import { MusicItem } from '@/types'
+  import { Song } from '@/bindings'
 
   const props = defineProps<{
-    playlist:    MusicItem[]
-    currentSong: MusicItem | null
+    playlist:    Song[]
+    currentSong: Song | null
   }>()
 
   const emit = defineEmits<{
-    'update:playlist': [playlist: MusicItem[]]
-    'remove-song':     [song: MusicItem]
-    'play-song':       [song: MusicItem]
+    'update:playlist': [playlist: Song[]]
+    'remove-song':     [song: Song]
+    'play-song':       [song: Song]
   }>()
 
   const isDragging = ref(false)
 
-  const handleRemove = (song: MusicItem) => {
+  const handleRemove = (song: Song) => {
     emit('remove-song', song)
   }
 
-  const handlePlay = (song: MusicItem) => {
+  const handlePlay = (song: Song) => {
     emit('play-song', song)
   }
 
@@ -60,7 +60,7 @@
         handle='.handle'
         item-key='id'
       >
-        <template #item='{ element: song }: { element: MusicItem }'>
+        <template #item='{ element: song }: { element: Song }'>
           <QueueItem
             @play='handlePlay'
             @remove='handleRemove'

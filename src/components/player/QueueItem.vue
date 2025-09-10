@@ -7,17 +7,20 @@
   } from '@/components/ui/context-menu'
   import { GripVertical, Play, Trash2, ListPlus } from 'lucide-vue-next'
   import { Button } from '@/components/ui/button'
-  import { MusicItem } from '@/types'
+  import { Song } from '@/bindings'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
 
   defineProps<{
-    song:       MusicItem,
+    song:       Song,
     isCurrent:  boolean,
-    isDragging: boolean
+    isDragging: boolean,
+    serverUrl?: string,
+    token?:     string
   }>()
 
   const emit = defineEmits<{
-    remove: [song: MusicItem]
-    play:   [song: MusicItem]
+    remove: [song: Song]
+    play:   [song: Song]
   }>()
 
   const formatDuration = (seconds: number) => {
@@ -48,11 +51,14 @@
             ]"
           />
         </Button>
-        <img
-          :src="song.albumArtUrl || 'https://via.placeholder.com/40'"
+        <ImageLoader
+          v-if='serverUrl && token'
+          :item-id='song.id'
+          :server-url='serverUrl'
+          :token='token'
           alt='Album Art'
           class='w-10 h-10 rounded-md mx-2'
-        >
+        />
         <div @click="emit('play', song)" class='flex-grow cursor-pointer min-w-0'>
           <p :class="['font-semibold text-sm truncate', isCurrent ? 'text-accent-foreground' : '']" :title='song.name'>
             {{ song.name }}

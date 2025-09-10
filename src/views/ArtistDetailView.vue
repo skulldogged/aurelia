@@ -2,23 +2,27 @@
   <div v-if='artist' class='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
     <div class='flex items-center mb-4 pt-4'>
       <div class='flex-shrink-0'>
-        <img
-          v-if='artist.imageUrl'
-          :src='artist.imageUrl'
+        <ImageLoader
+          :item-id='artist.id'
+          :server-url='serverUrl'
+          :token='token'
           alt='Artist art'
           class='w-48 h-48 rounded-lg object-cover'
         >
-        <div v-else class='w-48 h-48 rounded-lg bg-muted flex items-center justify-center'>
-          <Music class='w-24 h-24 text-muted-foreground' />
-        </div>
+          <template #fallback>
+            <div class='w-48 h-48 rounded-lg bg-muted flex items-center justify-center'>
+              <Music class='w-24 h-24 text-muted-foreground' />
+            </div>
+          </template>
+        </ImageLoader>
       </div>
       <div class='ml-6'>
         <h2 class='text-4xl font-bold'>
           {{ artist.name }}
         </h2>
-        <div v-if='artistDetails?.communityRating' class='flex items-center gap-1 mt-2 text-muted-foreground'>
+        <div v-if='artist.communityRating' class='flex items-center gap-1 mt-2 text-muted-foreground'>
           <Star class='w-4 h-4 text-yellow-500' />
-          <span>{{ artistDetails.communityRating.toFixed(1) }} / 10</span>
+          <span>{{ artist.communityRating.toFixed(1) }} / 10</span>
         </div>
         <p v-if='isFeaturedOnlyArtist' class='text-muted-foreground mt-2'>
           Featured on {{ featuredSongs.length }} {{ featuredSongs.length === 1 ? 'song' : 'songs' }}
@@ -35,7 +39,7 @@
             {{ genre }}
           </span>
         </div>
-        <Button @click="$emit('play-artist-shuffle', artist)" class='mt-4'>
+        <Button @click='playArtistShuffle' class='mt-4'>
           <Shuffle class='w-4 h-4 mr-2' />
           Shuffle All
         </Button>
@@ -43,12 +47,13 @@
     </div>
 
     <!-- Provider Links -->
-    <div v-if='artistDetails?.providerIds' class='flex flex-wrap gap-4 mt-4 mb-4'>
+    <div v-if='artist.providerIds' class='flex flex-wrap gap-4 mt-4 mb-4'>
       <a
-        v-for='(_, provider) in artistDetails.providerIds'
+        v-for='(providerId, provider) in artist.providerIds'
         :key='provider'
-        :href='`https://www.google.com/search?q=${artist.name}+${provider}`'
+        :href='providerId ? getProviderUrl(provider, providerId) : "#"'
         class='text-sm font-medium text-blue-500 hover:underline flex items-center gap-1'
+        rel='noopener noreferrer'
         target='_blank'
       >
         {{ provider }}
@@ -57,11 +62,11 @@
     </div>
 
     <!-- Overview -->
-    <div v-if='artistDetails?.overview' class='prose dark:prose-invert max-w-none mt-4'>
-      <p :class="{ 'line-clamp-3': !showFullOverview }" v-html='artistDetails.overview' />
+    <div v-if='artist.overview' class='prose dark:prose-invert max-w-none mt-4'>
+      <p :class="{ 'line-clamp-3': !showFullOverview }" v-html='artist.overview' />
       <Button
         @click='showFullOverview = !showFullOverview'
-        v-if='artistDetails.overview.length > 200'
+        v-if='artist.overview.length > 200'
         class='px-0'
         variant='link'
       >
@@ -111,21 +116,24 @@
                 class='cursor-pointer group'
               >
                 <div class='relative mb-4'>
-                  <img
-                    v-if='album.albumArtUrl'
+                  <ImageLoader
                     :alt='`${album.name} album art`'
-                    :src='album.albumArtUrl'
+                    :item-id='album.id || album.name'
+                    :server-url='serverUrl'
+                    :token='token'
                     class='
                       w-full aspect-square rounded-lg object-cover shadow-lg
                       group-hover:opacity-75 transition-opacity
                     '
                   >
-                  <ImagePlaceholder
-                    v-else
-                    class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-                    size='large'
-                    type='album'
-                  />
+                    <template #fallback>
+                      <ImagePlaceholder
+                        class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+                        size='large'
+                        type='album'
+                      />
+                    </template>
+                  </ImageLoader>
                   <!-- Play button overlay -->
                   <div
                     class='
@@ -135,7 +143,7 @@
                     '
                   >
                     <Button
-                      @click.stop="$emit('play-songs', album.songs)"
+                      @click.stop="$emit('play-songs', album.songs || [])"
                       class='
                         bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                         border-white/20
@@ -256,15 +264,19 @@
             group space-y-2 border hover:shadow-lg
           '
         >
-          <img
-            v-if='relatedArtist.imageUrl'
-            :src='relatedArtist.imageUrl'
+          <ImageLoader
+            :item-id='relatedArtist.id'
+            :server-url='serverUrl'
+            :token='token'
             alt='Artist art'
             class='w-32 h-32 rounded-full object-cover'
           >
-          <div v-else class='w-32 h-32 rounded-full bg-muted flex-shrink-0 flex items-center justify-center'>
-            <Music class='w-16 h-16 text-muted-foreground' />
-          </div>
+            <template #fallback>
+              <div class='w-32 h-32 rounded-full bg-muted flex-shrink-0 flex items-center justify-center'>
+                <Music class='w-16 h-16 text-muted-foreground' />
+              </div>
+            </template>
+          </ImageLoader>
           <div class='w-32'>
             <h3 class='text-foreground font-medium truncate'>
               {{ relatedArtist.name }}
@@ -280,19 +292,17 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
+  import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import { useTauri } from '@/composables/useTauri'
   import { Button } from '@/components/ui/button'
   import { Music, ChevronLeft, ChevronRight, Play, Pause, Shuffle, Star, ExternalLink } from 'lucide-vue-next'
-  import { MusicItem, ArtistInfo, AlbumWithSongs, ArtistSummary } from '@/types'
+  import { Song, Album, Artist } from '@/bindings'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
 
   const props = defineProps<{
-    songs:       MusicItem[],
-    albums:      AlbumWithSongs[],
-    artists:     ArtistSummary[],
-    currentSong: MusicItem | null,
+    currentSong: Song | null,
     isPlaying:   boolean,
     serverUrl:   string,
     token:       string,
@@ -300,40 +310,56 @@
   }>()
 
   const emit = defineEmits<{
-    'play-song':           [song: MusicItem],
-    'select-album':        [album: AlbumWithSongs],
-    'play-songs':          [songs: MusicItem[]],
-    'play-artist-shuffle': [artist: ArtistSummary],
-    'select-artist':       [artist: ArtistSummary],
+    'play-song':           [song: Song],
+    'select-album':        [album: Album],
+    'play-songs':          [songs: Song[]],
+    'play-artist-shuffle': [artist: Artist],
+    'select-artist':       [artist: Artist],
   }>()
 
   const route = useRoute()
   const artistId = computed(() => route.params.artistId as string)
-  const artist = computed(() => props.artists.find(a => a.id === artistId.value))
 
-  const { getArtistDetails } = useTauri()
+  const { getMusicLibrary, getArtistsWithSongs, getArtistDetails } = useTauri()
 
   const scrollContainer = ref<HTMLElement | null>(null)
   const canScrollLeft = ref(false)
   const canScrollRight = ref(false)
-  const artistDetails = ref<ArtistInfo | null>(null)
+  const artist = ref<Artist | null>(null)
+  const allSongs = ref<Song[]>([])
+  const allArtists = ref<Artist[]>([])
   const showFullOverview = ref(false)
 
   const artistSongs = computed(() => {
     if (!artist.value) return []
-    return props.songs.filter(song => song.artists?.includes(artist.value!.name))
+    return allSongs.value.filter(song => song.artists && song.artists.includes(artist.value!.name))
       .sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
   })
 
   const artistAlbums = computed(() => {
     if (!artist.value) return []
-    const albumsForArtist = props.albums.filter(album => {
-      // We need to find if any song in this album is by the current artist
-      return album.songs.some(song => song.artists?.includes(artist.value!.name))
+    const albumsMap = new Map<string, Album>()
+
+    artistSongs.value.forEach(song => {
+      if (song.album && song.albumId) {
+        if (!albumsMap.has(song.albumId)) {
+          albumsMap.set(song.albumId, {
+            id:          song.albumId,
+            name:        song.album,
+            artist:      song.artists?.[0] || 'Unknown Artist',
+            artistId:    song.artistIds?.[0] || null,
+            albumArtUrl: song.albumArtUrl,
+            songCount:   0,
+            songs:       [],
+          })
+        }
+        const album = albumsMap.get(song.albumId)!
+        album.songs!.push(song)
+        album.songCount = album.songs!.length
+      }
     })
-    // Deduplicate albums by name and return AlbumWithSongs[]
-    const uniqueAlbums = Array.from(new Map(albumsForArtist.map(album => [album.name, album])).values())
-    return uniqueAlbums
+
+    return Array.from(albumsMap.values())
   })
 
   const relatedArtists = computed(() => {
@@ -345,18 +371,18 @@
 
     // 1. Get all data for the current artist
     const currentArtistName = artist.value.name
-    const currentArtistSongs = props.songs.filter(s => s.artists?.includes(currentArtistName))
+    const currentArtistSongs = allSongs.value.filter(s => s.artists?.includes(currentArtistName))
     const currentArtistGenres = new Set(currentArtistSongs.flatMap(s => s.genres || []))
     const currentArtistAlbums = new Set(currentArtistSongs.map(s => s.album).filter(Boolean))
 
     const artistScores = new Map<string, number>()
 
     // 2. Iterate over every *other* artist to calculate a similarity score
-    props.artists.forEach(otherArtist => {
+    allArtists.value.forEach(otherArtist => {
       if (otherArtist.name === currentArtistName) return
 
       let score = 0
-      const otherArtistSongs = props.songs.filter(s => s.artists?.includes(otherArtist.name))
+      const otherArtistSongs = allSongs.value.filter(s => s.artists?.includes(otherArtist.name))
       if (otherArtistSongs.length === 0) return
 
       // 3. Calculate score based on collaborations, genres, and albums
@@ -393,16 +419,21 @@
     // 4. Sort artists by score and return the top 6
     const sortedArtists = [...artistScores.entries()].sort((a, b) => b[1] - a[1])
 
-    const allArtistsMap = new Map(props.artists.map(a => [a.name, a]))
+    const allArtistsMap = new Map(allArtists.value.map(a => [a.name, a]))
 
     return sortedArtists.slice(0, 6).map(([name]) => {
       const artistInfo = allArtistsMap.get(name)
       return {
-        id:        artistInfo?.id || '',
+        id:              artistInfo?.id || '',
         name,
-        imageUrl:  artistInfo?.imageUrl,
-        songCount: artistInfo?.songCount || 0,
-      }
+        imageUrl:        artistInfo?.imageUrl,
+        songCount:       artistInfo?.songCount || 0,
+        imageTags:       null,
+        overview:        null,
+        providerIds:     null,
+        communityRating: null,
+        songs:           null,
+      } as Artist
     })
   })
 
@@ -418,21 +449,54 @@
     return primarySongs.value.length === 0 && featuredSongs.value.length > 0
   })
 
-  const fetchArtistDetails = async () => {
-    if (!artist.value || !artist.value.id) {
+  const fetchArtistData = async () => {
+    if (!artistId.value) {
       console.log('No artist ID, skipping fetch.')
+      artist.value = null
       return
     }
     try {
-      const details = await getArtistDetails(
-        props.serverUrl,
-        props.token,
-        props.userId,
-        artist.value.id,
-      )
-      artistDetails.value = details
+      const [artists, songs] = await Promise.all([
+        getArtistsWithSongs(props.serverUrl, props.token, false),
+        getMusicLibrary(props.serverUrl, props.token),
+      ])
+
+      const foundArtist = artists.find(a => a.id === artistId.value)
+      if (foundArtist) {
+        console.log('Fetched artist details:', JSON.stringify(foundArtist, null, 2))
+        artist.value = foundArtist
+        allArtists.value = artists
+        allSongs.value = songs
+      } else {
+        console.error('Artist not found in library:', artistId.value)
+        // If the artist is not found in the main list (e.g., a featured artist),
+        // fetch their details directly.
+        try {
+          const directFetchArtist = await getArtistDetails(props.serverUrl, props.token, artistId.value)
+          if (directFetchArtist) {
+            artist.value = directFetchArtist
+            // We might not have all songs here, but the detail view will render.
+            // The song list for this artist might be incomplete.
+            allSongs.value = songs // Keep the songs from the main library
+            allArtists.value = artists
+          } else {
+            artist.value = null
+          }
+        } catch (directFetchError) {
+          console.error('Failed to fetch artist details directly:', directFetchError)
+          artist.value = null
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch artist details:', error)
+      artist.value = null
+    }
+  }
+
+  const playArtistShuffle = () => {
+    if (artistSongs.value.length > 0) {
+      const shuffledSongs = [...artistSongs.value].sort(() => 0.5 - Math.random())
+      emit('play-songs', shuffledSongs)
     }
   }
 
@@ -459,7 +523,7 @@
     return sortedGenres.slice(0, 5).map(([genre]) => genre)
   })
 
-  const isFeaturedOnSong = (song: MusicItem) => {
+  const isFeaturedOnSong = (song: Song) => {
     return song.artists?.[0] !== artist.value?.name && !!song.artists?.includes(artist.value?.name || '')
   }
 
@@ -479,18 +543,47 @@
     scrollContainer.value?.scrollBy({ left: 248, behavior: 'smooth' })
   }
 
+  watch(artistId, fetchArtistData, { immediate: true })
+
   onMounted(async () => {
     await nextTick()
     updateScrollButtons()
     window.addEventListener('resize', updateScrollButtons)
-    fetchArtistDetails()
   })
 
   onUnmounted(() => {
     window.removeEventListener('resize', updateScrollButtons)
   })
 
-  const playSong = (song: MusicItem) => {
+  const getProviderUrl = (provider: string, providerId: string): string => {
+    console.log('getProviderUrl', provider, providerId)
+    const providerUrls: Record<string, (id: string) => string> = {
+      'MusicBrainzArtist': id => `https://musicbrainz.org/artist/${id}`,
+      'SpotifyArtist':     id => `https://open.spotify.com/artist/${id}`,
+      'AppleMusicArtist':  id => `https://music.apple.com/artist/${id}`,
+      'YouTubeArtist':     id => `https://www.youtube.com/channel/${id}`,
+      'SoundCloudArtist':  id => `https://soundcloud.com/${id}`,
+      'BandcampArtist':    id => `https://bandcamp.com/artist/${id}`,
+      'DiscogsArtist':     id => `https://www.discogs.com/artist/${id}`,
+      'LastFmArtist':      id => `https://www.last.fm/music/${encodeURIComponent(id)}`,
+      'WikipediaArtist':   id => `https://en.wikipedia.org/wiki/${encodeURIComponent(id)}`,
+      // Fallback mappings for generic names
+      'MusicBrainz':       id => `https://musicbrainz.org/artist/${id}`,
+      'Spotify':           id => `https://open.spotify.com/artist/${id}`,
+      'AppleMusic':        id => `https://music.apple.com/artist/${id}`,
+      'YouTube':           id => `https://www.youtube.com/channel/${id}`,
+      'SoundCloud':        id => `https://soundcloud.com/${id}`,
+      'Bandcamp':          id => `https://bandcamp.com/artist/${id}`,
+      'Discogs':           id => `https://www.discogs.com/artist/${id}`,
+      'LastFm':            id => `https://www.last.fm/music/${encodeURIComponent(id)}`,
+      'Wikipedia':         id => `https://en.wikipedia.org/wiki/${encodeURIComponent(id)}`,
+    }
+
+    const urlGenerator = providerUrls[provider]
+    return urlGenerator ? urlGenerator(providerId) : `https://www.google.com/search?q=${artist.value?.name}+${provider}`
+  }
+
+  const playSong = (song: Song) => {
     emit('play-song', song)
   }
 </script>

@@ -1,23 +1,26 @@
 <script setup lang="ts">
   import { computed, ref, onMounted, onUnmounted } from 'vue'
   import Fuse, { FuseResult } from 'fuse.js'
-  import { AlbumWithSongs, ArtistInfo, MusicItem } from '../types'
+  import { Album, Artist, Song } from '@/bindings'
   import { useRouter } from 'vue-router'
   import { ScrollArea } from '@/components/ui/scroll-area'
+  import ImageLoader from './ImageLoader.vue'
 
   const props = defineProps<{
-    query:     string
-    songs:     MusicItem[]
-    albums:    AlbumWithSongs[]
-    artists:   ArtistInfo[]
-    isVisible: boolean
+    query:      string
+    songs:      Song[]
+    albums:     Album[]
+    artists:    Artist[]
+    isVisible:  boolean
+    serverUrl?: string
+    token?:     string
   }>()
 
   const emit = defineEmits<{
     'close':          []
-    'select-album':   [album: AlbumWithSongs]
-    'select-artist':  [artist: ArtistInfo]
-    'play-song':      [song: MusicItem]
+    'select-album':   [album: Album]
+    'select-artist':  [artist: Artist]
+    'play-song':      [song: Song]
     'result-clicked': []
   }>()
 
@@ -73,9 +76,9 @@
   })
 
   type SearchResultItem =
-    | { type: 'song', item: MusicItem }
-    | { type: 'album', item: AlbumWithSongs }
-    | { type: 'artist', item: ArtistInfo }
+    | { type: 'song', item: Song }
+    | { type: 'album', item: Album }
+    | { type: 'artist', item: Artist }
 
   const categorizedResults = computed(() => {
     const results: {
@@ -99,9 +102,9 @@
     return results
   })
 
-  const filteredSongs = computed(() => categorizedResults.value.songs.map(r => r.item.item as MusicItem))
-  const filteredAlbums = computed(() => categorizedResults.value.albums.map(r => r.item.item as AlbumWithSongs))
-  const filteredArtists = computed(() => categorizedResults.value.artists.map(r => r.item.item as ArtistInfo))
+  const filteredSongs = computed(() => categorizedResults.value.songs.map(r => r.item.item as Song))
+  const filteredAlbums = computed(() => categorizedResults.value.albums.map(r => r.item.item as Album))
+  const filteredArtists = computed(() => categorizedResults.value.artists.map(r => r.item.item as Artist))
 
   const resultOrder = computed(() => {
     const topScores: { [key: string]: number | undefined } = {
@@ -125,20 +128,20 @@
     return searchResults.value.length > 0
   })
 
-  const selectSong = (song: MusicItem) => {
+  const selectSong = (song: Song) => {
     emit('play-song', song)
     emit('close')
     emit('result-clicked')
   }
 
-  const selectAlbum = (album: AlbumWithSongs) => {
+  const selectAlbum = (album: Album) => {
     router.push(`/songs/album/${encodeURIComponent(album.name)}`)
     emit('close')
     emit('result-clicked')
   }
 
-  const selectArtist = (artist: ArtistInfo) => {
-    router.push(`/songs/artist/${artist.Id}`)
+  const selectArtist = (artist: Artist) => {
+    router.push(`/songs/artist/${artist.id}`)
     emit('close')
     emit('result-clicked')
   }
@@ -164,7 +167,13 @@
                 :key='song.id'
                 class='flex items-center p-2 rounded-md hover:bg-accent cursor-pointer'
               >
-                <img :src='song.albumArtUrl' class='w-10 h-10 rounded-md mr-3'>
+                <ImageLoader
+                  v-if='serverUrl && token'
+                  :item-id='song.id'
+                  :server-url='serverUrl'
+                  :token='token'
+                  class='w-10 h-10 rounded-md mr-3'
+                />
                 <div>
                   <p class='font-semibold'>
                     {{ song.name }}
@@ -187,7 +196,13 @@
                 :key='album.name'
                 class='flex items-center p-2 rounded-md hover:bg-accent cursor-pointer'
               >
-                <img :src='album.albumArtUrl' class='w-10 h-10 rounded-md mr-3'>
+                <ImageLoader
+                  v-if='serverUrl && token'
+                  :item-id='album.id || album.name'
+                  :server-url='serverUrl'
+                  :token='token'
+                  class='w-10 h-10 rounded-md mr-3'
+                />
                 <div>
                   <p class='font-semibold'>
                     {{ album.name }}
@@ -207,14 +222,14 @@
               <li
                 v-for='artist in filteredArtists'
                 @click='selectArtist(artist)'
-                :key='artist.Id'
+                :key='artist.id'
                 class='flex items-center p-2 rounded-md hover:bg-accent cursor-pointer'
               >
                 <div class='w-10 h-10 rounded-full bg-muted flex items-center justify-center mr-3'>
-                  <span class='text-lg font-bold'>{{ artist.Name.charAt(0) }}</span>
+                  <span class='text-lg font-bold'>{{ artist.name.charAt(0) }}</span>
                 </div>
                 <p class='font-semibold'>
-                  {{ artist.Name }}
+                  {{ artist.name }}
                 </p>
               </li>
             </ul>

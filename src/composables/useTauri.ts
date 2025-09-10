@@ -1,22 +1,8 @@
 import { commands } from '../bindings'
-import type {
-  MusicItem,
-  ArtistInfo,
-  AlbumWithSongs,
-  ArtistWithSongs,
-  Credentials,
-  LoginResponse,
-} from '../bindings'
+import type { Artist, Song, Credentials, LoginResponse, Album } from '../bindings'
 
 // Re-export types for convenience
-export type {
-  MusicItem,
-  ArtistInfo,
-  AlbumWithSongs,
-  ArtistWithSongs,
-  Credentials,
-  LoginResponse,
-}
+export type { Song as MusicItem, Artist, Album, Credentials, LoginResponse }
 
 // Create a typed Tauri client
 export const useTauri = () => {
@@ -46,7 +32,9 @@ export const useTauri = () => {
   }
 
   // Music library commands
-  const getMusicLibrary = async (serverUrl: string, token: string): Promise<MusicItem[]> => {
+  const getMusicLibrary = async (serverUrl: string, token: string): Promise<Song[]> => {
+    const credentials = await getSavedCredentials()
+    if (!credentials) throw new Error('No saved credentials found')
     const result = await commands.getMusicLibrary(serverUrl, token)
     if (result.status === 'error') {
       throw new Error(result.error)
@@ -54,7 +42,17 @@ export const useTauri = () => {
     return result.data
   }
 
-  const getAllArtists = async (serverUrl: string, token: string): Promise<ArtistInfo[]> => {
+  const getRecentlyPlayed = async (serverUrl: string, token: string): Promise<Song[]> => {
+    const result = await commands.getRecentlyPlayed(serverUrl, token)
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+    return result.data
+  }
+
+  const getAllArtists = async (serverUrl: string, token: string): Promise<Artist[]> => {
+    const credentials = await getSavedCredentials()
+    if (!credentials) throw new Error('No saved credentials found')
     const result = await commands.getAllArtists(serverUrl, token)
     if (result.status === 'error') {
       throw new Error(result.error)
@@ -62,21 +60,8 @@ export const useTauri = () => {
     return result.data
   }
 
-  const getArtistDetails = async (
-    serverUrl: string,
-    token: string,
-    userId: string,
-    artistId: string,
-  ): Promise<ArtistInfo> => {
-    const result = await commands.getArtistDetails(serverUrl, token, userId, artistId)
-    if (result.status === 'error') {
-      throw new Error(result.error)
-    }
-    return result.data
-  }
-
-  const getAlbumsWithSongs = async (serverUrl: string, token: string): Promise<AlbumWithSongs[]> => {
-    const result = await commands.getAlbumsWithSongs(serverUrl, token)
+  const getAllAlbums = async (): Promise<Album[]> => {
+    const result = await commands.getAllAlbums()
     if (result.status === 'error') {
       throw new Error(result.error)
     }
@@ -87,7 +72,9 @@ export const useTauri = () => {
     serverUrl: string,
     token: string,
     albumArtistsOnly: boolean = false,
-  ): Promise<ArtistWithSongs[]> => {
+  ): Promise<Artist[]> => {
+    const credentials = await getSavedCredentials()
+    if (!credentials) throw new Error('No saved credentials found')
     const result = await commands.getArtistsWithSongs(serverUrl, token, albumArtistsOnly)
     if (result.status === 'error') {
       throw new Error(result.error)
@@ -102,6 +89,19 @@ export const useTauri = () => {
     container?: string | null,
   ): Promise<string> => {
     const result = await commands.getAudioStreamUrl(serverUrl, token, itemId, container || null)
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+    return result.data
+  }
+
+  // Artist commands
+  const getArtistDetails = async (
+    serverUrl: string,
+    token: string,
+    artistId: string,
+  ): Promise<Artist> => {
+    const result = await commands.getArtistDetails(serverUrl, token, artistId)
     if (result.status === 'error') {
       throw new Error(result.error)
     }
@@ -141,8 +141,8 @@ export const useTauri = () => {
   }
 
   // Cache commands
-  const clearMusicCache = async () => {
-    const result = await commands.clearMusicCache()
+  const clearMusicCache = async (serverUrl: string, token: string) => {
+    const result = await commands.clearMusicCache(serverUrl, token)
     if (result.status === 'error') {
       throw new Error(result.error)
     }
@@ -171,11 +171,12 @@ export const useTauri = () => {
 
     // Music
     getMusicLibrary,
+    getRecentlyPlayed,
     getAllArtists,
-    getArtistDetails,
-    getAlbumsWithSongs,
+    getAllAlbums,
     getArtistsWithSongs,
     getAudioStreamUrl,
+    getArtistDetails,
 
     // Volume
     saveVolume,

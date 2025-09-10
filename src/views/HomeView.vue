@@ -1,52 +1,103 @@
 <script setup lang="ts">
-  import { computed, ref, watch } from 'vue'
+  import { computed, ref, watch, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { MusicItem, AlbumInfo } from '@/types'
+  import { Song, Album } from '@/bindings'
   import Carousel from '@/components/shared/Carousel.vue'
   import { Button } from '@/components/ui/button'
   import { ChevronLeft, ChevronRight, Play } from 'lucide-vue-next'
+  import { useTauri } from '@/composables/useTauri'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
 
   const router = useRouter()
+  const { getMusicLibrary, getRecentlyPlayed } = useTauri()
 
   const props = defineProps<{
-    songs:  MusicItem[],
-    albums: AlbumInfo[]
+    serverUrl: string,
+    token:     string,
   }>()
 
   const emit = defineEmits<{
-    'play-songs':   [songs: MusicItem[]],
-    'select-album': [album: AlbumInfo]
+    'play-songs':   [songs: Song[]],
+    'select-album': [album: Album]
   }>()
 
+  const songs = ref<Song[]>([])
+  const recentlyPlayedSongs = ref<Song[]>([])
+
+  onMounted(async () => {
+    console.log('HomeView onMounted - serverUrl:', props.serverUrl, 'token:', props.token ? 'present' : 'missing')
+
+    if (!props.serverUrl || !props.token) {
+      console.error('HomeView: Missing serverUrl or token props')
+      return
+    }
+
+    try {
+      const [fetchedSongs, fetchedRecentlyPlayed] = await Promise.all([
+        getMusicLibrary(props.serverUrl, props.token),
+        getRecentlyPlayed(props.serverUrl, props.token),
+      ])
+      console.log('HomeView: Fetched', fetchedSongs.length, 'songs')
+      songs.value = fetchedSongs
+      recentlyPlayedSongs.value = fetchedRecentlyPlayed
+    } catch (error) {
+      console.error('HomeView: Error fetching data:', error)
+    }
+  })
+
+  const albums = computed(() => {
+    const albumsMap = new Map<string, Album>()
+    songs.value.forEach(song => {
+      if (song.album && song.albumId) {
+        if (!albumsMap.has(song.albumId)) {
+          albumsMap.set(song.albumId, {
+            id:          song.albumId,
+            name:        song.album,
+            artist:      song.artists?.[0] || 'Unknown Artist',
+            artistId:    song.artistIds?.[0] || null,
+            albumArtUrl: song.albumArtUrl,
+            songCount:   0,
+            songs:       [],
+          })
+        }
+        const album = albumsMap.get(song.albumId)!
+        album.songs!.push(song)
+        album.songCount = album.songs!.length
+      }
+    })
+    return Array.from(albumsMap.values())
+  })
+
   const mostPlayed = computed(() => {
-    return [...props.songs]
+    return [...songs.value]
       .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
       .slice(0, 10)
   })
 
   const recentlyPlayed = computed(() => {
-    return [...props.songs]
-      .filter(s => s.datePlayed)
-      .sort((a, b) => new Date(b.datePlayed!).getTime() - new Date(a.datePlayed!).getTime())
-      .slice(0, 10)
+    return recentlyPlayedSongs.value
   })
 
   const recentlyAdded = computed(() => {
     // Get albums that were recently added to the user's Jellyfin server
     // Sort by the most recently added song in each album
-    return props.albums
+    return albums.value
       .filter(album => {
+        // Only include albums with valid names
+        if (!album.name || album.name.trim().length === 0) {
+          return false
+        }
         // Find songs from this album
-        const albumSongs = props.songs.filter(s => s.album === album.name)
+        const albumSongs = songs.value.filter(s => s.album === album.name)
         return albumSongs.length > 0
       })
       .sort((a, b) => {
         // Sort by the most recent dateCreated of songs in each album
-        const albumASongs = props.songs.filter(s => s.album === a.name)
-        const albumBSongs = props.songs.filter(s => s.album === b.name)
+        const albumASongs = songs.value.filter(s => s.album === a.name)
+        const albumBSongs = songs.value.filter(s => s.album === b.name)
 
-        const getMostRecentDateCreated = (songs: typeof props.songs) => {
-          const withDates = songs.filter(s => s.dateCreated)
+        const getMostRecentDateCreated = (albumSongs: Song[]) => {
+          const withDates = albumSongs.filter(s => s.dateCreated)
           if (withDates.length > 0) {
             return Math.max(...withDates.map(s => new Date(s.dateCreated!).getTime()))
           }
@@ -58,7 +109,9 @@
 
         if (dateA === dateB) {
           // If dates are equal or both 0, sort alphabetically
-          return a.name.localeCompare(b.name)
+          const nameA = a.name || ''
+          const nameB = b.name || ''
+          return nameA.localeCompare(nameB)
         }
 
         return dateB - dateA
@@ -67,19 +120,26 @@
   })
 
   const randomAlbums = computed(() => {
-    return [...props.albums].sort(() => 0.5 - Math.random()).slice(0, 10)
+    return [...albums.value]
+      .filter(album => album.name && album.name.trim().length > 0)
+      .sort(() => 0.5 - Math.random())
+      .slice(0, 10)
   })
 
-  const featuredAlbums = ref<AlbumInfo[]>([])
+  const featuredAlbums = ref<Album[]>([])
   const currentFeaturedIndex = ref(0)
 
   const featuredAlbum = computed(() => {
     return featuredAlbums.value[currentFeaturedIndex.value] || null
   })
 
+  const isValidAlbumName = (name: string | undefined | null): boolean => {
+    return !!(name && name.trim().length > 0)
+  }
+
   // Initialize featured albums with a randomized list
   const initializeFeaturedAlbums = () => {
-    featuredAlbums.value = [...props.albums].sort(() => 0.5 - Math.random())
+    featuredAlbums.value = [...albums.value].sort(() => 0.5 - Math.random())
   }
 
   const nextFeaturedAlbum = () => {
@@ -97,48 +157,84 @@
   }
 
   // Watch for changes in albums and reinitialize
-  watch(() => props.albums, () => {
+  watch(() => albums.value, () => {
     initializeFeaturedAlbums()
   }, { immediate: true })
 
-  const playSongs = (songs: MusicItem[], startWith?: MusicItem) => {
+  const playSongs = (songs: Song[], startWith?: Song) => {
+    console.log('HomeView playSongs called with', songs.length, 'songs')
+    if (songs.length === 0) {
+      console.warn('HomeView: No songs to play')
+      return
+    }
+
+    // Check if songs have valid IDs
+    const invalidSongs = songs.filter(song => !song || !song.id)
+    if (invalidSongs.length > 0) {
+      console.error('HomeView: Found songs with invalid IDs:', invalidSongs)
+    }
+
     if (startWith) {
-      const startIndex = songs.indexOf(startWith)
+      console.log('HomeView: Playing from song:', startWith?.name || 'undefined')
+      const startIndex = songs.findIndex(song => song.id === startWith.id)
       if (startIndex === -1) {
+        console.log('HomeView: Song not found in array, playing full list')
         emit('play-songs', songs)
         return
       }
       const reorderedSongs = [...songs.slice(startIndex), ...songs.slice(0, startIndex)]
+      console.log('HomeView: Emitting reordered songs starting with:', reorderedSongs[0]?.name || 'undefined')
       emit('play-songs', reorderedSongs)
     } else {
+      console.log('HomeView: Emitting songs starting with:', songs[0]?.name || 'undefined')
       emit('play-songs', songs)
     }
   }
 
   const playFeaturedAlbum = () => {
-    if (!featuredAlbum.value) return
+    console.log('HomeView playFeaturedAlbum called')
+    if (!featuredAlbum.value) {
+      console.warn('HomeView: No featured album available')
+      return
+    }
+
+    console.log('HomeView: Featured album:', featuredAlbum.value.name)
 
     // Get all songs from the featured album
-    const albumSongs = props.songs
+    const albumSongs = songs.value
       .filter(song => song.album === featuredAlbum.value.name)
       .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0))
 
+    console.log('HomeView: Found', albumSongs.length, 'songs for featured album')
+
     if (albumSongs.length > 0) {
-      // Play the songs and navigate to the album
+      // Play the songs and navigate to the album (only if album name is valid)
+      console.log('HomeView: Playing featured album songs')
       emit('play-songs', albumSongs)
-      router.push(`/songs/album/${encodeURIComponent(featuredAlbum.value.name)}`)
+      if (isValidAlbumName(featuredAlbum.value.name)) {
+        router.push(`/songs/album/${encodeURIComponent(featuredAlbum.value.name)}`)
+      }
+    } else {
+      console.warn('HomeView: No songs found for featured album')
     }
   }
 
-  const playAlbumSongs = (album: AlbumInfo) => {
+  const playAlbumSongs = (album: Album) => {
+    console.log('HomeView playAlbumSongs called for album:', album.name)
+
     // Get all songs from the album
-    const albumSongs = props.songs
+    const albumSongs = songs.value
       .filter(song => song.album === album.name)
       .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0))
 
+    console.log('HomeView: Found', albumSongs.length, 'songs for album', album.name)
+
     if (albumSongs.length > 0) {
       // Play the songs
+      console.log('HomeView: Playing album songs')
       emit('play-songs', albumSongs)
+    } else {
+      console.warn('HomeView: No songs found for album', album.name)
     }
   }
 </script>
@@ -148,40 +244,49 @@
     <!-- Featured Album Section -->
     <div v-if='featuredAlbum' class='relative isolate rounded-2xl p-8 mb-8 overflow-hidden blur-card'>
       <!-- Blurred Background -->
-      <div
-        v-if='featuredAlbum.albumArtUrl'
-        :style='{ backgroundImage: `url(${featuredAlbum.albumArtUrl})` }'
-        class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-2xl blur-md scale-105'
-      >
+      <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-2xl blur-md scale-105 overflow-hidden'>
+        <ImageLoader
+          v-if='featuredAlbum'
+          :item-id='featuredAlbum.id || featuredAlbum.name'
+          :server-url='serverUrl'
+          :token='token'
+          class='w-full h-full object-cover'
+        />
         <div class='absolute inset-0 bg-black/60 rounded-2xl' />
       </div>
-      <div v-else class='absolute inset-0 bg-gradient-to-r from-muted/50 to-muted/20 rounded-2xl' />
 
       <!-- Content -->
       <div class='relative z-10 flex items-center space-x-6'>
         <div class='flex-shrink-0'>
-          <img
-            v-if='featuredAlbum.albumArtUrl'
+          <ImageLoader
+            v-if='featuredAlbum'
             :alt='`${featuredAlbum.name} album art`'
-            :src='featuredAlbum.albumArtUrl'
+            :item-id='featuredAlbum.id || featuredAlbum.name'
+            :server-url='serverUrl'
+            :token='token'
             class='w-48 h-48 rounded-xl shadow-2xl object-cover'
           >
-          <div
-            v-else
-            class='w-48 h-48 bg-muted/80 backdrop-blur-sm rounded-xl shadow-2xl flex items-center justify-center'
-          >
-            <span class='text-4xl'>🎵</span>
-          </div>
+            <template #fallback>
+              <div
+                class='w-48 h-48 bg-muted/80 backdrop-blur-sm rounded-xl shadow-2xl flex items-center justify-center'
+              >
+                <span class='text-4xl'>🎵</span>
+              </div>
+            </template>
+          </ImageLoader>
         </div>
         <div class='flex-1 min-w-0'>
           <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate'>
             <router-link
+              v-if='featuredAlbum && isValidAlbumName(featuredAlbum.name)'
               :to="{ name: 'album-detail', params: { albumName: featuredAlbum.name } }"
             >
               {{ featuredAlbum.name }}
             </router-link>
+            <span v-else-if='featuredAlbum'>{{ featuredAlbum.name }}</span>
+            <span v-else>Loading...</span>
           </h1>
-          <p class='text-xl text-white/90 mb-4 drop-shadow-md'>
+          <p v-if='featuredAlbum' class='text-xl text-white/90 mb-4 drop-shadow-md'>
             <router-link
               v-if='featuredAlbum.artistId'
               :to="{ name: 'artist-detail', params: { artistId: featuredAlbum.artistId } }"
@@ -190,7 +295,7 @@
             </router-link>
             <span v-else>{{ featuredAlbum.artist }}</span>
           </p>
-          <p class='text-sm text-white/80 mb-6 drop-shadow-md'>
+          <p v-if='featuredAlbum' class='text-sm text-white/80 mb-6 drop-shadow-md'>
             {{ featuredAlbum.songCount }} songs
           </p>
           <button
@@ -239,13 +344,13 @@
         class='cursor-pointer group'
       >
         <div class='relative mb-2'>
-          <img
-            v-if='song.albumArtUrl'
-            :src='song.albumArtUrl'
+          <ImageLoader
+            :item-id='song.id'
+            :server-url='serverUrl'
+            :token='token'
             alt='Album art'
             class='album-art-image'
-          >
-          <div v-else class='w-full h-48 bg-muted rounded-lg' />
+          />
 
           <!-- Play button overlay -->
           <div
@@ -298,13 +403,13 @@
         class='cursor-pointer group'
       >
         <div class='relative mb-2'>
-          <img
-            v-if='song.albumArtUrl'
-            :src='song.albumArtUrl'
+          <ImageLoader
+            :item-id='song.id'
+            :server-url='serverUrl'
+            :token='token'
             alt='Album art'
             class='album-art-image'
-          >
-          <div v-else class='w-full h-48 bg-muted rounded-lg' />
+          />
 
           <!-- Play button overlay -->
           <div
@@ -357,13 +462,13 @@
         class='cursor-pointer group'
       >
         <div class='relative mb-2'>
-          <img
-            v-if='album.albumArtUrl'
-            :src='album.albumArtUrl'
+          <ImageLoader
+            :item-id='album.id || album.name'
+            :server-url='serverUrl'
+            :token='token'
             alt='Album art'
             class='album-art-image'
-          >
-          <div v-else class='w-full h-48 bg-muted rounded-lg' />
+          />
 
           <!-- Play button overlay -->
           <div
@@ -410,13 +515,13 @@
         class='cursor-pointer group'
       >
         <div class='relative mb-2'>
-          <img
-            v-if='album.albumArtUrl'
-            :src='album.albumArtUrl'
+          <ImageLoader
+            :item-id='album.id || album.name'
+            :server-url='serverUrl'
+            :token='token'
             alt='Album art'
             class='album-art-image'
-          >
-          <div v-else class='w-full h-48 bg-muted rounded-lg' />
+          />
 
           <!-- Play button overlay -->
           <div

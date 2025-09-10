@@ -5,24 +5,25 @@
   >
     <!-- Album Art Background (visible on thin screens) -->
     <div
-      v-if='song?.albumArtUrl'
+      v-if='backgroundImageData'
       class='absolute inset-0 z-0 album-art-bg'
     >
       <!-- Blurred album art (top portion) -->
       <div
-        :style='{ backgroundImage: `url(${song.albumArtUrl})` }'
+        :style='{ backgroundImage: `url(${backgroundImageData})` }'
         class='absolute inset-0 bg-cover bg-center filter blur-xl album-art-blurred'
       />
       <!-- Clear album art (bottom portion) -->
       <div
-        :style='{ backgroundImage: `url(${song.albumArtUrl})` }'
+        :style='{ backgroundImage: `url(${backgroundImageData})` }'
         class='absolute inset-0 bg-cover bg-center album-art-clear'
       />
     </div>
 
     <!-- Background -->
     <div
-      :style='{ backgroundImage: `url(${song?.albumArtUrl})` }'
+      v-if='backgroundImageData'
+      :style='{ backgroundImage: `url(${backgroundImageData})` }'
       class='absolute inset-0 bg-cover bg-center filter blur-3xl opacity-30 z-0'
     />
 
@@ -64,19 +65,20 @@
               ]"
             >
               <div class='album-art-container aspect-square'>
-                <img
-                  v-if='song?.albumArtUrl'
-                  :src='song.albumArtUrl'
+                <ImageLoader
+                  v-if='song'
+                  :item-id='song.id'
+                  :server-url='serverUrl'
+                  :token='token'
                   alt='Album art'
                   class='w-full h-full object-cover rounded-lg shadow-2xl'
                 >
-                <div
-                  v-else
-                  class='flex items-center justify-center
-                           w-full h-full rounded-lg bg-muted'
-                >
-                  <Music2 class='w-24 h-24 text-muted-foreground' />
-                </div>
+                  <template #fallback>
+                    <div class='flex items-center justify-center w-full h-full rounded-lg bg-muted'>
+                      <Music2 class='w-24 h-24 text-muted-foreground' />
+                    </div>
+                  </template>
+                </ImageLoader>
               </div>
             </div>
             <!-- Lyrics -->
@@ -201,8 +203,10 @@
   import { Button } from '@/components/ui/button'
   import { Slider } from '@/components/ui/slider'
   import LyricsView from '@/components/shared/LyricsView.vue'
-  import { MusicItem } from '@/types'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import { Song } from '@/bindings'
   import { PropType } from 'vue'
+  import { useImageLoader } from '@/composables/useImageLoader'
 
   const props = defineProps({
     show: {
@@ -210,7 +214,7 @@
       required: true,
     },
     song: {
-      type:    Object as PropType<MusicItem | null>,
+      type:    Object as PropType<Song | null>,
       default: null,
     },
     isPlaying: {
@@ -249,6 +253,14 @@
       type:    Boolean,
       default: false,
     },
+    serverUrl: {
+      type:    String,
+      default: '',
+    },
+    token: {
+      type:    String,
+      default: '',
+    },
   })
 
   const emit = defineEmits<{
@@ -263,10 +275,30 @@
 
   const showLyrics = ref(false)
   const hasLyrics = ref(false)
+  const { getImageUrl } = useImageLoader()
+
+  // Background image data
+  const backgroundImageData = ref<string | null>(null)
 
   const onLyricsLoaded = (lyricsFound: boolean) => {
     hasLyrics.value = lyricsFound
   }
+
+  // Watch for song changes to update background image
+  watch(() => props.song, async newSong => {
+    if (newSong && props.serverUrl && props.token) {
+      try {
+        const imageId = newSong.albumId || newSong.id
+        const imageData = getImageUrl(imageId, props.serverUrl, props.token, 'Primary')
+        backgroundImageData.value = imageData
+      } catch (error) {
+        console.error('Failed to load background image:', error)
+        backgroundImageData.value = null
+      }
+    } else {
+      backgroundImageData.value = null
+    }
+  }, { immediate: true })
 
   watch(() => props.song, newSong => {
     if (newSong)
