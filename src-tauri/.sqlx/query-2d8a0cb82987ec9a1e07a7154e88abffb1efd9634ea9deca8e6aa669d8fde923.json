@@ -31,7 +31,7 @@
       {
         "name": "duration",
         "ordinal": 5,
-        "type_info": "Float"
+        "type_info": "Integer"
       },
       {
         "name": "album_art_url",
@@ -130,7 +130,7 @@
     "nullable": [
       false,
       false,
-      false,
+      true,
       true,
       true,
       true,

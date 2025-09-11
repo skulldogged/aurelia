@@ -25,7 +25,7 @@ dist-ssr
 
 .cache
 .direnv/
-
+.env
 
 # START Ruler Generated Files
 /.cursor/rules/ruler_cursor_instructions.mdc

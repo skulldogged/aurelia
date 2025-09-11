@@ -1,5 +1,5 @@
 <template>
-  <div class='p-8 max-w-4xl mx-auto space-y-12'>
+  <div class='p-8 max-w-7xl mx-auto space-y-12'>
     <!-- Header Section -->
     <div class='relative isolate rounded-2xl p-8 mb-8 overflow-hidden blur-card'>
       <!-- Blurred Background -->
@@ -27,77 +27,75 @@
         </h2>
       </div>
 
-      <!-- Color Scheme Card -->
-      <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
-        <div class='flex items-center space-x-3 mb-4'>
-          <div class='p-2 bg-primary/10 rounded-lg'>
-            <Sun class='w-5 h-5 text-primary' />
+      <!-- Color Scheme and Accent Color Cards -->
+      <div class='grid md:grid-cols-2 gap-6'>
+        <!-- Color Scheme Card -->
+        <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
+          <div class='flex items-center space-x-3 mb-4'>
+            <div class='p-2 bg-primary/10 rounded-lg'>
+              <Sun class='w-5 h-5 text-primary' />
+            </div>
+            <h3 class='text-lg font-medium'>
+              Color Scheme
+            </h3>
           </div>
-          <h3 class='text-lg font-medium'>
-            Color Scheme
-          </h3>
-        </div>
-        <p class='text-sm text-muted-foreground mb-4'>
-          Choose your preferred theme and color palette
-        </p>
-        <Select @update:model-value='handleColorSchemeChange' v-model='selectedColorScheme'>
-          <SelectTrigger class='w-full bg-background/50 border-border/50 focus:border-accent transition-colors'>
-            <SelectValue placeholder='Select a color scheme' />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectLabel>Available Themes</SelectLabel>
-              <SelectItem
-                v-for='scheme in colorSchemes'
-                :key='scheme.name'
-                :value='scheme.name'
-                class='cursor-pointer'
-              >
-                {{ scheme.displayName }}
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <!-- Accent Color Card -->
-      <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
-        <div class='flex items-center space-x-3 mb-4'>
-          <div class='p-2 bg-accent/10 rounded-lg'>
-            <Palette class='w-5 h-5 text-accent' />
-          </div>
-          <h3 class='text-lg font-medium'>
-            Accent Color
-          </h3>
-        </div>
-        <p class='text-sm text-muted-foreground mb-6'>
-          Pick your favorite accent color to personalize the interface
-        </p>
-        <div class='grid grid-cols-7 gap-4'>
-          <button
-            v-for='color in accentColors'
-            @click='setAccentColor(color.name)'
-            :key='color.name'
-            :class='{
-              "ring-2 ring-offset-2 ring-offset-background scale-110": accentColor.name === color.name,
-              "hover:scale-105": true,
-            }'
-            :style='{
-              backgroundColor: color.hex,
-              boxShadow: accentColor.name === color.name
-                ? `0 0 0 2px ${color.hex}, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)`
-                : "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)"
-            }'
-            :title='`${color.displayName} (${accentColor.name === color.name ? "Selected" : "Not selected"})`'
-            class='h-12 w-12 rounded-xl border-2 border-border/20 transition-all
-              duration-200 shadow-sm hover:shadow-md focus:outline-none
-              focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background'
-          />
-        </div>
-        <div class='mt-4 text-center'>
-          <p class='text-sm text-muted-foreground'>
-            Selected: <span class='font-medium text-foreground'>{{ accentColor.displayName }}</span>
+          <p class='text-sm text-muted-foreground mb-4'>
+            Choose your preferred theme and color palette
           </p>
+          <Select @update:model-value='handleColorSchemeChange' v-model='selectedColorScheme'>
+            <SelectTrigger class='w-full bg-background/50 border-border/50 focus:border-accent transition-colors'>
+              <SelectValue placeholder='Select a color scheme' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Available Themes</SelectLabel>
+                <SelectItem
+                  v-for='scheme in colorSchemes'
+                  :key='scheme.name'
+                  :value='scheme.name'
+                  class='cursor-pointer'
+                >
+                  {{ scheme.displayName }}
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <!-- Accent Color Card -->
+        <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
+          <div class='flex items-center space-x-3 mb-4'>
+            <div class='p-2 bg-accent/10 rounded-lg'>
+              <Palette class='w-5 h-5 text-accent' />
+            </div>
+            <h3 class='text-lg font-medium'>
+              Accent Color
+            </h3>
+          </div>
+          <p class='text-sm text-muted-foreground mb-6'>
+            Pick your favorite accent color to personalize the interface
+          </p>
+          <div class='grid grid-cols-7 gap-4'>
+            <button
+              v-for='color in accentColors'
+              @click='setAccentColor(color.name)'
+              :key='color.name'
+              :class='{
+                "ring-2 ring-offset-2 ring-offset-background scale-110": accentColor.name === color.name,
+                "hover:scale-105": true,
+              }'
+              :style='{
+                backgroundColor: color.hex,
+                boxShadow: accentColor.name === color.name
+                  ? `0 0 0 2px ${color.hex}, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)`
+                  : "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)"
+              }'
+              :title='`${color.displayName} (${accentColor.name === color.name ? "Selected" : "Not selected"})`'
+              class='h-12 w-12 rounded-xl border-2 border-border/20 transition-all
+                duration-200 shadow-sm hover:shadow-md focus:outline-none
+                focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background'
+            />
+          </div>
         </div>
       </div>
     </section>
@@ -166,17 +164,40 @@
       </div>
     </section>
 
-    <!-- Cache Section -->
+    <!-- Library Management Section -->
     <section class='space-y-6'>
       <div class='flex items-center space-x-3'>
         <div class='p-2 bg-accent/10 rounded-lg'>
           <HardDrive class='w-5 h-5 text-accent' />
         </div>
         <h2 class='text-2xl font-semibold'>
-          Cache Management
+          Library Management
         </h2>
       </div>
 
+      <!-- Sync Library Card -->
+      <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
+        <div class='flex items-start space-x-4'>
+          <div class='p-3 bg-primary/10 rounded-lg flex-shrink-0'>
+            <RefreshCw class='w-6 h-6 text-primary' />
+          </div>
+          <div class='flex-1'>
+            <h3 class='text-lg font-medium mb-2'>
+              Sync Music Library
+            </h3>
+            <p class='text-sm text-muted-foreground mb-6'>
+              Update your local music library with the latest data from Jellyfin server.
+              This will add new songs and update existing metadata without removing your current data.
+            </p>
+            <Button @click='handleSyncLibrary' class='px-6' variant='default'>
+              <RefreshCw class='w-4 h-4 mr-2' />
+              Sync Library
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clear Cache Card -->
       <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
         <div class='flex items-start space-x-4'>
           <div class='p-3 bg-accent/10 rounded-lg flex-shrink-0'>
@@ -225,6 +246,7 @@
     HardDrive,
     AlertTriangle,
     Trash2,
+    RefreshCw,
   } from 'lucide-vue-next'
 
   const accentColorStore = useAccentColorStore()
@@ -265,11 +287,16 @@
 
   const emit = defineEmits<{
     (e: 'logout'): void
+    (e: 'sync-library'): void
     (e: 'clear-cache'): void
   }>()
 
   const handleLogout = () => {
     emit('logout')
+  }
+
+  const handleSyncLibrary = () => {
+    emit('sync-library')
   }
 
   const handleClearCache = () => {

@@ -4,6 +4,7 @@
   import { Song, Artist } from '@/bindings'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
+  import { Skeleton } from '@/components/ui/skeleton'
   import { Shuffle } from 'lucide-vue-next'
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
@@ -29,14 +30,22 @@
   const searchQuery = ref('')
   const artists = ref<Artist[]>([])
   const albumArtists = ref<Artist[]>([])
+  const isLoading = ref(true)
+  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
   onMounted(async () => {
-    const [all, albumOnly] = await Promise.all([
-      getArtistsWithSongs(props.serverUrl, props.token, false),
-      getArtistsWithSongs(props.serverUrl, props.token, true),
-    ])
-    artists.value = all
-    albumArtists.value = albumOnly
+    try {
+      const [all, albumOnly] = await Promise.all([
+        getArtistsWithSongs(props.serverUrl, props.token, false),
+        getArtistsWithSongs(props.serverUrl, props.token, true),
+      ])
+      artists.value = all
+      albumArtists.value = albumOnly
+    } catch (error) {
+      console.error('Failed to load artists:', error)
+    } finally {
+      isLoading.value = false
+    }
   })
 
   const artistsToDisplay = computed(() => showAllArtists.value ? artists.value : albumArtists.value || [])
@@ -78,24 +87,52 @@
 
 <template>
   <div class='p-8 max-w-7xl mx-auto'>
-    <div class='mb-8 flex justify-between items-center'>
-      <div>
-        <h1 class='text-4xl font-bold mb-4'>
+    <div class='mb-8'>
+      <div class='flex justify-between items-start mb-4'>
+        <h1 class='text-4xl font-bold'>
           Artists
         </h1>
+        <Button @click='showAllArtists = !showAllArtists'>
+          {{ showAllArtists ? "Show Album Artists" : "Show All Artists" }}
+        </Button>
+      </div>
+      <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center'>
         <Input
           v-model='searchQuery'
           class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
           placeholder='Search artists...'
           type='text'
         />
+        <!-- Dev toggle for skeleton adjustment -->
+        <Button
+          @click='showSkeleton = !showSkeleton'
+          :variant='showSkeleton ? "default" : "outline"'
+          size='sm'
+        >
+          {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
+        </Button>
       </div>
-      <Button @click='showAllArtists = !showAllArtists'>
-        {{ showAllArtists ? "Show Album Artists" : "Show All Artists" }}
-      </Button>
     </div>
 
-    <div class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
+    <div v-if='isLoading || showSkeleton' class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
+      <!-- Skeleton loading grid -->
+      <div
+        v-for='n in 20'
+        :key='`skeleton-${n}`'
+        class='flex flex-col gap-4'
+      >
+        <!-- Artist image skeleton -->
+        <Skeleton class='w-full aspect-square rounded-lg' />
+        <!-- Text content skeleton -->
+        <div class='flex flex-col items-center gap-1'>
+          <!-- Artist name skeleton -->
+          <Skeleton class='h-6 w-3/4' />
+          <!-- Song count skeleton -->
+          <Skeleton class='h-4 w-1/2' />
+        </div>
+      </div>
+    </div>
+    <div v-else class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
       <div
         v-for='artist in filteredArtists'
         @click='selectArtist(artist)'
@@ -151,7 +188,10 @@
       </div>
     </div>
 
-    <div v-if='filteredArtists && filteredArtists.length === 0' class='text-center py-12'>
+    <div
+      v-if='!isLoading && !showSkeleton && filteredArtists && filteredArtists.length === 0'
+      class='text-center py-12'
+    >
       <p class='text-muted-foreground'>
         No artists found
       </p>

@@ -72,11 +72,33 @@ async getMusicLibrary(serverUrl: string, token: string) : Promise<Result<Song[],
 }
 },
 /**
- * Get all artists from the server
+ * Get all albums
+ */
+async getAllAlbums() : Promise<Result<Album[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_all_albums") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get all artists from the server (with caching)
  */
 async getAllArtists(serverUrl: string, token: string) : Promise<Result<Artist[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_all_artists", { serverUrl, token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get cached artists from database
+ */
+async getCachedArtists() : Promise<Result<Artist[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cached_artists") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -110,6 +132,17 @@ async getAudioStreamUrl(serverUrl: string, token: string, itemId: string, contai
 async toggleFavoriteStatus(serverUrl: string, token: string, userId: string, itemId: string, isFavorite: boolean) : Promise<Result<boolean, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("toggle_favorite_status", { serverUrl, token, userId, itemId, isFavorite }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Sync music library - update existing data without clearing cache
+ */
+async syncMusicLibrary(serverUrl: string, token: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sync_music_library", { serverUrl, token }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -171,6 +204,38 @@ async getLyrics(id: string, artist: string, title: string, path: string | null) 
 
 /** user-defined types **/
 
+/**
+ * Consolidated album type with all information
+ */
+export type Album = { 
+/**
+ * Album ID from Jellyfin
+ */
+id: string | null; 
+/**
+ * Album name
+ */
+name: string; 
+/**
+ * Primary artist name
+ */
+artist: string; 
+/**
+ * Primary artist ID
+ */
+artistId: string | null; 
+/**
+ * URL to album artwork
+ */
+albumArtUrl: string | null; 
+/**
+ * Number of songs in album
+ */
+songCount: number; 
+/**
+ * Optional list of songs in this album (only populated when needed)
+ */
+songs: Song[] | null }
 /**
  * Consolidated artist type with all information
  */

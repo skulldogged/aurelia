@@ -61,13 +61,28 @@ pub async fn get_recently_played(server_url: String, token: String) -> Result<Ve
         .map_err(|e| e.to_string())
 }
 
-/// Get all artists from the server
+/// Get all artists from the server (with caching)
 #[tauri::command]
 #[specta::specta]
 pub async fn get_all_artists(server_url: String, token: String) -> Result<Vec<Artist>, String> {
     let client = JellyfinClient::with_auth(server_url, token);
     let artists = client.get_all_artists().await.map_err(|e| e.to_string())?;
+
+    // Cache the artists with their image_tags
+    if let Err(e) = crate::db::cache_artists(&artists).await {
+        eprintln!("Warning: Failed to cache artists: {}", e);
+    }
+
     Ok(artists.into_iter().collect())
+}
+
+/// Get cached artists from database
+#[tauri::command]
+#[specta::specta]
+pub async fn get_cached_artists() -> Result<Vec<Artist>, String> {
+    crate::db::get_cached_artists()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Get artists with their songs
@@ -81,8 +96,17 @@ pub async fn get_artists_with_songs(
     // Get all songs
     let songs = get_music_library(server_url.clone(), token.clone()).await?;
 
-    // Get all artists to get artist metadata
-    let artists = get_all_artists(server_url, token).await?;
+    // Try to get cached artists first, fall back to API if needed
+    let artists = match crate::db::get_cached_artists().await {
+        Ok(cached_artists) if !cached_artists.is_empty() => {
+            // Use cached artists
+            cached_artists
+        }
+        _ => {
+            // Fall back to API and cache the results
+            get_all_artists(server_url, token).await?
+        }
+    };
 
     // Create case-insensitive maps for artist name lookup
     let mut artist_name_to_info: HashMap<String, Artist> = HashMap::new();
@@ -149,7 +173,7 @@ pub async fn get_artists_with_songs(
         let artist_with_songs = Artist {
             name: artist_name,
             id: artist_info.map(|a| a.id.clone()).unwrap_or_default(),
-            image_tags: None,
+            image_tags: artist_info.and_then(|a| a.image_tags.clone()),
             image_url: artist_info.and_then(|a| a.image_url.clone()),
             overview: artist_info.and_then(|a| a.overview.clone()),
             provider_ids: artist_info.and_then(|a| a.provider_ids.clone()),
@@ -217,6 +241,15 @@ pub async fn get_artist_details(
         .get_artist_details(&user_id, &artist_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Sync music library - update existing data without clearing cache
+#[tauri::command]
+#[specta::specta]
+pub async fn sync_music_library(server_url: String, token: String) -> Result<(), String> {
+    // Fetch fresh data from server and update cache
+    fetch_and_cache_library(server_url, token).await?;
+    Ok(())
 }
 
 /// Clear the music cache, then re-fetch and cache the library

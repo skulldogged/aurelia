@@ -90,8 +90,8 @@
       <TableHeader>
         <TableRow>
           <TableHead v-if='shouldShowAlbumArt' class='w-14' />
-          <TableHead class='w-6' />
-          <TableHead v-if='showTrackNumber' class='w-12 text-right'>
+          <TableHead class='w-14' />
+          <TableHead v-if='showTrackNumber' class='w-8 text-right'>
             #
           </TableHead>
           <TableHead>Title</TableHead>
@@ -110,7 +110,7 @@
           <TableHead v-if='showDuration' class='w-24 text-right'>
             Duration
           </TableHead>
-          <TableHead class='w-6' />
+          <TableHead class='w-12' />
         </TableRow>
       </TableHeader>
       <TableBody>

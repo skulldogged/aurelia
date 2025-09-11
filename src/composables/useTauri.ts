@@ -141,6 +141,14 @@ export const useTauri = () => {
   }
 
   // Cache commands
+  const syncMusicLibrary = async (serverUrl: string, token: string) => {
+    const result = await commands.syncMusicLibrary(serverUrl, token)
+    if (result.status === 'error') {
+      throw new Error(result.error)
+    }
+    return result.data
+  }
+
   const clearMusicCache = async (serverUrl: string, token: string) => {
     const result = await commands.clearMusicCache(serverUrl, token)
     if (result.status === 'error') {
@@ -186,6 +194,7 @@ export const useTauri = () => {
     toggleFavoriteStatus,
 
     // Cache
+    syncMusicLibrary,
     clearMusicCache,
 
     // Lyrics

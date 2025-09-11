@@ -4,6 +4,7 @@
   import { Song, Album } from '@/bindings'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
+  import { Skeleton } from '@/components/ui/skeleton'
   import { Play } from 'lucide-vue-next'
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
@@ -25,9 +26,17 @@
 
   const searchQuery = ref('')
   const allSongs = ref<Song[]>([])
+  const isLoading = ref(true)
+  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
   onMounted(async () => {
-    allSongs.value = await getMusicLibrary(props.serverUrl, props.token)
+    try {
+      allSongs.value = await getMusicLibrary(props.serverUrl, props.token)
+    } catch (error) {
+      console.error('Failed to load music library:', error)
+    } finally {
+      isLoading.value = false
+    }
   })
 
   const albumsWithSongs = computed(() => {
@@ -92,15 +101,40 @@
       <h1 class='text-4xl font-bold mb-4'>
         Albums
       </h1>
-      <Input
-        v-model='searchQuery'
-        class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
-        placeholder='Search albums...'
-        type='text'
-      />
+      <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center'>
+        <Input
+          v-model='searchQuery'
+          class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
+          placeholder='Search albums...'
+          type='text'
+        />
+        <!-- Dev toggle for skeleton adjustment -->
+        <Button
+          @click='showSkeleton = !showSkeleton'
+          :variant='showSkeleton ? "default" : "outline"'
+          size='sm'
+        >
+          {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
+        </Button>
+      </div>
     </div>
 
-    <div class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
+    <div v-if='isLoading || showSkeleton' class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
+      <!-- Skeleton loading grid -->
+      <div
+        v-for='n in 20'
+        :key='`skeleton-${n}`'
+        class='flex flex-col gap-4'
+      >
+        <Skeleton class='w-full aspect-square rounded-lg' name='album-art' />
+        <div class='flex flex-col gap-1'>
+          <Skeleton class='h-6 w-3/4' name='album-title' />
+          <Skeleton class='h-4 w-20' name='artist' />
+          <Skeleton class='h-4 w-16' name='song-count' />
+        </div>
+      </div>
+    </div>
+    <div v-else class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
       <div
         v-for='album in filteredAlbums'
         @click='selectAlbum(album)'
@@ -162,7 +196,7 @@
       </div>
     </div>
 
-    <div v-if='filteredAlbums.length === 0' class='text-center py-12'>
+    <div v-if='!isLoading && !showSkeleton && filteredAlbums.length === 0' class='text-center py-12'>
       <p class='text-muted-foreground'>
         No albums found
       </p>

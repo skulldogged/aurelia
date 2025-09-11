@@ -104,9 +104,10 @@ pub async fn cache_music_library(items: &[Song]) -> Result<(), sqlx::Error> {
     // --- 2. Insert all unique artists first ---
     for (id, name) in artists_to_cache {
         sqlx::query!(
-            "INSERT OR IGNORE INTO artists (id, name) VALUES (?, ?)",
+            "INSERT OR IGNORE INTO artists (id, name, image_tag) VALUES (?, ?, ?)",
             id,
-            name
+            name,
+            None::<String>
         )
         .execute(&mut *tx)
         .await?;
@@ -228,11 +229,11 @@ pub async fn get_cached_music_library() -> Result<Vec<Song>, sqlx::Error> {
         result.push(Song {
             id: row.id,
             name: row.name,
-            item_type: row.item_type,
+            item_type: row.item_type.unwrap_or_default(),
             album: row.album_name,
             album_id: row.album_id,
             path: row.path,
-            duration: row.duration,
+            duration: row.duration.map(|d| d as f64),
             album_art_url: row.album_art_url,
             year: row.year.map(|y| y as i32),
             play_count: row.play_count.map(|pc| pc as i32),
@@ -252,6 +253,82 @@ pub async fn get_cached_music_library() -> Result<Vec<Song>, sqlx::Error> {
             codec: row.codec,
         });
     }
+    Ok(result)
+}
+
+/// Cache full artist data including image_tags
+pub async fn cache_artists(artists: &[crate::models::Artist]) -> Result<(), sqlx::Error> {
+    let pool = get_pool().await;
+    let mut tx = pool.begin().await?;
+
+    for artist in artists {
+        // Serialize image_tags to JSON string for storage
+        let image_tag_json = artist
+            .image_tags
+            .as_ref()
+            .and_then(|tags| serde_json::to_string(tags).ok());
+
+        sqlx::query!(
+            "INSERT OR REPLACE INTO artists (id, name, image_tag) VALUES (?, ?, ?)",
+            artist.id,
+            artist.name,
+            image_tag_json
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await
+}
+
+/// Get cached artist data
+pub async fn get_cached_artists() -> Result<Vec<crate::models::Artist>, sqlx::Error> {
+    let pool = get_pool().await;
+
+    let rows = sqlx::query!("SELECT id, name, image_tag FROM artists ORDER BY name")
+        .fetch_all(&pool)
+        .await?;
+
+    let mut result = Vec::new();
+    for row in rows {
+        // Parse image_tag JSON back to serde_json::Value
+        let image_tags = match row.image_tag {
+            Some(json_str) => serde_json::from_str::<serde_json::Value>(&json_str).ok(),
+            None => None,
+        };
+
+        // Compute image_url from image_tags if available
+        let image_url = if let Some(tags) = &image_tags {
+            if let Some(tags_obj) = tags.as_object() {
+                if tags_obj.contains_key("Primary") {
+                    // Note: We can't generate the full URL here without server_url and token
+                    // This would need to be handled by the frontend or a separate function
+                    None
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let artist = crate::models::Artist {
+            id: row.id,
+            name: row.name,
+            image_tags,
+            image_url,
+            overview: None,
+            provider_ids: None,
+            community_rating: None,
+            song_count: None,
+            songs: None,
+        };
+
+        result.push(artist);
+    }
+
     Ok(result)
 }
 

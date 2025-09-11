@@ -25,6 +25,7 @@
     getArtistsWithSongs,
     getSavedCredentials,
     toggleFavoriteStatus,
+    syncMusicLibrary,
     clearMusicCache,
   } = useTauri()
 
@@ -213,7 +214,6 @@
     currentSong.value = null
     playlist.value = []
     allSongs.value = []
-    allAlbums.value = []
     allArtists.value = []
     allArtistsWithSongs.value = []
     albumArtistsWithSongs.value = []
@@ -357,6 +357,22 @@
       })
   }
 
+  const handleSyncLibrary = async () => {
+    console.log('DEBUG: Starting library sync from UI...')
+    if (!credentials.value) {
+      console.error('Failed to sync library: No credentials available.')
+      return
+    }
+    try {
+      await syncMusicLibrary(credentials.value.serverUrl, credentials.value.token)
+      console.log('DEBUG: Library sync command completed, now loading library...')
+      await loadLibrary()
+      console.log('DEBUG: Library reload completed')
+    } catch (err) {
+      console.error('Failed to sync library:', err)
+    }
+  }
+
   const handleClearCache = async () => {
     console.log('DEBUG: Starting cache clear from UI...')
     if (!credentials.value) {
@@ -403,6 +419,7 @@
             @reload-library='loadLibrary'
             @select-album='handleSelectAlbum'
             @select-artist='handleSelectArtist'
+            @sync-library='handleSyncLibrary'
             @toggle-favorite='handleToggleFavorite'
             :key='$route.path'
             :credentials='credentials'

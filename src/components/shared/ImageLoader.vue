@@ -23,20 +23,27 @@
   const { getImageUrl } = useImageLoader()
   const imageUrl = ref<string | null>(null)
   const hasError = ref(false)
+  const isLoaded = ref(false)
 
   const updateImageUrl = () => {
     if (props.itemId && props.serverUrl && props.token) {
       imageUrl.value = getImageUrl(props.itemId, props.serverUrl, props.token, props.imageType)
       hasError.value = false
+      isLoaded.value = false
     } else {
       imageUrl.value = null
       // Set error to true if vital props are missing, to show fallback
       hasError.value = true
+      isLoaded.value = false
     }
   }
 
   const handleError = () => {
     hasError.value = true
+  }
+
+  const handleLoad = () => {
+    isLoaded.value = true
   }
 
   watch(
@@ -48,17 +55,18 @@
 </script>
 
 <template>
-  <img
-    @error='handleError'
-    v-if='imageUrl && !hasError'
-    :alt='alt'
-    :class='className'
-    :src='imageUrl'
-    class='rounded-lg object-cover'
-  >
-  <slot v-else name='fallback'>
-    <div :class='className' class='bg-muted rounded-lg flex items-center justify-center'>
-      <!-- You can put a default icon or text here -->
-    </div>
-  </slot>
+  <div :class='className'>
+    <img
+      @error='handleError'
+      @load='handleLoad'
+      v-if='imageUrl'
+      v-show='!hasError && isLoaded'
+      :alt='alt'
+      :src='imageUrl'
+      class='rounded-lg object-cover'
+    >
+    <slot v-if='!imageUrl || hasError || !isLoaded' name='fallback'>
+      <div class='bg-muted rounded-lg flex items-center justify-center' />
+    </slot>
+  </div>
 </template>

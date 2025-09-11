@@ -3,8 +3,9 @@
   import { Button } from '@/components/ui/button'
   import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 
-  defineProps<{
-    title: string
+  const props = defineProps<{
+    title:     string
+    disabled?: boolean
   }>()
 
   const scrollContainer = ref<HTMLElement | null>(null)
@@ -51,7 +52,7 @@
       <div class='space-x-2 z-10'>
         <Button
           @click='scrollLeft'
-          :disabled='!canScrollLeft'
+          :disabled='!canScrollLeft || props.disabled'
           size='icon'
           variant='outline'
         >
@@ -59,7 +60,7 @@
         </Button>
         <Button
           @click='scrollRight'
-          :disabled='!canScrollRight'
+          :disabled='!canScrollRight || props.disabled'
           size='icon'
           variant='outline'
         >
