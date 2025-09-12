@@ -90,11 +90,154 @@ impl JellyfinClient {
         })
     }
 
+    /// Get album artists only
+    pub async fn get_album_artists(&self) -> AppResult<Vec<Artist>> {
+        let artists_url = utils::build_jellyfin_url(
+            &self.server_url,
+            "/Artists/AlbumArtists?Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount",
+        );
+
+        let response = self
+            .client
+            .get(&artists_url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to fetch album artists: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let response_text = response.text().await?;
+        let response_json: serde_json::Value =
+            serde_json::from_str(&response_text).map_err(|e| {
+                AppError::ApiParse(format!("Failed to parse album artists JSON: {}", e))
+            })?;
+
+        let items = response_json["Items"].as_array().ok_or_else(|| {
+            AppError::ApiParse("Invalid album artists response format".to_string())
+        })?;
+
+        let mut artists = Vec::new();
+
+        for item in items {
+            let artist = self.parse_single_artist(item)?;
+            artists.push(artist);
+        }
+
+        println!(
+            "DEBUG: Fetched {} album artists from Jellyfin API",
+            artists.len()
+        );
+        Ok(artists)
+    }
+
+    /// Get albums directly from Jellyfin
+    pub async fn get_albums(&self, user_id: &str) -> AppResult<Vec<crate::models::Album>> {
+        let albums_url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!("/Users/{}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,SongCount,Artists,ArtistItems", user_id)
+        );
+
+        let response = self
+            .client
+            .get(&albums_url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to fetch albums: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let response_text = response.text().await?;
+        let response_json: serde_json::Value = serde_json::from_str(&response_text)
+            .map_err(|e| AppError::ApiParse(format!("Failed to parse albums JSON: {}", e)))?;
+
+        let items = response_json["Items"]
+            .as_array()
+            .ok_or_else(|| AppError::ApiParse("Invalid albums response format".to_string()))?;
+
+        let mut albums = Vec::new();
+
+        for item in items {
+            let album = self.parse_single_album(item)?;
+            albums.push(album);
+        }
+
+        println!(
+            "DEBUG: Fetched {} albums directly from Jellyfin API",
+            albums.len()
+        );
+        Ok(albums)
+    }
+
+    /// Parse a single album from JSON
+    fn parse_single_album(&self, item: &serde_json::Value) -> AppResult<crate::models::Album> {
+        let id = item["Id"].as_str().map(|s| s.to_string());
+        let name = item["Name"].as_str().unwrap_or("Unknown Album").to_string();
+
+        // Get primary artist
+        let artist = if let Some(artists) = item["Artists"].as_array() {
+            artists
+                .first()
+                .and_then(|a| a.as_str())
+                .unwrap_or("Unknown Artist")
+        } else {
+            "Unknown Artist"
+        };
+
+        let artist_id = item["AlbumArtists"]
+            .as_array()
+            .and_then(|artists| artists.first())
+            .and_then(|artist| artist["Id"].as_str())
+            .map(|s| s.to_string());
+
+        // Get album art URL
+        let album_art_url = if let Some(tags) = item["ImageTags"].as_object() {
+            if tags.contains_key("Primary") {
+                let base_url = format!(
+                    "{}/Items/{}/Images/Primary",
+                    self.server_url.trim_end_matches('/'),
+                    item["Id"].as_str().unwrap_or("")
+                );
+
+                if let Some(token) = &self.token {
+                    Some(format!("{}?api_key={}", base_url, token))
+                } else {
+                    Some(base_url)
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let song_count = item["SongCount"].as_i64().unwrap_or(0) as i32;
+
+        Ok(crate::models::Album {
+            id,
+            name,
+            artist: artist.to_string(),
+            artist_id,
+            album_art_url,
+            song_count,
+            songs: None,
+        })
+    }
+
     /// Get music library items
     pub async fn get_music_library(&self, user_id: &str) -> AppResult<Vec<Song>> {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
-            &format!("/Users/{}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,ArtistItems", user_id)
+            &format!("/Users/{}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,ArtistItems,MediaSources,Width,Height,Container", user_id)
         );
 
         let response = self
@@ -223,12 +366,18 @@ impl JellyfinClient {
         let genres = self.extract_genres(item);
         let album_artists = self.extract_album_artists(item);
 
-        let container = item["Path"].as_str().and_then(|p| {
-            std::path::Path::new(p)
-                .extension()
-                .and_then(|os_str| os_str.to_str())
-                .map(|s| s.to_lowercase())
-        });
+        // Use Container field if available, otherwise fall back to path parsing
+        let container = item["Container"]
+            .as_str()
+            .map(|s| s.to_string())
+            .or_else(|| {
+                item["Path"].as_str().and_then(|p| {
+                    std::path::Path::new(p)
+                        .extension()
+                        .and_then(|os_str| os_str.to_str())
+                        .map(|s| s.to_lowercase())
+                })
+            });
 
         // Create the Song struct with camelCase field names
         let song = Song {
@@ -287,46 +436,160 @@ impl JellyfinClient {
 
     /// Extract artists from item
     fn extract_artists(&self, item: &serde_json::Value) -> Option<Vec<String>> {
-        item["Artists"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect::<Vec<String>>()
-            })
-            .filter(|v: &Vec<String>| !v.is_empty())
+        let artists_value = &item["Artists"];
+
+        // Try to parse as array first (preferred format)
+        if let Some(arr) = artists_value.as_array() {
+            let mut artists = Vec::new();
+            for artist_value in arr.iter() {
+                if let Some(artist_str) = artist_value.as_str() {
+                    // Check if this artist string itself contains \x1F separators
+                    if artist_str.contains('\x1F') {
+                        // Split the artist string and add individual artists
+                        for split_artist in artist_str.split('\x1F').filter(|s| !s.is_empty()) {
+                            artists.push(split_artist.to_string());
+                        }
+                    } else {
+                        artists.push(artist_str.to_string());
+                    }
+                }
+            }
+            if !artists.is_empty() {
+                return Some(artists);
+            }
+        }
+
+        // If not an array, try to parse as string with \x1F separator
+        if let Some(artists_str) = artists_value.as_str() {
+            let artists = artists_str
+                .split('\x1F')
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>();
+            if !artists.is_empty() {
+                return Some(artists);
+            }
+        }
+        None
     }
 
     /// Extract artist IDs from item
     fn extract_artist_ids(&self, item: &serde_json::Value) -> Option<Vec<String>> {
-        item["ArtistItems"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v["Id"].as_str().map(|s| s.to_string()))
-                    .collect::<Vec<String>>()
-            })
-            .filter(|v: &Vec<String>| !v.is_empty())
+        let artist_items = &item["ArtistItems"];
+
+        // Try to parse as array first (preferred format)
+        if let Some(arr) = artist_items.as_array() {
+            let mut artist_ids = Vec::new();
+            for item_value in arr.iter() {
+                if let Some(id_str) = item_value["Id"].as_str() {
+                    // Check if this ID string itself contains \x1F separators
+                    if id_str.contains('\x1F') {
+                        // Split the ID string and add individual IDs
+                        for split_id in id_str.split('\x1F').filter(|s| !s.is_empty()) {
+                            artist_ids.push(split_id.to_string());
+                        }
+                    } else {
+                        artist_ids.push(id_str.to_string());
+                    }
+                }
+            }
+            if !artist_ids.is_empty() {
+                return Some(artist_ids);
+            }
+        }
+
+        // Also check if ArtistItems is stored as a simple string array
+        if let Some(arr) = artist_items.as_array() {
+            let artist_ids = arr
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect::<Vec<String>>();
+            if !artist_ids.is_empty() {
+                let mut final_ids = Vec::new();
+                for id_str in artist_ids {
+                    if id_str.contains('\x1F') {
+                        for split_id in id_str.split('\x1F').filter(|s| !s.is_empty()) {
+                            final_ids.push(split_id.to_string());
+                        }
+                    } else {
+                        final_ids.push(id_str);
+                    }
+                }
+                return Some(final_ids);
+            }
+        }
+        None
     }
 
     /// Extract genres from item
     fn extract_genres(&self, item: &serde_json::Value) -> Option<Vec<String>> {
-        item["Genres"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect::<Vec<String>>()
-            })
-            .filter(|v: &Vec<String>| !v.is_empty())
+        let genres_value = &item["Genres"];
+
+        // Try to parse as array first (preferred format)
+        if let Some(arr) = genres_value.as_array() {
+            let mut genres = Vec::new();
+            for genre_value in arr {
+                if let Some(genre_str) = genre_value.as_str() {
+                    // Check if this genre string itself contains \x1F separators
+                    if genre_str.contains('\x1F') {
+                        // Split the genre string and add individual genres
+                        for split_genre in genre_str.split('\x1F').filter(|s| !s.is_empty()) {
+                            genres.push(split_genre.to_string());
+                        }
+                    } else {
+                        genres.push(genre_str.to_string());
+                    }
+                }
+            }
+            if !genres.is_empty() {
+                return Some(genres);
+            }
+        }
+
+        // If not an array, try to parse as string with \x1F separator
+        if let Some(genres_str) = genres_value.as_str() {
+            let genres = genres_str
+                .split('\x1F')
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>();
+            if !genres.is_empty() {
+                return Some(genres);
+            }
+        }
+
+        None
     }
 
     /// Extract album artists from item
     fn extract_album_artists(&self, item: &serde_json::Value) -> Option<Vec<NameIdPair>> {
-        item["AlbumArtists"]
-            .as_array()
-            .and_then(|arr| serde_json::from_value(serde_json::Value::Array(arr.clone())).ok())
-            .filter(|v: &Vec<NameIdPair>| !v.is_empty())
+        let album_artists_value = &item["AlbumArtists"];
+
+        // Try to parse as array first (preferred format)
+        if let Some(arr) = album_artists_value.as_array() {
+            let mut album_artists = Vec::new();
+            for artist_value in arr.iter() {
+                if let (Some(id), Some(name)) =
+                    (artist_value["Id"].as_str(), artist_value["Name"].as_str())
+                {
+                    album_artists.push(NameIdPair {
+                        id: id.to_string(),
+                        name: name.to_string(),
+                    });
+                }
+            }
+            if !album_artists.is_empty() {
+                return Some(album_artists);
+            }
+        }
+
+        // If not an array, try to parse as string with \x1F separator
+        if let Some(_album_artists_str) = album_artists_value.as_str() {
+            // This is more complex since we need to parse name-id pairs from a string
+            // For now, return None and let it fall back to track artists
+        }
+
+        None
     }
 
     /// Get artist details

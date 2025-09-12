@@ -3,8 +3,7 @@
   import { useRoute } from 'vue-router'
   import SongList from '@/components/shared/SongList.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { Song, Album } from '@/bindings'
-  import { useTauri } from '@/composables/useTauri'
+  import { Song, Album, commands } from '@/bindings'
 
   const props = defineProps<{
     currentSong: Song | null
@@ -19,7 +18,7 @@
   }>()
 
   const route = useRoute()
-  const { getMusicLibrary } = useTauri()
+  const { getSongs } = commands
   const album = ref<Album | null>(null)
   const allSongs = ref<Song[]>([])
 
@@ -37,9 +36,13 @@
       const albumName = decodeURIComponent(route.params.albumName as string)
       console.log('AlbumDetailView: Fetching album:', albumName)
 
-      const songs = await getMusicLibrary(props.serverUrl, props.token)
-      allSongs.value = songs
-      console.log('AlbumDetailView: Fetched', songs.length, 'total songs')
+      const songsResult = await getSongs(props.serverUrl, props.token, null, null, null, null)
+      if (songsResult.status === 'error') {
+        console.error('Failed to fetch songs:', songsResult.error)
+        throw new Error(songsResult.error)
+      }
+      allSongs.value = songsResult.data
+      console.log('AlbumDetailView: Fetched', songsResult.data.length, 'total songs')
 
       const albumsMap = new Map<string, Album>()
       allSongs.value.forEach(song => {
@@ -48,8 +51,8 @@
             albumsMap.set(song.albumId, {
               id:          song.albumId,
               name:        song.album,
-              artist:      song.artists?.[0] || 'Unknown Artist',
-              artistId:    song.artistIds?.[0] || null,
+              artist:      song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist',
+              artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
               albumArtUrl: song.albumArtUrl,
               songCount:   0,
               songs:       [],
@@ -76,28 +79,16 @@
   })
 
   const displayedArtist = computed(() => {
-    // Find the most common artist for this album's songs
-    if (!albumSongs.value.length) return album.value?.artist // Fallback
+    // First try to get album artist from the first song's albumArtists
+    const firstSong = albumSongs.value[0]
 
-    const artistCounts = new Map<string, number>()
-    albumSongs.value.forEach(song => {
-      song.artists?.forEach(artist => {
-        artistCounts.set(artist, (artistCounts.get(artist) || 0) + 1)
-      })
-    })
-
-    if (artistCounts.size === 0) return album.value?.artist // Fallback
-
-    // Get the artist with the highest count
-    let maxCount = 0
-    let primaryArtist = ''
-    for (const [artist, count] of artistCounts.entries()) {
-      if (count > maxCount) {
-        maxCount = count
-        primaryArtist = artist
-      }
+    if (firstSong?.albumArtists?.length) {
+      const artistName = firstSong.albumArtists[0].name
+      return artistName
     }
-    return primaryArtist
+
+    // Fallback to album's artist field (which should now be set correctly)
+    return album.value?.artist || 'Unknown Artist'
   })
 </script>
 

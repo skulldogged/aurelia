@@ -248,7 +248,7 @@
 
 <script setup lang="ts">
   import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-  import { useTauri } from '@/composables/useTauri'
+  import { commands } from '@/bindings'
   import {
     Music2,
     SkipBack,
@@ -284,7 +284,7 @@
   }>()
 
   const playerStore = usePlayerStore()
-  const { getAudioStreamUrl } = useTauri()
+  const { getAudioStreamUrl } = commands
 
   // Audio elements
   const audioPlayer1 = ref<HTMLAudioElement | null>(null)
@@ -561,13 +561,17 @@
     try {
       console.log(`[MusicPlayer] Loading audio for song: ${song.name} (ID: ${song.id})`)
 
-      const streamUrl = await getAudioStreamUrl(
+      const streamResult = await getAudioStreamUrl(
         props.serverUrl,
         props.token,
         song.id,
         song.container,
       )
-      player.src = streamUrl
+      if (streamResult.status === 'error') {
+        console.error('Failed to get audio stream URL:', streamResult.error)
+        throw new Error(streamResult.error)
+      }
+      player.src = streamResult.data
       player.load()
 
       // Reset states when loading active player

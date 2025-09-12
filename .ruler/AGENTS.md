@@ -64,6 +64,7 @@ This is a Tauri application built with Vue 3, TypeScript, and Tailwind CSS. The 
 - Follow Vue 3 best practices and conventions
 - Ensure accessibility (a11y) compliance
 - Optimize for performance where necessary
+- DO NOT RUN BUILDS/DEV SERVERS UNLESS EXPLICITLY ASKED, EVER.
 
 ## Dependencies Management
 

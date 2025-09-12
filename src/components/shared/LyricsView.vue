@@ -45,9 +45,8 @@
 
 <script setup lang="ts">
   import { ref, watch, computed, nextTick } from 'vue'
-  import { useTauri } from '@/composables/useTauri'
   import { Loader2 } from 'lucide-vue-next'
-  import { Song } from '@/bindings'
+  import { Song, commands } from '@/bindings'
 
   interface LyricLine {
     time: number
@@ -72,7 +71,7 @@
   const parsedLyrics = ref<LyricLine[]>([])
   const activeLineRef = ref<HTMLParagraphElement | null>(null)
 
-  const { getLyrics } = useTauri()
+  const { getLyrics } = commands
 
   const areLyricsSynced = computed(() => {
     return lyrics.value ? /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyrics.value) : false
@@ -111,14 +110,19 @@
       isLoading.value = true
       try {
         if (newSong.artists && newSong.artists.length > 0) {
-          const fetchedLyrics = await getLyrics(
+          const lyricsResult = await getLyrics(
             newSong.id,
             newSong.artists[0],
             newSong.name,
+            null,
           )
-          lyrics.value = fetchedLyrics
-          if (areLyricsSynced.value && fetchedLyrics) {
-            parsedLyrics.value = parseLrc(fetchedLyrics)
+          if (lyricsResult.status === 'error') {
+            console.error('Failed to fetch lyrics:', lyricsResult.error)
+            throw new Error(lyricsResult.error)
+          }
+          lyrics.value = lyricsResult.data
+          if (areLyricsSynced.value && lyricsResult.data) {
+            parsedLyrics.value = parseLrc(lyricsResult.data)
           }
         } else {
           throw new Error('Artist not available')

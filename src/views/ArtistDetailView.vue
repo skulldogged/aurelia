@@ -294,10 +294,9 @@
 <script setup lang="ts">
   import { computed, ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { useTauri } from '@/composables/useTauri'
   import { Button } from '@/components/ui/button'
   import { Music, ChevronLeft, ChevronRight, Play, Pause, Shuffle, Star, ExternalLink } from 'lucide-vue-next'
-  import { Song, Album, Artist } from '@/bindings'
+  import { Song, Album, Artist, commands } from '@/bindings'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
 
@@ -320,7 +319,7 @@
   const route = useRoute()
   const artistId = computed(() => route.params.artistId as string)
 
-  const { getMusicLibrary, getArtistsWithSongs, getArtistDetails } = useTauri()
+  const { getSongs, getArtists, getArtist } = commands
 
   const scrollContainer = ref<HTMLElement | null>(null)
   const canScrollLeft = ref(false)
@@ -456,29 +455,41 @@
       return
     }
     try {
-      const [artists, songs] = await Promise.all([
-        getArtistsWithSongs(props.serverUrl, props.token, false),
-        getMusicLibrary(props.serverUrl, props.token),
+      const [artistsResult, songsResult] = await Promise.all([
+        getArtists(props.serverUrl, props.token, true, false, null, null),
+        getSongs(props.serverUrl, props.token, null, null, null, null),
       ])
 
-      const foundArtist = artists.find(a => a.id === artistId.value)
+      if (artistsResult.status === 'error') {
+        console.error('Failed to fetch artists:', artistsResult.error)
+        throw new Error(artistsResult.error)
+      }
+      if (songsResult.status === 'error') {
+        console.error('Failed to fetch songs:', songsResult.error)
+        throw new Error(songsResult.error)
+      }
+
+      const foundArtist = artistsResult.data.find(a => a.id === artistId.value)
       if (foundArtist) {
         console.log('Fetched artist details:', JSON.stringify(foundArtist, null, 2))
         artist.value = foundArtist
-        allArtists.value = artists
-        allSongs.value = songs
+        allArtists.value = artistsResult.data
+        allSongs.value = songsResult.data
       } else {
         console.error('Artist not found in library:', artistId.value)
         // If the artist is not found in the main list (e.g., a featured artist),
         // fetch their details directly.
         try {
-          const directFetchArtist = await getArtistDetails(props.serverUrl, props.token, artistId.value)
-          if (directFetchArtist) {
-            artist.value = directFetchArtist
+          const directFetchResult = await getArtist(artistId.value, false, false)
+          if (directFetchResult.status === 'error') {
+            throw new Error(directFetchResult.error)
+          }
+          if (directFetchResult.data) {
+            artist.value = directFetchResult.data
             // We might not have all songs here, but the detail view will render.
             // The song list for this artist might be incomplete.
-            allSongs.value = songs // Keep the songs from the main library
-            allArtists.value = artists
+            allSongs.value = songsResult.data // Keep the songs from the main library
+            allArtists.value = artistsResult.data
           } else {
             artist.value = null
           }

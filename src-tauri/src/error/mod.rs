@@ -61,11 +61,5 @@ impl From<std::io::Error> for AppError {
     }
 }
 
-impl From<sqlx::Error> for AppError {
-    fn from(err: sqlx::Error) -> Self {
-        AppError::Database(err.to_string())
-    }
-}
-
 /// Result type alias for convenience
 pub type AppResult<T> = Result<T, AppError>;

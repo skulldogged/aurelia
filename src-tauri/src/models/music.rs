@@ -9,12 +9,8 @@ use std::collections::HashMap;
 #[specta(rename_all = "camelCase")]
 pub struct NameIdPair {
     /// Display name
-    #[serde(rename = "Name")]
-    #[specta(rename = "name")]
     pub name: String,
     /// Unique identifier
-    #[serde(rename = "Id")]
-    #[specta(rename = "id")]
     pub id: String,
 }
 
@@ -93,7 +89,7 @@ pub struct Song {
 }
 
 /// Consolidated artist type with all information
-#[derive(Serialize, Deserialize, Debug, Type)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
 #[specta(rename_all = "camelCase")]
 pub struct Artist {
     /// Artist name
@@ -119,7 +115,7 @@ pub struct Artist {
 }
 
 /// Consolidated album type with all information
-#[derive(Serialize, Deserialize, Debug, Type)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
 #[specta(rename_all = "camelCase")]
 pub struct Album {
     /// Album ID from Jellyfin

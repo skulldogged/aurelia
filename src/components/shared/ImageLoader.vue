@@ -63,10 +63,10 @@
       v-show='!hasError && isLoaded'
       :alt='alt'
       :src='imageUrl'
-      class='rounded-lg object-cover'
+      class='w-full h-full object-cover rounded-lg'
     >
     <slot v-if='!imageUrl || hasError || !isLoaded' name='fallback'>
-      <div class='bg-muted rounded-lg flex items-center justify-center' />
+      <div class='w-full h-full bg-muted rounded-lg flex items-center justify-center' />
     </slot>
   </div>
 </template>

@@ -1,5 +1,0 @@
-DROP TABLE IF EXISTS song_album_artists;
-DROP TABLE IF EXISTS song_artists;
-DROP TABLE IF EXISTS songs;
-DROP TABLE IF EXISTS albums;
-DROP TABLE IF EXISTS artists;

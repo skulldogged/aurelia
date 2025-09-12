@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { computed, ref, watch, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Song, Album } from '@/bindings'
+  import { Song, Album, commands } from '@/bindings'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Skeleton } from '@/components/ui/skeleton'
@@ -9,10 +9,9 @@
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { useTauri } from '@/composables/useTauri'
 
   const router = useRouter()
-  const { getMusicLibrary } = useTauri()
+  const { getSongs } = commands
 
   const props = defineProps<{
     serverUrl: string,
@@ -31,7 +30,12 @@
 
   onMounted(async () => {
     try {
-      allSongs.value = await getMusicLibrary(props.serverUrl, props.token)
+      const songsResult = await getSongs(props.serverUrl, props.token, null, null, null, null)
+      if (songsResult.status === 'error') {
+        console.error('Failed to load music library:', songsResult.error)
+        throw new Error(songsResult.error)
+      }
+      allSongs.value = songsResult.data
     } catch (error) {
       console.error('Failed to load music library:', error)
     } finally {
@@ -45,11 +49,13 @@
     allSongs.value.forEach(song => {
       if (song.album && song.albumId) {
         if (!albumsMap.has(song.albumId)) {
+          const artistName = song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist'
+
           albumsMap.set(song.albumId, {
             id:          song.albumId,
             name:        song.album,
-            artist:      song.artists?.[0] || 'Unknown Artist',
-            artistId:    song.artistIds?.[0] || null,
+            artist:      artistName,
+            artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
             albumArtUrl: song.albumArtUrl,
             songCount:   0,
             songs:       [],

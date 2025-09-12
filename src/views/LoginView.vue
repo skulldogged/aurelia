@@ -71,9 +71,9 @@
   import { Input } from '@/components/ui/input'
   import { Label } from '@/components/ui/label'
   import { Checkbox } from '@/components/ui/checkbox'
-  import { useTauri } from '@/composables/useTauri'
+  import { commands } from '@/bindings'
 
-  const { loginToJellyfin, saveCredentials, getSavedCredentials } = useTauri()
+  const { loginToJellyfin, saveCredentials, getSavedCredentials } = commands
 
   interface LoginForm {
     serverUrl: string
@@ -101,11 +101,17 @@
     loading.value = true
 
     try {
-      const result = await loginToJellyfin(
+      const loginResult = await loginToJellyfin(
         form.value.serverUrl,
         form.value.username,
         form.value.password,
       )
+
+      if (loginResult.status === 'error') {
+        throw new Error(loginResult.error)
+      }
+
+      const result = loginResult.data
 
       if (form.value.remember) {
         await saveCredentials(
@@ -131,8 +137,9 @@
 
   onMounted(async () => {
     try {
-      const saved = await getSavedCredentials()
-      if (saved) {
+      const savedResult = await getSavedCredentials()
+      if (savedResult.status === 'ok' && savedResult.data) {
+        const saved = savedResult.data
         form.value.serverUrl = saved.serverUrl
         form.value.username = saved.username
       }

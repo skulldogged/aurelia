@@ -6,12 +6,12 @@
   import { Button } from '@/components/ui/button'
   import { Skeleton } from '@/components/ui/skeleton'
   import { ChevronLeft, ChevronRight, Play } from 'lucide-vue-next'
-  import { useTauri } from '@/composables/useTauri'
+  import { commands } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
 
   const router = useRouter()
-  const { getMusicLibrary, getRecentlyPlayed } = useTauri()
+  const { getSongs, getRecentlyPlayed } = commands
 
   const props = defineProps<{
     serverUrl: string,
@@ -39,13 +39,23 @@
     }
 
     try {
-      const [fetchedSongs, fetchedRecentlyPlayed] = await Promise.all([
-        getMusicLibrary(props.serverUrl, props.token),
+      const [songsResult, recentlyPlayedResult] = await Promise.all([
+        getSongs(props.serverUrl, props.token, null, null, null, null),
         getRecentlyPlayed(props.serverUrl, props.token),
       ])
-      console.log('HomeView: Fetched', fetchedSongs.length, 'songs')
-      songs.value = fetchedSongs
-      recentlyPlayedSongs.value = fetchedRecentlyPlayed
+
+      if (songsResult.status === 'error') {
+        console.error('Failed to fetch songs:', songsResult.error)
+        throw new Error(songsResult.error)
+      }
+      if (recentlyPlayedResult.status === 'error') {
+        console.error('Failed to fetch recently played:', recentlyPlayedResult.error)
+        throw new Error(recentlyPlayedResult.error)
+      }
+
+      console.log('HomeView: Fetched', songsResult.data.length, 'songs')
+      songs.value = songsResult.data
+      recentlyPlayedSongs.value = recentlyPlayedResult.data
     } catch (error) {
       console.error('HomeView: Error fetching data:', error)
     } finally {
@@ -61,8 +71,8 @@
           albumsMap.set(song.albumId, {
             id:          song.albumId,
             name:        song.album,
-            artist:      song.artists?.[0] || 'Unknown Artist',
-            artistId:    song.artistIds?.[0] || null,
+            artist:      song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist',
+            artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
             albumArtUrl: song.albumArtUrl,
             songCount:   0,
             songs:       [],

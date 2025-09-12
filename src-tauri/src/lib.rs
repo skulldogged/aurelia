@@ -4,7 +4,7 @@
     windows_subsystem = "windows"
 )]
 
-pub mod db;
+pub mod cache;
 pub mod error;
 pub mod handlers;
 pub mod models;
@@ -16,10 +16,10 @@ use tauri_specta::{collect_commands, Builder};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize the database
+    // Initialize the cache system
     tauri::async_runtime::block_on(async {
-        if let Err(e) = db::initialize_database().await {
-            eprintln!("Failed to initialize database: {}", e);
+        if let Err(e) = cache::init().await {
+            eprintln!("Failed to initialize cache: {}", e);
         }
     });
 
@@ -29,17 +29,17 @@ pub fn run() {
         handlers::auth::get_saved_credentials,
         handlers::auth::save_volume,
         handlers::auth::get_saved_volume,
-        handlers::music::get_music_library,
-        handlers::music::get_all_albums,
-        handlers::music::get_all_artists,
-        handlers::music::get_cached_artists,
-        handlers::music::get_artists_with_songs,
+        handlers::music::get_songs,
+        handlers::music::get_song,
+        handlers::music::get_artists,
+        handlers::music::get_artist,
+        handlers::music::get_albums,
+        handlers::music::get_album,
         handlers::music::get_audio_stream_url,
         handlers::music::toggle_favorite_status,
-        handlers::music::sync_music_library,
-        handlers::music::clear_music_cache,
+        handlers::music::sync_library,
+        handlers::music::clear_cache,
         handlers::music::get_recently_played,
-        handlers::music::get_artist_details,
         handlers::lyrics::get_lyrics,
     ]);
 

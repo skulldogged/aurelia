@@ -61,55 +61,66 @@ async getSavedVolume() : Promise<Result<number | null, string>> {
 }
 },
 /**
- * Get music library, using cache if available
+ * Get songs with optional filtering
  */
-async getMusicLibrary(serverUrl: string, token: string) : Promise<Result<Song[], string>> {
+async getSongs(serverUrl: string | null, token: string | null, limit: number | null, offset: number | null, albumId: string | null, artistId: string | null) : Promise<Result<Song[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_music_library", { serverUrl, token }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_songs", { serverUrl, token, limit, offset, albumId, artistId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Get all albums
+ * Get single song by ID
  */
-async getAllAlbums() : Promise<Result<Album[], string>> {
+async getSong(songId: string) : Promise<Result<Song, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_all_albums") };
+    return { status: "ok", data: await TAURI_INVOKE("get_song", { songId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Get all artists from the server (with caching)
+ * Get artists with optional filtering and song inclusion
  */
-async getAllArtists(serverUrl: string, token: string) : Promise<Result<Artist[], string>> {
+async getArtists(serverUrl: string | null, token: string | null, includeSongs: boolean | null, albumArtistsOnly: boolean | null, limit: number | null, offset: number | null) : Promise<Result<Artist[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_all_artists", { serverUrl, token }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_artists", { serverUrl, token, includeSongs, albumArtistsOnly, limit, offset }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Get cached artists from database
+ * Get single artist by ID
  */
-async getCachedArtists() : Promise<Result<Artist[], string>> {
+async getArtist(artistId: string, includeSongs: boolean | null, albumArtistsOnly: boolean | null) : Promise<Result<Artist, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_cached_artists") };
+    return { status: "ok", data: await TAURI_INVOKE("get_artist", { artistId, includeSongs, albumArtistsOnly }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * Get artists with their songs
+ * Get albums with optional filtering and song inclusion
  */
-async getArtistsWithSongs(serverUrl: string, token: string, albumArtistsOnly: boolean) : Promise<Result<Artist[], string>> {
+async getAlbums(serverUrl: string | null, token: string | null, includeSongs: boolean | null, limit: number | null, offset: number | null) : Promise<Result<Album[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_artists_with_songs", { serverUrl, token, albumArtistsOnly }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_albums", { serverUrl, token, includeSongs, limit, offset }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get single album by ID
+ */
+async getAlbum(albumId: string, includeSongs: boolean | null) : Promise<Result<Album, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_album", { albumId, includeSongs }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -140,9 +151,9 @@ async toggleFavoriteStatus(serverUrl: string, token: string, userId: string, ite
 /**
  * Sync music library - update existing data without clearing cache
  */
-async syncMusicLibrary(serverUrl: string, token: string) : Promise<Result<null, string>> {
+async syncLibrary(serverUrl: string, token: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("sync_music_library", { serverUrl, token }) };
+    return { status: "ok", data: await TAURI_INVOKE("sync_library", { serverUrl, token }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -151,9 +162,9 @@ async syncMusicLibrary(serverUrl: string, token: string) : Promise<Result<null, 
 /**
  * Clear the music cache, then re-fetch and cache the library
  */
-async clearMusicCache(serverUrl: string, token: string) : Promise<Result<null, string>> {
+async clearCache(serverUrl: string, token: string) : Promise<Result<null, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("clear_music_cache", { serverUrl, token }) };
+    return { status: "ok", data: await TAURI_INVOKE("clear_cache", { serverUrl, token }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -165,17 +176,6 @@ async clearMusicCache(serverUrl: string, token: string) : Promise<Result<null, s
 async getRecentlyPlayed(serverUrl: string, token: string) : Promise<Result<Song[], string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_recently_played", { serverUrl, token }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Get details for a single artist
- */
-async getArtistDetails(serverUrl: string, token: string, artistId: string) : Promise<Result<Artist, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("get_artist_details", { serverUrl, token, artistId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

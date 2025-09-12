@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { computed, ref, watch, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Song, Artist } from '@/bindings'
+  import { Song, Artist, commands } from '@/bindings'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Skeleton } from '@/components/ui/skeleton'
@@ -9,10 +9,9 @@
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { useTauri } from '@/composables/useTauri'
 
   const router = useRouter()
-  const { getArtistsWithSongs } = useTauri()
+  const { getArtists } = commands
 
   const showAllArtists = ref(false)
 
@@ -35,12 +34,22 @@
 
   onMounted(async () => {
     try {
-      const [all, albumOnly] = await Promise.all([
-        getArtistsWithSongs(props.serverUrl, props.token, false),
-        getArtistsWithSongs(props.serverUrl, props.token, true),
+      const [allResult, albumOnlyResult] = await Promise.all([
+        getArtists(props.serverUrl, props.token, true, false, null, null),
+        getArtists(props.serverUrl, props.token, true, true, null, null),
       ])
-      artists.value = all
-      albumArtists.value = albumOnly
+
+      if (allResult.status === 'error') {
+        console.error('Failed to load artists:', allResult.error)
+        throw new Error(allResult.error)
+      }
+      if (albumOnlyResult.status === 'error') {
+        console.error('Failed to load album artists:', albumOnlyResult.error)
+        throw new Error(albumOnlyResult.error)
+      }
+
+      artists.value = allResult.data
+      albumArtists.value = albumOnlyResult.data
     } catch (error) {
       console.error('Failed to load artists:', error)
     } finally {
@@ -48,7 +57,9 @@
     }
   })
 
-  const artistsToDisplay = computed(() => showAllArtists.value ? artists.value : albumArtists.value || [])
+  const artistsToDisplay = computed(() =>
+    showAllArtists.value ? artists.value : (albumArtists.value?.length ? albumArtists.value : artists.value),
+  )
 
   // Use artists directly from props
   const artistsWithSongs = computed(() => artistsToDisplay.value)
@@ -69,6 +80,10 @@
     if (!searchQuery.value || searchQuery.value.length < 2) return artistsWithSongs.value
     return artistsFuse.value.search(searchQuery.value).map(result => result.item)
   })
+
+  const toggleArtistMode = () => {
+    showAllArtists.value = !showAllArtists.value
+  }
 
   const playArtistShuffle = (artist: Artist) => {
     const artistSongs = artist.songs
@@ -92,8 +107,8 @@
         <h1 class='text-4xl font-bold'>
           Artists
         </h1>
-        <Button @click='showAllArtists = !showAllArtists'>
-          {{ showAllArtists ? "Show Album Artists" : "Show All Artists" }}
+        <Button @click='toggleArtistMode'>
+          {{ showAllArtists ? "Album Artists Only" : "All Artists" }}
         </Button>
       </div>
       <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center'>

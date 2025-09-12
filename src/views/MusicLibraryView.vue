@@ -140,8 +140,7 @@
     TableHeader,
     TableRow,
   } from '@/components/ui/table'
-  import { Song } from '@/bindings'
-  import { useTauri } from '@/composables/useTauri'
+  import { Song, commands } from '@/bindings'
 
   // Define props from parent
   const props = defineProps<{
@@ -163,13 +162,18 @@
   const loading = ref(false)
   const error = ref('')
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
-  const { getMusicLibrary } = useTauri()
+  const { getSongs } = commands
 
   const fetchMusicLibrary = async () => {
     loading.value = true
     error.value = ''
     try {
-      songs.value = await getMusicLibrary(props.serverUrl, props.token)
+      const songsResult = await getSongs(props.serverUrl, props.token, null, null, null, null)
+      if (songsResult.status === 'error') {
+        console.error('Failed to fetch music library:', songsResult.error)
+        throw new Error(songsResult.error)
+      }
+      songs.value = songsResult.data
     } catch (e) {
       error.value = e as string
     } finally {

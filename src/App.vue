@@ -6,8 +6,7 @@
   import MusicPlayer from './components/player/MusicPlayer.vue'
   import Queue from './components/player/Queue.vue'
   import MainLayout from './components/layout/MainLayout.vue'
-  import { Song, Album, Artist, Credentials } from './bindings'
-  import { useTauri } from '@/composables/useTauri'
+  import { Song, Album, Artist, Credentials, commands } from './bindings'
   import SearchResults from '@/components/shared/SearchResultsView.vue'
   import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
   import { usePlayerStore } from '@/stores'
@@ -21,13 +20,13 @@
 
   // Tauri commands
   const {
-    getMusicLibrary,
-    getArtistsWithSongs,
+    getSongs,
+    getArtists,
     getSavedCredentials,
     toggleFavoriteStatus,
-    syncMusicLibrary,
-    clearMusicCache,
-  } = useTauri()
+    syncLibrary,
+    clearCache,
+  } = commands
 
   // App state
   const authStatus = ref<'pending' | 'loggedIn' | 'loggedOut'>('pending')
@@ -57,8 +56,8 @@
           albumsMap.set(song.albumId, {
             id:          song.albumId,
             name:        song.album,
-            artist:      song.artists?.[0] || 'Unknown Artist',
-            artistId:    song.artistIds?.[0] || null,
+            artist:      song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist',
+            artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
             albumArtUrl: song.albumArtUrl,
             songCount:   0,
             songs:       [],
@@ -127,9 +126,8 @@
     }
 
     const routePath = routeMap[view]
-    if (routePath) {
+    if (routePath)
       router.push(routePath)
-    }
   }
 
   const handleSelectArtist = (artist: Artist) => {
@@ -150,22 +148,37 @@
     libraryError.value = ''
     try {
       console.log('DEBUG: Fetching songs...')
-      const songs = await getMusicLibrary(
+      const songsResult = await getSongs(
         credentials.value.serverUrl,
         credentials.value.token,
+        null, null, null, null,
       )
-      console.log(`DEBUG: Loaded ${songs.length} songs`)
-      allSongs.value = songs
+      if (songsResult.status === 'error') {
+        console.error('Failed to load songs:', songsResult.error)
+        throw new Error(songsResult.error)
+      }
+      console.log(`DEBUG: Loaded ${songsResult.data.length} songs`)
+      allSongs.value = songsResult.data
 
       // Since the other data is derived from songs, let's get them with the new commands
       console.log('DEBUG: Fetching artists...')
-      const [artistsWithSongs, albumArtists] = await Promise.all([
-        getArtistsWithSongs(credentials.value.serverUrl, credentials.value.token, false),
-        getArtistsWithSongs(credentials.value.serverUrl, credentials.value.token, true),
+      const [artistsWithSongsResult, albumArtistsResult] = await Promise.all([
+        getArtists(credentials.value.serverUrl, credentials.value.token, true, false, null, null),
+        getArtists(credentials.value.serverUrl, credentials.value.token, true, true, null, null),
       ])
-      console.log(`DEBUG: Loaded ${artistsWithSongs.length} artists with songs`)
-      allArtistsWithSongs.value = artistsWithSongs
-      albumArtistsWithSongs.value = albumArtists
+
+      if (artistsWithSongsResult.status === 'error') {
+        console.error('Failed to load artists:', artistsWithSongsResult.error)
+        throw new Error(artistsWithSongsResult.error)
+      }
+      if (albumArtistsResult.status === 'error') {
+        console.error('Failed to load album artists:', albumArtistsResult.error)
+        throw new Error(albumArtistsResult.error)
+      }
+
+      console.log(`DEBUG: Loaded ${artistsWithSongsResult.data.length} artists with songs`)
+      allArtistsWithSongs.value = artistsWithSongsResult.data
+      albumArtistsWithSongs.value = albumArtistsResult.data
       console.log('DEBUG: Library load completed successfully')
     } catch (err) {
       console.error('DEBUG: Library load failed:', err)
@@ -180,10 +193,12 @@
     // Initialize volume from player store (which loads from localStorage)
     volume.value = playerStore.volume
 
-    const savedCredentials = await getSavedCredentials()
-    if (savedCredentials && savedCredentials.token) {
+    const savedCredentialsResult = await getSavedCredentials()
+    if (savedCredentialsResult.status === 'error') {
+      console.error('Failed to get saved credentials:', savedCredentialsResult.error)
+    } else if (savedCredentialsResult.data && savedCredentialsResult.data.token) {
       console.log('App.vue: Credentials loaded')
-      credentials.value = savedCredentials
+      credentials.value = savedCredentialsResult.data
       authStatus.value = 'loggedIn'
     } else {
       authStatus.value = 'loggedOut'
@@ -341,7 +356,11 @@
       song.id,
       !song.isFavorite,
     )
-      .then(newStatus => {
+      .then(result => {
+        if (result.status === 'error') {
+          throw new Error(result.error)
+        }
+        const newStatus = result.data
         console.log('Favorite status updated to:', newStatus)
         const songInLibrary = allSongs.value.find(s => s.id === song.id)
         if (songInLibrary)
@@ -364,7 +383,10 @@
       return
     }
     try {
-      await syncMusicLibrary(credentials.value.serverUrl, credentials.value.token)
+      const syncResult = await syncLibrary(credentials.value.serverUrl, credentials.value.token)
+      if (syncResult.status === 'error') {
+        throw new Error(syncResult.error)
+      }
       console.log('DEBUG: Library sync command completed, now loading library...')
       await loadLibrary()
       console.log('DEBUG: Library reload completed')
@@ -380,7 +402,10 @@
       return
     }
     try {
-      await clearMusicCache(credentials.value.serverUrl, credentials.value.token)
+      const clearResult = await clearCache(credentials.value.serverUrl, credentials.value.token)
+      if (clearResult.status === 'error') {
+        throw new Error(clearResult.error)
+      }
       console.log('DEBUG: Cache clear command completed, now loading library...')
       await loadLibrary()
       console.log('DEBUG: Library reload completed')
