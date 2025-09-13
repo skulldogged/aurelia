@@ -207,6 +207,7 @@
   import { Song } from '@/bindings'
   import { PropType } from 'vue'
   import { useImageLoader } from '@/composables/useImageLoader'
+  import { playerLogger } from '@/lib/logger'
 
   const props = defineProps({
     show: {
@@ -289,10 +290,10 @@
     if (newSong && props.serverUrl && props.token) {
       try {
         const imageId = newSong.albumId || newSong.id
-        const imageData = getImageUrl(imageId, props.serverUrl, props.token, 'Primary')
+        const imageData = await getImageUrl(imageId, props.serverUrl, props.token, 'Primary')
         backgroundImageData.value = imageData
       } catch (error) {
-        console.error('Failed to load background image:', error)
+        playerLogger.error('Failed to load background image:', error)
         backgroundImageData.value = null
       }
     } else {

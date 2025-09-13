@@ -9,6 +9,7 @@
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import { uiLogger } from '@/lib/logger'
 
   const router = useRouter()
   const { getArtists } = commands
@@ -40,18 +41,18 @@
       ])
 
       if (allResult.status === 'error') {
-        console.error('Failed to load artists:', allResult.error)
+        uiLogger.error('Failed to load artists:', allResult.error)
         throw new Error(allResult.error)
       }
       if (albumOnlyResult.status === 'error') {
-        console.error('Failed to load album artists:', albumOnlyResult.error)
+        uiLogger.error('Failed to load album artists:', albumOnlyResult.error)
         throw new Error(albumOnlyResult.error)
       }
 
       artists.value = allResult.data
       albumArtists.value = albumOnlyResult.data
     } catch (error) {
-      console.error('Failed to load artists:', error)
+      uiLogger.error('Failed to load artists:', error)
     } finally {
       isLoading.value = false
     }

@@ -9,6 +9,7 @@
   import { commands } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
+  import { uiLogger } from '@/lib/logger'
 
   const router = useRouter()
   const { getSongs, getRecentlyPlayed } = commands
@@ -30,10 +31,9 @@
 
   onMounted(async () => {
     isLoading.value = true
-    console.log('HomeView onMounted - serverUrl:', props.serverUrl, 'token:', props.token ? 'present' : 'missing')
 
     if (!props.serverUrl || !props.token) {
-      console.error('HomeView: Missing serverUrl or token props')
+      uiLogger.error('Missing serverUrl or token props')
       isLoading.value = false
       return
     }
@@ -45,19 +45,18 @@
       ])
 
       if (songsResult.status === 'error') {
-        console.error('Failed to fetch songs:', songsResult.error)
+        uiLogger.error('Failed to fetch songs:', songsResult.error)
         throw new Error(songsResult.error)
       }
       if (recentlyPlayedResult.status === 'error') {
-        console.error('Failed to fetch recently played:', recentlyPlayedResult.error)
+        uiLogger.error('Failed to fetch recently played:', recentlyPlayedResult.error)
         throw new Error(recentlyPlayedResult.error)
       }
 
-      console.log('HomeView: Fetched', songsResult.data.length, 'songs')
       songs.value = songsResult.data
       recentlyPlayedSongs.value = recentlyPlayedResult.data
     } catch (error) {
-      console.error('HomeView: Error fetching data:', error)
+      uiLogger.error('Error fetching data:', error)
     } finally {
       isLoading.value = false
     }
@@ -144,74 +143,58 @@
   }, { immediate: true })
 
   const playSongs = (songs: Song[], startWith?: Song) => {
-    console.log('HomeView playSongs called with', songs.length, 'songs')
     if (songs.length === 0) {
-      console.warn('HomeView: No songs to play')
+      uiLogger.warn('No songs to play')
       return
     }
 
     const invalidSongs = songs.filter(song => !song || !song.id)
     if (invalidSongs.length > 0) {
-      console.error('HomeView: Found songs with invalid IDs:', invalidSongs)
+      uiLogger.error('Found songs with invalid IDs:', invalidSongs)
     }
 
     if (startWith) {
-      console.log('HomeView: Playing from song:', startWith?.name || 'undefined')
       const startIndex = songs.findIndex(song => song.id === startWith.id)
       if (startIndex === -1) {
-        console.log('HomeView: Song not found in array, playing full list')
         emit('play-songs', songs)
         return
       }
       const reorderedSongs = [...songs.slice(startIndex), ...songs.slice(0, startIndex)]
-      console.log('HomeView: Emitting reordered songs starting with:', reorderedSongs[0]?.name || 'undefined')
       emit('play-songs', reorderedSongs)
     } else {
-      console.log('HomeView: Emitting songs starting with:', songs[0]?.name || 'undefined')
       emit('play-songs', songs)
     }
   }
 
   const playFeaturedAlbum = () => {
-    console.log('HomeView playFeaturedAlbum called')
     if (!featuredAlbum.value) {
-      console.warn('HomeView: No featured album available')
+      uiLogger.warn('No featured album available')
       return
     }
-
-    console.log('HomeView: Featured album:', featuredAlbum.value.name)
 
     const albumSongs = songs.value
       .filter(song => song.album === featuredAlbum.value.name)
       .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0))
 
-    console.log('HomeView: Found', albumSongs.length, 'songs for featured album')
-
     if (albumSongs.length > 0) {
-      console.log('HomeView: Playing featured album songs')
       emit('play-songs', albumSongs)
       if (isValidAlbumName(featuredAlbum.value.name)) {
         router.push(`/songs/album/${encodeURIComponent(featuredAlbum.value.name)}`)
       }
     } else {
-      console.warn('HomeView: No songs found for featured album')
+      uiLogger.warn('No songs found for featured album')
     }
   }
 
   const playAlbumSongs = (album: Album) => {
-    console.log('HomeView playAlbumSongs called for album:', album.name)
-
     const albumSongs = songs.value
       .filter(song => song.album === album.name)
       .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0))
 
-    console.log('HomeView: Found', albumSongs.length, 'songs for album', album.name)
-
     if (albumSongs.length > 0) {
-      console.log('HomeView: Playing album songs')
       emit('play-songs', albumSongs)
     } else {
-      console.warn('HomeView: No songs found for album', album.name)
+      uiLogger.warn('No songs found for album', album.name)
     }
   }
 </script>

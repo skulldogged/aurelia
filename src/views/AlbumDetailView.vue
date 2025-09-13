@@ -4,6 +4,7 @@
   import SongList from '@/components/shared/SongList.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import { Song, Album, commands } from '@/bindings'
+  import { uiLogger } from '@/lib/logger'
 
   const props = defineProps<{
     currentSong: Song | null
@@ -23,26 +24,20 @@
   const allSongs = ref<Song[]>([])
 
   onMounted(async () => {
-    console.log('AlbumDetailView: onMounted')
-    console.log('AlbumDetailView: serverUrl:', props.serverUrl)
-    console.log('AlbumDetailView: token present:', !!props.token)
-
     if (!props.serverUrl || !props.token) {
-      console.error('AlbumDetailView: Missing serverUrl or token props')
+      uiLogger.error('Missing serverUrl or token props')
       return
     }
 
     try {
       const albumName = decodeURIComponent(route.params.albumName as string)
-      console.log('AlbumDetailView: Fetching album:', albumName)
 
       const songsResult = await getSongs(props.serverUrl, props.token, null, null, null, null)
       if (songsResult.status === 'error') {
-        console.error('Failed to fetch songs:', songsResult.error)
+        uiLogger.error('Failed to fetch songs:', songsResult.error)
         throw new Error(songsResult.error)
       }
       allSongs.value = songsResult.data
-      console.log('AlbumDetailView: Fetched', songsResult.data.length, 'total songs')
 
       const albumsMap = new Map<string, Album>()
       allSongs.value.forEach(song => {
@@ -66,10 +61,8 @@
 
       const allAlbums = Array.from(albumsMap.values())
       album.value = allAlbums.find(a => a.name === albumName) || null
-      console.log('AlbumDetailView: Found album:', album.value?.name || 'null')
-      console.log('AlbumDetailView: Album art URL:', album.value?.albumArtUrl || 'null')
     } catch (error) {
-      console.error('AlbumDetailView: Error fetching albums:', error)
+      uiLogger.error('Error fetching albums:', error)
     }
   })
 
@@ -78,18 +71,15 @@
     return [...album.value.songs || []].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
   })
 
-  const displayedArtist = computed(() => {
-    // First try to get album artist from the first song's albumArtists
-    const firstSong = albumSongs.value[0]
-
-    if (firstSong?.albumArtists?.length) {
-      const artistName = firstSong.albumArtists[0].name
-      return artistName
-    }
-
-    // Fallback to album's artist field (which should now be set correctly)
-    return album.value?.artist || 'Unknown Artist'
-  })
+  // Determine if any song in the album has multiple artists
+  const hasMultipleArtists =
+    computed(() =>
+      albumSongs.value.length > 1 &&
+      albumSongs.value.some(song =>
+        song.artists?.length &&
+        song.artists.length > 1,
+      ),
+    )
 </script>
 
 <template>
@@ -108,7 +98,7 @@
           {{ album.name }}
         </h1>
         <p class='text-2xl text-muted-foreground mt-2 select-text'>
-          {{ displayedArtist }}
+          {{ album?.artist || 'Unknown Artist' }}
         </p>
       </div>
     </div>
@@ -125,6 +115,7 @@
         :is-playing='props.isPlaying'
         :server-url='props.serverUrl'
         :show-album-art='false'
+        :show-artist='hasMultipleArtists'
         :show-duration='true'
         :show-track-number='true'
         :songs='albumSongs'

@@ -47,6 +47,7 @@
   import { ref, watch, computed, nextTick } from 'vue'
   import { Loader2 } from 'lucide-vue-next'
   import { Song, commands } from '@/bindings'
+  import { apiLogger } from '@/lib/logger'
 
   interface LyricLine {
     time: number
@@ -117,7 +118,7 @@
             null,
           )
           if (lyricsResult.status === 'error') {
-            console.error('Failed to fetch lyrics:', lyricsResult.error)
+            apiLogger.error('Failed to fetch lyrics:', lyricsResult.error)
             throw new Error(lyricsResult.error)
           }
           lyrics.value = lyricsResult.data

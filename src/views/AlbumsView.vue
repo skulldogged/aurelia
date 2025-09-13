@@ -9,6 +9,7 @@
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import { uiLogger } from '@/lib/logger'
 
   const router = useRouter()
   const { getSongs } = commands
@@ -32,12 +33,12 @@
     try {
       const songsResult = await getSongs(props.serverUrl, props.token, null, null, null, null)
       if (songsResult.status === 'error') {
-        console.error('Failed to load music library:', songsResult.error)
+        uiLogger.error('Failed to load music library:', songsResult.error)
         throw new Error(songsResult.error)
       }
       allSongs.value = songsResult.data
     } catch (error) {
-      console.error('Failed to load music library:', error)
+      uiLogger.error('Failed to load music library:', error)
     } finally {
       isLoading.value = false
     }

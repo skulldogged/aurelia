@@ -24,17 +24,29 @@
   const imageUrl = ref<string | null>(null)
   const hasError = ref(false)
   const isLoaded = ref(false)
+  const isLoading = ref(false)
 
-  const updateImageUrl = () => {
+  const updateImageUrl = async () => {
     if (props.itemId && props.serverUrl && props.token) {
-      imageUrl.value = getImageUrl(props.itemId, props.serverUrl, props.token, props.imageType)
+      isLoading.value = true
       hasError.value = false
       isLoaded.value = false
+
+      try {
+        const url = await getImageUrl(props.itemId, props.serverUrl, props.token, props.imageType)
+        imageUrl.value = url
+      } catch (error) {
+        console.error('Failed to get image URL:', error)
+        hasError.value = true
+        imageUrl.value = null
+      } finally {
+        isLoading.value = false
+      }
     } else {
       imageUrl.value = null
-      // Set error to true if vital props are missing, to show fallback
       hasError.value = true
       isLoaded.value = false
+      isLoading.value = false
     }
   }
 
@@ -56,16 +68,27 @@
 
 <template>
   <div :class='className'>
+    <!-- Loading state -->
+    <div
+      v-if='isLoading'
+      class='w-full h-full bg-muted rounded-lg flex items-center justify-center animate-pulse'
+    >
+      <div class='w-8 h-8 bg-muted-foreground/20 rounded-full' />
+    </div>
+
+    <!-- Image -->
     <img
       @error='handleError'
       @load='handleLoad'
-      v-if='imageUrl'
+      v-else-if='imageUrl'
       v-show='!hasError && isLoaded'
       :alt='alt'
       :src='imageUrl'
       class='w-full h-full object-cover rounded-lg'
     >
-    <slot v-if='!imageUrl || hasError || !isLoaded' name='fallback'>
+
+    <!-- Fallback/error state -->
+    <slot v-else-if='!imageUrl || hasError || !isLoaded' name='fallback'>
       <div class='w-full h-full bg-muted rounded-lg flex items-center justify-center' />
     </slot>
   </div>

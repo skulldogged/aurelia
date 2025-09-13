@@ -2,6 +2,7 @@
 
 use crate::models::JellyfinLyrics;
 use crate::services::{JellyfinClient, LrcLibClient};
+use tracing::{debug, info, warn};
 
 /// Get lyrics for a track
 #[tauri::command]
@@ -24,7 +25,7 @@ pub async fn get_lyrics(
     }
 
     // Fallback to lrclib.net
-    println!("[get_lyrics] No lyrics found on Jellyfin server. Fetching from lrclib.net...");
+    info!("No lyrics found on Jellyfin server. Fetching from lrclib.net...");
     let lrclib_client = LrcLibClient::new();
 
     let search_results = lrclib_client
@@ -32,23 +33,17 @@ pub async fn get_lyrics(
         .await
         .map_err(|e| e.to_string())?;
 
-    println!(
-        "[get_lyrics] Found {} search results.",
+    debug!(
+        "Found {} search results from lrclib.net",
         search_results.len()
     );
 
     // Get the best lyrics match
     if let Some(lyrics) = LrcLibClient::get_best_lyrics(&search_results) {
-        println!(
-            "[get_lyrics] Returning lyrics from the first result for '{}'",
-            title
-        );
+        debug!("Returning lyrics for '{}'", title);
         Ok(lyrics)
     } else {
-        println!(
-            "[get_lyrics] No lyrics found in any results for '{}'",
-            title
-        );
+        warn!("No lyrics found for '{}'", title);
         Err("No lyrics found".to_string())
     }
 }
@@ -60,10 +55,10 @@ fn convert_jellyfin_lyrics_to_lrc(lyrics: JellyfinLyrics) -> String {
     for line in lyrics.lyrics {
         if let Some(timestamp) = line.timestamp {
             // Convert Jellyfin timestamp (100ns ticks from start) to LRC format (MM:SS.mm)
-            let total_seconds = timestamp / 10_000_000;
-            let minutes = total_seconds / 60;
-            let seconds = total_seconds % 60;
-            let milliseconds = (timestamp % 10_000_000) / 10_000;
+            let total_seconds = timestamp / 10_000_000.0;
+            let minutes = (total_seconds / 60.0) as i32;
+            let seconds = (total_seconds % 60.0) as i32;
+            let milliseconds = ((timestamp % 10_000_000.0) / 10_000.0) as i32;
 
             lrc_content.push_str(&format!(
                 "[{:02}:{:02}.{:03}] {}\n",

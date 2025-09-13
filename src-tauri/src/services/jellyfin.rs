@@ -3,13 +3,14 @@
 use crate::error::{AppError, AppResult};
 use crate::models::{
     auth::{JellyfinAuthResponse, LoginResponse},
-    jellyfin::JellyfinLyrics,
+    jellyfin::{ClientCapabilities, JellyfinLyrics},
     Artist, NameIdPair, Song,
 };
 use crate::utils;
 use reqwest::Client;
 use serde_json;
 use std::collections::HashMap;
+use tracing::debug;
 
 /// Jellyfin API client
 pub struct JellyfinClient {
@@ -128,10 +129,7 @@ impl JellyfinClient {
             artists.push(artist);
         }
 
-        println!(
-            "DEBUG: Fetched {} album artists from Jellyfin API",
-            artists.len()
-        );
+        debug!("Fetched {} album artists from Jellyfin API", artists.len());
         Ok(artists)
     }
 
@@ -171,10 +169,7 @@ impl JellyfinClient {
             albums.push(album);
         }
 
-        println!(
-            "DEBUG: Fetched {} albums directly from Jellyfin API",
-            albums.len()
-        );
+        debug!("Fetched {} albums directly from Jellyfin API", albums.len());
         Ok(albums)
     }
 
@@ -784,9 +779,10 @@ impl JellyfinClient {
         let supports_seeking = utils::supports_seeking(container);
         let token_param = self.token.as_deref().unwrap_or("");
 
-        println!("Item ID: {}", item_id);
-        println!("Container: {:?}", container);
-        println!("Supports seeking: {}", supports_seeking);
+        debug!(
+            "Audio stream - Item ID: {}, Container: {:?}, Supports seeking: {}",
+            item_id, container, supports_seeking
+        );
 
         if supports_seeking {
             format!(
@@ -803,5 +799,186 @@ impl JellyfinClient {
                 token_param
             )
         }
+    }
+
+    /// Register client capabilities with the Jellyfin server
+    pub async fn register_capabilities(&self, capabilities: &ClientCapabilities) -> AppResult<()> {
+        let capabilities_url =
+            utils::build_jellyfin_url(&self.server_url, "/Sessions/Capabilities");
+
+        let response = self
+            .client
+            .post(&capabilities_url)
+            .header("Authorization", self.get_auth_header())
+            .header("Content-Type", "application/json")
+            .json(capabilities)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to register capabilities: HTTP {}",
+                response.status()
+            )));
+        }
+
+        debug!("Successfully registered client capabilities with Jellyfin server");
+        Ok(())
+    }
+
+    /// Report playback start to the Jellyfin server
+    pub async fn report_playback_start(
+        &self,
+        item_id: &str,
+        position_ticks: Option<i64>,
+    ) -> AppResult<()> {
+        let playing_url = utils::build_jellyfin_url(&self.server_url, "/Sessions/Playing");
+
+        let mut request_body = serde_json::json!({
+            "ItemId": item_id
+        });
+
+        if let Some(position) = position_ticks {
+            request_body["PositionTicks"] = serde_json::json!(position);
+        }
+
+        let response = self
+            .client
+            .post(&playing_url)
+            .header("Authorization", self.get_auth_header())
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "No response body".to_string());
+            return Err(AppError::Network(format!(
+                "Failed to report playback start: HTTP {} - {}",
+                status, body
+            )));
+        }
+
+        debug!("Successfully reported playback start for item: {}", item_id);
+        Ok(())
+    }
+
+    /// Report playback progress to the Jellyfin server
+    pub async fn report_playback_progress(
+        &self,
+        item_id: &str,
+        position_ticks: Option<i64>,
+        event_name: Option<&str>,
+        is_paused: Option<bool>,
+    ) -> AppResult<()> {
+        let progress_url =
+            utils::build_jellyfin_url(&self.server_url, "/Sessions/Playing/Progress");
+
+        let mut request_body = serde_json::json!({
+            "ItemId": item_id
+        });
+
+        if let Some(position) = position_ticks {
+            request_body["PositionTicks"] = serde_json::json!(position);
+        }
+
+        if let Some(event) = event_name {
+            request_body["EventName"] = serde_json::json!(event);
+        }
+
+        if let Some(paused) = is_paused {
+            request_body["IsPaused"] = serde_json::json!(paused);
+        }
+
+        let response = self
+            .client
+            .post(&progress_url)
+            .header("Authorization", self.get_auth_header())
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to report playback progress: HTTP {}",
+                response.status()
+            )));
+        }
+
+        debug!(
+            "Successfully reported playback progress for item: {}",
+            item_id
+        );
+        Ok(())
+    }
+
+    /// Report playback stop to the Jellyfin server
+    pub async fn report_playback_stop(
+        &self,
+        item_id: &str,
+        position_ticks: Option<i64>,
+    ) -> AppResult<()> {
+        let stopped_url = utils::build_jellyfin_url(&self.server_url, "/Sessions/Playing/Stopped");
+
+        let mut request_body = serde_json::json!({
+            "ItemId": item_id,
+            "IsPaused": true
+        });
+
+        if let Some(position) = position_ticks {
+            request_body["PositionTicks"] = serde_json::json!(position);
+        }
+
+        let response = self
+            .client
+            .post(&stopped_url)
+            .header("Authorization", self.get_auth_header())
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to report playback stop: HTTP {}",
+                response.status()
+            )));
+        }
+
+        debug!("Successfully reported playback stop for item: {}", item_id);
+        Ok(())
+    }
+
+    /// Mark item as played (update play count and last played date)
+    pub async fn mark_item_played(&self, user_id: &str, item_id: &str) -> AppResult<()> {
+        let played_url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!("/Users/{}/PlayedItems/{}", user_id, item_id),
+        );
+
+        let response = self
+            .client
+            .post(&played_url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to mark item as played: HTTP {}",
+                response.status()
+            )));
+        }
+
+        debug!(
+            "Successfully marked item {} as played for user {}",
+            item_id, user_id
+        );
+        Ok(())
     }
 }

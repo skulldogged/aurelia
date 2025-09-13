@@ -182,11 +182,110 @@ async getRecentlyPlayed(serverUrl: string, token: string) : Promise<Result<Song[
 }
 },
 /**
+ * Register client capabilities with Jellyfin server
+ */
+async registerClientCapabilities(serverUrl: string, token: string, deviceName: string, deviceId: string, appVersion: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("register_client_capabilities", { serverUrl, token, deviceName, deviceId, appVersion }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Report playback start to Jellyfin server
+ */
+async reportPlaybackStart(serverUrl: string, token: string, itemId: string, positionTicks: number | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("report_playback_start", { serverUrl, token, itemId, positionTicks }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Report playback progress to Jellyfin server
+ */
+async reportPlaybackProgress(serverUrl: string, token: string, itemId: string, positionTicks: number | null, eventName: string | null, isPaused: boolean | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("report_playback_progress", { serverUrl, token, itemId, positionTicks, eventName, isPaused }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Report playback stop to Jellyfin server
+ */
+async reportPlaybackStop(serverUrl: string, token: string, itemId: string, positionTicks: number | null) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("report_playback_stop", { serverUrl, token, itemId, positionTicks }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Mark item as played in Jellyfin
+ */
+async markItemPlayed(serverUrl: string, token: string, userId: string, itemId: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("mark_item_played", { serverUrl, token, userId, itemId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Get lyrics for a track
  */
 async getLyrics(id: string, artist: string, title: string, path: string | null) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_lyrics", { id, artist, title, path }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Check if a cached image exists and return its data URL
+ */
+async getCachedImageDataUrl(itemId: string, imageType: string) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cached_image_data_url", { itemId, imageType }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Cache an image from a URL
+ */
+async cacheImageFromUrl(itemId: string, imageType: string, imageUrl: string, serverUrl: string, token: string) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("cache_image_from_url", { itemId, imageType, imageUrl, serverUrl, token }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Clear the image cache
+ */
+async clearImageCache() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_image_cache") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Get cache statistics
+ */
+async getImageCacheStats() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_image_cache_stats") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

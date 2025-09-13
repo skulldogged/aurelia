@@ -151,7 +151,7 @@
           <!-- Actions -->
           <div class='flex justify-end pt-4 border-t border-border/30'>
             <Button
-              @click='handleLogout'
+              @click='$emit("logout")'
               :disabled='!credentials'
               class='px-6'
               variant='destructive'
@@ -189,7 +189,7 @@
               Update your local music library with the latest data from Jellyfin server.
               This will add new songs and update existing metadata without removing your current data.
             </p>
-            <Button @click='handleSyncLibrary' class='px-6' variant='default'>
+            <Button @click='$emit("sync-library")' class='px-6' variant='default'>
               <RefreshCw class='w-4 h-4 mr-2' />
               Sync Library
             </Button>
@@ -211,7 +211,7 @@
               This action will clear your local music library cache and refresh all music data from the server.
               Your playlists and settings will remain unchanged.
             </p>
-            <Button @click='handleClearCache' class='px-6' variant='destructive'>
+            <Button @click='$emit("clear-cache")' class='px-6' variant='destructive'>
               <Trash2 class='w-4 h-4 mr-2' />
               Clear Cache
             </Button>
@@ -269,9 +269,8 @@
   const selectedColorScheme = ref(selectedScheme.value.name)
 
   const handleColorSchemeChange = (value: unknown) => {
-    if (value && typeof value === 'string') {
+    if (value && typeof value === 'string')
       setColorScheme(value)
-    }
   }
 
   interface Credentials {
@@ -285,21 +284,9 @@
     credentials: Credentials | null
   }>()
 
-  const emit = defineEmits<{
+  defineEmits<{
     (e: 'logout'): void
     (e: 'sync-library'): void
     (e: 'clear-cache'): void
   }>()
-
-  const handleLogout = () => {
-    emit('logout')
-  }
-
-  const handleSyncLibrary = () => {
-    emit('sync-library')
-  }
-
-  const handleClearCache = () => {
-    emit('clear-cache')
-  }
 </script>

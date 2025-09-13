@@ -1,9 +1,10 @@
 //! Music-related command handlers
 
 use crate::cache;
-use crate::models::{Album, Artist, Song};
+use crate::models::{jellyfin::ClientCapabilities, Album, Artist, Song};
 use crate::services::JellyfinClient;
 use std::collections::HashMap;
+use tracing::{error, info, warn};
 
 /// Helper function to fetch library from Jellyfin and cache it
 async fn fetch_and_cache_library(server_url: String, token: String) -> Result<Vec<Song>, String> {
@@ -18,7 +19,7 @@ async fn fetch_and_cache_library(server_url: String, token: String) -> Result<Ve
         .map_err(|e| e.to_string())?;
 
     if let Err(e) = cache::cache_library(&items).await {
-        eprintln!("Failed to cache music library: {}", e);
+        error!("Failed to cache music library: {}", e);
         return Err(e);
     }
 
@@ -230,7 +231,7 @@ pub async fn get_artists(
 
                     // Cache the artists
                     if let Err(e) = crate::cache::cache_artists(&fresh_artists).await {
-                        eprintln!("Warning: Failed to cache artists: {}", e);
+                        warn!("Failed to cache artists: {}", e);
                     }
 
                     fresh_artists
@@ -411,5 +412,152 @@ pub async fn clear_cache(server_url: String, token: String) -> Result<(), String
     cache::clear_cache().await?;
     // Re-populate the cache immediately
     fetch_and_cache_library(server_url, token).await?;
+    Ok(())
+}
+
+/// Register client capabilities with Jellyfin server
+#[tauri::command]
+#[specta::specta]
+pub async fn register_client_capabilities(
+    server_url: String,
+    token: String,
+    device_name: String,
+    device_id: String,
+    app_version: String,
+) -> Result<(), String> {
+    let client = JellyfinClient::with_auth(server_url, token);
+
+    let capabilities = ClientCapabilities {
+        playable_media_types: vec!["Audio".to_string()],
+        supported_commands: vec![
+            "Play".to_string(),
+            "Pause".to_string(),
+            "Stop".to_string(),
+            "Seek".to_string(),
+            "NextTrack".to_string(),
+            "PreviousTrack".to_string(),
+            "SetRepeatMode".to_string(),
+            "SetShuffleMode".to_string(),
+            "SetVolume".to_string(),
+        ],
+        supports_media_control: true,
+        supports_persistent_identifier: true,
+        app_version,
+        app_name: "Tauri Music Player".to_string(),
+        device_name,
+        device_id,
+    };
+
+    client
+        .register_capabilities(&capabilities)
+        .await
+        .map_err(|e| {
+            error!("Failed to register client capabilities: {}", e);
+            e.to_string()
+        })?;
+
+    info!("Successfully registered client capabilities");
+    Ok(())
+}
+
+/// Report playback start to Jellyfin server
+#[tauri::command]
+#[specta::specta]
+pub async fn report_playback_start(
+    server_url: String,
+    token: String,
+    item_id: String,
+    position_ticks: Option<f64>,
+) -> Result<(), String> {
+    let client = JellyfinClient::with_auth(server_url, token);
+
+    client
+        .report_playback_start(&item_id, position_ticks.map(|p| p as i64))
+        .await
+        .map_err(|e| {
+            error!("Failed to report playback start: {}", e);
+            e.to_string()
+        })?;
+
+    info!("Successfully reported playback start");
+    Ok(())
+}
+
+/// Report playback progress to Jellyfin server
+#[tauri::command]
+#[specta::specta]
+pub async fn report_playback_progress(
+    server_url: String,
+    token: String,
+    item_id: String,
+    position_ticks: Option<f64>,
+    event_name: Option<String>,
+    is_paused: Option<bool>,
+) -> Result<(), String> {
+    let client = JellyfinClient::with_auth(server_url, token);
+
+    let position_ticks_i64 = position_ticks.map(|ticks| ticks as i64);
+
+    client
+        .report_playback_progress(
+            &item_id,
+            position_ticks_i64,
+            event_name.as_deref(),
+            is_paused,
+        )
+        .await
+        .map_err(|e| {
+            error!("Failed to report playback progress: {}", e);
+            e.to_string()
+        })?;
+
+    Ok(())
+}
+
+/// Report playback stop to Jellyfin server
+#[tauri::command]
+#[specta::specta]
+pub async fn report_playback_stop(
+    server_url: String,
+    token: String,
+    item_id: String,
+    position_ticks: Option<f64>,
+) -> Result<(), String> {
+    let client = JellyfinClient::with_auth(server_url, token);
+
+    let position_ticks_i64 = position_ticks.map(|ticks| ticks as i64);
+
+    client
+        .report_playback_stop(&item_id, position_ticks_i64)
+        .await
+        .map_err(|e| {
+            error!("Failed to report playback stop: {}", e);
+            e.to_string()
+        })?;
+
+    info!("Successfully reported playback stop");
+    Ok(())
+}
+
+/// Mark item as played in Jellyfin
+#[tauri::command]
+#[specta::specta]
+pub async fn mark_item_played(
+    server_url: String,
+    token: String,
+    user_id: String,
+    item_id: String,
+) -> Result<(), String> {
+    let client = JellyfinClient::with_auth(server_url, token);
+
+    client
+        .mark_item_played(&user_id, &item_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to mark item as played: {}", e);
+            e.to_string()
+        })?;
+
+    info!("Successfully marked item {} as played", item_id);
     Ok(())
 }

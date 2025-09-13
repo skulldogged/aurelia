@@ -299,6 +299,7 @@
   import { Song, Album, Artist, commands } from '@/bindings'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import { uiLogger } from '@/lib/logger'
 
   const props = defineProps<{
     currentSong: Song | null,
@@ -450,7 +451,6 @@
 
   const fetchArtistData = async () => {
     if (!artistId.value) {
-      console.log('No artist ID, skipping fetch.')
       artist.value = null
       return
     }
@@ -461,22 +461,21 @@
       ])
 
       if (artistsResult.status === 'error') {
-        console.error('Failed to fetch artists:', artistsResult.error)
+        uiLogger.error('Failed to fetch artists:', artistsResult.error)
         throw new Error(artistsResult.error)
       }
       if (songsResult.status === 'error') {
-        console.error('Failed to fetch songs:', songsResult.error)
+        uiLogger.error('Failed to fetch songs:', songsResult.error)
         throw new Error(songsResult.error)
       }
 
       const foundArtist = artistsResult.data.find(a => a.id === artistId.value)
       if (foundArtist) {
-        console.log('Fetched artist details:', JSON.stringify(foundArtist, null, 2))
         artist.value = foundArtist
         allArtists.value = artistsResult.data
         allSongs.value = songsResult.data
       } else {
-        console.error('Artist not found in library:', artistId.value)
+        uiLogger.error('Artist not found in library:', artistId.value)
         // If the artist is not found in the main list (e.g., a featured artist),
         // fetch their details directly.
         try {
@@ -494,12 +493,12 @@
             artist.value = null
           }
         } catch (directFetchError) {
-          console.error('Failed to fetch artist details directly:', directFetchError)
+          uiLogger.error('Failed to fetch artist details directly:', directFetchError)
           artist.value = null
         }
       }
     } catch (error) {
-      console.error('Failed to fetch artist details:', error)
+      uiLogger.error('Failed to fetch artist details:', error)
       artist.value = null
     }
   }
@@ -567,7 +566,6 @@
   })
 
   const getProviderUrl = (provider: string, providerId: string): string => {
-    console.log('getProviderUrl', provider, providerId)
     const providerUrls: Record<string, (id: string) => string> = {
       'MusicBrainzArtist': id => `https://musicbrainz.org/artist/${id}`,
       'SpotifyArtist':     id => `https://open.spotify.com/artist/${id}`,

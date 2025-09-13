@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Song } from '@/bindings'
+import { playerLogger } from '@/lib/logger'
 
 export interface PlayerState {
   isPlaying:   boolean
@@ -26,14 +27,14 @@ const getStoredValue = <T>(key: string, defaultValue: T): T => {
   try {
     const stored = localStorage.getItem(key)
     if (stored === null) {
-      console.log(`[PlayerStore] No stored value for ${key}, using default:`, defaultValue)
+      playerLogger.debug(`No stored value for ${key}, using default:`, defaultValue)
       return defaultValue
     }
 
     // Handle boolean values stored as strings
     if (typeof defaultValue === 'boolean') {
       const result = (stored === 'true') as T
-      console.log(`[PlayerStore] Loaded ${key} from localStorage:`, result)
+      playerLogger.debug(`Loaded ${key} from localStorage:`, result)
       return result
     }
 
@@ -41,29 +42,29 @@ const getStoredValue = <T>(key: string, defaultValue: T): T => {
     if (typeof defaultValue === 'number') {
       const parsed = parseFloat(stored)
       const result = isNaN(parsed) ? defaultValue : parsed as T
-      console.log(`[PlayerStore] Loaded ${key} from localStorage:`, result)
+      playerLogger.debug(`Loaded ${key} from localStorage:`, result)
       return result
     }
 
     // Handle string values
     if (typeof defaultValue === 'string') {
-      console.log(`[PlayerStore] Loaded ${key} from localStorage:`, stored)
+      playerLogger.debug(`Loaded ${key} from localStorage:`, stored)
       return stored as T
     }
 
     return defaultValue
   } catch (error) {
-    console.warn(`Failed to load ${key} from localStorage:`, error)
+    playerLogger.warn(`Failed to load ${key} from localStorage:`, error)
     return defaultValue
   }
 }
 
 const setStoredValue = <T>(key: string, value: T): void => {
   try {
-    console.log(`[PlayerStore] Saving ${key} to localStorage:`, value)
+    playerLogger.debug(`Saving ${key} to localStorage:`, value)
     localStorage.setItem(key, String(value))
   } catch (error) {
-    console.warn(`Failed to save ${key} to localStorage:`, error)
+    playerLogger.warn(`Failed to save ${key} to localStorage:`, error)
   }
 }
 
@@ -157,6 +158,14 @@ export const usePlayerStore = defineStore('player', () => {
   // New actions for centralized state
   const setCurrentSong = (song: Song | null) => {
     currentSong.value = song
+    // Reset time values when song changes to prevent stale seekbar data
+    if (song) {
+      currentTime.value = 0
+      duration.value = song.duration || 0
+    } else {
+      currentTime.value = 0
+      duration.value = 0
+    }
   }
 
   const setPlaylist = (songs: Song[]) => {

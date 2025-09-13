@@ -24,7 +24,7 @@
           </div>
         </div>
 
-        <div v-if='loading || showSkeleton' class='rounded-md border'>
+        <div v-if='(loading || dataLoading) || showSkeleton' class='rounded-md border'>
           <Table class='table-fixed w-full'>
             <TableHeader>
               <TableRow>
@@ -94,9 +94,9 @@
             </TableBody>
           </Table>
         </div>
-        <div v-else-if='error && !showSkeleton' class='text-center py-12'>
+        <div v-else-if='(hasError || songsState.error) && !showSkeleton' class='text-center py-12'>
           <p class='text-destructive mb-4'>
-            {{ error }}
+            {{ songsState.error || 'Failed to load songs' }}
           </p>
           <Button @click='fetchMusicLibrary' variant='destructive'>
             Try Again
@@ -108,7 +108,7 @@
             @toggle-favorite='handleToggleFavorite'
             :current-song='props.currentSong'
             :is-playing='props.isPlaying'
-            :server-url='props.serverUrl'
+            :server-url='props.credentials.serverUrl'
             :show-album='true'
             :show-album-art='true'
             :show-artist='true'
@@ -116,7 +116,7 @@
             :show-track-number='true'
             :show-year='true'
             :songs='filteredSongs'
-            :token='props.token'
+            :token='props.credentials.token'
           />
         </div>
       </div>
@@ -125,8 +125,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, onMounted } from 'vue'
-  import Fuse from 'fuse.js'
+  import { ref, onMounted, watch, computed } from 'vue'
   import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
@@ -140,14 +139,15 @@
     TableHeader,
     TableRow,
   } from '@/components/ui/table'
-  import { Song, commands } from '@/bindings'
+  import type { Song, Credentials } from '@/bindings'
+  import Fuse from 'fuse.js'
+  import { useDataFetching } from '@/composables/useDataFetching'
 
   // Define props from parent
   const props = defineProps<{
     currentSong: Song | null
     isPlaying:   boolean
-    serverUrl:   string
-    token:       string
+    credentials: Credentials
   }>()
 
   // Define emits for parent
@@ -156,52 +156,64 @@
     'toggle-favorite': [song: Song]
   }>()
 
-  // Component state
-  const searchQuery = ref('')
-  const songs = ref<Song[]>([])
-  const loading = ref(false)
-  const error = ref('')
-  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
-  const { getSongs } = commands
+  // Use data fetching composable
+  const { songs, isLoading: dataLoading, hasError, songsState, fetchSongs } = useDataFetching(props.credentials)
 
+  // Search functionality
+  const searchQuery = ref('')
+
+  // Local search implementation using Fuse
+  const songFuse = ref<Fuse<Song>>()
+
+  // Initialize search when songs change
+  watch(songs, newSongs => {
+    if (newSongs && newSongs.length > 0) {
+      songFuse.value = new Fuse(newSongs, {
+        keys: [
+          { name: 'name', weight: 0.5 },
+          { name: 'artists', weight: 0.3 },
+          { name: 'album', weight: 0.2 },
+        ],
+        includeScore:       true,
+        threshold:          0.2,
+        minMatchCharLength: 2,
+      })
+    }
+  }, { immediate: true })
+
+  // Computed filtered songs
+  const filteredSongs = computed(() => {
+    if (!searchQuery.value || searchQuery.value.length < 2 || !songFuse.value) {
+      return songs.value
+    }
+    return songFuse.value.search(searchQuery.value).map(result => result.item)
+  })
+
+  // Local loading state for initial fetch
+  const loading = ref(false)
+  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
+
+  // Fetch data on mount
   const fetchMusicLibrary = async () => {
     loading.value = true
-    error.value = ''
     try {
-      const songsResult = await getSongs(props.serverUrl, props.token, null, null, null, null)
-      if (songsResult.status === 'error') {
-        console.error('Failed to fetch music library:', songsResult.error)
-        throw new Error(songsResult.error)
-      }
-      songs.value = songsResult.data
-    } catch (e) {
-      error.value = e as string
+      await fetchSongs()
+    } catch {
+      // Error is handled by the composable
     } finally {
       loading.value = false
     }
   }
 
+  // Initialize data on mount
   onMounted(fetchMusicLibrary)
 
-  // Fuzzy Search setup
-  const songFuse = ref(new Fuse(songs.value, {
-    keys: [
-      { name: 'name', weight: 0.5 },
-      { name: 'artists', weight: 0.3 },
-      { name: 'album', weight: 0.2 },
-    ],
-    includeScore:       true,
-    threshold:          0.2,
-    minMatchCharLength: 2,
-  }))
-
-  watch(songs, newSongs => songFuse.value.setCollection(newSongs))
-
-  // Computed properties for filtering
-  const filteredSongs = computed(() => {
-    if (!searchQuery.value || searchQuery.value.length < 2) return songs.value
-    return songFuse.value.search(searchQuery.value).map(result => result.item)
-  })
+  // Watch for credentials changes
+  watch(() => props.credentials, newCredentials => {
+    if (newCredentials) {
+      fetchMusicLibrary()
+    }
+  }, { immediate: false })
 
   // Methods
   const playSong = (song: Song) => {

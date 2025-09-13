@@ -5,9 +5,11 @@
 //! provide a clean API boundary.
 
 pub mod auth;
+pub mod images;
 pub mod lyrics;
 pub mod music;
 
 pub use auth::*;
+pub use images::*;
 pub use lyrics::*;
 pub use music::*;

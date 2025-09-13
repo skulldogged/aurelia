@@ -144,7 +144,7 @@
         form.value.username = saved.username
       }
     } catch {
-      console.log('No saved credentials')
+      console.error('Failed to get saved credentials')
     }
   })
 </script>

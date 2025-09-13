@@ -98,7 +98,7 @@
             <div class='flex items-center space-x-2'>
               <!-- Shuffle -->
               <Button
-                @click='toggleShuffle'
+                @click='playerStore.toggleShuffle'
                 size='icon'
                 variant='ghost'
               >
@@ -138,7 +138,7 @@
               </Button>
               <!-- Repeat -->
               <Button
-                @click='toggleRepeat'
+                @click='playerStore.cycleRepeatMode'
                 size='icon'
                 variant='ghost'
               >
@@ -195,7 +195,7 @@
             <!-- Volume -->
             <div class='flex items-center space-x-2'>
               <button
-                @click='toggleMute'
+                @click='playerStore.toggleMute'
                 class='text-muted-foreground hover:text-foreground'
               >
                 <Volume2 v-if='playerStore.volume > 50' class='h-4 w-4' />
@@ -271,6 +271,7 @@
   import { Song } from '@/bindings'
   import { usePlayerStore } from '@/stores'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import { playerLogger } from '@/lib/logger'
 
   const props = defineProps<{
     serverUrl: string
@@ -435,7 +436,8 @@
 
   const onError = (playerIndex: number) => {
     const player = players[playerIndex].value
-    console.error(`[MusicPlayer] Audio playback error on player ${playerIndex}:`, player?.error)
+    playerLogger.error(`Audio playback error on player ${playerIndex}:`, player?.error)
+
     if (playerIndex === activePlayerIndex.value) {
       playerStore.setAudioReady(false)
       playerStore.setBuffering(false)
@@ -470,6 +472,9 @@
       isGaplessTransition.value = true
       activePlayerIndex.value = 1 - activePlayerIndex.value
 
+      // Reset player state for the new song
+      playerStore.setCurrentTime(0)
+      playerStore.setDuration(nextSongInQueue.value?.duration || 0)
       playerStore.setCurrentSong(nextSongInQueue.value)
     } else if (playerStore.repeatMode === 'all' || hasNext.value) {
       // Fallback if next song is not ready
@@ -493,7 +498,7 @@
         // Store state will be updated by onPlay event
       }
     } catch (error) {
-      console.error('Playback error:', error)
+      playerLogger.error('Playback error:', error)
     }
   }
 
@@ -514,10 +519,6 @@
     if (!value) return
     const newVolume = value[0]
     playerStore.setVolume(newVolume / 100)
-  }
-
-  const toggleMute = () => {
-    playerStore.toggleMute()
   }
 
   const previousSong = () => {
@@ -544,23 +545,15 @@
     loadSong(playerStore.playlist[index], activePlayer.value)
   }
 
-  const toggleShuffle = () => {
-    playerStore.toggleShuffle()
-  }
-
-  const toggleRepeat = () => {
-    playerStore.cycleRepeatMode()
-  }
-
   const loadSong = async (song: Song | null, player: HTMLAudioElement | null) => {
     if (!player || !song) {
-      if (player) player.src = ''
+      if (player && player.src && player.src !== '')
+        player.src = ''
+
       return
     }
 
     try {
-      console.log(`[MusicPlayer] Loading audio for song: ${song.name} (ID: ${song.id})`)
-
       const streamResult = await getAudioStreamUrl(
         props.serverUrl,
         props.token,
@@ -568,7 +561,7 @@
         song.container,
       )
       if (streamResult.status === 'error') {
-        console.error('Failed to get audio stream URL:', streamResult.error)
+        playerLogger.error('Failed to get audio stream URL:', streamResult.error)
         throw new Error(streamResult.error)
       }
       player.src = streamResult.data
@@ -580,7 +573,7 @@
         playerStore.setBuffering(true)
       }
     } catch (error) {
-      console.error(`[MusicPlayer] Failed to load audio for song ${song.name} (ID: ${song.id}):`, error)
+      playerLogger.error(`Failed to load audio for song ${song.name} (ID: ${song.id}):`, error)
     }
   }
 
@@ -591,12 +584,13 @@
 
     const execute = async () => {
       await loadSong(song, activePlayer.value)
+
       if (activePlayer.value) {
         try {
           await activePlayer.value.play()
           // Store state will be updated by onPlay event
         } catch (error) {
-          console.error('[MusicPlayer] Failed to play audio:', error)
+          playerLogger.error('Failed to play audio:', error)
           playerStore.pause()
         } finally {
           playerStore.setBuffering(false)
@@ -604,13 +598,18 @@
       } else {
         playerStore.setBuffering(false)
       }
-      await loadSong(nextSongInQueue.value, nextPlayer.value)
+
+      // Only load next song if there actually is one
+      if (nextSongInQueue.value) {
+        await loadSong(nextSongInQueue.value, nextPlayer.value)
+      }
     }
     execute()
   }
 
   // Watch for song changes
   watch(() => playerStore.currentSong, (newSong, oldSong) => {
+
     if (newSong && newSong.id !== oldSong?.id) {
       const newIndex = playerStore.playlist.findIndex(s => s.id === newSong.id)
       if (newIndex !== -1)
@@ -625,7 +624,7 @@
               // Store state will be updated by onPlay event
             })
             .catch(error => {
-              console.error('[MusicPlayer] Failed to play audio:', error)
+              playerLogger.error('Failed to play audio:', error)
               playerStore.pause()
             })
             .finally(() => {
@@ -647,10 +646,14 @@
   watch(
     () => playerStore.playlist,
     newPlaylist => {
+
       if (playerStore.currentSong) {
         const index = newPlaylist.findIndex(song => song.id === playerStore.currentSong!.id)
         playerStore.setCurrentIndex(index)
-        loadSong(nextSongInQueue.value, nextPlayer.value)
+        // Only load next song if there actually is one
+        if (nextSongInQueue.value) {
+          loadSong(nextSongInQueue.value, nextPlayer.value)
+        }
       } else {
         playerStore.setCurrentIndex(-1)
       }
@@ -696,8 +699,9 @@
     togglePlayPause,
     previousSong,
     nextSong,
-    toggleShuffle,
-    toggleRepeat,
+    toggleShuffle: playerStore.toggleShuffle,
+    toggleRepeat:  playerStore.cycleRepeatMode,
+    toggleMute:    playerStore.toggleMute,
     onSeek,
   })
 </script>

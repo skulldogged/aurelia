@@ -6,8 +6,11 @@
     "main"
   ],
   "permissions": [
+    "core:app:default",
+    "core:app:allow-version",
     "core:event:default",
     "core:event:allow-listen",
+    "core:webview:default",
     "core:window:default",
     "core:window:allow-is-maximized",
     "core:window:allow-toggle-maximize",
@@ -15,6 +18,13 @@
     "core:window:allow-minimize",
     "core:window:allow-unmaximize",
     "core:window:allow-close",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "fs:default",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-remove"
   ]
 }
