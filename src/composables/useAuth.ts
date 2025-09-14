@@ -2,6 +2,7 @@ import { ref, onMounted, readonly } from 'vue'
 import type { Credentials } from '@/bindings'
 import { commands } from '@/bindings'
 import { useAuthStore } from '@/stores'
+import { authLogger } from '@/lib/logger'
 
 export type AuthStatus = 'pending' | 'loggedIn' | 'loggedOut' | 'error'
 
@@ -18,13 +19,13 @@ export const useAuth = () => {
 
   // Check for saved credentials on app start
   onMounted(async () => {
-    console.log('🔐 useAuth: Checking for saved credentials...')
+    authLogger.debug('Checking for saved credentials...')
     try {
       const savedCredentialsResult = await commands.getSavedCredentials()
-      console.log('🔐 useAuth: Got saved credentials result:', savedCredentialsResult)
+      authLogger.debug('Got saved credentials result:', savedCredentialsResult)
 
       if (savedCredentialsResult.status === 'error') {
-        console.error('🔐 useAuth: Failed to load saved credentials:', savedCredentialsResult.error)
+        authLogger.error('Failed to load saved credentials:', savedCredentialsResult.error)
         error.value = {
           message: 'Failed to load saved credentials',
           code:    savedCredentialsResult.error,
@@ -34,24 +35,24 @@ export const useAuth = () => {
       }
 
       if (savedCredentialsResult.data && savedCredentialsResult.data.token) {
-        console.log('🔐 useAuth: Found saved credentials:', savedCredentialsResult.data)
+        authLogger.debug('Found saved credentials:', savedCredentialsResult.data)
         credentials.value = savedCredentialsResult.data
         authStore.setCredentials(savedCredentialsResult.data)
         authStatus.value = 'loggedIn'
         error.value = null
-        console.log('🔐 useAuth: Auth store populated:', {
+        authLogger.debug('Auth store populated:', {
           serverUrl: authStore.serverUrl,
           hasToken:  !!authStore.token,
           userId:    authStore.userId,
           username:  authStore.username,
         })
       } else {
-        console.log('🔐 useAuth: No saved credentials found')
+        authLogger.debug('No saved credentials found')
         authStatus.value = 'loggedOut'
         error.value = null
       }
     } catch (err) {
-      console.error('🔐 useAuth: Error loading credentials:', err)
+      authLogger.error('Error loading credentials:', err)
       error.value = {
         message: err instanceof Error ? err.message : 'Unknown authentication error',
         code:    'AUTH_INIT_FAILED',

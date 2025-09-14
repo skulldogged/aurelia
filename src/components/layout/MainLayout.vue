@@ -6,11 +6,12 @@
   import 'overlayscrollbars/overlayscrollbars.css'
 
   defineProps<{
-    currentView:  string
-    canGoBack:    boolean
-    canGoForward: boolean
-    hasPlayer:    boolean
-    isQueueOpen:  boolean
+    currentView:     string
+    canGoBack:       boolean
+    canGoForward:    boolean
+    hasPlayer:       boolean
+    isQueueOpen:     boolean
+    isEqualizerOpen: boolean
   }>()
 
   const topBar = ref<InstanceType<typeof TopBar> | null>(null)
@@ -59,7 +60,7 @@
           :class="[
             'flex-1 min-w-0 bg-background border-l border-t border-black/50',
             hasPlayer ? 'rounded-l-xl border-b' : 'rounded-tl-xl',
-            isQueueOpen ? 'border-r rounded-tr-xl rounded-br-xl' : ''
+            (isQueueOpen || isEqualizerOpen) ? 'border-r rounded-tr-xl rounded-br-xl' : ''
           ]"
         >
           <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='h-full' defer>

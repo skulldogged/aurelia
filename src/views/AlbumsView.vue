@@ -68,7 +68,10 @@
       }
     })
 
-    return Array.from(albumsMap.values())
+    // Sort albums alphabetically (case-insensitive)
+    return Array.from(albumsMap.values()).sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+    )
   })
 
   // Fuzzy search setup (Fuse.js)
@@ -93,7 +96,9 @@
 
   const playAlbum = (album: Album) => {
     if (album.songs && album.songs.length > 0) {
-      emit('play-songs', album.songs)
+      // Sort songs by track number to preserve album order
+      const sortedSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
+      emit('play-songs', sortedSongs)
     }
   }
 

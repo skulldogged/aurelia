@@ -15,6 +15,9 @@ export const usePlayerSession = () => {
     position:      0,
   }
 
+  // Track which song has already been marked as played to avoid duplicates
+  let lastMarkedPlayedSongId = ''
+
   let progressReportTimer: ReturnType<typeof setInterval> | null = null
   let isInitialized = false
 
@@ -76,6 +79,8 @@ export const usePlayerSession = () => {
         )
 
         lastReportedState.currentSongId = newSong.id
+        // Reset the marked played tracking for the new song
+        lastMarkedPlayedSongId = ''
         startProgressReporting()
       }
     },
@@ -122,7 +127,9 @@ export const usePlayerSession = () => {
       if (!playerStore.currentSong || !playerStore.isPlaying) return
 
       // If song is near completion (within 1 second), mark as played
-      if (duration > 0 && currentTime >= duration - 1) {
+      // Only mark once per song to avoid duplicate calls
+      if (duration > 0 && currentTime >= duration - 1 && playerStore.currentSong.id !== lastMarkedPlayedSongId) {
+        lastMarkedPlayedSongId = playerStore.currentSong.id
         await sessionManager.markItemPlayed(playerStore.currentSong.id)
         logger.debug('Song marked as played', { songId: playerStore.currentSong.id })
       }

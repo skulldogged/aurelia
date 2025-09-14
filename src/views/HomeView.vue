@@ -187,9 +187,15 @@
   }
 
   const playAlbumSongs = (album: Album) => {
-    const albumSongs = songs.value
-      .filter(song => song.album === album.name)
-      .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0))
+    // Use the album's songs array if available (more efficient), otherwise filter from all songs
+    let albumSongs: Song[]
+    if (album.songs && album.songs.length > 0) {
+      albumSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
+    } else {
+      albumSongs = songs.value
+        .filter(song => song.album === album.name)
+        .sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
+    }
 
     if (albumSongs.length > 0) {
       emit('play-songs', albumSongs)

@@ -1,40 +1,58 @@
 import { createConsola } from 'consola'
 
+// Redacts sensitive keys from objects before logging
+const sensitiveKeys = ['token', 'password', 'pass', 'apiKey', 'credentials']
+
+const replacer = (key: string, value: unknown) =>
+  typeof key === 'string' && sensitiveKeys.includes(key.toLowerCase()) ?
+    '******' : value
+
+const levelColors: Record<string, string> = {
+  debug: '#89b4fa',
+  info:  '#a6e3a1',
+  warn:  '#f9e2af',
+  error: '#f38ba8',
+  log:   '#cdd6f4',
+}
+
 export const logger = createConsola({
   level:     import.meta.env.DEV ? 4 : 2, // debug in dev, warn in prod
   reporters: [
     {
       log: logObj => {
         // Add custom formatting or additional logic here
-        const prefix = logObj.type === 'info' ? 'ℹ️' :
-          logObj.type === 'warn' ? '⚠️' :
-            logObj.type === 'error' ? '❌' :
-              logObj.type === 'debug' ? '🔍' : '📝'
+        const prefix = logObj.type === 'info' ? '[INFO]' :
+          logObj.type === 'warn' ? '[WARN]' :
+            logObj.type === 'error' ? '[ERROR]' :
+              logObj.type === 'debug' ? '[DEBUG]' : '[LOG]'
 
         // Format args for better readability
-        const args = logObj.args?.map((arg: unknown) => {
-          if (typeof arg === 'object' && arg !== null) {
-            return JSON.stringify(arg, null, 2)
-          }
-          return arg
-        }) || []
+        const args = logObj.args?.map((arg: unknown) =>
+          typeof arg === 'object' && arg !== null ?
+            JSON.stringify(arg, replacer, 2) :
+            arg,
+        ) || []
+
+        const color = levelColors[logObj.type] || levelColors.log
+        const style = `color: ${color}; font-weight: bold;`
+        const tag = `[${logObj.tag || 'app'}]`
 
         // Use the appropriate console method
         switch (logObj.type) {
           case 'debug':
-            console.debug(`${prefix} [${logObj.tag || 'app'}]`, ...args)
+            console.debug(`%c${prefix}`, style, tag, ...args)
             break
           case 'info':
-            console.info(`${prefix} [${logObj.tag || 'app'}]`, ...args)
+            console.info(`%c${prefix}`, style, tag, ...args)
             break
           case 'warn':
-            console.warn(`${prefix} [${logObj.tag || 'app'}]`, ...args)
+            console.warn(`%c${prefix}`, style, tag, ...args)
             break
           case 'error':
-            console.error(`${prefix} [${logObj.tag || 'app'}]`, ...args)
+            console.error(`%c${prefix}`, style, tag, ...args)
             break
           default:
-            console.log(`${prefix} [${logObj.tag || 'app'}]`, ...args)
+            console.log(`%c${prefix}`, style, tag, ...args)
         }
       },
     },
@@ -42,19 +60,17 @@ export const logger = createConsola({
 })
 
 // Convenience methods with context
-export const createLogger = (tag: string) => {
-  const taggedLogger = logger.withTag(tag)
-  return {
-    debug:   taggedLogger.debug.bind(taggedLogger),
-    info:    taggedLogger.info.bind(taggedLogger),
-    warn:    taggedLogger.warn.bind(taggedLogger),
-    error:   taggedLogger.error.bind(taggedLogger),
-    success: taggedLogger.success.bind(taggedLogger),
-  }
-}
+export const createLogger = (tag: string) => ({
+  debug:   (logger.withTag(tag)).debug.bind(logger.withTag(tag)),
+  info:    (logger.withTag(tag)).info.bind(logger.withTag(tag)),
+  warn:    (logger.withTag(tag)).warn.bind(logger.withTag(tag)),
+  error:   (logger.withTag(tag)).error.bind(logger.withTag(tag)),
+  success: (logger.withTag(tag)).success.bind(logger.withTag(tag)),
+})
 
 // Pre-configured loggers for different modules
 export const playerLogger = createLogger('player')
 export const apiLogger = createLogger('api')
 export const uiLogger = createLogger('ui')
 export const appLogger = createLogger('app')
+export const authLogger = createLogger('auth')

@@ -143,7 +143,7 @@
                     '
                   >
                     <Button
-                      @click.stop="$emit('play-songs', album.songs || [])"
+                      @click.stop='playAlbum(album)'
                       class='
                         bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                         border-white/20
@@ -310,11 +310,10 @@
   }>()
 
   const emit = defineEmits<{
-    'play-song':           [song: Song],
-    'select-album':        [album: Album],
-    'play-songs':          [songs: Song[]],
-    'play-artist-shuffle': [artist: Artist],
-    'select-artist':       [artist: Artist],
+    'play-song':     [song: Song],
+    'select-album':  [album: Album],
+    'play-songs':    [songs: Song[]],
+    'select-artist': [artist: Artist],
   }>()
 
   const route = useRoute()
@@ -594,6 +593,14 @@
 
   const playSong = (song: Song) => {
     emit('play-song', song)
+  }
+
+  const playAlbum = (album: Album) => {
+    if (album.songs && album.songs.length > 0) {
+      // Sort songs by track number to preserve album order
+      const sortedSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
+      emit('play-songs', sortedSongs)
+    }
   }
 </script>
 

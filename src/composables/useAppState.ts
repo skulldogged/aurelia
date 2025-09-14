@@ -4,6 +4,7 @@ import { useLibrary } from './useLibrary'
 import { useNavigation } from './useNavigation'
 import { usePlayerControls } from './usePlayerControls'
 import { useSongInteractions } from './useSongInteractions'
+import { useWebAudioPlayer } from './useWebAudioPlayer'
 
 // Global app state composable that provides access to all app state
 export const useAppState = () => {
@@ -11,7 +12,6 @@ export const useAppState = () => {
   const { authStatus, credentials, error: authError, login, logout, clearError } = useAuth()
   const {
     allSongs,
-    allArtists,
     allArtistsWithSongs,
     albumArtistsWithSongs,
     allAlbums,
@@ -33,12 +33,14 @@ export const useAppState = () => {
   } = useNavigation()
   const {
     isQueueOpen,
+    isEqualizerOpen,
     isFullScreenPlayerOpen,
     searchQuery,
     isSearchVisible,
     musicPlayerRef,
     handleGlobalSearch,
     toggleQueue,
+    toggleEqualizer,
     toggleFullScreenPlayer,
     toggleSearchVisibility,
     handleTogglePlayPause,
@@ -69,7 +71,6 @@ export const useAppState = () => {
 
     // Library state
     allSongs,
-    allArtists,
     allArtistsWithSongs,
     albumArtistsWithSongs,
     allAlbums,
@@ -83,6 +84,7 @@ export const useAppState = () => {
 
     // Player controls state
     isQueueOpen,
+    isEqualizerOpen,
     isFullScreenPlayerOpen,
     searchQuery,
     isSearchVisible,
@@ -99,6 +101,8 @@ export const useAppState = () => {
     progress:    computed(() => playerStore.progress),
     hasNext:     computed(() => playerStore.hasNext),
     hasPrevious: computed(() => playerStore.hasPrevious),
+    eqEnabled:   computed(() => playerStore.eqEnabled),
+    eqBands:     computed(() => playerStore.eqBands),
   })
 
   // No watchers needed - reactive system handles updates automatically
@@ -125,6 +129,7 @@ export const useAppState = () => {
     // Player control actions
     handleGlobalSearch,
     toggleQueue,
+    toggleEqualizer,
     toggleFullScreenPlayer,
     toggleSearchVisibility,
     handleTogglePlayPause,
@@ -142,6 +147,29 @@ export const useAppState = () => {
     handleSongChanged,
     handleUpdateCurrentSong,
     toggleFavorite,
+
+    // EQ actions - these need to call both the WebAudio player and the store
+    setEQEnabled: (enabled: boolean) => {
+      // Call the WebAudio player's setEQEnabled function
+      const webAudioPlayer = useWebAudioPlayer()
+      webAudioPlayer.setEQEnabled(enabled)
+      // Also update the store
+      playerStore.setEQEnabled(enabled)
+    },
+    setEQBandGain: (bandIndex: number, gain: number) => {
+      // Call the WebAudio player's setEQBandGain function
+      const webAudioPlayer = useWebAudioPlayer()
+      webAudioPlayer.setEQBandGain(bandIndex, gain)
+      // Also update the store
+      playerStore.setEQBandGain(bandIndex, gain)
+    },
+    resetEQ: () => {
+      // Call the WebAudio player's resetEQ function
+      const webAudioPlayer = useWebAudioPlayer()
+      webAudioPlayer.resetEQ()
+      // Also update the store
+      playerStore.resetEQ()
+    },
   }
 
   return {

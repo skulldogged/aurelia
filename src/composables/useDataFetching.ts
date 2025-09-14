@@ -1,7 +1,6 @@
 import { ref, computed, readonly } from 'vue'
 import { commands } from '@/bindings'
 import type { Song, Album, Artist, Credentials } from '@/bindings'
-import { apiLogger } from '@/lib/logger'
 
 export interface DataState<T> {
   data:    T[]
@@ -145,28 +144,6 @@ export const useDataFetching = (credentials: Credentials | null) => {
     }
   }
 
-  // Refresh all data
-  const refreshAll = async () => {
-    if (!credentials) return
-
-    try {
-      await Promise.all([
-        fetchSongs(),
-        fetchArtists({ includeSongs: true }),
-        fetchAlbums({ includeSongs: false }),
-      ])
-    } catch (error) {
-      apiLogger.error('Failed to refresh data:', error)
-    }
-  }
-
-  // Clear all data
-  const clearAll = () => {
-    songsState.value = { data: [], loading: false, error: null }
-    artistsState.value = { data: [], loading: false, error: null }
-    albumsState.value = { data: [], loading: false, error: null }
-  }
-
   return {
     // State
     songs,
@@ -182,7 +159,5 @@ export const useDataFetching = (credentials: Credentials | null) => {
     fetchSongs,
     fetchArtists,
     fetchAlbums,
-    refreshAll,
-    clearAll,
   }
 }

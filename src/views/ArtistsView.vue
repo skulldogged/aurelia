@@ -62,8 +62,12 @@
     showAllArtists.value ? artists.value : (albumArtists.value?.length ? albumArtists.value : artists.value),
   )
 
-  // Use artists directly from props
-  const artistsWithSongs = computed(() => artistsToDisplay.value)
+  // Use artists directly from props, sorted alphabetically (case-insensitive)
+  const artistsWithSongs = computed(() =>
+    [...artistsToDisplay.value].sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+    ),
+  )
 
   // Fuzzy search setup (Fuse.js)
   const artistsFuse = ref(new Fuse(artistsWithSongs.value, {

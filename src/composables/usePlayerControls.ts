@@ -16,6 +16,7 @@ export const usePlayerControls = () => {
 
   // UI state for player controls
   const isQueueOpen = ref(false)
+  const isEqualizerOpen = ref(false)
   const isFullScreenPlayerOpen = ref(false)
   const searchQuery = ref('')
   const isSearchVisible = ref(false)
@@ -31,7 +32,21 @@ export const usePlayerControls = () => {
 
   // Queue management
   const toggleQueue = () => {
+    if (isEqualizerOpen.value) {
+      isEqualizerOpen.value = false
+    }
     isQueueOpen.value = !isQueueOpen.value
+  }
+
+  // Equalizer management
+  const toggleEqualizer = () => {
+    if (isQueueOpen.value) {
+      isQueueOpen.value = false
+    }
+    const newState = !isEqualizerOpen.value
+    isEqualizerOpen.value = newState
+    // Also toggle the EQ enabled state in the player store
+    playerStore.setEQEnabled(newState)
   }
 
   // Fullscreen player
@@ -66,6 +81,7 @@ export const usePlayerControls = () => {
   return {
     // State
     isQueueOpen:            readonly(isQueueOpen),
+    isEqualizerOpen:        readonly(isEqualizerOpen),
     isFullScreenPlayerOpen: readonly(isFullScreenPlayerOpen),
     searchQuery:            readonly(searchQuery),
     isSearchVisible:        readonly(isSearchVisible),
@@ -74,6 +90,7 @@ export const usePlayerControls = () => {
     // Actions
     handleGlobalSearch,
     toggleQueue,
+    toggleEqualizer,
     toggleFullScreenPlayer,
     toggleSearchVisibility,
     handleTogglePlayPause,

@@ -6,6 +6,7 @@
   import Login from './views/LoginView.vue'
   import MusicPlayer from './components/player/MusicPlayer.vue'
   import Queue from './components/player/Queue.vue'
+  import Equalizer from './components/player/Equalizer.vue'
   import MainLayout from './components/layout/MainLayout.vue'
   import SearchResults from '@/components/shared/SearchResultsView.vue'
   import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
@@ -17,9 +18,6 @@
   import { appLogger } from '@/lib/logger'
 
   useColorMode()
-
-  // Initialize player session management (for Jellyfin reporting)
-  usePlayerSession()
 
   // Initialize centralized app state
   const {
@@ -37,6 +35,7 @@
     navigateToAlbum,
     handleGlobalSearch,
     toggleQueue,
+    toggleEqualizer,
     toggleFullScreenPlayer,
     toggleSearchVisibility,
     handleTogglePlayPause,
@@ -142,6 +141,7 @@
       :can-go-forward='appState.canGoForward'
       :current-view='appState.currentView'
       :has-player='!!appState.currentSong'
+      :is-equalizer-open='appState.isEqualizerOpen'
       :is-queue-open='appState.isQueueOpen'
     >
       <router-view v-slot='{ Component }'>
@@ -192,11 +192,13 @@
           :current-song='appState.currentSong as any'
           :playlist='appState.playlist as any'
         />
+        <Equalizer v-if='appState.isEqualizerOpen' />
       </template>
 
       <template #player>
         <MusicPlayer
           @song-changed='handleSongChanged'
+          @toggle-equalizer='toggleEqualizer'
           @toggle-favorite='toggleFavorite'
           @toggle-fullscreen='toggleFullScreenPlayer'
           @toggle-queue='toggleQueue'

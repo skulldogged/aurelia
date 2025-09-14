@@ -3,6 +3,14 @@ import { ref, computed } from 'vue'
 import type { Song } from '@/bindings'
 import { playerLogger } from '@/lib/logger'
 
+// EQ Band interface
+export interface EQBand {
+  frequency: number
+  gain:      number
+  type:      BiquadFilterType
+  Q:         number
+}
+
 export interface PlayerState {
   isPlaying:   boolean
   currentTime: number
@@ -20,6 +28,8 @@ const STORAGE_KEYS = {
   IS_MUTED:     'player-muted',
   REPEAT_MODE:  'player-repeat-mode',
   IS_SHUFFLED:  'player-shuffled',
+  EQ_ENABLED:   'player-eq-enabled',
+  EQ_BANDS:     'player-eq-bands',
 }
 
 // Helper functions for localStorage
@@ -68,6 +78,31 @@ const setStoredValue = <T>(key: string, value: T): void => {
   }
 }
 
+// Default EQ bands (flat)
+const DEFAULT_EQ_BANDS: EQBand[] = [
+  { frequency: 60, gain: 0, type: 'lowshelf', Q: 0.707 },
+  { frequency: 250, gain: 0, type: 'peaking', Q: 1.414 },
+  { frequency: 1000, gain: 0, type: 'peaking', Q: 1.414 },
+  { frequency: 4000, gain: 0, type: 'peaking', Q: 1.414 },
+  { frequency: 16000, gain: 0, type: 'highshelf', Q: 0.707 },
+]
+
+// Helper to get stored EQ bands
+const getStoredEQBands = (): EQBand[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.EQ_BANDS)
+    if (stored) {
+      const parsed = JSON.parse(stored)
+      if (Array.isArray(parsed) && parsed.length === 5) {
+        return parsed as EQBand[]
+      }
+    }
+  } catch (error) {
+    playerLogger.warn('Failed to load EQ bands from localStorage:', error)
+  }
+  return DEFAULT_EQ_BANDS
+}
+
 export const usePlayerStore = defineStore('player', () => {
   // State - Initialize with persisted values
   const isPlaying = ref(false)
@@ -78,6 +113,10 @@ export const usePlayerStore = defineStore('player', () => {
   const isMuted = ref(getStoredValue(STORAGE_KEYS.IS_MUTED, false))
   const isShuffled = ref(getStoredValue(STORAGE_KEYS.IS_SHUFFLED, false))
   const repeatMode = ref<'none' | 'one' | 'all'>(getStoredValue(STORAGE_KEYS.REPEAT_MODE, 'none'))
+
+  // EQ state
+  const eqEnabled = ref(getStoredValue(STORAGE_KEYS.EQ_ENABLED, false))
+  const eqBands = ref(getStoredEQBands())
   const hasPrevious = ref(false)
   const hasNext = ref(false)
 
@@ -153,6 +192,29 @@ export const usePlayerStore = defineStore('player', () => {
     const currentModeIndex = modes.indexOf(repeatMode.value)
     repeatMode.value = modes[(currentModeIndex + 1) % modes.length]
     setStoredValue(STORAGE_KEYS.REPEAT_MODE, repeatMode.value)
+  }
+
+  // EQ actions
+  const setEQEnabled = (enabled: boolean) => {
+    eqEnabled.value = enabled
+    setStoredValue(STORAGE_KEYS.EQ_ENABLED, enabled)
+  }
+
+  const setEQBands = (bands: EQBand[]) => {
+    eqBands.value = bands
+    localStorage.setItem(STORAGE_KEYS.EQ_BANDS, JSON.stringify(bands))
+  }
+
+  const setEQBandGain = (bandIndex: number, gain: number) => {
+    if (bandIndex >= 0 && bandIndex < eqBands.value.length) {
+      eqBands.value[bandIndex].gain = gain
+      setEQBands(eqBands.value)
+    }
+  }
+
+  const resetEQ = () => {
+    eqBands.value = [...DEFAULT_EQ_BANDS]
+    setEQBands(eqBands.value)
   }
 
   // New actions for centralized state
@@ -269,6 +331,8 @@ export const usePlayerStore = defineStore('player', () => {
     currentIndex,
     audioReady,
     isBuffering,
+    eqEnabled,
+    eqBands,
     // Getters
     progress,
     formattedCurrentTime,
@@ -295,5 +359,10 @@ export const usePlayerStore = defineStore('player', () => {
     nextSong,
     previousSong,
     playSongAtIndex,
+    // EQ actions
+    setEQEnabled,
+    setEQBands,
+    setEQBandGain,
+    resetEQ,
   }
 })
