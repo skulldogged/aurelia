@@ -4102,6 +4102,7 @@ dependencies = [
 name = "tauri-app"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "base64 0.22.1",
  "chrono",
  "derive_more 2.0.1",
@@ -4117,6 +4118,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-specta",
+ "thiserror 2.0.16",
  "tokio",
  "tracing",
  "tracing-subscriber",

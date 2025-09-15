@@ -3,7 +3,7 @@
   import { useRoute } from 'vue-router'
   import SongList from '@/components/shared/SongList.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { Song, Album, commands } from '@/bindings'
+  import { Song, Album, NameIdPair, commands } from '@/bindings'
   import { uiLogger } from '@/lib/logger'
 
   const props = defineProps<{
@@ -71,6 +71,33 @@
     return [...album.value.songs || []].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
   })
 
+  // Unique album artists aggregated from tracks
+  const albumArtistPairs = computed<NameIdPair[]>(() => {
+    const idToName = new Map<string, string>()
+    for (const song of albumSongs.value) {
+      if (song.albumArtists) {
+        for (const pair of song.albumArtists) {
+          if (pair.id && pair.name) idToName.set(pair.id, pair.name)
+        }
+      }
+    }
+
+    // Fallbacks if albumArtists are not provided by backend
+    if (idToName.size === 0) {
+      const first = albumSongs.value[0]
+      if (first?.artistIds && first.artists && first.artistIds.length === first.artists.length) {
+        first.artistIds.forEach((id, idx) => {
+          const name = first.artists![idx]
+          if (id && name) idToName.set(id, name)
+        })
+      } else if (album.value?.artist && album.value.artistId) {
+        idToName.set(album.value.artistId, album.value.artist)
+      }
+    }
+
+    return Array.from(idToName, ([id, name]) => ({ id, name }))
+  })
+
   // Determine if any song in the album has multiple artists
   const hasMultipleArtists =
     computed(() =>
@@ -98,7 +125,20 @@
           {{ album.name }}
         </h1>
         <p class='text-2xl text-muted-foreground mt-2 select-text'>
-          {{ album?.artist || 'Unknown Artist' }}
+          <template v-if='albumArtistPairs.length'>
+            <template v-for='(pair, index) in albumArtistPairs' :key='pair.id'>
+              <router-link
+                :to="{ name: 'artist-detail', params: { artistId: pair.id } }"
+                class='hover:underline'
+              >
+                {{ pair.name }}
+              </router-link>
+              <span v-if='index < albumArtistPairs.length - 1'>, </span>
+            </template>
+          </template>
+          <template v-else>
+            {{ album?.artist || 'Unknown Artist' }}
+          </template>
         </p>
       </div>
     </div>

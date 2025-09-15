@@ -3,6 +3,7 @@
 use crate::cache;
 use crate::models::{jellyfin::ClientCapabilities, Album, Artist, Song};
 use crate::services::JellyfinClient;
+use crate::utils::pagination;
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 
@@ -68,16 +69,10 @@ pub async fn get_songs(
         });
     }
 
-    // Apply pagination
-    if let Some(offset) = offset {
-        filtered_songs = filtered_songs.into_iter().skip(offset as usize).collect();
-    }
+    // Apply pagination using utility function
+    let paginated_songs = pagination::apply_pagination(filtered_songs, offset, limit);
 
-    if let Some(limit) = limit {
-        filtered_songs = filtered_songs.into_iter().take(limit as usize).collect();
-    }
-
-    Ok(filtered_songs)
+    Ok(paginated_songs)
 }
 
 /// Get single song by ID
@@ -102,7 +97,7 @@ pub async fn get_albums(
     limit: Option<i32>,
     offset: Option<i32>,
 ) -> Result<Vec<Album>, String> {
-    let mut albums = if let (Some(server_url), Some(token)) = (server_url, token) {
+    let albums = if let (Some(server_url), Some(token)) = (server_url, token) {
         // Fetch fresh albums from Jellyfin
         let client = crate::services::JellyfinClient::with_auth(server_url, token);
         let user_id = crate::handlers::auth::get_saved_credentials()
@@ -119,14 +114,8 @@ pub async fn get_albums(
         cache::get_albums().await.map_err(|e| e.to_string())?
     };
 
-    // Apply pagination
-    if let Some(offset) = offset {
-        albums = albums.into_iter().skip(offset as usize).collect();
-    }
-
-    if let Some(limit) = limit {
-        albums = albums.into_iter().take(limit as usize).collect();
-    }
+    // Apply pagination using utility function
+    let mut albums = pagination::apply_pagination(albums, offset, limit);
 
     // Include songs if requested
     if include_songs.unwrap_or(false) {
@@ -226,8 +215,15 @@ pub async fn get_artists(
             _ => {
                 if let (Some(server_url), Some(token)) = (server_url, token) {
                     let client = JellyfinClient::with_auth(server_url, token);
-                    let fresh_artists =
-                        client.get_all_artists().await.map_err(|e| e.to_string())?;
+                    // Prefer Items endpoint for richer metadata
+                    let user_id = crate::handlers::auth::get_saved_credentials()
+                        .map_err(|e| e.to_string())?
+                        .map(|creds| creds.user_id)
+                        .ok_or("No saved credentials found")?;
+                    let fresh_artists = match client.get_all_artists_for_user(&user_id).await {
+                        Ok(list) => list,
+                        Err(_) => client.get_all_artists().await.map_err(|e| e.to_string())?,
+                    };
 
                     // Cache the artists
                     if let Err(e) = crate::cache::cache_artists(&fresh_artists).await {
@@ -245,16 +241,10 @@ pub async fn get_artists(
         }
     };
 
-    let mut result_artists = artists;
+    let result_artists = artists;
 
-    // Apply pagination
-    if let Some(offset) = offset {
-        result_artists = result_artists.into_iter().skip(offset as usize).collect();
-    }
-
-    if let Some(limit) = limit {
-        result_artists = result_artists.into_iter().take(limit as usize).collect();
-    }
+    // Apply pagination using utility function
+    let mut result_artists = pagination::apply_pagination(result_artists, offset, limit);
 
     // Include songs if requested
     if include_songs.unwrap_or(false) {
@@ -306,14 +296,56 @@ pub async fn get_artist(
     include_songs: Option<bool>,
     album_artists_only: Option<bool>,
 ) -> Result<Artist, String> {
-    let artists = crate::cache::get_artists()
-        .await
-        .map_err(|e| e.to_string())?;
+    let mut artist_opt: Option<Artist> = match crate::cache::get_artists().await {
+        Ok(artists) => artists.into_iter().find(|a| a.id == artist_id),
+        Err(e) => {
+            warn!("Failed to read cached artists: {}", e);
+            None
+        }
+    };
 
-    let mut artist = artists
-        .into_iter()
-        .find(|artist| artist.id == artist_id)
-        .ok_or_else(|| format!("Artist with ID '{}' not found", artist_id))?;
+    // If not found in cache, fetch directly from Jellyfin and merge into cache
+    if artist_opt.is_none() {
+        if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials() {
+            let client = JellyfinClient::with_auth(creds.server_url, creds.token);
+            match client.get_artist_details(&creds.user_id, &artist_id).await {
+                Ok(fresh) => {
+                    // Try to append to cache
+                    match crate::cache::get_artists().await {
+                        Ok(mut current) => {
+                            if !current.iter().any(|a| a.id == fresh.id) {
+                                current.push(fresh.clone());
+                                if let Err(e) = crate::cache::cache_artists(&current).await {
+                                    warn!("Failed to cache fetched artist {}: {}", fresh.id, e);
+                                }
+                            }
+                        }
+                        Err(e) => warn!("Failed to load artists for cache update: {}", e),
+                    }
+                    artist_opt = Some(fresh);
+                }
+                Err(e) => return Err(e.to_string()),
+            }
+        } else {
+            return Err(format!("Artist with ID '{}' not found", artist_id));
+        }
+    }
+
+    let mut artist = artist_opt.expect("artist should be set by now");
+
+    // If overview is missing, try to fetch fresh details from Jellyfin
+    if artist.overview.is_none() {
+        if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials() {
+            let client = JellyfinClient::with_auth(creds.server_url, creds.token);
+            if let Ok(fresh) = client.get_artist_details(&creds.user_id, &artist_id).await {
+                artist.overview = fresh.overview;
+                artist.image_url = fresh.image_url.or(artist.image_url);
+                artist.provider_ids = fresh.provider_ids.or(artist.provider_ids);
+                artist.community_rating = fresh.community_rating.or(artist.community_rating);
+                artist.name = fresh.name;
+            }
+        }
+    }
 
     // Include songs if requested
     if include_songs.unwrap_or(false) {

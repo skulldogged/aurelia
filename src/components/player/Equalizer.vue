@@ -127,12 +127,6 @@
       <p class='text-xs text-muted-foreground mt-1'>
         Adjust frequency bands to customize your listening experience. Changes apply in real-time.
       </p>
-      <div class='mt-2 flex items-center gap-2'>
-        <div :class='["w-2 h-2 rounded-full", eqEnabled ? "bg-green-500" : "bg-gray-400"]' />
-        <span :class='eqEnabled ? "text-green-600" : "text-muted-foreground"' class='text-xs'>
-          {{ eqEnabled ? 'Active - EQ is processing audio' : 'Inactive - Click "On" to enable EQ' }}
-        </span>
-      </div>
     </div>
 
     <!-- Controls (only show when EQ is enabled) -->
@@ -195,16 +189,6 @@
                 :key='band.frequency'
                 class='flex flex-col items-center space-y-2 min-w-0'
               >
-                <!-- Gain Indicator Badge -->
-                <div class='bg-background/80 backdrop-blur-sm rounded-md px-1.5 py-0.5 border border-border/50'>
-                  <div class='text-xs font-mono font-medium whitespace-nowrap'>
-                    <span :class="band.gain >= 0 ? 'text-green-600' : 'text-red-600'">
-                      {{ band.gain > 0 ? '+' : '' }}{{ band.gain.toFixed(1) }}
-                    </span>
-                    <span class='text-muted-foreground ml-0.5'>dB</span>
-                  </div>
-                </div>
-
                 <!-- Slider Container -->
                 <div class='relative flex flex-col items-center flex-1'>
                   <!-- Background Track -->
@@ -229,6 +213,18 @@
                   </div>
                   <div class='text-xs text-muted-foreground leading-tight whitespace-nowrap'>
                     {{ getFrequencyDescription(band.frequency) }}
+                  </div>
+                  <!-- Gain Value -->
+                  <div class='text-xs leading-tight mt-0.5'>
+                    <span
+                      :class="band.gain === 0
+                        ? 'text-muted-foreground'
+                        : band.gain > 0
+                          ? 'text-chart-3'
+                          : 'text-destructive'"
+                    >
+                      {{ band.gain > 0 ? '+' : '' }}{{ band.gain.toFixed(1) }}
+                    </span>
                   </div>
                 </div>
               </div>

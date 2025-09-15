@@ -657,6 +657,45 @@ impl JellyfinClient {
         Ok(artists)
     }
 
+    /// Get all artists for a user via Items endpoint (more complete Overview support)
+    pub async fn get_all_artists_for_user(&self, user_id: &str) -> AppResult<Vec<Artist>> {
+        let url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!(
+                "/Users/{}/Items?IncludeItemTypes=MusicArtist&Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount",
+                user_id
+            ),
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to fetch artists (Items): HTTP {}",
+                response.status()
+            )));
+        }
+
+        let response_json: serde_json::Value = response.json().await?;
+
+        let items = response_json["Items"]
+            .as_array()
+            .ok_or_else(|| AppError::ApiParse("Invalid artists response format".to_string()))?;
+
+        let mut artists = Vec::new();
+        for item in items {
+            let artist = self.parse_single_artist(item)?;
+            artists.push(artist);
+        }
+
+        Ok(artists)
+    }
+
     /// Parse a single artist from JSON with manual field mapping
     fn parse_single_artist(&self, item: &serde_json::Value) -> AppResult<Artist> {
         let id = item["Id"]
@@ -692,7 +731,14 @@ impl JellyfinClient {
             None
         };
 
-        let overview = item["Overview"].as_str().map(|s| s.to_string());
+        let overview = item["Overview"].as_str().and_then(|s| {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        });
 
         let provider_ids = item["ProviderIds"].as_object().map(|obj| {
             obj.iter()

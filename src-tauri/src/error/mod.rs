@@ -1,48 +1,39 @@
 //! Error handling for the Jellyfin Music Player
 //!
-//! This module provides a unified error type and proper error handling
-//! throughout the application.
+//! Uses thiserror for structured error types and anyhow for ergonomic error handling
 
-use std::fmt;
-
-/// Application-specific error type
-#[derive(Debug)]
+/// Application-specific error type using thiserror
+#[derive(thiserror::Error, Debug)]
 pub enum AppError {
-    /// Network-related errors
+    #[error("Network error: {0}")]
     Network(String),
-    /// Authentication errors
+
+    #[error("Authentication error: {0}")]
     Auth(String),
-    /// Database errors
+
+    #[error("Database error: {0}")]
     Database(String),
-    /// Serialization/deserialization errors
+
+    #[error("Serialization error: {0}")]
     Serialization(String),
-    /// File system errors
+
+    #[error("File system error: {0}")]
     FileSystem(String),
-    /// API response parsing errors
+
+    #[error("API parsing error: {0}")]
     ApiParse(String),
-    /// Configuration errors
+
+    #[error("Configuration error: {0}")]
     Config(String),
-    /// Generic application errors
+
+    #[error("HTTP {status}: {message}")]
+    Http { status: u16, message: String },
+
+    #[error("Application error: {0}")]
     General(String),
 }
 
-impl fmt::Display for AppError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AppError::Network(msg) => write!(f, "Network error: {}", msg),
-            AppError::Auth(msg) => write!(f, "Authentication error: {}", msg),
-            AppError::Database(msg) => write!(f, "Database error: {}", msg),
-            AppError::Serialization(msg) => write!(f, "Serialization error: {}", msg),
-            AppError::FileSystem(msg) => write!(f, "File system error: {}", msg),
-            AppError::ApiParse(msg) => write!(f, "API parsing error: {}", msg),
-            AppError::Config(msg) => write!(f, "Configuration error: {}", msg),
-            AppError::General(msg) => write!(f, "Application error: {}", msg),
-        }
-    }
-}
-
-impl std::error::Error for AppError {}
-
+// Convert external errors to AppError
 impl From<reqwest::Error> for AppError {
     fn from(err: reqwest::Error) -> Self {
         AppError::Network(err.to_string())
@@ -62,4 +53,7 @@ impl From<std::io::Error> for AppError {
 }
 
 /// Result type alias for convenience
-pub type AppResult<T> = Result<T, AppError>;
+pub type AppResult<T> = std::result::Result<T, AppError>;
+
+/// Convenience type for anyhow::Result (for internal use where we want ergonomic error handling)
+pub type Result<T> = anyhow::Result<T>;

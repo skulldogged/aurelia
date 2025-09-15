@@ -11,6 +11,9 @@ pub mod models;
 pub mod services;
 pub mod utils;
 
+// Re-export commonly used types for convenience
+pub use anyhow::Result;
+
 use specta_typescript::Typescript;
 use tauri_specta::{collect_commands, Builder};
 use tracing::{error, info};

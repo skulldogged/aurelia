@@ -2,6 +2,8 @@
 
 use std::path::PathBuf;
 
+pub mod error_handling;
+
 /// Application constants
 pub mod constants {
     /// Jellyfin client information
@@ -65,4 +67,43 @@ pub fn build_jellyfin_url(server_url: &str, endpoint: &str) -> String {
         server_url.trim_end_matches('/'),
         endpoint.trim_start_matches('/')
     )
+}
+
+/// Pagination utilities
+pub mod pagination {
+    /// Apply pagination to a vector using optional offset and limit
+    pub fn apply_pagination<T>(
+        mut items: Vec<T>,
+        offset: Option<i32>,
+        limit: Option<i32>,
+    ) -> Vec<T> {
+        // Apply offset (skip items)
+        if let Some(offset) = offset {
+            items = items.into_iter().skip(offset as usize).collect();
+        }
+
+        // Apply limit (take items)
+        if let Some(limit) = limit {
+            items = items.into_iter().take(limit as usize).collect();
+        }
+
+        items
+    }
+
+    /// Check if pagination parameters are valid
+    pub fn validate_pagination(offset: Option<i32>, limit: Option<i32>) -> Result<(), String> {
+        if let Some(offset) = offset {
+            if offset < 0 {
+                return Err("Offset must be non-negative".to_string());
+            }
+        }
+
+        if let Some(limit) = limit {
+            if limit <= 0 {
+                return Err("Limit must be positive".to_string());
+            }
+        }
+
+        Ok(())
+    }
 }

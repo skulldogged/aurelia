@@ -91,6 +91,7 @@ pub struct Song {
 /// Consolidated artist type with all information
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 #[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct Artist {
     /// Artist name
     pub name: String,
@@ -117,6 +118,7 @@ pub struct Artist {
 /// Consolidated album type with all information
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 #[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct Album {
     /// Album ID from Jellyfin
     pub id: Option<String>,
