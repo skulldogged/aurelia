@@ -370,8 +370,7 @@
                 </p>
               </div>
               <p class='text-muted-foreground text-sm'>
-                {{ song.playCount ?? 0 }} {{ (song.playCount ?? 0) === 1 ? 'play'
-                  : 'plays' }}
+                {{ song.playCount ?? 0 }} play{{ (song.playCount ?? 0) === 1 ? '' : 's' }}
               </p>
             </div>
           </div>

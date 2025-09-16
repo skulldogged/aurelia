@@ -90,7 +90,7 @@ export const useSession = () => {
         serverUrl:     authStore.serverUrl,
         token:         authStore.token,
         itemId,
-        positionTicks: positionTicks ? Math.floor(positionTicks * 10000) : undefined,
+        positionTicks: positionTicks ? Math.floor(positionTicks * 10_000_000) : undefined,
       })
       logger.debug('Playback start reported', { itemId, positionTicks })
     } catch (error) {
@@ -114,7 +114,7 @@ export const useSession = () => {
         serverUrl:     authStore.serverUrl,
         token:         authStore.token,
         itemId,
-        positionTicks: Math.floor(positionTicks * 10000),
+        positionTicks: Math.floor(positionTicks * 10_000_000),
         eventName,
         isPaused,
       })
@@ -134,7 +134,7 @@ export const useSession = () => {
         serverUrl:     authStore.serverUrl,
         token:         authStore.token,
         itemId,
-        positionTicks: positionTicks ? Math.floor(positionTicks * 10000) : undefined,
+        positionTicks: positionTicks ? Math.floor(positionTicks * 10_000_000) : undefined,
       })
 
       logger.debug('Playback stop reported', { itemId, positionTicks })

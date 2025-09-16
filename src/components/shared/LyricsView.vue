@@ -247,7 +247,7 @@
   opacity: 1;
   font-weight: bold;
   transform: scale(1.15);
-  color: var(--primary);
+  color: var(--accent);
   filter: blur(0);
 }
 

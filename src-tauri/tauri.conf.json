@@ -5,7 +5,7 @@
   "identifier": "dev.pupbrained.tauri-app",
   "build": {
     "beforeDevCommand": "bun run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://localhost:3000",
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },
@@ -21,7 +21,7 @@
         "resizable": true,
         "fullscreen": false,
         "dragDropEnabled": false,
-	"devtools": true
+        "devtools": true
       }
     ],
     "security": {
