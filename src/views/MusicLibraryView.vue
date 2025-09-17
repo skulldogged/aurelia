@@ -7,13 +7,13 @@
             Songs
           </h1>
           <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between'>
-            <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center'>
-              <Input
-                v-model='searchQuery'
-                class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
-                placeholder='Search songs...'
-                type='text'
-              />
+            <Input
+              v-model='searchQuery'
+              class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
+              placeholder='Search songs...'
+              type='text'
+            />
+            <div class='flex items-center gap-4'>
               <!-- Dev toggle for skeleton adjustment -->
               <Button
                 @click='showSkeleton = !showSkeleton'
@@ -22,42 +22,50 @@
               >
                 {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
               </Button>
-            </div>
+              <!-- Sort Controls -->
+              <Select v-model='sortOption'>
+                <SelectTrigger class='w-[180px]'>
+                  <SelectValue placeholder='Sort by' />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Sort by</SelectLabel>
+                    <SelectItem v-for='option in sortingOptions' :key='option' :value='option'>
+                      {{ option }}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
 
-            <!-- Layout Controls -->
-            <div class='flex items-center gap-2'>
-              <span class='text-sm text-muted-foreground'>View:</span>
-              <div class='flex rounded-md border'>
-                <Button
-                  @click='viewLayout = "list"'
-                  :variant='viewLayout === "list" ? "default" : "ghost"'
-                  class='rounded-r-none border-r-0'
-                  size='sm'
-                >
-                  List
-                </Button>
-                <Button
-                  @click='viewLayout = "compact"'
-                  :variant='viewLayout === "compact" ? "default" : "ghost"'
-                  class='rounded-none border-r-0'
-                  size='sm'
-                >
-                  Compact
-                </Button>
-                <Button
-                  @click='viewLayout = "grid"'
-                  :variant='viewLayout === "grid" ? "default" : "ghost"'
-                  class='rounded-l-none'
-                  size='sm'
-                >
-                  Grid
-                </Button>
+              <!-- Layout Controls -->
+              <div class='flex items-center gap-2'>
+                <div class='flex rounded-md border'>
+                  <Button
+                    @click='viewLayout = "comfy"'
+                    :variant='viewLayout === "comfy" ? "default" : "ghost"'
+                    class='rounded-r-none border-r-0'
+                    size='sm'
+                  >
+                    Comfy
+                  </Button>
+                  <Button
+                    @click='viewLayout = "compact"'
+                    :variant='viewLayout === "compact" ? "default" : "ghost"'
+                    class='rounded-l-none'
+                    size='sm'
+                  >
+                    Compact
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div v-if='(hasError || songsState.error) && !showSkeleton && !loading && !dataLoading' class='text-center py-12'>
+        <div
+          v-if='(hasError || songsState.error) && !showSkeleton && !loading && !dataLoading'
+          class='text-center py-12'
+        >
           <p class='text-destructive mb-4'>
             {{ songsState.error || 'Failed to load songs' }}
           </p>
@@ -80,7 +88,7 @@
             :show-duration='true'
             :show-track-number='true'
             :show-year='true'
-            :songs='filteredSongs'
+            :songs='sortedSongs'
             :token='props.credentials.token'
           />
         </div>
@@ -94,20 +102,19 @@
   import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
-  import { Skeleton } from '@/components/ui/skeleton'
-  import { Heart } from 'lucide-vue-next'
   import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-  } from '@/components/ui/table'
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+  } from '@/components/ui/select'
   import type { Song, Credentials } from '@/bindings'
   import Fuse from 'fuse.js'
   import { useDataFetching } from '@/composables/useDataFetching'
-  import { useLayoutPreference } from '@/composables/useLayoutPreference'
+  import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
 
   // Define props from parent
   const props = defineProps<{
@@ -129,7 +136,10 @@
   const searchQuery = ref('')
 
   // Layout preference with localStorage persistence
-  const { layout: viewLayout } = useLayoutPreference('songlist-layout', 'list')
+  const { layout: viewLayout } = useLayoutPreference('songlist-layout', 'comfy')
+  const { sort: sortOption } = useSortPreference('songlist-sort', 'Title')
+
+  const sortingOptions = ['Title', 'Artist', 'Album', 'Date Added', 'Play Count']
 
   // Local search implementation using Fuse
   const songFuse = ref<Fuse<Song>>()
@@ -156,6 +166,24 @@
       return songs.value
     }
     return songFuse.value.search(searchQuery.value).map(result => result.item)
+  })
+
+  const sortedSongs = computed(() => {
+    const songsToSort = [...filteredSongs.value]
+    switch (sortOption.value) {
+      case 'Title':
+        return songsToSort.sort((a, b) => a.name.localeCompare(b.name))
+      case 'Artist':
+        return songsToSort.sort((a, b) => (a.artists?.[0] || '').localeCompare(b.artists?.[0] || ''))
+      case 'Album':
+        return songsToSort.sort((a, b) => (a.album || '').localeCompare(b.album || ''))
+      case 'Date Added':
+        return songsToSort.sort((a, b) => (b.dateCreated || '').localeCompare(a.dateCreated || ''))
+      case 'Play Count':
+        return songsToSort.sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+      default:
+        return songsToSort
+    }
   })
 
   // Local loading state for initial fetch

@@ -1,13 +1,17 @@
 import { ref, watch } from 'vue'
 
-export type LayoutMode = 'list' | 'compact' | 'grid'
+export type LayoutMode = 'comfy' | 'compact'
 
-export const useLayoutPreference = (storageKey = 'songlist-layout', defaultLayout: LayoutMode = 'list') => {
+export const useLayoutPreference = (storageKey = 'songlist-layout', defaultLayout: LayoutMode = 'comfy') => {
   // Get initial value from localStorage or use default
   const getInitialLayout = (): LayoutMode => {
     try {
       const stored = localStorage.getItem(storageKey)
-      if (stored && ['list', 'compact', 'grid'].includes(stored)) {
+      if (stored === 'list') {
+        localStorage.setItem(storageKey, 'comfy') // Migrate old value
+        return 'comfy'
+      }
+      if (stored && ['comfy', 'compact'].includes(stored)) {
         return stored as LayoutMode
       }
     } catch (error) {
@@ -63,5 +67,33 @@ export const usePageSizePreference = (storageKey = 'songlist-pagesize', defaultP
 
   return {
     pageSize,
+  }
+}
+
+export const useSortPreference = (storageKey = 'songlist-sort', defaultSort: string = 'title') => {
+  const getInitialSort = (): string => {
+    try {
+      const stored = localStorage.getItem(storageKey)
+      if (stored) {
+        return stored
+      }
+    } catch (error) {
+      console.warn('Failed to read sort preference from localStorage:', error)
+    }
+    return defaultSort
+  }
+
+  const sort = ref<string>(getInitialSort())
+
+  watch(sort, newSort => {
+    try {
+      localStorage.setItem(storageKey, newSort)
+    } catch (error) {
+      console.warn('Failed to save sort preference to localStorage:', error)
+    }
+  })
+
+  return {
+    sort,
   }
 }

@@ -97,15 +97,19 @@
           <div class='flex justify-center'>
             <div class='flex items-center space-x-2'>
               <!-- Shuffle -->
-              <Button
+              <button
                 @click='playerStore.toggleShuffle'
-                size='icon'
-                variant='ghost'
+                :class="[
+                  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-8 w-8',
+                  playerStore.isShuffled
+                    ? 'bg-accent text-accent-foreground hover:bg-accent/90'
+                    : 'hover:bg-accent/20',
+                ]"
               >
                 <Shuffle
-                  :class="['w-5 h-5', playerStore.isShuffled ? 'text-foreground' : 'text-muted-foreground']"
+                  :class="['w-4 h-4', playerStore.isShuffled ? '' : 'text-muted-foreground']"
                 />
-              </Button>
+              </button>
               <!-- Previous -->
               <Button
                 @click='previousSong'
@@ -137,23 +141,27 @@
                 <SkipForward class='w-4 h-4' />
               </Button>
               <!-- Repeat -->
-              <Button
+              <button
                 @click='playerStore.cycleRepeatMode'
-                size='icon'
-                variant='ghost'
+                :class="[
+                  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-8 w-8',
+                  playerStore.repeatMode !== 'none'
+                    ? 'bg-accent text-accent-foreground hover:bg-accent/90'
+                    : 'hover:bg-accent/20',
+                ]"
               >
                 <Repeat1
                   v-if="playerStore.repeatMode === 'one'"
-                  class='w-5 h-5 text-foreground'
+                  class='w-4 h-4'
                 />
                 <Repeat
                   v-else
                   :class="[
-                    'w-5 h-5',
-                    playerStore.repeatMode !== 'none' ? 'text-foreground' : 'text-muted-foreground',
+                    'w-4 h-4',
+                    playerStore.repeatMode === 'none' ? 'text-muted-foreground' : '',
                   ]"
                 />
-              </Button>
+              </button>
             </div>
           </div>
           <!-- Progress Bar -->
@@ -183,14 +191,15 @@
                 :class="[
                   'w-5 h-5',
                   playerStore.currentSong.isFavorite
-                    ? 'text-foreground fill-current'
-                    : 'text-muted-foreground',
+                    ? 'fill-current'
+                    : '',
                 ]"
               />
             </Button>
+
             <!-- Fullscreen -->
             <Button @click="$emit('toggle-fullscreen')" size='icon' variant='ghost'>
-              <Expand class='w-5 h-5 text-muted-foreground' />
+              <Expand class='w-5 h-5' />
             </Button>
 
             <!-- EQ (WebAudio only) -->
@@ -203,10 +212,10 @@
               <Sliders
                 :class="[
                   'w-5 h-5',
-                  playerStore.eqEnabled ? 'text-foreground' : 'text-muted-foreground'
                 ]"
               />
             </Button>
+
             <!-- Volume -->
             <div class='flex items-center space-x-2'>
               <button

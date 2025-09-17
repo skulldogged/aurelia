@@ -283,7 +283,7 @@
           :show-track-number='true'
           :songs='albumSongs'
           :token='props.token'
-          layout='list'
+          layout='comfy'
         />
       </div>
     </div>
