@@ -16,7 +16,6 @@ fn get_image_cache_dir(app: &AppHandle) -> AppResult<std::path::PathBuf> {
         .map_err(|e| crate::error::AppError::FileSystem(e.to_string()))?
         .join("image_cache");
 
-    // Create the cache directory if it doesn't exist
     if !cache_dir.exists() {
         std::fs::create_dir_all(&cache_dir)?;
     }
@@ -24,12 +23,10 @@ fn get_image_cache_dir(app: &AppHandle) -> AppResult<std::path::PathBuf> {
     Ok(cache_dir)
 }
 
-/// Generate a cache key for an image
 fn generate_cache_key(item_id: &str, image_type: &str) -> String {
     format!("{}_{}", item_id, image_type)
 }
 
-/// Check if a cached image exists and return its data URL
 #[tauri::command]
 #[specta::specta]
 pub async fn get_cached_image_data_url(
@@ -42,7 +39,6 @@ pub async fn get_cached_image_data_url(
     let cache_path = cache_dir.join(format!("{}.jpg", cache_key));
 
     if cache_path.exists() {
-        // Read the image file and convert to base64 data URL
         let image_data = fs::read(&cache_path)
             .await
             .map_err(|e| format!("Failed to read cached image: {}", e))?;
@@ -56,7 +52,6 @@ pub async fn get_cached_image_data_url(
     }
 }
 
-/// Cache an image from a URL
 #[tauri::command]
 #[specta::specta]
 pub async fn cache_image_from_url(
@@ -71,12 +66,10 @@ pub async fn cache_image_from_url(
     let cache_key = generate_cache_key(&item_id, &image_type);
     let cache_path = cache_dir.join(format!("{}.jpg", cache_key));
 
-    // If image is already cached, return the path
     if cache_path.exists() {
         return Ok(cache_path.to_string_lossy().to_string());
     }
 
-    // Download the image
     let client = reqwest::Client::new();
     let response = client
         .get(&image_url)
@@ -101,25 +94,21 @@ pub async fn cache_image_from_url(
         .await
         .map_err(|e| format!("Failed to read image data: {}", e))?;
 
-    // Save to cache (clone so we can still use the data)
     fs::write(&cache_path, &image_bytes)
         .await
         .map_err(|e| format!("Failed to save image to cache: {}", e))?;
 
-    // Return as data URL
     let base64_data = base64::engine::general_purpose::STANDARD.encode(&image_bytes);
     let data_url = format!("data:image/jpeg;base64,{}", base64_data);
     Ok(data_url)
 }
 
-/// Clear the image cache
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_image_cache(app: AppHandle) -> Result<(), String> {
     let cache_dir = get_image_cache_dir(&app).map_err(|e| e.to_string())?;
 
     if cache_dir.exists() {
-        // Remove all files in the cache directory
         let mut entries = fs::read_dir(&cache_dir)
             .await
             .map_err(|e| format!("Failed to read cache directory: {}", e))?;
@@ -139,7 +128,6 @@ pub async fn clear_image_cache(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Get cache statistics
 #[tauri::command]
 #[specta::specta]
 pub async fn get_image_cache_stats(app: AppHandle) -> Result<String, String> {
@@ -157,11 +145,11 @@ pub async fn get_image_cache_stats(app: AppHandle) -> Result<String, String> {
             .await
             .map_err(|e| format!("Failed to read directory entry: {}", e))?
         {
-            if entry.path().is_file() {
-                if let Ok(metadata) = entry.metadata().await {
-                    total_size += metadata.len();
-                    file_count += 1;
-                }
+            if entry.path().is_file()
+                && let Ok(metadata) = entry.metadata().await
+            {
+                total_size += metadata.len();
+                file_count += 1;
             }
         }
     }

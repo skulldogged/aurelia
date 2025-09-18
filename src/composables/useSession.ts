@@ -17,7 +17,6 @@ interface SessionState {
 export const useSession = () => {
   const authStore = useAuthStore()
 
-  // Session state
   const sessionState = ref<SessionState>({
     sessionId:     null,
     playSessionId: null,
@@ -27,10 +26,8 @@ export const useSession = () => {
     appVersion:    '',
   })
 
-  // Initialize session management
   const initializeSession = async () => {
     try {
-      // Generate unique device ID
       const webview = getCurrentWebviewWindow()
       const label = webview.label
       const version = await getVersion()
@@ -39,7 +36,6 @@ export const useSession = () => {
       sessionState.value.deviceName = `Tauri Music Player (${label})`
       sessionState.value.appVersion = version
 
-      // Generate initial session IDs
       sessionState.value.sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       sessionState.value.playSessionId = `play-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
@@ -53,7 +49,6 @@ export const useSession = () => {
     }
   }
 
-  // Register client capabilities with Jellyfin
   const registerCapabilities = async () => {
     if (!authStore.serverUrl || !authStore.token || sessionState.value.isRegistered) {
       return
@@ -76,7 +71,6 @@ export const useSession = () => {
     }
   }
 
-  // Report playback start
   const reportPlaybackStart = async (
     itemId: string,
     positionTicks?: number,
@@ -98,7 +92,6 @@ export const useSession = () => {
     }
   }
 
-  // Report playback progress
   const reportPlaybackProgress = async (
     itemId: string,
     positionTicks: number,
@@ -123,7 +116,6 @@ export const useSession = () => {
     }
   }
 
-  // Report playback stop
   const reportPlaybackStop = async (itemId: string, positionTicks?: number) => {
     if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered) {
       return
@@ -139,14 +131,12 @@ export const useSession = () => {
 
       logger.debug('Playback stop reported', { itemId, positionTicks })
 
-      // Generate new play session ID for next playback
       sessionState.value.playSessionId = `play-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     } catch (error) {
       logger.error('Failed to report playback stop:', error)
     }
   }
 
-  // Mark item as played
   const markItemPlayed = async (itemId: string) => {
     if (!authStore.serverUrl || !authStore.token || !authStore.userId) {
       return
@@ -177,10 +167,8 @@ export const useSession = () => {
   }
 
   return {
-    // State
     sessionState: readonly(sessionState),
 
-    // Methods
     initializeSession,
     registerCapabilities,
     reportPlaybackStart,

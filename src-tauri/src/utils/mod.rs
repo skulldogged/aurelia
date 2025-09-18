@@ -77,12 +77,10 @@ pub mod pagination {
         offset: Option<i32>,
         limit: Option<i32>,
     ) -> Vec<T> {
-        // Apply offset (skip items)
         if let Some(offset) = offset {
             items = items.into_iter().skip(offset as usize).collect();
         }
 
-        // Apply limit (take items)
         if let Some(limit) = limit {
             items = items.into_iter().take(limit as usize).collect();
         }
@@ -92,16 +90,16 @@ pub mod pagination {
 
     /// Check if pagination parameters are valid
     pub fn validate_pagination(offset: Option<i32>, limit: Option<i32>) -> Result<(), String> {
-        if let Some(offset) = offset {
-            if offset < 0 {
-                return Err("Offset must be non-negative".to_string());
-            }
+        if let Some(offset) = offset
+            && offset < 0
+        {
+            return Err("Offset must be non-negative".to_string());
         }
 
-        if let Some(limit) = limit {
-            if limit <= 0 {
-                return Err("Limit must be positive".to_string());
-            }
+        if let Some(limit) = limit
+            && limit <= 0
+        {
+            return Err("Limit must be positive".to_string());
         }
 
         Ok(())

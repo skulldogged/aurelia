@@ -11,13 +11,10 @@ export interface AccentColor {
 }
 
 export const useAccentColorStore = defineStore('accentColor', () => {
-  // State
   const accentColorName = useLocalStorage('accent-color', 'blue')
 
-  // Get theme store for accessing current scheme
   const themeStore = useThemeStore()
 
-  // Getters
   const accentColors = computed(() => {
     return themeStore.selectedScheme?.accentColors || []
   })
@@ -40,14 +37,12 @@ export const useAccentColorStore = defineStore('accentColor', () => {
       return color.foreground
     }
 
-    // Calculate foreground based on luminance
     const luminance = getLuminance(color.hex)
     return luminance > 0.4
       ? 'oklch(0.21 0.006 285.885)' // dark text
       : 'oklch(0.985 0 0)' // light text
   })
 
-  // Actions
   const setAccentColor = (colorName: string) => {
     accentColorName.value = colorName
   }
@@ -79,10 +74,8 @@ export const useAccentColorStore = defineStore('accentColor', () => {
       const root = document.documentElement
       const luminance = getLuminance(color.hex)
 
-      // Set accent color
       root.style.setProperty('--accent', color.hex)
 
-      // Set accent foreground color based on luminance
       if (color.foreground) {
         root.style.setProperty('--accent-foreground', color.foreground)
       } else if (luminance > 0.4) {
@@ -98,7 +91,6 @@ export const useAccentColorStore = defineStore('accentColor', () => {
     return luminance > 0.4 ? '#000000' : '#ffffff'
   }
 
-  // Watch for accent color changes and apply them
   watch(accentColor, newColor => {
     if (newColor) {
       applyAccentColor(newColor)
@@ -106,14 +98,11 @@ export const useAccentColorStore = defineStore('accentColor', () => {
   }, { immediate: true })
 
   return {
-    // State
     accentColorName,
-    // Getters
     accentColor,
     accentColors,
     currentAccentHex,
     currentAccentForeground,
-    // Actions
     setAccentColor,
     setAccentColorByHex,
     resetToDefault,

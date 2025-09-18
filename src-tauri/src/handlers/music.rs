@@ -1,7 +1,7 @@
 //! Music-related command handlers
 
 use crate::cache;
-use crate::models::{jellyfin::ClientCapabilities, Album, Artist, Song};
+use crate::models::{Album, Artist, Song, jellyfin::ClientCapabilities};
 use crate::services::JellyfinClient;
 use crate::utils::pagination;
 use std::collections::HashMap;
@@ -38,11 +38,9 @@ pub async fn get_songs(
     album_id: Option<String>,
     artist_id: Option<String>,
 ) -> Result<Vec<Song>, String> {
-    // Get all songs from cache first
     let all_songs = match cache::get_songs().await {
         Ok(items) if !items.is_empty() => items,
         _ => {
-            // Fetch from server if cache is empty or fails
             if let (Some(server_url), Some(token)) = (server_url, token) {
                 fetch_and_cache_library(server_url, token).await?
             } else {
@@ -55,7 +53,6 @@ pub async fn get_songs(
 
     let mut filtered_songs = all_songs;
 
-    // Apply filters
     if let Some(album_id) = album_id {
         filtered_songs.retain(|song| song.album_id.as_ref() == Some(&album_id));
     }
@@ -69,7 +66,6 @@ pub async fn get_songs(
         });
     }
 
-    // Apply pagination using utility function
     let paginated_songs = pagination::apply_pagination(filtered_songs, offset, limit);
 
     Ok(paginated_songs)
@@ -98,7 +94,6 @@ pub async fn get_albums(
     offset: Option<i32>,
 ) -> Result<Vec<Album>, String> {
     let albums = if let (Some(server_url), Some(token)) = (server_url, token) {
-        // Fetch fresh albums from Jellyfin
         let client = crate::services::JellyfinClient::with_auth(server_url, token);
         let user_id = crate::handlers::auth::get_saved_credentials()
             .map_err(|e| e.to_string())?
@@ -110,18 +105,14 @@ pub async fn get_albums(
             .await
             .map_err(|e| e.to_string())?
     } else {
-        // Fall back to cached albums
         cache::get_albums().await.map_err(|e| e.to_string())?
     };
 
-    // Apply pagination using utility function
     let mut albums = pagination::apply_pagination(albums, offset, limit);
 
-    // Include songs if requested
     if include_songs.unwrap_or(false) {
         let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
-        // Group songs by album
         let mut album_songs: std::collections::HashMap<String, Vec<Song>> =
             std::collections::HashMap::new();
         for song in all_songs {
@@ -130,12 +121,11 @@ pub async fn get_albums(
             }
         }
 
-        // Add songs to albums
         for album in &mut albums {
-            if let Some(id) = &album.id {
-                if let Some(songs) = album_songs.get(id) {
-                    album.songs = Some(songs.clone());
-                }
+            if let Some(id) = &album.id
+                && let Some(songs) = album_songs.get(id)
+            {
+                album.songs = Some(songs.clone());
             }
         }
     }
@@ -154,7 +144,6 @@ pub async fn get_album(album_id: String, include_songs: Option<bool>) -> Result<
         .find(|album| album.id.as_ref() == Some(&album_id))
         .ok_or_else(|| format!("Album with ID '{}' not found", album_id))?;
 
-    // Include songs if requested
     if include_songs.unwrap_or(false) {
         let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
@@ -196,9 +185,7 @@ pub async fn get_artists(
     limit: Option<i32>,
     offset: Option<i32>,
 ) -> Result<Vec<Artist>, String> {
-    // Choose the correct endpoint based on album_artists_only flag
     let artists = if album_artists_only.unwrap_or(false) {
-        // Album artists only - use Jellyfin's album artists endpoint
         if let (Some(server_url), Some(token)) = (server_url, token) {
             let client = JellyfinClient::with_auth(server_url, token);
             client
@@ -209,13 +196,11 @@ pub async fn get_artists(
             return Err("No server credentials provided for album artists".to_string());
         }
     } else {
-        // All artists - use cached data or fetch from API
         match crate::cache::get_artists().await {
             Ok(cached_artists) if !cached_artists.is_empty() => cached_artists,
             _ => {
                 if let (Some(server_url), Some(token)) = (server_url, token) {
                     let client = JellyfinClient::with_auth(server_url, token);
-                    // Prefer Items endpoint for richer metadata
                     let user_id = crate::handlers::auth::get_saved_credentials()
                         .map_err(|e| e.to_string())?
                         .map(|creds| creds.user_id)
@@ -225,7 +210,6 @@ pub async fn get_artists(
                         Err(_) => client.get_all_artists().await.map_err(|e| e.to_string())?,
                     };
 
-                    // Cache the artists
                     if let Err(e) = crate::cache::cache_artists(&fresh_artists).await {
                         warn!("Failed to cache artists: {}", e);
                     }
@@ -243,14 +227,11 @@ pub async fn get_artists(
 
     let result_artists = artists;
 
-    // Apply pagination using utility function
     let mut result_artists = pagination::apply_pagination(result_artists, offset, limit);
 
-    // Include songs if requested
     if include_songs.unwrap_or(false) {
         let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
-        // Group songs by artist
         let mut artist_map: HashMap<String, Vec<Song>> = HashMap::new();
 
         for song in &all_songs {
@@ -262,7 +243,6 @@ pub async fn get_artists(
                         .push(song.clone());
                 }
             } else {
-                // Handle songs with no artist
                 artist_map
                     .entry("Unknown Artist".to_string())
                     .or_default()
@@ -270,7 +250,6 @@ pub async fn get_artists(
             }
         }
 
-        // Update artists with songs
         for artist in &mut result_artists {
             if let Some(songs) = artist_map.get(&artist.name) {
                 artist.song_count = Some(songs.len() as i32);
@@ -282,7 +261,6 @@ pub async fn get_artists(
         }
     }
 
-    // Sort artists by name
     result_artists.sort_by(|a, b| a.name.cmp(&b.name));
 
     Ok(result_artists)
@@ -304,13 +282,11 @@ pub async fn get_artist(
         }
     };
 
-    // If not found in cache, fetch directly from Jellyfin and merge into cache
     if artist_opt.is_none() {
         if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials() {
             let client = JellyfinClient::with_auth(creds.server_url, creds.token);
             match client.get_artist_details(&creds.user_id, &artist_id).await {
                 Ok(fresh) => {
-                    // Try to append to cache
                     match crate::cache::get_artists().await {
                         Ok(mut current) => {
                             if !current.iter().any(|a| a.id == fresh.id) {
@@ -333,33 +309,30 @@ pub async fn get_artist(
 
     let mut artist = artist_opt.expect("artist should be set by now");
 
-    // If overview is missing, try to fetch fresh details from Jellyfin
-    if artist.overview.is_none() {
-        if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials() {
-            let client = JellyfinClient::with_auth(creds.server_url, creds.token);
-            if let Ok(fresh) = client.get_artist_details(&creds.user_id, &artist_id).await {
-                artist.overview = fresh.overview;
-                artist.image_url = fresh.image_url.or(artist.image_url);
-                artist.provider_ids = fresh.provider_ids.or(artist.provider_ids);
-                artist.community_rating = fresh.community_rating.or(artist.community_rating);
-                artist.name = fresh.name;
-            }
+    if artist.overview.is_none()
+        && let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials()
+    {
+        let client = JellyfinClient::with_auth(creds.server_url, creds.token);
+        if let Ok(fresh) = client.get_artist_details(&creds.user_id, &artist_id).await {
+            artist.overview = fresh.overview;
+            artist.image_url = fresh.image_url.or(artist.image_url);
+            artist.provider_ids = fresh.provider_ids.or(artist.provider_ids);
+            artist.community_rating = fresh.community_rating.or(artist.community_rating);
+            artist.name = fresh.name;
         }
     }
 
-    // Include songs if requested
     if include_songs.unwrap_or(false) {
         let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
         let artist_songs: Vec<Song> = if album_artists_only.unwrap_or(false) {
-            // Album artists mode: check if this artist is actually an album artist
             let mut is_album_artist = false;
             for song in &all_songs {
-                if let Some(artists) = &song.album_artists {
-                    if artists.iter().any(|a| a.id == artist_id) {
-                        is_album_artist = true;
-                        break;
-                    }
+                if let Some(artists) = &song.album_artists
+                    && artists.iter().any(|a| a.id == artist_id)
+                {
+                    is_album_artist = true;
+                    break;
                 }
             }
 
@@ -424,7 +397,6 @@ pub async fn toggle_favorite_status(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Return the new favorite status
     Ok(is_favorite)
 }
 
@@ -432,7 +404,6 @@ pub async fn toggle_favorite_status(
 #[tauri::command]
 #[specta::specta]
 pub async fn sync_library(server_url: String, token: String) -> Result<(), String> {
-    // Fetch fresh data from server and update cache
     fetch_and_cache_library(server_url, token).await?;
     Ok(())
 }
@@ -442,7 +413,6 @@ pub async fn sync_library(server_url: String, token: String) -> Result<(), Strin
 #[specta::specta]
 pub async fn clear_cache(server_url: String, token: String) -> Result<(), String> {
     cache::clear_cache().await?;
-    // Re-populate the cache immediately
     fetch_and_cache_library(server_url, token).await?;
     Ok(())
 }

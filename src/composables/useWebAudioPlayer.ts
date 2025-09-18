@@ -1,7 +1,6 @@
 import { playerLogger } from '@/lib/logger'
 import { usePlayerStore } from '@/stores/player'
 
-// EQ Band interface
 export interface EQBand {
   frequency: number,
   gain:      number,
@@ -9,13 +8,11 @@ export interface EQBand {
   Q:         number,
 }
 
-// EQ Preset interface
 export interface EQPreset {
   name:  string,
   bands: EQBand[],
 }
 
-// Web Audio API player implementation with streaming support
 let audioContext: AudioContext | null = null
 let mediaElement: HTMLAudioElement | null = null
 let mediaSource: MediaElementAudioSourceNode | null = null
@@ -114,10 +111,8 @@ const EQ_PRESETS : EQPreset[] = [
   },
 ]
 
-// Initialize Web Audio API context with streaming support
 const initializeWebAudio = async (): Promise<boolean> => {
   try {
-    // Create audio context if it doesn't exist
     if (!audioContext) {
       const AudioContextClass =
         window.AudioContext ||
@@ -138,7 +133,6 @@ const initializeWebAudio = async (): Promise<boolean> => {
   }
 }
 
-// Check if Web Audio API is available
 const isWebAudioAvailable = (): boolean => {
   try {
     const AudioContextClass =
@@ -152,7 +146,6 @@ const isWebAudioAvailable = (): boolean => {
   }
 }
 
-// Initialize EQ nodes
 const initializeEQ = (): boolean => {
   try {
     if (!audioContext) {
@@ -160,12 +153,10 @@ const initializeEQ = (): boolean => {
       return false
     }
 
-    // Clean up existing EQ nodes
     if (eqNodes) {
       eqNodes.forEach(node => node.disconnect())
     }
 
-    // Create EQ filter nodes for each band
     eqNodes = DEFAULT_EQ_BANDS.map(band => {
       const filter = audioContext!.createBiquadFilter()
       filter.type = band.type as BiquadFilterType
@@ -173,7 +164,6 @@ const initializeEQ = (): boolean => {
       filter.gain.value = band.gain
       filter.Q.value = band.Q
 
-      // Log the filter configuration
       playerLogger.debug(`Created EQ filter: ${band.type} @ ${band.frequency}Hz, Q=${band.Q}, gain=${band.gain}dB`)
 
       return filter
@@ -187,7 +177,6 @@ const initializeEQ = (): boolean => {
   }
 }
 
-// Load stored EQ bands into WebAudio nodes
 const loadStoredEQBands = (): boolean => {
   try {
     if (!eqNodes) {
@@ -195,7 +184,6 @@ const loadStoredEQBands = (): boolean => {
       return false
     }
 
-    // Get stored EQ bands from localStorage
     const stored = localStorage.getItem('player-eq-bands')
     if (!stored) {
       playerLogger.debug('No stored EQ bands found, using defaults')
@@ -208,7 +196,6 @@ const loadStoredEQBands = (): boolean => {
       return true
     }
 
-    // Apply stored values to WebAudio nodes
     parsed.forEach((band: { gain?: number }, index: number) => {
       if (index < eqNodes!.length && typeof band.gain === 'number') {
         const clampedGain = Math.max(-20, Math.min(20, band.gain))
@@ -223,7 +210,6 @@ const loadStoredEQBands = (): boolean => {
   }
 }
 
-// Update EQ connections in audio graph
 const updateAudioGraph = (): boolean => {
   try {
     if (!audioContext || !mediaSource || !gainNode || !analyserNode) {
@@ -237,14 +223,11 @@ const updateAudioGraph = (): boolean => {
     if (eqNodes) eqNodes.forEach(node => node.disconnect())
     analyserNode.disconnect()
 
-    // Reconnect the audio graph
     let currentNode: AudioNode = mediaSource
 
-    // Connect source to gain
     currentNode.connect(gainNode)
     currentNode = gainNode
 
-    // Connect EQ if enabled
     if (eqEnabled && eqNodes) {
       eqNodes.forEach((eqNode, index) => {
         try {
@@ -256,7 +239,6 @@ const updateAudioGraph = (): boolean => {
       })
     }
 
-    // Connect to analyser and destination
     currentNode.connect(analyserNode)
     analyserNode.connect(audioContext.destination)
 
@@ -267,59 +249,45 @@ const updateAudioGraph = (): boolean => {
   }
 }
 
-// Load audio from URL using streaming approach
 const loadAudio = async (url: string): Promise<boolean> => {
   try {
     if (!audioContext) {
       throw new Error('AudioContext not initialized')
     }
 
-    // Stop any current playback
     stop()
 
     playerLogger.debug(`Loading streaming audio via WebAudio API: ${url}`)
 
-    // Create HTML5 audio element for streaming
     if (!mediaElement) {
       mediaElement = new Audio()
       mediaElement.crossOrigin = 'anonymous'
       mediaElement.preload = 'metadata' // Load metadata but not the full audio
     }
 
-    // Set the source URL
     mediaElement.src = url
 
-    // Create MediaElementAudioSourceNode if it doesn't exist
     if (!mediaSource) {
       mediaSource = audioContext.createMediaElementSource(mediaElement)
 
-      // Create gain node for volume control
       gainNode = audioContext.createGain()
 
-      // Create analyser node
       analyserNode = audioContext.createAnalyser()
 
-      // Initialize EQ
       initializeEQ()
 
-      // Load stored EQ bands into the nodes
       loadStoredEQBands()
 
-      // Sync EQ enabled state with player store
       const playerStore = usePlayerStore()
       eqEnabled = playerStore.eqEnabled
 
-      // Apply any pending volume
       gainNode.gain.value = pendingVolume
 
-      // Setup audio graph
       updateAudioGraph()
 
-      // Setup event listeners for playback state tracking
       setupEventListeners()
     }
 
-    // Wait for metadata to load so we have duration information
     return new Promise(resolve => {
       const onMetadataLoaded = () => {
         mediaElement?.removeEventListener('loadedmetadata', onMetadataLoaded)
@@ -336,15 +304,12 @@ const loadAudio = async (url: string): Promise<boolean> => {
       }
 
       if (mediaElement && mediaElement.readyState >= 1) {
-        // Metadata already loaded
         playerLogger.debug(`Streaming audio metadata already loaded, duration: ${mediaElement.duration}s`)
         resolve(true)
       } else {
-        // Wait for metadata
         mediaElement?.addEventListener('loadedmetadata', onMetadataLoaded)
         mediaElement?.addEventListener('error', onError)
 
-        // Load the audio to trigger metadata loading
         mediaElement?.load()
       }
     })
@@ -354,14 +319,12 @@ const loadAudio = async (url: string): Promise<boolean> => {
   }
 }
 
-// Play audio using HTML5 element with Web Audio processing
 const play = async (): Promise<boolean> => {
   try {
     if (!mediaElement) {
       throw new Error('Audio not loaded')
     }
 
-    // Ensure audio context is running
     if (audioContext?.state === 'suspended') {
       await audioContext.resume()
     }
@@ -378,7 +341,6 @@ const play = async (): Promise<boolean> => {
   }
 }
 
-// Pause audio
 const pause = (): boolean => {
   try {
     if (mediaElement && !mediaElement.paused) {
@@ -395,7 +357,6 @@ const pause = (): boolean => {
   }
 }
 
-// Stop audio
 const stop = (): boolean => {
   try {
     if (mediaElement) {
@@ -412,7 +373,6 @@ const stop = (): boolean => {
   }
 }
 
-// Seek to position
 const seek = async (time: number): Promise<boolean> => {
   try {
     if (!mediaElement) {
@@ -435,7 +395,6 @@ const seek = async (time: number): Promise<boolean> => {
   }
 }
 
-// Set volume (0-1)
 const setVolume = (volume: number): boolean => {
   try {
     const clampedVolume = Math.max(0, Math.min(1, volume))
@@ -456,33 +415,26 @@ const setVolume = (volume: number): boolean => {
   }
 }
 
-// Get current playback time
 const getCurrentTime = (): number => mediaElement?.currentTime || 0
 
-// Get duration
 const getDuration = (): number => {
   const duration = mediaElement?.duration
   return (duration && !isNaN(duration) && isFinite(duration) && duration > 0) ? duration : 0
 }
 
-// Check if audio is currently playing
 const getIsPlaying = (): boolean => isPlaying && mediaElement ? !mediaElement.paused && !mediaElement.ended : false
 
-// Check if audio is loaded and ready
 const getIsReady = (): boolean => {
   return mediaElement ? mediaElement.readyState >= 2 : false // HAVE_CURRENT_DATA or higher
 }
 
-// Setup event listeners for HTML5 audio element
 const setupEventListeners = () => {
   if (!mediaElement) return
 
-  // Handle playback end to trigger next song
   mediaElement.addEventListener('ended', () => {
     isPlaying = false
     playerLogger.debug('Streaming audio ended, advancing to next song')
 
-    // Trigger next song advancement
     setTimeout(() => {
       if (typeof window !== 'undefined') {
         const w = window as typeof window & { advanceToNextSong?: () => void }
@@ -492,7 +444,6 @@ const setupEventListeners = () => {
     }, 100)
   })
 
-  // Update playing state
   mediaElement.addEventListener('play', () => {
     isPlaying = true
     playerLogger.debug('Streaming audio started playing')
@@ -503,14 +454,12 @@ const setupEventListeners = () => {
     playerLogger.debug('Streaming audio paused')
   })
 
-  // Handle metadata loading
   mediaElement.addEventListener('loadedmetadata', () => {
     if (mediaElement) {
       playerLogger.debug(`Metadata loaded, duration: ${mediaElement.duration}s`)
     }
   })
 
-  // Handle duration changes
   mediaElement.addEventListener('durationchange', () => {
     if (mediaElement) {
       const duration = mediaElement.duration
@@ -523,38 +472,30 @@ const setupEventListeners = () => {
     }
   })
 
-  // Handle errors
   mediaElement.addEventListener('error', e => {
     playerLogger.error('Streaming audio error:', e)
     isPlaying = false
   })
 }
 
-// EQ Control Functions
-
-// Enable/Disable EQ
 const setEQEnabled = (enabled: boolean): boolean => {
   try {
     eqEnabled = enabled
 
-    // Sync with player store
     const playerStore = usePlayerStore()
     if (playerStore.eqEnabled !== enabled) {
       playerStore.setEQEnabled(enabled)
     }
 
     if (enabled) {
-      // Make sure EQ nodes exist before enabling
       if (!eqNodes) {
         if (!initializeEQ()) {
           return false
         }
       }
 
-      // Always load stored bands when enabling EQ
       loadStoredEQBands()
 
-      // Force update the audio graph
       if (!updateAudioGraph())
         return false
     } else {
@@ -568,10 +509,8 @@ const setEQEnabled = (enabled: boolean): boolean => {
   }
 }
 
-// Get EQ enabled state
 const getEQEnabled = (): boolean => eqEnabled
 
-// Set EQ band gain
 const setEQBandGain = (bandIndex: number, gain: number): boolean => {
   try {
     if (!eqNodes || bandIndex < 0 || bandIndex >= eqNodes.length) {
@@ -582,7 +521,6 @@ const setEQBandGain = (bandIndex: number, gain: number): boolean => {
     const clampedGain = Math.max(-20, Math.min(20, gain)) // Clamp to -20dB to +20dB
     eqNodes[bandIndex].gain.value = clampedGain
 
-    // Sync with player store
     const playerStore = usePlayerStore()
     playerStore.setEQBandGain(bandIndex, clampedGain)
 
@@ -593,7 +531,6 @@ const setEQBandGain = (bandIndex: number, gain: number): boolean => {
   }
 }
 
-// Get EQ band gain
 const getEQBandGain = (bandIndex: number): number => {
   if (!eqNodes || bandIndex < 0 || bandIndex >= eqNodes.length) {
     return 0
@@ -601,7 +538,6 @@ const getEQBandGain = (bandIndex: number): number => {
   return eqNodes[bandIndex].gain.value
 }
 
-// Get all EQ bands
 const getEQBands = (): EQBand[] => {
   return DEFAULT_EQ_BANDS.map((band, index) => ({
     ...band,
@@ -609,7 +545,6 @@ const getEQBands = (): EQBand[] => {
   }))
 }
 
-// Apply EQ preset
 const applyEQPreset = (presetName: string): boolean => {
   try {
     const preset = EQ_PRESETS.find(p => p.name === presetName)
@@ -630,10 +565,8 @@ const applyEQPreset = (presetName: string): boolean => {
   }
 }
 
-// Get available EQ presets
 const getEQPresets = (): EQPreset[] => EQ_PRESETS
 
-// Reset EQ to flat
 const resetEQ = (): boolean => {
   try {
     DEFAULT_EQ_BANDS.forEach((band, index) => {
@@ -647,12 +580,10 @@ const resetEQ = (): boolean => {
   }
 }
 
-// Set callback for duration changes
 const setOnDurationChange = (callback: (duration: number) => void) => {
   onDurationChange = callback
 }
 
-// Cleanup Web Audio resources
 const cleanup = () => {
   try {
     stop()
@@ -690,12 +621,10 @@ const cleanup = () => {
 }
 
 export const useWebAudioPlayer = () => ({
-  // Initialization
   initializeWebAudio,
   isWebAudioAvailable,
   cleanup,
 
-  // Audio loading and playback
   loadAudio,
   play,
   pause,
@@ -703,13 +632,11 @@ export const useWebAudioPlayer = () => ({
   seek: seek as (time: number) => Promise<boolean>,
   setVolume,
 
-  // State getters
   getCurrentTime,
   getDuration,
   getIsPlaying,
   getIsReady,
 
-  // EQ Controls
   setEQEnabled,
   getEQEnabled,
   setEQBandGain,
@@ -719,10 +646,8 @@ export const useWebAudioPlayer = () => ({
   getEQPresets,
   resetEQ,
 
-  // EQ Utilities
   loadStoredEQBands,
 
-  // Callbacks
   setOnDurationChange,
 })
 

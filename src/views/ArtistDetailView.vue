@@ -458,7 +458,7 @@
   let scrollResizeObserver: ResizeObserver | null = null
   const artist = ref<Artist | null>(null)
   const artistLoading = ref(false)
-  const showSkeleton = ref(false) // dev toggle for skeleton preview
+  const showSkeleton = ref(false)
   const allSongs = ref<Song[]>([])
   const allArtists = ref<Artist[]>([])
   const showFullOverview = ref(false)
@@ -666,14 +666,12 @@
       })
     })
 
-    if (genreCounts.size === 0) {
+    if (!genreCounts.size === 0) {
       return []
     }
 
-    // Sort genres by count, descending
     const sortedGenres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1])
 
-    // Return the top 5 genre names
     return sortedGenres.slice(0, 5).map(([genre]) => genre)
   })
 
@@ -699,7 +697,6 @@
     return pairs
   }
 
-  // Determine if a song is a single: album name equals song name and album has only this track
   const albumTrackCountsById = computed(() => {
     const counts = new Map<string, number>()
     for (const s of allSongs.value) {
@@ -722,7 +719,6 @@
       const sameName = (album.name || '').trim().toLowerCase() === (only.name || '').trim().toLowerCase()
       return sameName
     }
-    // Fallback using counts map if songs not populated
     if (album.id) {
       const count = albumTrackCountsById.value.get(album.id) || 0
       if (count === 1) return true
@@ -761,7 +757,6 @@
     const allPairs = albumArtistPairsFor(album)
     const current = artist.value?.name
     const filtered = allPairs.filter(p => p.name !== current)
-    // Show only if there is at least one collaborator AND the album isn't solely by the current artist
     return filtered
   }
 
@@ -783,7 +778,6 @@
 
   watch(artistId, fetchArtistData, { immediate: true })
 
-  // Ensure scroll buttons/fade update when the album list changes/render completes
   watch(() => artistAlbums.value.length, async () => {
     await nextTick()
     updateScrollButtons()
@@ -818,7 +812,6 @@
       'DiscogsArtist':     id => `https://www.discogs.com/artist/${id}`,
       'LastFmArtist':      id => `https://www.last.fm/music/${encodeURIComponent(id)}`,
       'WikipediaArtist':   id => `https://en.wikipedia.org/wiki/${encodeURIComponent(id)}`,
-      // Fallback mappings for generic names
       'MusicBrainz':       id => `https://musicbrainz.org/artist/${id}`,
       'Spotify':           id => `https://open.spotify.com/artist/${id}`,
       'AppleMusic':        id => `https://music.apple.com/artist/${id}`,

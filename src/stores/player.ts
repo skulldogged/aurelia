@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import type { Song } from '@/bindings'
 import { playerLogger } from '@/lib/logger'
 
-// EQ Band interface
 export interface EQBand {
   frequency: number
   gain:      number
@@ -21,7 +20,6 @@ export interface PlayerState {
   hasNext:     boolean
 }
 
-// Local storage keys
 const STORAGE_KEYS = {
   VOLUME:       'player-volume',
   MUTED_VOLUME: 'player-muted-volume',
@@ -32,7 +30,6 @@ const STORAGE_KEYS = {
   EQ_BANDS:     'player-eq-bands',
 }
 
-// Helper functions for localStorage
 const getStoredValue = <T>(key: string, defaultValue: T): T => {
   try {
     const stored = localStorage.getItem(key)
@@ -41,14 +38,12 @@ const getStoredValue = <T>(key: string, defaultValue: T): T => {
       return defaultValue
     }
 
-    // Handle boolean values stored as strings
     if (typeof defaultValue === 'boolean') {
       const result = (stored === 'true') as T
       playerLogger.debug(`Loaded ${key} from localStorage:`, result)
       return result
     }
 
-    // Handle numeric values
     if (typeof defaultValue === 'number') {
       const parsed = parseFloat(stored)
       const result = isNaN(parsed) ? defaultValue : parsed as T
@@ -56,7 +51,6 @@ const getStoredValue = <T>(key: string, defaultValue: T): T => {
       return result
     }
 
-    // Handle string values
     if (typeof defaultValue === 'string') {
       playerLogger.debug(`Loaded ${key} from localStorage:`, stored)
       return stored as T
@@ -78,7 +72,6 @@ const setStoredValue = <T>(key: string, value: T): void => {
   }
 }
 
-// Default EQ bands (flat)
 const DEFAULT_EQ_BANDS: EQBand[] = [
   { frequency: 60, gain: 0, type: 'lowshelf', Q: 0.707 },
   { frequency: 250, gain: 0, type: 'peaking', Q: 1.414 },
@@ -87,7 +80,6 @@ const DEFAULT_EQ_BANDS: EQBand[] = [
   { frequency: 16000, gain: 0, type: 'highshelf', Q: 0.707 },
 ]
 
-// Helper to get stored EQ bands
 const getStoredEQBands = (): EQBand[] => {
   try {
     const stored = localStorage.getItem(STORAGE_KEYS.EQ_BANDS)
@@ -104,7 +96,6 @@ const getStoredEQBands = (): EQBand[] => {
 }
 
 export const usePlayerStore = defineStore('player', () => {
-  // State - Initialize with persisted values
   const isPlaying = ref(false)
   const currentTime = ref(0)
   const duration = ref(0)
@@ -114,27 +105,23 @@ export const usePlayerStore = defineStore('player', () => {
   const isShuffled = ref(getStoredValue(STORAGE_KEYS.IS_SHUFFLED, false))
   const repeatMode = ref<'none' | 'one' | 'all'>(getStoredValue(STORAGE_KEYS.REPEAT_MODE, 'none'))
 
-  // EQ state
   const eqEnabled = ref(getStoredValue(STORAGE_KEYS.EQ_ENABLED, false))
   const eqBands = ref(getStoredEQBands())
   const hasPrevious = ref(false)
   const hasNext = ref(false)
 
-  // New centralized state
   const currentSong = ref<Song | null>(null)
   const playlist = ref<Song[]>([])
   const currentIndex = ref(-1)
   const audioReady = ref(false)
   const isBuffering = ref(false)
 
-  // Getters
   const progress = computed(() => duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0)
 
   const formattedCurrentTime = computed(() => formatTime(currentTime.value))
 
   const formattedDuration = computed(() => formatTime(duration.value))
 
-  // Actions
   const play = () => {
     isPlaying.value = true
   }
@@ -194,7 +181,6 @@ export const usePlayerStore = defineStore('player', () => {
     setStoredValue(STORAGE_KEYS.REPEAT_MODE, repeatMode.value)
   }
 
-  // EQ actions
   const setEQEnabled = (enabled: boolean) => {
     eqEnabled.value = enabled
     setStoredValue(STORAGE_KEYS.EQ_ENABLED, enabled)
@@ -217,7 +203,6 @@ export const usePlayerStore = defineStore('player', () => {
     setEQBands(eqBands.value)
   }
 
-  // New actions for centralized state
   const setCurrentSong = (song: Song | null) => {
     currentSong.value = song
     // Reset time values when song changes to prevent stale seekbar data
@@ -310,12 +295,10 @@ export const usePlayerStore = defineStore('player', () => {
     hasNext.value = false
   }
 
-  // Helper function
   const formatTime = (seconds: number): string =>
     `${Math.floor(seconds / 60)}:${(Math.floor(seconds % 60)).toString().padStart(2, '0')}`
 
   return {
-    // State
     isPlaying,
     currentTime,
     duration,
@@ -333,11 +316,9 @@ export const usePlayerStore = defineStore('player', () => {
     isBuffering,
     eqEnabled,
     eqBands,
-    // Getters
     progress,
     formattedCurrentTime,
     formattedDuration,
-    // Actions
     play,
     pause,
     togglePlay,
@@ -359,7 +340,6 @@ export const usePlayerStore = defineStore('player', () => {
     nextSong,
     previousSong,
     playSongAtIndex,
-    // EQ actions
     setEQEnabled,
     setEQBands,
     setEQBandGain,

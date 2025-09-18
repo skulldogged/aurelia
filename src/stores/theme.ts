@@ -4,10 +4,8 @@ import { useLocalStorage } from '@vueuse/core'
 import { COLOR_SCHEMES, type ColorScheme } from '@/lib/color-schemes'
 
 export const useThemeStore = defineStore('theme', () => {
-  // State
   const selectedSchemeName = useLocalStorage('color-scheme', 'default-light')
 
-  // Getters
   const selectedScheme = computed(() => {
     return COLOR_SCHEMES.find(s => s.name === selectedSchemeName.value) || COLOR_SCHEMES[0]
   })
@@ -18,7 +16,6 @@ export const useThemeStore = defineStore('theme', () => {
     return selectedScheme.value?.name.includes('dark') || false
   })
 
-  // Actions
   const setColorScheme = (schemeName: string) => {
     selectedSchemeName.value = schemeName
   }
@@ -30,7 +27,6 @@ export const useThemeStore = defineStore('theme', () => {
       const baseName = currentScheme.name.replace('-dark', '').replace('-light', '')
       const newSchemeName = isDark ? `${baseName}-light` : `${baseName}-dark`
 
-      // Check if the opposite scheme exists
       const targetScheme = COLOR_SCHEMES.find(s => s.name === newSchemeName)
       if (targetScheme) {
         setColorScheme(newSchemeName)
@@ -73,7 +69,6 @@ export const useThemeStore = defineStore('theme', () => {
     setColorScheme('default-light')
   }
 
-  // Watch for scheme changes and apply them
   watch(selectedScheme, newScheme => {
     if (newScheme) {
       applyColorScheme(newScheme)
@@ -81,13 +76,10 @@ export const useThemeStore = defineStore('theme', () => {
   }, { immediate: true })
 
   return {
-    // State
     selectedSchemeName,
-    // Getters
     selectedScheme,
     colorSchemes,
     isDarkMode,
-    // Actions
     setColorScheme,
     toggleDarkMode,
     applyColorScheme,

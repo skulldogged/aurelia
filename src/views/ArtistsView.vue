@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { computed, ref, watch, onMounted } from 'vue'
+  import { ref, onMounted, watch, computed } from 'vue'
   import { useRouter } from 'vue-router'
   import { Song, Artist, commands } from '@/bindings'
   import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import { uiLogger } from '@/lib/logger'
+  import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
 
   const router = useRouter()
   const { getArtists } = commands

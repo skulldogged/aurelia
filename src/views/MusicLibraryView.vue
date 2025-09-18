@@ -116,35 +116,28 @@
   import { useDataFetching } from '@/composables/useDataFetching'
   import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
 
-  // Define props from parent
   const props = defineProps<{
     currentSong: Song | null
     isPlaying:   boolean
     credentials: Credentials
   }>()
 
-  // Define emits for parent
   const emit = defineEmits<{
     'play-song':       [song: Song]
     'toggle-favorite': [song: Song]
   }>()
 
-  // Use data fetching composable
   const { songs, isLoading: dataLoading, hasError, songsState, fetchSongs } = useDataFetching(props.credentials)
 
-  // Search functionality
   const searchQuery = ref('')
 
-  // Layout preference with localStorage persistence
   const { layout: viewLayout } = useLayoutPreference('songlist-layout', 'comfy')
   const { sort: sortOption } = useSortPreference('songlist-sort', 'Title')
 
   const sortingOptions = ['Title', 'Artist', 'Album', 'Date Added', 'Play Count']
 
-  // Local search implementation using Fuse
   const songFuse = ref<Fuse<Song>>()
 
-  // Initialize search when songs change
   watch(songs, newSongs => {
     if (newSongs && newSongs.length > 0) {
       songFuse.value = new Fuse(newSongs, {
@@ -160,7 +153,6 @@
     }
   }, { immediate: true })
 
-  // Computed filtered songs
   const filteredSongs = computed(() => {
     if (!searchQuery.value || searchQuery.value.length < 2 || !songFuse.value) {
       return songs.value
@@ -186,33 +178,27 @@
     }
   })
 
-  // Local loading state for initial fetch
   const loading = ref(false)
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
-  // Fetch data on mount
   const fetchMusicLibrary = async () => {
     loading.value = true
     try {
       await fetchSongs()
     } catch {
-      // Error is handled by the composable
     } finally {
       loading.value = false
     }
   }
 
-  // Initialize data on mount
   onMounted(fetchMusicLibrary)
 
-  // Watch for credentials changes
   watch(() => props.credentials, newCredentials => {
     if (newCredentials) {
       fetchMusicLibrary()
     }
   }, { immediate: false })
 
-  // Methods
   const playSong = (song: Song) => {
     emit('play-song', song)
   }

@@ -20,13 +20,11 @@ export const logger = createConsola({
   reporters: [
     {
       log: logObj => {
-        // Add custom formatting or additional logic here
         const prefix = logObj.type === 'info' ? '[INFO]' :
           logObj.type === 'warn' ? '[WARN]' :
             logObj.type === 'error' ? '[ERROR]' :
               logObj.type === 'debug' ? '[DEBUG]' : '[LOG]'
 
-        // Format args for better readability
         const args = logObj.args?.map((arg: unknown) =>
           typeof arg === 'object' && arg !== null ?
             JSON.stringify(arg, replacer, 2) :
@@ -37,7 +35,6 @@ export const logger = createConsola({
         const style = `color: ${color}; font-weight: bold;`
         const tag = `[${logObj.tag || 'app'}]`
 
-        // Use the appropriate console method
         switch (logObj.type) {
           case 'debug':
             console.debug(`%c${prefix}`, style, tag, ...args)

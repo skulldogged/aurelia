@@ -1,9 +1,3 @@
-//! Main library entry point
-#![cfg_attr(
-    all(not(debug_assertions), target_os = "windows"),
-    windows_subsystem = "windows"
-)]
-
 pub mod cache;
 pub mod error;
 pub mod handlers;
@@ -11,11 +5,10 @@ pub mod models;
 pub mod services;
 pub mod utils;
 
-// Re-export commonly used types for convenience
 pub use anyhow::Result;
 
 use specta_typescript::Typescript;
-use tauri_specta::{collect_commands, Builder};
+use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -36,10 +29,8 @@ fn init_logging() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Initialize logging
     init_logging();
     info!("Starting Tauri application");
-    // Initialize the cache system
     tauri::async_runtime::block_on(async {
         if let Err(e) = cache::init().await {
             error!("Failed to initialize cache: {}", e);
@@ -75,7 +66,7 @@ pub fn run() {
         handlers::images::get_image_cache_stats,
     ]);
 
-    #[cfg(debug_assertions)] // <- Only export on non-release builds
+    #[cfg(debug_assertions)]
     builder
         .export(Typescript::default(), "../src/bindings.ts")
         .expect("Failed to export typescript bindings");
@@ -85,7 +76,6 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
-            // This is also required if you want to use events
             builder.mount_events(app);
             Ok(())
         })

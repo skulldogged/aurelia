@@ -6,9 +6,7 @@ import { usePlayerControls } from './usePlayerControls'
 import { useSongInteractions } from './useSongInteractions'
 import { useWebAudioPlayer } from './useWebAudioPlayer'
 
-// Global app state composable that provides access to all app state
 export const useAppState = () => {
-  // Initialize all composables
   const { authStatus, credentials, error: authError, login, logout, clearError } = useAuth()
   const {
     allSongs,
@@ -64,12 +62,10 @@ export const useAppState = () => {
 
   // Simplified state - just expose the reactive refs directly
   const appState = reactive({
-    // Auth state
     authStatus,
     credentials,
     authError,
 
-    // Library state
     allSongs,
     allArtistsWithSongs,
     albumArtistsWithSongs,
@@ -77,19 +73,16 @@ export const useAppState = () => {
     libraryLoading,
     libraryError,
 
-    // Navigation state
     currentView,
     canGoBack,
     canGoForward,
 
-    // Player controls state
     isQueueOpen,
     isEqualizerOpen,
     isFullScreenPlayerOpen,
     searchQuery,
     isSearchVisible,
 
-    // Player store state
     currentSong: computed(() => playerStore.currentSong),
     playlist:    computed(() => playerStore.playlist),
     isPlaying:   computed(() => playerStore.isPlaying),
@@ -107,26 +100,21 @@ export const useAppState = () => {
 
   // No watchers needed - reactive system handles updates automatically
 
-  // Actions
   const actions = {
-    // Auth actions
     login,
     logout,
     clearAuthError: clearError,
 
-    // Library actions
     loadLibrary,
     syncLibrary,
     clearCache,
 
-    // Navigation actions
     navigateBack,
     navigateForward,
     handleNavigation,
     navigateToArtist,
     navigateToAlbum,
 
-    // Player control actions
     handleGlobalSearch,
     toggleQueue,
     toggleEqualizer,
@@ -139,7 +127,6 @@ export const useAppState = () => {
     handleToggleRepeat,
     handleSeek,
 
-    // Song interaction actions
     playSong,
     playSongs,
     updatePlaylist,
@@ -150,33 +137,25 @@ export const useAppState = () => {
 
     // EQ actions - these need to call both the WebAudio player and the store
     setEQEnabled: (enabled: boolean) => {
-      // Call the WebAudio player's setEQEnabled function
       const webAudioPlayer = useWebAudioPlayer()
       webAudioPlayer.setEQEnabled(enabled)
-      // Also update the store
       playerStore.setEQEnabled(enabled)
     },
     setEQBandGain: (bandIndex: number, gain: number) => {
-      // Call the WebAudio player's setEQBandGain function
       const webAudioPlayer = useWebAudioPlayer()
       webAudioPlayer.setEQBandGain(bandIndex, gain)
-      // Also update the store
       playerStore.setEQBandGain(bandIndex, gain)
     },
     resetEQ: () => {
-      // Call the WebAudio player's resetEQ function
       const webAudioPlayer = useWebAudioPlayer()
       webAudioPlayer.resetEQ()
-      // Also update the store
       playerStore.resetEQ()
     },
   }
 
   return {
-    // State
     appState: readonly(appState),
 
-    // Actions
     ...actions,
 
     // Direct access to composables for advanced usage

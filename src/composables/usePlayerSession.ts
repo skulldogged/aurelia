@@ -21,7 +21,6 @@ export const usePlayerSession = () => {
   let progressReportTimer: ReturnType<typeof setInterval> | null = null
   let isInitialized = false
 
-  // Initialize session management
   const initialize = async () => {
     if (isInitialized) return
 
@@ -32,7 +31,6 @@ export const usePlayerSession = () => {
     logger.info('Player session integration initialized')
   }
 
-  // Start progress reporting timer
   const startProgressReporting = () => {
     if (progressReportTimer) return
 
@@ -48,13 +46,12 @@ export const usePlayerSession = () => {
       await sessionManager.reportPlaybackProgress(
         playerStore.currentSong.id,
         currentPosition,
-        'TimeUpdate', // event name for time update
-        false, // not paused
+        'TimeUpdate',
+        false,
       )
     }, 30000) // Report every 30 seconds
   }
 
-  // Stop progress reporting timer
   const stopProgressReporting = () => {
     if (progressReportTimer) {
       clearInterval(progressReportTimer)
@@ -62,24 +59,20 @@ export const usePlayerSession = () => {
     }
   }
 
-  // Watch for song changes
   watch(
     () => playerStore.currentSong,
     async (newSong, oldSong) => {
-      // If there was a previous song playing, report it as stopped
       if (oldSong && playerStore.isPlaying) {
         await sessionManager.reportPlaybackStop(oldSong.id, playerStore.currentTime)
       }
 
-      // If there's a new song and we're playing, report playback start
       if (newSong && playerStore.isPlaying) {
         await sessionManager.reportPlaybackStart(
           newSong.id,
-          0, // Start from beginning
+          0,
         )
 
         lastReportedState.currentSongId = newSong.id
-        // Reset the marked played tracking for the new song
         lastMarkedPlayedSongId = ''
         startProgressReporting()
       }
@@ -87,7 +80,6 @@ export const usePlayerSession = () => {
     { immediate: true },
   )
 
-  // Watch for play/pause state changes
   watch(
     () => playerStore.isPlaying,
     async (isPlaying, wasPlaying) => {
@@ -95,21 +87,18 @@ export const usePlayerSession = () => {
         return
       }
 
-      // Avoid duplicate reports
       if (isPlaying === lastReportedState.isPlaying) {
         return
       }
       lastReportedState.isPlaying = isPlaying
 
       if (isPlaying && !wasPlaying) {
-        // Started playing
         await sessionManager.reportPlaybackStart(
           playerStore.currentSong.id,
           playerStore.currentTime,
         )
         startProgressReporting()
       } else if (!isPlaying && wasPlaying) {
-        // Stopped playing
         await sessionManager.reportPlaybackStop(
           playerStore.currentSong.id,
           playerStore.currentTime,
@@ -120,7 +109,6 @@ export const usePlayerSession = () => {
     { immediate: true },
   )
 
-  // Watch for song completion (when position reaches duration)
   watch(
     [() => playerStore.currentTime, () => playerStore.duration],
     async ([currentTime, duration]) => {
@@ -131,16 +119,13 @@ export const usePlayerSession = () => {
       if (duration > 0 && currentTime >= duration - 1 && playerStore.currentSong.id !== lastMarkedPlayedSongId) {
         lastMarkedPlayedSongId = playerStore.currentSong.id
         await sessionManager.markItemPlayed(playerStore.currentSong.id)
-        logger.debug('Song marked as played', { songId: playerStore.currentSong.id })
       }
     },
   )
 
-  // Cleanup on unmount
   onUnmounted(async () => {
     stopProgressReporting()
 
-    // Report final stop if currently playing
     if (playerStore.currentSong && playerStore.isPlaying) {
       await sessionManager.reportPlaybackStop(
         playerStore.currentSong.id,
@@ -149,7 +134,6 @@ export const usePlayerSession = () => {
     }
   })
 
-  // Watch for auth state changes and initialize session when authenticated
   watch(
     () => authStore.isAuthenticated(),
     async isAuthenticated => {
@@ -160,7 +144,6 @@ export const usePlayerSession = () => {
     { immediate: true },
   )
 
-  // Initialize on mount (in case already authenticated)
   onMounted(async () => {
     if (authStore.isAuthenticated()) {
       await initialize()

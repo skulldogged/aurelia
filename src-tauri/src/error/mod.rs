@@ -33,7 +33,6 @@ pub enum AppError {
     General(String),
 }
 
-// Convert external errors to AppError
 impl From<reqwest::Error> for AppError {
     fn from(err: reqwest::Error) -> Self {
         AppError::Network(err.to_string())

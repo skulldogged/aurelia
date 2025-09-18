@@ -50,7 +50,6 @@
     class='relative bg-sidebar flex-shrink-0 h-12 z-50 flex justify-between items-center pr-[138px]'
     data-tauri-drag-region
   >
-    <!-- Left Controls -->
     <div class='flex items-center gap-2 pl-2 h-full'>
       <Button
         @click="emit('toggle-sidebar')"
@@ -62,7 +61,6 @@
       </Button>
     </div>
 
-    <!-- Global Search -->
     <div class='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'>
       <div class='relative w-96'>
         <Search class='absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-foreground/60' />
@@ -80,7 +78,6 @@
       </div>
     </div>
 
-    <!-- Right Controls -->
     <div class='flex items-center justify-end gap-2 h-full'>
       <Button
         @click="emit('navigate-back')"

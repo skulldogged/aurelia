@@ -153,7 +153,6 @@
       return -1
     }
 
-    // Find the last lyric whose time is less than or equal to current time (with tolerance)
     const tolerance = 0.01 // 10ms tolerance for floating point precision
     for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
       if (parsedLyrics.value[i].time <= props.currentTime + tolerance) {
@@ -161,7 +160,6 @@
       }
     }
 
-    // If no lyric has started yet, return -1
     return -1
   })
 
@@ -175,7 +173,6 @@
     }
   })
 
-  // Scroll to active lyric when lyrics view becomes visible
   watch(() => props.visible, async (isVisible, wasVisible) => {
     if (isVisible && !wasVisible && areLyricsSynced.value && currentLineIndex.value !== -1) {
       await nextTick()
@@ -185,7 +182,6 @@
     }
   })
 
-  // Watch for when lyrics are loaded and center on the first lyric
   watch(parsedLyrics, async newLyrics => {
     if (newLyrics && newLyrics.length > 0 && currentLineIndex.value === -1) {
       await nextTick()

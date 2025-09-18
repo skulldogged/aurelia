@@ -12,14 +12,12 @@
   import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
   import WindowControls from '@/components/shared/WindowControls.vue'
 
-  // Centralized app state
   import { useAppState } from '@/composables/useAppState'
   import { usePlayerSession } from '@/composables/usePlayerSession'
   import { appLogger } from '@/lib/logger'
 
   useColorMode()
 
-  // Initialize centralized app state
   const {
     appState,
     login,
@@ -55,35 +53,27 @@
     musicPlayerRef,
   } = useAppState()
 
-  // Initialize player session management (for Jellyfin reporting)
-  // Must be called after useAppState so auth is available
   usePlayerSession()
 
-  // Initialize volume from player store
   onMounted(() => {
     playerStore.setVolume(playerStore.volume)
   })
 
-  // Handle login success
   const handleLogin = async (loginCredentials: Credentials) => {
     login(loginCredentials)
   }
 
-  // Handle logout
   const handleLogout = () => {
     logout()
-    // Reset player store state
     playerStore.setCurrentSong(null)
     playerStore.setPlaylist([])
     playerStore.setCurrentIndex(-1)
   }
 
-  // Handle volume changes from player
   const handleVolumeChange = (newVolume: number) => {
     playerStore.setVolume(newVolume)
   }
 
-  // Library management handlers
   const handleSyncLibrary = async () => {
     if (!appState.credentials) return
     try {

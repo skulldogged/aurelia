@@ -6,25 +6,21 @@ export const useNavigation = () => {
   const router = useRouter()
   const route = useRoute()
 
-  // Navigation state
   const currentView = ref('home')
   const canGoBack = ref(false)
   const canGoForward = ref(false)
 
-  // Watch route changes to update currentView
   watch(() => route.name, newName => {
     if (newName) {
       currentView.value = newName as string
     }
   }, { immediate: true })
 
-  // Update navigation state
   const updateNavState = () => {
     canGoBack.value = window.history.state.position > 0
     canGoForward.value = window.history.state.position < window.history.length - 1
   }
 
-  // Set up history event listener
   onMounted(() => {
     updateNavState()
     router.afterEach(() => {
@@ -37,7 +33,6 @@ export const useNavigation = () => {
     window.removeEventListener('popstate', updateNavState)
   })
 
-  // Navigation actions
   const navigateBack = () => {
     router.back()
   }

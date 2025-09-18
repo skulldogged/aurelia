@@ -17,7 +17,6 @@ export const useAuth = () => {
   const credentials = ref<Credentials | null>(null)
   const error = ref<AuthError | null>(null)
 
-  // Check for saved credentials on app start
   onMounted(async () => {
     authLogger.debug('Checking for saved credentials...')
     try {
@@ -61,7 +60,6 @@ export const useAuth = () => {
     }
   })
 
-  // Handle login success
   const login = (loginCredentials: Credentials) => {
     credentials.value = loginCredentials
     authStore.setCredentials(loginCredentials)
@@ -69,13 +67,11 @@ export const useAuth = () => {
     error.value = null
   }
 
-  // Handle login error
   const loginError = (message: string, code?: string) => {
     error.value = { message, code }
     authStatus.value = 'error'
   }
 
-  // Handle logout
   const logout = () => {
     credentials.value = null
     authStore.clearCredentials()
@@ -83,7 +79,6 @@ export const useAuth = () => {
     error.value = null
   }
 
-  // Clear error state
   const clearError = () => {
     error.value = null
     if (authStatus.value === 'error') {

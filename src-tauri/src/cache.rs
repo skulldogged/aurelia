@@ -56,7 +56,6 @@ impl CacheManager {
 
     /// Load cache from disk
     async fn load_cache(&self) -> Result<JsonCache, Box<dyn std::error::Error + Send + Sync>> {
-        // Create cache directory if it doesn't exist
         std::fs::create_dir_all(&self.cache_dir)?;
 
         let songs_file = self.get_cache_file("songs");
@@ -64,7 +63,6 @@ impl CacheManager {
         let albums_file = self.get_cache_file("albums");
         let metadata_file = self.get_cache_file("metadata");
 
-        // Load songs
         let songs = if songs_file.exists() {
             let data = tokio::fs::read_to_string(&songs_file).await?;
             serde_json::from_str(&data)?
@@ -72,7 +70,6 @@ impl CacheManager {
             Vec::new()
         };
 
-        // Load artists
         let artists = if artists_file.exists() {
             let data = tokio::fs::read_to_string(&artists_file).await?;
             serde_json::from_str(&data)?
@@ -80,7 +77,6 @@ impl CacheManager {
             Vec::new()
         };
 
-        // Load albums
         let albums = if albums_file.exists() {
             let data = tokio::fs::read_to_string(&albums_file).await?;
             serde_json::from_str(&data)?
@@ -88,7 +84,6 @@ impl CacheManager {
             Vec::new()
         };
 
-        // Load or create metadata
         let metadata = if metadata_file.exists() {
             let data = tokio::fs::read_to_string(&metadata_file).await?;
             serde_json::from_str(&data)?
@@ -113,7 +108,6 @@ impl CacheManager {
         &self,
         cache: &JsonCache,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Update metadata
         let mut updated_metadata = cache.metadata.clone();
         updated_metadata.last_updated = chrono::Utc::now().to_rfc3339();
 
@@ -124,7 +118,6 @@ impl CacheManager {
             albums: cache.albums.clone(),
         };
 
-        // Save each component
         let songs_data = serde_json::to_string_pretty(&updated_cache.songs)?;
         tokio::fs::write(self.get_cache_file("songs"), songs_data).await?;
 
@@ -209,13 +202,11 @@ impl CacheManager {
     pub async fn clear_cache(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let cache_dir = self.get_cache_dir();
 
-        // Remove all cache files
         if cache_dir.exists() {
             tokio::fs::remove_dir_all(&cache_dir).await?;
             std::fs::create_dir_all(&cache_dir)?;
         }
 
-        // Reset in-memory cache
         let mut cache = self.cache.write().await;
         *cache = Some(JsonCache {
             songs: Vec::new(),

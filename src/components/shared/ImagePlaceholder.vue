@@ -11,7 +11,6 @@
     size: 'medium',
   })
 
-  // Size configurations
   const sizeConfig = computed(() => {
     switch (props.size) {
       case 'small':
@@ -24,7 +23,7 @@
           container: 'w-full aspect-square',
           icon:      'w-12 h-12',
         }
-      default: // medium
+      default:
         return {
           container: 'w-12 h-12',
           icon:      'w-5 h-5',
@@ -32,28 +31,27 @@
     }
   })
 
-  // Icon configurations
   const iconConfig = computed(() => {
     switch (props.type) {
       case 'artist':
         return {
           icon:      User,
-          iconColor: 'rgb(107 114 128)', // gray-500
+          iconColor: 'rgb(107 114 128)',
         }
       case 'album':
         return {
           icon:      Disc,
-          iconColor: 'rgb(107 114 128)', // gray-500
+          iconColor: 'rgb(107 114 128)',
         }
       case 'album-art':
         return {
           icon:      Music,
-          iconColor: 'rgb(156 163 175)', // gray-400
+          iconColor: 'rgb(156 163 175)',
         }
       default:
         return {
           icon:      Music,
-          iconColor: 'rgb(156 163 175)', // gray-400
+          iconColor: 'rgb(156 163 175)',
         }
     }
   })

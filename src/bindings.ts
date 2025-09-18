@@ -247,9 +247,6 @@ async getLyrics(id: string, artist: string, title: string, path: string | null) 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Check if a cached image exists and return its data URL
- */
 async getCachedImageDataUrl(itemId: string, imageType: string) : Promise<Result<string | null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_cached_image_data_url", { itemId, imageType }) };
@@ -258,9 +255,6 @@ async getCachedImageDataUrl(itemId: string, imageType: string) : Promise<Result<
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Cache an image from a URL
- */
 async cacheImageFromUrl(itemId: string, imageType: string, imageUrl: string, serverUrl: string, token: string) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cache_image_from_url", { itemId, imageType, imageUrl, serverUrl, token }) };
@@ -269,9 +263,6 @@ async cacheImageFromUrl(itemId: string, imageType: string, imageUrl: string, ser
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Clear the image cache
- */
 async clearImageCache() : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_image_cache") };
@@ -280,9 +271,6 @@ async clearImageCache() : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Get cache statistics
- */
 async getImageCacheStats() : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_image_cache_stats") };

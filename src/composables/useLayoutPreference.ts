@@ -3,7 +3,6 @@ import { ref, watch } from 'vue'
 export type LayoutMode = 'comfy' | 'compact'
 
 export const useLayoutPreference = (storageKey = 'songlist-layout', defaultLayout: LayoutMode = 'comfy') => {
-  // Get initial value from localStorage or use default
   const getInitialLayout = (): LayoutMode => {
     try {
       const stored = localStorage.getItem(storageKey)
@@ -23,7 +22,6 @@ export const useLayoutPreference = (storageKey = 'songlist-layout', defaultLayou
 
   const layout = ref<LayoutMode>(getInitialLayout())
 
-  // Watch for changes and persist to localStorage
   watch(layout, newLayout => {
     try {
       localStorage.setItem(storageKey, newLayout)
@@ -38,7 +36,6 @@ export const useLayoutPreference = (storageKey = 'songlist-layout', defaultLayou
 }
 
 export const usePageSizePreference = (storageKey = 'songlist-pagesize', defaultPageSize: number = 20) => {
-  // Get initial value from localStorage or use default
   const getInitialPageSize = (): number => {
     try {
       const stored = localStorage.getItem(storageKey)
@@ -56,7 +53,6 @@ export const usePageSizePreference = (storageKey = 'songlist-pagesize', defaultP
 
   const pageSize = ref<number>(getInitialPageSize())
 
-  // Watch for changes and persist to localStorage
   watch(pageSize, newPageSize => {
     try {
       localStorage.setItem(storageKey, newPageSize.toString())

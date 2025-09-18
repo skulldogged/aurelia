@@ -8,12 +8,10 @@ export const useSearch = (
   artists: Artist[],
   searchQuery: string,
 ) => {
-  // Fuzzy search instances
   const songFuse = ref<Fuse<Song>>()
   const albumFuse = ref<Fuse<Album>>()
   const artistFuse = ref<Fuse<Artist>>()
 
-  // Initialize search engines
   const initializeSearch = () => {
     songFuse.value = new Fuse(songs, {
       keys: [
@@ -46,12 +44,10 @@ export const useSearch = (
     })
   }
 
-  // Watch for data changes and reinitialize search
   watch([() => songs, () => albums, () => artists], () => {
     initializeSearch()
   }, { immediate: true })
 
-  // Computed search results
   const filteredSongs = computed(() => {
     if (!searchQuery || searchQuery.length < 2 || !songFuse.value) {
       return songs
@@ -73,7 +69,6 @@ export const useSearch = (
     return artistFuse.value.search(searchQuery).map(result => result.item)
   })
 
-  // Search all types and return combined results
   const searchAll = computed(() => {
     if (!searchQuery || searchQuery.length < 2) {
       return {
@@ -90,18 +85,15 @@ export const useSearch = (
     }
   })
 
-  // Check if search is active
   const isSearching = computed(() => searchQuery && searchQuery.length >= 2)
 
   return {
-    // Computed results
     filteredSongs,
     filteredAlbums,
     filteredArtists,
     searchAll,
     isSearching,
 
-    // Actions
     initializeSearch,
   }
 }

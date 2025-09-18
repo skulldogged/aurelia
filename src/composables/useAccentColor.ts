@@ -5,25 +5,18 @@ import { useTheme } from './useTheme'
 export const useAccentColor = () => {
   const { selectedScheme } = useTheme()
 
-  // Get accent colors from the current color scheme
   const accentColors = computed(() => selectedScheme.value?.accentColors || [])
 
-  // Store only the name of the accent color
   const accentColorName = useLocalStorage('accent-color', 'blue')
 
-  // Find the full accent color object from the current theme
   const accentColor = computed(() => {
     const color = accentColors.value.find(c => c.name === accentColorName.value)
-    // Fallback to the first available color if the stored one isn't found
     return color || accentColors.value[0] || { name: 'blue', displayName: 'Blue', hex: '#3b82f6' }
   })
 
   const setAccentColor = (colorName: string) => {
     accentColorName.value = colorName
   }
-
-  // No longer need to watch for scheme changes to update the color object,
-  // the computed property handles it automatically.
 
   const getLuminance = (hex: string) => {
     const r = parseInt(hex.slice(1, 3), 16)
@@ -41,10 +34,8 @@ export const useAccentColor = () => {
       const root = document.documentElement
       const luminance = getLuminance(color.hex)
 
-      // Set accent color
       root.style.setProperty('--accent', color.hex)
 
-      // Set accent foreground color based on luminance
       if (color.foreground)
         root.style.setProperty('--accent-foreground', color.foreground)
       else if (luminance > 0.4)

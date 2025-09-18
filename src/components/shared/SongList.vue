@@ -32,7 +32,6 @@
     loading?:         boolean
   }>()
 
-  // Default showAlbumArt to true if not explicitly set
   const shouldShowAlbumArt = computed(() => props.showAlbumArt !== false)
   const layoutMode = computed(() => props.layout || 'comfy')
 
@@ -48,7 +47,6 @@
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Pagination state
   const pageIndex = ref(0)
   const { pageSize } = usePageSizePreference('songlist-pagesize', 20)
 
@@ -93,12 +91,10 @@
 
 <template>
   <div class='space-y-4 w-full'>
-    <!-- Skeleton Loading States -->
     <div
       v-if='loading'
       class='space-y-2 w-full max-w-full'
     >
-      <!-- List/Compact Skeleton -->
       <div
         v-for='n in pageSize'
         :key='`list-skeleton-${n}`'
@@ -108,10 +104,8 @@
         }"
       >
         <div class='flex items-center gap-3'>
-          <!-- Track Number Skeleton -->
           <Skeleton v-if='showTrackNumber' class='w-8 h-4' />
 
-          <!-- Album Art Skeleton -->
           <Skeleton
             v-if='shouldShowAlbumArt'
             :class="{
@@ -120,7 +114,6 @@
             }"
           />
 
-          <!-- Song Info Skeleton -->
           <div class='flex-1 min-w-0'>
             <div class='flex items-center justify-between'>
               <div class='flex-1 min-w-0'>
@@ -130,7 +123,6 @@
                 </div>
               </div>
 
-              <!-- Right Side Info Skeleton -->
               <div class='flex items-center gap-2 ml-4'>
                 <Skeleton v-if='showYear' class='h-4 w-12' />
                 <Skeleton class='h-4 w-16' />
@@ -143,12 +135,10 @@
       </div>
     </div>
 
-    <!-- Songs Grid/List -->
     <div
       v-else
       class='space-y-2 w-full max-w-full'
     >
-      <!-- List Layout (Modern Row Style) -->
       <div
         v-for='(song, index) in pagedSongs'
         @click="$emit('play-song', song)"
@@ -160,7 +150,6 @@
             'transition-all duration-200 w-full min-w-0 max-w-full'"
       >
         <div class='flex items-center gap-3 min-w-0'>
-          <!-- Track Number -->
           <div
             v-if='showTrackNumber'
             class='w-8 text-center text-sm text-muted-foreground font-medium'
@@ -168,7 +157,6 @@
             {{ pageIndex * pageSize + index + 1 }}
           </div>
 
-          <!-- Album Art -->
           <div v-if='shouldShowAlbumArt' class='relative flex-shrink-0'>
             <ImageLoader
               :class="layoutMode === 'comfy'
@@ -192,7 +180,6 @@
               </template>
             </ImageLoader>
 
-            <!-- Play Button Overlay -->
             <div
               :class="[
                 'absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center transition-opacity',
@@ -222,7 +209,6 @@
             </div>
           </div>
 
-          <!-- Song Info -->
           <div class='flex-1 min-w-0'>
             <div class='flex items-center justify-between'>
               <div class='flex-1 min-w-0 overflow-hidden'>
@@ -274,7 +260,6 @@
                 </div>
               </div>
 
-              <!-- Right Side Info -->
               <div class='flex items-center gap-2 ml-4 flex-shrink-0'>
                 <span
                   v-if='showYear && song.year'
@@ -299,7 +284,6 @@
                   {{ formatDuration(song.duration) }}
                 </span>
 
-                <!-- Favorite Button -->
                 <Button
                   @click.stop="$emit('toggle-favorite', song)"
                   :size='layoutMode === "compact" ? "sm" : "icon"'
@@ -320,13 +304,11 @@
       </div>
     </div>
 
-    <!-- Modern Pagination -->
     <div
       v-if='loading || pageCount > 1'
       class='flex flex-col sm:flex-row items-center justify-between gap-4 p-4
              bg-card/50 rounded-lg border'
     >
-      <!-- Pagination Skeleton -->
       <template v-if='loading'>
         <div class='flex items-center gap-2'>
           <Skeleton class='h-4 w-32' />
@@ -344,7 +326,6 @@
         </div>
       </template>
 
-      <!-- Actual Pagination -->
       <template v-else>
         <div class='flex items-center gap-2'>
           <span class='text-sm text-muted-foreground'>Songs per page:</span>

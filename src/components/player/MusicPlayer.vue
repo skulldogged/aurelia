@@ -2,7 +2,6 @@
   <div v-if='playerStore.currentSong' class='bg-sidebar px-2 py-3'>
     <div class='mx-auto'>
       <div class='grid grid-cols-3 items-center px-2'>
-        <!-- Song Info (Left) -->
         <div
           @mouseenter='onTitleMouseEnter'
           @mouseleave='onTitleMouseLeave'
@@ -92,11 +91,9 @@
           </div>
         </div>
 
-        <!-- Controls and Seekbar (Middle) -->
         <div class='flex-grow px-4'>
           <div class='flex justify-center'>
             <div class='flex items-center space-x-2'>
-              <!-- Shuffle -->
               <button
                 @click='playerStore.toggleShuffle'
                 :class="[
@@ -110,7 +107,6 @@
                   :class="['w-4 h-4', playerStore.isShuffled ? '' : 'text-muted-foreground']"
                 />
               </button>
-              <!-- Previous -->
               <Button
                 @click='previousSong'
                 :disabled='!hasPrevious'
@@ -120,7 +116,6 @@
                 <SkipBack class='w-4 h-4' />
               </Button>
 
-              <!-- Play/Pause -->
               <Button
                 @click='togglePlayPause'
                 :disabled='!playerStore.audioReady || playerStore.isBuffering'
@@ -131,7 +126,6 @@
                 <Pause v-else class='w-5 h-5' />
               </Button>
 
-              <!-- Next -->
               <Button
                 @click='nextSong'
                 :disabled='!hasNext'
@@ -140,7 +134,6 @@
               >
                 <SkipForward class='w-4 h-4' />
               </Button>
-              <!-- Repeat -->
               <button
                 @click='playerStore.cycleRepeatMode'
                 :class="[
@@ -164,7 +157,6 @@
               </button>
             </div>
           </div>
-          <!-- Progress Bar -->
           <div class='flex items-center space-x-2 mt-2 text-sm text-muted-foreground'>
             <span>{{ formatTime(playerStore.currentTime) }}</span>
             <Slider
@@ -178,10 +170,8 @@
           </div>
         </div>
 
-        <!-- Additional Controls (Right) -->
         <div class='flex justify-end'>
           <div class='flex items-center space-x-2'>
-            <!-- Like -->
             <Button
               @click="$emit('toggle-favorite', playerStore.currentSong)"
               size='icon'
@@ -197,12 +187,10 @@
               />
             </Button>
 
-            <!-- Fullscreen -->
             <Button @click="$emit('toggle-fullscreen')" size='icon' variant='ghost'>
               <Expand class='w-5 h-5' />
             </Button>
 
-            <!-- EQ (WebAudio only) -->
             <Button
               @click="$emit('toggle-equalizer')"
               v-if='useWebAudio'
@@ -216,7 +204,6 @@
               />
             </Button>
 
-            <!-- Volume -->
             <div class='flex items-center space-x-2'>
               <button
                 @click='playerStore.toggleMute'
@@ -235,7 +222,6 @@
               />
             </div>
 
-            <!-- Queue -->
             <Button @click="$emit('toggle-queue')" size='icon' variant='ghost'>
               <ListMusic class='w-5 h-5' />
             </Button>
@@ -244,7 +230,6 @@
       </div>
     </div>
 
-    <!-- Hidden Audio Elements -->
     <audio
       @canplaythrough='onCanPlay(0)'
       @ended='onEnded(0)'
@@ -318,10 +303,8 @@
   const playerStore = usePlayerStore()
   const { getAudioStreamUrl } = commands
 
-  // WebAudio player
   const webAudioPlayer = useWebAudioPlayer()
 
-  // Set up duration change callback for WebAudio
   webAudioPlayer.setOnDurationChange((duration: number) => {
     if (duration > 0) {
       playerStore.setDuration(duration)
@@ -329,7 +312,6 @@
     }
   })
 
-  // Audio elements (HTML5 fallback)
   const audioPlayer1 = ref<HTMLAudioElement | null>(null)
   const audioPlayer2 = ref<HTMLAudioElement | null>(null)
   const activePlayerIndex = ref(0)
@@ -337,16 +319,13 @@
   const activePlayer = computed(() => players[activePlayerIndex.value].value)
   const nextPlayer = computed(() => players[1 - activePlayerIndex.value].value)
 
-  // Player type detection
   const playerType = ref<'webaudio' | 'html5'>('html5')
   const useWebAudio = computed(() => playerType.value === 'webaudio')
 
-  // Player state (only DOM-related local state)
   const nextSongReady = ref(false)
   const isGaplessTransition = ref(false)
   const webAudioTimeUpdateInterval = ref<number | null>(null)
 
-  // Computed properties
   const hasPrevious = computed(() => playerStore.playlist.length > 1 && playerStore.currentIndex > 0)
   const hasNext = computed(() =>
     playerStore.playlist.length > 1
@@ -375,7 +354,6 @@
     return parts.join(' / ')
   })
 
-  // Marquee title scrolling
   const titleContainerRef = ref<HTMLDivElement | null>(null)
   const titleTextRef = ref<HTMLSpanElement | null>(null)
   const marqueeTrackRef = ref<HTMLDivElement | null>(null)
@@ -383,7 +361,7 @@
   const isMarqueePaused = ref(false)
   const scrollDistance = ref(0)
   const animationDuration = ref(0)
-  const marqueeGap = 24 // px
+  const marqueeGap = 24
   const marqueeSpeedPxPerSecond = 80
   const marqueePauseMs = 1200
   let marqueePauseTimeoutId: number | null = null
@@ -426,16 +404,13 @@
 
   const onTitleMouseEnter = () => {
     if (!shouldMarquee.value) return
-    // Restart from beginning each hover to avoid mid-loop starts
     isMarqueePaused.value = false
   }
 
   const onTitleMouseLeave = () => {
-    // Stop animation when not hovered
     isMarqueePaused.value = true
   }
 
-  // WebAudio time update handling
   const startWebAudioTimeUpdates = () => {
     if (webAudioTimeUpdateInterval.value) {
       clearInterval(webAudioTimeUpdateInterval.value)
@@ -445,7 +420,7 @@
         const currentTime = webAudioPlayer.getCurrentTime()
         playerStore.setCurrentTime(currentTime)
       }
-    }, 100) // Update every 100ms
+    }, 100)
   }
 
   const stopWebAudioTimeUpdates = () => {
@@ -455,7 +430,6 @@
     }
   }
 
-  // Methods
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
@@ -464,7 +438,6 @@
 
   const updateProgress = () => {
     if (activePlayer.value && playerStore.duration > 0) {
-      // progress is computed in store, no need to calculate here
     }
   }
 
@@ -478,7 +451,6 @@
           playerStore.setDuration(player.duration || 0)
         }
         playerStore.setCurrentTime(0)
-        // progress is computed, no need to set
       }
     }
   }
@@ -533,30 +505,23 @@
       if (activePlayer.value) {
         activePlayer.value.currentTime = 0
         activePlayer.value.play()
-        // Store state will be updated by onPlay event
       }
     } else if (nextSongReady.value && nextSongInQueue.value) {
       playerLogger.debug('📻 Using gapless playback')
       await fallbackToGapless()
     } else if (playerStore.repeatMode === 'all' || hasNext.value) {
-      // Fallback if next song is not ready
       nextSong()
     } else {
-      // End of playlist - pause and update store
       activePlayer.value?.pause()
-      // Store state will be updated by onPause event
     }
   }
 
-  // Fallback to standard gapless playback
   const fallbackToGapless = async () => {
     playerLogger.debug('🔄 Performing gapless fallback')
 
-    // Start the next player immediately before switching
     const nextPlayerElement = nextPlayer.value
     if (nextPlayerElement && nextPlayerElement.paused && nextSongReady.value) {
       try {
-        // Start playing the next song with a tiny offset to ensure overlap
         nextPlayerElement.currentTime = 0
         await nextPlayerElement.play()
         playerLogger.debug('▶️ Next player started for gapless transition')
@@ -565,14 +530,11 @@
       }
     }
 
-    // Brief pause of current player (minimal gap)
     activePlayer.value?.pause()
 
-    // Store state will be updated by onPause event
     isGaplessTransition.value = true
     activePlayerIndex.value = 1 - activePlayerIndex.value
 
-    // Reset player state for the new song
     playerStore.setCurrentTime(0)
     playerStore.setDuration(nextSongInQueue.value?.duration || 0)
     playerStore.setCurrentSong(nextSongInQueue.value)
@@ -601,10 +563,8 @@
 
         if (playerStore.isPlaying) {
           activePlayer.value.pause()
-          // Store state will be updated by onPause event
         } else {
           await activePlayer.value.play()
-          // Store state will be updated by onPlay event
         }
       }
     } catch (error) {
@@ -629,7 +589,6 @@
         activePlayer.value.currentTime = seekTime
         playerStore.setCurrentTime(seekTime)
       }
-      // progress is computed from store, no need to set directly
     }
   }
 
@@ -649,7 +608,6 @@
     if (hasNext.value) {
       playerStore.nextSong()
     } else if (playerStore.repeatMode === 'all') {
-      // Go back to first song
       playSongAtIndex(0)
     }
   }
@@ -659,7 +617,6 @@
 
     playerStore.playSongAtIndex(index)
 
-    // Load and play the new song
     loadSong(playerStore.playlist[index], activePlayer.value)
   }
 
@@ -693,7 +650,6 @@
         const initialUrl = streamResult.data
         let loaded = await webAudioPlayer.loadAudio(initialUrl)
 
-        // If the initial load fails, try a fallback URL with .aac container
         if (!loaded && initialUrl.includes('/stream?')) {
           playerLogger.warn('Initial stream failed, attempting fallback with .aac container')
           try {
@@ -711,7 +667,6 @@
         if (loaded) {
           playerStore.setAudioReady(true)
           playerStore.setBuffering(false)
-          // Duration should now be available since loadAudio waits for metadata
           const duration = webAudioPlayer.getDuration()
           if (duration > 0) {
             playerStore.setDuration(duration)
@@ -721,13 +676,11 @@
           throw new Error('Failed to load audio via WebAudio API')
         }
       } else {
-        // Load via HTML5 audio
         if (!player) return
 
         player.src = streamResult.data
         player.load()
 
-        // Reset states when loading active player
         if (player === activePlayer.value) {
           playerStore.setAudioReady(false)
           playerStore.setBuffering(true)
@@ -748,7 +701,6 @@
     const execute = async () => {
       await loadSong(song, activePlayer.value)
 
-      // Start playback automatically when song is manually selected
       if (useWebAudio.value) {
         const success = await webAudioPlayer.play()
         if (success) {
@@ -762,7 +714,6 @@
       } else if (activePlayer.value) {
         try {
           await activePlayer.value.play()
-          // Store state will be updated by onPlay event
         } catch (error) {
           playerLogger.error('Failed to play audio:', error)
           playerStore.pause()
@@ -773,7 +724,6 @@
         playerStore.setBuffering(false)
       }
 
-      // Load next song for gapless playback (only for HTML5, WebAudio loads on demand)
       if (nextSongInQueue.value && !useWebAudio.value) {
         playerLogger.debug(`Loading next song: ${nextSongInQueue.value.name}`)
         await loadSong(nextSongInQueue.value, nextPlayer.value)
@@ -782,7 +732,6 @@
     execute()
   }
 
-  // Watch for song changes
   watch(() => playerStore.currentSong, (newSong, oldSong) => {
     playerLogger.debug(`Current song changed: ${oldSong?.name} → ${newSong?.name}`)
 
@@ -796,7 +745,6 @@
       if (isGaplessTransition.value) {
         isGaplessTransition.value = false
         if (useWebAudio.value) {
-          // Handle WebAudio gapless transition
           playerStore.setBuffering(true)
           webAudioPlayer.play()
             .then(success => {
@@ -816,11 +764,9 @@
               playerStore.setBuffering(false)
             })
         } else if (activePlayer.value) {
-          // Handle HTML5 gapless transition
           playerStore.setBuffering(true)
           activePlayer.value.play()
             .then(() => {
-              // Store state will be updated by onPlay event
             })
             .catch(error => {
               playerLogger.error('Failed to play audio:', error)
@@ -845,7 +791,6 @@
     }
   })
 
-  // Watch for playlist changes
   watch(
     () => playerStore.playlist,
     newPlaylist => {
@@ -853,7 +798,6 @@
       if (playerStore.currentSong) {
         const index = newPlaylist.findIndex(song => song.id === playerStore.currentSong!.id)
         playerStore.setCurrentIndex(index)
-        // Only load next song if there actually is one
         if (nextSongInQueue.value) {
           loadSong(nextSongInQueue.value, nextPlayer.value)
         }
@@ -864,12 +808,10 @@
     { deep: true },
   )
 
-  // WebAudio track end handler
   const advanceToNextSong = () => {
     playerLogger.debug('WebAudio track ended, advancing to next song')
 
     if (playerStore.repeatMode === 'one') {
-      // Repeat current song
       playerStore.setCurrentTime(0)
       if (useWebAudio.value) {
         webAudioPlayer.seek(0)
@@ -882,23 +824,18 @@
           })
       }
     } else if (playerStore.repeatMode === 'all' || hasNext.value) {
-      // Next song
       nextSong()
     } else {
-      // End of playlist
       playerStore.pause()
     }
   }
 
-  // Make function available globally for WebAudio callback
   if (typeof window !== 'undefined') {
     const w = window as typeof window & { advanceToNextSong?: () => void }
     w.advanceToNextSong = advanceToNextSong
   }
 
-  // Initialize player type and audio systems
   const initializePlayer = async () => {
-    // Check which player to use
     const webAudioAvailable = webAudioPlayer.isWebAudioAvailable()
 
     if (webAudioAvailable) {
@@ -915,7 +852,6 @@
       playerLogger.info('WebAudio API not available, using HTML5 Audio Player')
     }
 
-    // Set volume on appropriate player
     if (useWebAudio.value) {
       webAudioPlayer.setVolume(playerStore.volume)
     } else {
@@ -924,9 +860,7 @@
     }
   }
 
-  // Initialize volume and first song
   onMounted(async () => {
-    // Log available audio APIs
     const webAudioAvailable = webAudioPlayer.isWebAudioAvailable()
     playerLogger.info(`Audio APIs available - WebAudio: ${webAudioAvailable}`)
     playerLogger.info(`HTML5 Audio available: ${typeof Audio !== 'undefined'}`)
@@ -939,7 +873,6 @@
       playManuallyChangedSong(playerStore.currentSong)
     }
 
-    // Measure marquee after mount and on resize
     measureMarquee()
     window.addEventListener('resize', measureMarquee)
   })
@@ -954,16 +887,13 @@
   })
 
   onUnmounted(() => {
-    // Stop time updates
     stopWebAudioTimeUpdates()
 
-    // Cleanup players
     webAudioPlayer.cleanup()
 
     if (audioPlayer1.value) audioPlayer1.value.pause()
     if (audioPlayer2.value) audioPlayer2.value.pause()
 
-    // Remove global function
     if (typeof window !== 'undefined') {
       const w = window as typeof window & { advanceToNextSong?: () => void }
       delete w.advanceToNextSong
@@ -973,7 +903,6 @@
     if (marqueePauseTimeoutId) clearTimeout(marqueePauseTimeoutId)
   })
 
-  // Re-measure marquee when the song title changes
   watch(() => playerStore.currentSong?.name, async () => {
     await nextTick()
     measureMarquee()
@@ -1009,7 +938,6 @@
   border: none;
 }
 
-/* Marquee title scrolling */
 .marquee-track {
   display: inline-flex;
   align-items: center;
@@ -1026,7 +954,6 @@
   animation-play-state: paused;
 }
 
-/* Only animate when container is hovered */
 .marquee-enabled:hover .marquee-track {
   animation: marquee-scroll var(--marquee-duration, 10s) linear infinite;
 }

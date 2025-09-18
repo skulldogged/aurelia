@@ -252,15 +252,12 @@
   const accentColorStore = useAccentColorStore()
   const themeStore = useThemeStore()
 
-  // Use storeToRefs to ensure proper reactivity when destructuring
   const { accentColor: accentColorRef, accentColors: accentColorsRef } = storeToRefs(accentColorStore)
   const { selectedScheme: selectedSchemeRef, colorSchemes: colorSchemesRef } = storeToRefs(themeStore)
 
-  // Actions are not reactive refs, so we can destructure them normally
   const { setAccentColor } = accentColorStore
   const { setColorScheme } = themeStore
 
-  // Create computed properties for template usage
   const accentColor = computed(() => accentColorRef.value)
   const accentColors = computed(() => accentColorsRef.value)
   const selectedScheme = computed(() => selectedSchemeRef.value)

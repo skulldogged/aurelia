@@ -45,9 +45,8 @@ export const useTheme = () => {
   }
 
   watch(selectedScheme, newScheme => {
-    if (newScheme) {
+    if (newScheme)
       applyColorScheme(newScheme)
-    }
   }, { immediate: true })
 
   return {

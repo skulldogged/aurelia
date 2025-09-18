@@ -13,18 +13,16 @@ pub async fn get_lyrics(
     title: String,
     _path: Option<String>,
 ) -> Result<String, String> {
-    // First, try to get lyrics from Jellyfin API
     if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials() {
         let client = JellyfinClient::with_auth(creds.server_url, creds.token);
 
-        if let Ok(Some(jellyfin_lyrics)) = client.get_lyrics(&id).await {
-            if !jellyfin_lyrics.lyrics.is_empty() {
-                return Ok(convert_jellyfin_lyrics_to_lrc(jellyfin_lyrics));
-            }
+        if let Ok(Some(jellyfin_lyrics)) = client.get_lyrics(&id).await
+            && !jellyfin_lyrics.lyrics.is_empty()
+        {
+            return Ok(convert_jellyfin_lyrics_to_lrc(jellyfin_lyrics));
         }
     }
 
-    // Fallback to lrclib.net
     info!("No lyrics found on Jellyfin server. Fetching from lrclib.net...");
     let lrclib_client = LrcLibClient::new();
 
@@ -38,7 +36,6 @@ pub async fn get_lyrics(
         search_results.len()
     );
 
-    // Get the best lyrics match
     if let Some(lyrics) = LrcLibClient::get_best_lyrics(&search_results) {
         debug!("Returning lyrics for '{}'", title);
         Ok(lyrics)

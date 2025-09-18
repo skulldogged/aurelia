@@ -68,13 +68,11 @@
       }
     })
 
-    // Sort albums alphabetically (case-insensitive)
     return Array.from(albumsMap.values()).sort((a, b) =>
       a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
     )
   })
 
-  // Fuzzy search setup (Fuse.js)
   const albumsFuse = ref(new Fuse(albumsWithSongs.value, {
     keys: [
       { name: 'name', weight: 0.6 },
@@ -96,7 +94,6 @@
 
   const playAlbum = (album: Album) => {
     if (album.songs && album.songs.length > 0) {
-      // Sort songs by track number to preserve album order
       const sortedSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
       emit('play-songs', sortedSongs)
     }
@@ -120,7 +117,6 @@
           placeholder='Search albums...'
           type='text'
         />
-        <!-- Dev toggle for skeleton adjustment -->
         <Button
           @click='showSkeleton = !showSkeleton'
           :variant='showSkeleton ? "default" : "outline"'
@@ -132,7 +128,6 @@
     </div>
 
     <div v-if='isLoading || showSkeleton' class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
-      <!-- Skeleton loading grid -->
       <div
         v-for='n in 20'
         :key='`skeleton-${n}`'
@@ -173,7 +168,6 @@
             </template>
           </ImageLoader>
 
-          <!-- Play button overlay -->
           <div
             class='
               absolute inset-0 bg-black/50 rounded-lg opacity-0

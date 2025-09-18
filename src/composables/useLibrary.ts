@@ -3,7 +3,6 @@ import type { Song, Album, Artist, Credentials } from '@/bindings'
 import { commands } from '@/bindings'
 
 export const useLibrary = () => {
-  // Library state
   const allSongs = ref<Song[]>([])
   const allArtists = ref<Artist[]>([])
   const allArtistsWithSongs = ref<Artist[]>([])
@@ -26,7 +25,6 @@ export const useLibrary = () => {
         const albumId = song.albumId
 
         if (!albumsMap.has(albumId)) {
-          // Create new album entry
           albumsMap.set(albumId, {
             id:          albumId,
             name:        song.album,
@@ -38,7 +36,6 @@ export const useLibrary = () => {
           })
         }
 
-        // Add song to existing album
         const album = albumsMap.get(albumId)!
         album.songs!.push(song)
         album.songCount = album.songs!.length
@@ -48,13 +45,11 @@ export const useLibrary = () => {
     return Array.from(albumsMap.values())
   })
 
-  // Load library data
   const loadLibrary = async (credentials: Credentials) => {
     libraryLoading.value = true
     libraryError.value = null
 
     try {
-      // Fetch songs
       const songsResult = await commands.getSongs(
         credentials.serverUrl,
         credentials.token,
@@ -67,7 +62,6 @@ export const useLibrary = () => {
 
       allSongs.value = songsResult.data
 
-      // Fetch artists with songs and album artists
       const [artistsWithSongsResult, albumArtistsResult] = await Promise.all([
         commands.getArtists(credentials.serverUrl, credentials.token, true, false, null, null),
         commands.getArtists(credentials.serverUrl, credentials.token, true, true, null, null),
@@ -83,7 +77,6 @@ export const useLibrary = () => {
       allArtistsWithSongs.value = artistsWithSongsResult.data
       albumArtistsWithSongs.value = albumArtistsResult.data
 
-      // Clear any previous errors
       libraryError.value = null
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load music library'
@@ -94,7 +87,6 @@ export const useLibrary = () => {
     }
   }
 
-  // Sync library
   const syncLibrary = async (credentials: Credentials) => {
     try {
       const syncResult = await commands.syncLibrary(credentials.serverUrl, credentials.token)
@@ -109,7 +101,6 @@ export const useLibrary = () => {
     }
   }
 
-  // Clear cache
   const clearCache = async (credentials: Credentials) => {
     try {
       const clearResult = await commands.clearCache(credentials.serverUrl, credentials.token)
@@ -125,7 +116,6 @@ export const useLibrary = () => {
   }
 
   return {
-    // State
     allSongs,
     allArtists,
     allArtistsWithSongs,
@@ -134,7 +124,6 @@ export const useLibrary = () => {
     libraryLoading: readonly(libraryLoading),
     libraryError:   readonly(libraryError),
 
-    // Actions
     loadLibrary,
     syncLibrary,
     clearCache,

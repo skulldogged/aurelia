@@ -68,7 +68,6 @@
 
 <template>
   <div :class='className'>
-    <!-- Loading state -->
     <div
       v-if='isLoading'
       class='w-full h-full bg-muted rounded-lg flex items-center justify-center animate-pulse'
@@ -76,7 +75,6 @@
       <div class='w-8 h-8 bg-muted-foreground/20 rounded-full' />
     </div>
 
-    <!-- Image -->
     <img
       @error='handleError'
       @load='handleLoad'
@@ -87,7 +85,6 @@
       class='w-full h-full object-cover rounded-lg'
     >
 
-    <!-- Fallback/error state -->
     <slot v-else-if='!imageUrl || hasError || !isLoaded' name='fallback'>
       <div class='w-full h-full bg-muted rounded-lg flex items-center justify-center' />
     </slot>

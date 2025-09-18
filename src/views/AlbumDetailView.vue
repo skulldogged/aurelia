@@ -132,7 +132,6 @@
     return Array.from(set)
   })
 
-  // Actions
   const playAll = () => {
     if (albumSongs.value.length > 0) emit('play-songs', albumSongs.value)
   }

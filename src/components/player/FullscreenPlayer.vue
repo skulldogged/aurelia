@@ -3,33 +3,27 @@
     v-if='show'
     :class="['fullscreen-player fixed inset-0 bg-background z-50 flex flex-col', { 'lyrics-active': showLyrics }]"
   >
-    <!-- Album Art Background (visible on thin screens) -->
     <div
       v-if='backgroundImageData'
       class='absolute inset-0 z-0 album-art-bg'
     >
-      <!-- Blurred album art (top portion) -->
       <div
         :style='{ backgroundImage: `url(${backgroundImageData})` }'
         class='absolute inset-0 bg-cover bg-center filter blur-xl album-art-blurred'
       />
-      <!-- Clear album art (bottom portion) -->
       <div
         :style='{ backgroundImage: `url(${backgroundImageData})` }'
         class='absolute inset-0 bg-cover bg-center album-art-clear'
       />
     </div>
 
-    <!-- Background -->
     <div
       v-if='backgroundImageData'
       :style='{ backgroundImage: `url(${backgroundImageData})` }'
       class='absolute inset-0 bg-cover bg-center filter blur-3xl opacity-30 z-0'
     />
 
-    <!-- Content Wrapper -->
     <div class='relative z-10 flex flex-col h-full'>
-      <!-- Top Corner Buttons -->
       <div class='absolute top-4 left-4 right-4 flex justify-between items-center z-20'>
         <Button
           @click="$emit('close')"
@@ -50,14 +44,11 @@
         </Button>
       </div>
 
-      <!-- Main Content & Footer -->
       <div
         class='flex-grow flex flex-col items-center p-8 gap-8 overflow-hidden'
       >
         <div class='relative flex-1 w-full min-h-0 flex flex-col items-center justify-center gap-6'>
-          <!-- Album Art / Lyrics Area -->
           <div class='relative w-full h-full'>
-            <!-- Album Art -->
             <div
               :class="[
                 'flex justify-center items-center w-full h-full transition-opacity duration-300 ease-in-out',
@@ -81,7 +72,6 @@
                 </ImageLoader>
               </div>
             </div>
-            <!-- Lyrics -->
             <div
               :class="[
                 'absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out',
@@ -102,9 +92,7 @@
             </div>
           </div>
 
-          <!-- Player Controls -->
           <div class='w-full max-w-md mx-auto'>
-            <!-- Song Info -->
             <div class='w-full text-center mb-4'>
               <h1 class='text-2xl font-bold text-foreground truncate'>
                 {{ song?.name || 'Unknown Song' }}
@@ -120,7 +108,6 @@
               </p>
             </div>
 
-            <!-- Progress Bar -->
             <div>
               <Slider
                 @update:model-value='$event && $emit("seek", $event[0])'
@@ -135,7 +122,6 @@
               </div>
             </div>
 
-            <!-- Player Controls -->
             <div class='flex items-center justify-center space-x-4'>
               <Button
                 @click='$emit("toggle-shuffle")'
@@ -278,14 +264,12 @@
   const hasLyrics = ref(false)
   const { getImageUrl } = useImageLoader()
 
-  // Background image data
   const backgroundImageData = ref<string | null>(null)
 
   const onLyricsLoaded = (lyricsFound: boolean) => {
     hasLyrics.value = lyricsFound
   }
 
-  // Watch for song changes to update background image
   watch(() => props.song, async newSong => {
     if (newSong && props.serverUrl && props.token) {
       try {
@@ -311,7 +295,6 @@
       if (props.startWithLyrics)
         showLyrics.value = true
     } else {
-      // Reset when closing
       showLyrics.value = false
     }
   })

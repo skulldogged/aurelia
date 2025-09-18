@@ -9,28 +9,24 @@ export interface DataState<T> {
 }
 
 export const useDataFetching = (credentials: Credentials | null) => {
-  // Songs state
   const songsState = ref<DataState<Song>>({
     data:    [],
     loading: false,
     error:   null,
   })
 
-  // Artists state
   const artistsState = ref<DataState<Artist>>({
     data:    [],
     loading: false,
     error:   null,
   })
 
-  // Albums state
   const albumsState = ref<DataState<Album>>({
     data:    [],
     loading: false,
     error:   null,
   })
 
-  // Computed properties
   const songs = computed(() => songsState.value.data)
   const artists = computed(() => artistsState.value.data)
   const albums = computed(() => albumsState.value.data)
@@ -41,7 +37,6 @@ export const useDataFetching = (credentials: Credentials | null) => {
     !!(songsState.value.error || artistsState.value.error || albumsState.value.error),
   )
 
-  // Fetch songs
   const fetchSongs = async (options?: {
     limit?:    number
     offset?:   number
@@ -76,7 +71,6 @@ export const useDataFetching = (credentials: Credentials | null) => {
     }
   }
 
-  // Fetch artists
   const fetchArtists = async (options?: {
     includeSongs?:     boolean
     albumArtistsOnly?: boolean
@@ -111,7 +105,6 @@ export const useDataFetching = (credentials: Credentials | null) => {
     }
   }
 
-  // Fetch albums
   const fetchAlbums = async (options?: {
     includeSongs?: boolean
     limit?:        number
@@ -145,7 +138,6 @@ export const useDataFetching = (credentials: Credentials | null) => {
   }
 
   return {
-    // State
     songs,
     artists,
     albums,
@@ -155,7 +147,6 @@ export const useDataFetching = (credentials: Credentials | null) => {
     artistsState: readonly(artistsState),
     albumsState:  readonly(albumsState),
 
-    // Actions
     fetchSongs,
     fetchArtists,
     fetchAlbums,
