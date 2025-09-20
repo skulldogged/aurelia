@@ -11,9 +11,8 @@ export const useNavigation = () => {
   const canGoForward = ref(false)
 
   watch(() => route.name, newName => {
-    if (newName) {
+    if (newName)
       currentView.value = newName as string
-    }
   }, { immediate: true })
 
   const updateNavState = () => {
@@ -23,9 +22,7 @@ export const useNavigation = () => {
 
   onMounted(() => {
     updateNavState()
-    router.afterEach(() => {
-      updateNavState()
-    })
+    router.afterEach(() => updateNavState())
     window.addEventListener('popstate', updateNavState)
   })
 
@@ -50,9 +47,8 @@ export const useNavigation = () => {
     }
 
     const routePath = routeMap[view]
-    if (routePath) {
+    if (routePath)
       router.push(routePath)
-    }
   }
 
   const navigateToArtist = (artist: Artist) => {

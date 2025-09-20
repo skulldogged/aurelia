@@ -149,8 +149,8 @@
 </script>
 
 <template>
-  <div>
-    <div class='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 flex justify-end'>
+  <div class='p-8 max-w-7xl mx-auto space-y-8'>
+    <div class='flex justify-end'>
       <Button
         @click='showSkeleton = !showSkeleton'
         :disabled='albumLoading'
@@ -160,9 +160,9 @@
         {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
       </Button>
     </div>
-    <div v-if='albumLoading || showSkeleton' class='space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
+    <div v-if='albumLoading || showSkeleton' class='space-y-8'>
       <!-- Header Skeleton -->
-      <div class='flex items-center space-x-6'>
+      <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
         <Skeleton class='w-48 h-48 rounded-lg' />
         <div class='flex-1'>
           <Skeleton class='h-12 w-3/4 mb-3' />
@@ -194,9 +194,9 @@
         </div>
       </div>
     </div>
-    <div v-else-if='album' class='space-y-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
+    <div v-else-if='album' class='space-y-8'>
       <!-- Header -->
-      <div class='flex items-center space-x-6'>
+      <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
         <div class='flex-shrink-0'>
           <ImageLoader
             :item-id='album.id || album.name'

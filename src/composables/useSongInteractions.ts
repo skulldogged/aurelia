@@ -15,14 +15,13 @@ export const useSongInteractions = (credentials: Ref<Credentials | null>) => {
 
     playerStore.setCurrentSong(song)
 
-    if (!playerStore.playlist.find((s: Song) => s.id === song.id)) {
+    if (!playerStore.playlist.find((s: Song) => s.id === song.id))
       playerStore.setPlaylist([...playerStore.playlist, song])
-    }
 
     const index = playerStore.playlist.findIndex(s => s.id === song.id)
-    if (index !== -1) {
+    if (index !== -1)
       playerStore.setCurrentIndex(index)
-    }
+
   }
 
   const playSongs = (songs: Song[]) => {
@@ -32,9 +31,8 @@ export const useSongInteractions = (credentials: Ref<Credentials | null>) => {
     }
 
     const invalidSongs = songs.filter(song => !song || !song.id)
-    if (invalidSongs.length > 0) {
+    if (invalidSongs.length > 0)
       playerLogger.error('Found songs with invalid IDs:', invalidSongs)
-    }
 
     playerStore.setPlaylist(songs)
     if (songs.length > 0) {
@@ -56,13 +54,9 @@ export const useSongInteractions = (credentials: Ref<Credentials | null>) => {
     updatePlaylist(newPlaylist)
   }
 
-  const handleSongChanged = (song: Song) => {
-    playerStore.setCurrentSong(song)
-  }
+  const handleSongChanged = (song: Song) => playerStore.setCurrentSong(song)
 
-  const handleUpdateCurrentSong = (song: Song | null) => {
-    playerStore.setCurrentSong(song)
-  }
+  const handleUpdateCurrentSong = (song: Song | null) => playerStore.setCurrentSong(song)
 
   const toggleFavorite = async (song: Song) => {
     if (!credentials.value) {
@@ -79,21 +73,18 @@ export const useSongInteractions = (credentials: Ref<Credentials | null>) => {
         !song.isFavorite,
       )
 
-      if (result.status === 'error') {
+      if (result.status === 'error')
         throw new Error(result.error)
-      }
 
       const newStatus = result.data
 
-      if (playerStore.currentSong && playerStore.currentSong.id === song.id) {
+      if (playerStore.currentSong && playerStore.currentSong.id === song.id)
         playerStore.currentSong.isFavorite = newStatus
-      }
 
       const playlistSong = playerStore.playlist.find(s => s.id === song.id)
-      if (playlistSong) {
-        playlistSong.isFavorite = newStatus
-      }
 
+      if (playlistSong)
+        playlistSong.isFavorite = newStatus
     } catch (err) {
       playerLogger.error('Failed to toggle favorite status:', err)
     }

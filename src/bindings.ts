@@ -85,9 +85,9 @@ async getSong(songId: string) : Promise<Result<Song, string>> {
 /**
  * Get artists with optional filtering and song inclusion
  */
-async getArtists(serverUrl: string | null, token: string | null, includeSongs: boolean | null, albumArtistsOnly: boolean | null, limit: number | null, offset: number | null) : Promise<Result<Artist[], string>> {
+async getArtists(serverUrl: string | null, token: string | null, includeSongs: boolean | null, limit: number | null, offset: number | null) : Promise<Result<Artist[], string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_artists", { serverUrl, token, includeSongs, albumArtistsOnly, limit, offset }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_artists", { serverUrl, token, includeSongs, limit, offset }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

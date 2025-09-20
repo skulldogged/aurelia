@@ -6,15 +6,15 @@ import { COLOR_SCHEMES, type ColorScheme } from '@/lib/color-schemes'
 export const useThemeStore = defineStore('theme', () => {
   const selectedSchemeName = useLocalStorage('color-scheme', 'default-light')
 
-  const selectedScheme = computed(() => {
-    return COLOR_SCHEMES.find(s => s.name === selectedSchemeName.value) || COLOR_SCHEMES[0]
-  })
+  const selectedScheme = computed(() =>
+    COLOR_SCHEMES.find(s => s.name === selectedSchemeName.value) || COLOR_SCHEMES[0],
+  )
 
   const colorSchemes = computed(() => COLOR_SCHEMES)
 
-  const isDarkMode = computed(() => {
-    return selectedScheme.value?.name.includes('dark') || false
-  })
+  const isDarkMode = computed(() =>
+    selectedScheme.value?.name.includes('dark') || false,
+  )
 
   const setColorScheme = (schemeName: string) => {
     selectedSchemeName.value = schemeName
@@ -28,9 +28,8 @@ export const useThemeStore = defineStore('theme', () => {
       const newSchemeName = isDark ? `${baseName}-light` : `${baseName}-dark`
 
       const targetScheme = COLOR_SCHEMES.find(s => s.name === newSchemeName)
-      if (targetScheme) {
+      if (targetScheme)
         setColorScheme(newSchemeName)
-      }
     }
   }
 
@@ -70,9 +69,8 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   watch(selectedScheme, newScheme => {
-    if (newScheme) {
+    if (newScheme)
       applyColorScheme(newScheme)
-    }
   }, { immediate: true })
 
   return {

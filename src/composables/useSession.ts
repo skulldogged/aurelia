@@ -50,9 +50,8 @@ export const useSession = () => {
   }
 
   const registerCapabilities = async () => {
-    if (!authStore.serverUrl || !authStore.token || sessionState.value.isRegistered) {
+    if (!authStore.serverUrl || !authStore.token || sessionState.value.isRegistered)
       return
-    }
 
     try {
       await invoke('register_client_capabilities', {
@@ -67,7 +66,6 @@ export const useSession = () => {
       logger.info('Client capabilities registered with Jellyfin')
     } catch (error) {
       logger.error('Failed to register client capabilities:', error)
-      // Don't throw - registration failure shouldn't break playback
     }
   }
 
@@ -75,9 +73,8 @@ export const useSession = () => {
     itemId: string,
     positionTicks?: number,
   ) => {
-    if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered) {
+    if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered)
       return
-    }
 
     try {
       await invoke('report_playback_start', {
@@ -98,9 +95,8 @@ export const useSession = () => {
     eventName?: string,
     isPaused?: boolean,
   ) => {
-    if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered) {
+    if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered)
       return
-    }
 
     try {
       await invoke('report_playback_progress', {
@@ -117,9 +113,8 @@ export const useSession = () => {
   }
 
   const reportPlaybackStop = async (itemId: string, positionTicks?: number) => {
-    if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered) {
+    if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered)
       return
-    }
 
     try {
       await invoke('report_playback_stop', {
@@ -138,9 +133,8 @@ export const useSession = () => {
   }
 
   const markItemPlayed = async (itemId: string) => {
-    if (!authStore.serverUrl || !authStore.token || !authStore.userId) {
+    if (!authStore.serverUrl || !authStore.token || !authStore.userId)
       return
-    }
 
     try {
       await invoke('mark_item_played', {
@@ -156,7 +150,6 @@ export const useSession = () => {
     }
   }
 
-  // Generate new session ID (useful when restarting playback session)
   const generateNewSession = () => {
     sessionState.value.sessionId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     sessionState.value.playSessionId = `play-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`

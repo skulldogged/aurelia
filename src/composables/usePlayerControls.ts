@@ -27,16 +27,16 @@ export const usePlayerControls = () => {
   }
 
   const toggleQueue = () => {
-    if (isEqualizerOpen.value) {
+    if (isEqualizerOpen.value)
       isEqualizerOpen.value = false
-    }
+
     isQueueOpen.value = !isQueueOpen.value
   }
 
   const toggleEqualizer = () => {
-    if (isQueueOpen.value) {
+    if (isQueueOpen.value)
       isQueueOpen.value = false
-    }
+
     const newState = !isEqualizerOpen.value
     isEqualizerOpen.value = newState
     playerStore.setEQEnabled(newState)

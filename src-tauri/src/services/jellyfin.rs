@@ -640,41 +640,53 @@ impl JellyfinClient {
 
     /// Get all artists for a user via Items endpoint (more complete Overview support)
     pub async fn get_all_artists_for_user(&self, user_id: &str) -> AppResult<Vec<Artist>> {
-        let url = utils::build_jellyfin_url(
-            &self.server_url,
-            &format!(
-                "/Users/{}/Items?IncludeItemTypes=MusicArtist&Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount",
-                user_id
-            ),
-        );
+        let mut all_artists = Vec::new();
+        let mut start_index = 0;
+        let limit = 100; // Jellyfin's default page size
 
-        let response = self
-            .client
-            .get(&url)
-            .header("Authorization", self.get_auth_header())
-            .send()
-            .await?;
+        loop {
+            let url = utils::build_jellyfin_url(
+                &self.server_url,
+                &format!(
+                    "/Users/{}/Items?IncludeItemTypes=MusicArtist&Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount&StartIndex={}&Limit={}",
+                    user_id, start_index, limit
+                ),
+            );
 
-        if !response.status().is_success() {
-            return Err(AppError::Network(format!(
-                "Failed to fetch artists (Items): HTTP {}",
-                response.status()
-            )));
+            let response = self
+                .client
+                .get(&url)
+                .header("Authorization", self.get_auth_header())
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                return Err(AppError::Network(format!(
+                    "Failed to fetch artists (Items): HTTP {}",
+                    response.status()
+                )));
+            }
+
+            let response_json: serde_json::Value = response.json().await?;
+
+            let items = response_json["Items"]
+                .as_array()
+                .ok_or_else(|| AppError::ApiParse("Invalid artists response format".to_string()))?;
+
+            if items.is_empty() {
+                // No more artists to fetch
+                break;
+            }
+
+            for item in items {
+                let artist = self.parse_single_artist(item)?;
+                all_artists.push(artist);
+            }
+
+            start_index += items.len();
         }
 
-        let response_json: serde_json::Value = response.json().await?;
-
-        let items = response_json["Items"]
-            .as_array()
-            .ok_or_else(|| AppError::ApiParse("Invalid artists response format".to_string()))?;
-
-        let mut artists = Vec::new();
-        for item in items {
-            let artist = self.parse_single_artist(item)?;
-            artists.push(artist);
-        }
-
-        Ok(artists)
+        Ok(all_artists)
     }
 
     /// Parse a single artist from JSON with manual field mapping

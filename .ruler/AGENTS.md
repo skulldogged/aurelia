@@ -11,7 +11,7 @@ This is a Tauri application built with Vue 3, TypeScript, and Tailwind CSS. The 
 - **Build Tool**: Vite
 - **Desktop Framework**: Tauri v2
 - **Package Manager**: Bun
-- **State Management**: Vue Composition API with composables
+- **State Management**: Pinia
 - **Routing**: Vue Router 4
 
 ## Code Style Guidelines

@@ -241,7 +241,7 @@
       </div>
 
       <!-- Content -->
-      <div v-skeleton='isLoading || showSkeleton' class='relative z-10 flex items-center space-x-6'>
+      <div class='relative z-10 flex items-center space-x-6'>
         <div class='flex-shrink-0'>
           <template v-if='isLoading || showSkeleton'>
             <Skeleton class='w-48 h-48 rounded-xl' />

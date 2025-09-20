@@ -181,48 +181,57 @@ pub async fn get_artists(
     server_url: Option<String>,
     token: Option<String>,
     include_songs: Option<bool>,
-    album_artists_only: Option<bool>,
     limit: Option<i32>,
     offset: Option<i32>,
 ) -> Result<Vec<Artist>, String> {
-    let artists = if album_artists_only.unwrap_or(false) {
-        if let (Some(server_url), Some(token)) = (server_url, token) {
-            let client = JellyfinClient::with_auth(server_url, token);
-            client
-                .get_album_artists()
-                .await
-                .map_err(|e| e.to_string())?
-        } else {
-            return Err("No server credentials provided for album artists".to_string());
-        }
-    } else {
+    let artists = if let (Some(server_url), Some(token)) = (server_url, token) {
         match crate::cache::get_artists().await {
             Ok(cached_artists) if !cached_artists.is_empty() => cached_artists,
             _ => {
-                if let (Some(server_url), Some(token)) = (server_url, token) {
-                    let client = JellyfinClient::with_auth(server_url, token);
-                    let user_id = crate::handlers::auth::get_saved_credentials()
-                        .map_err(|e| e.to_string())?
-                        .map(|creds| creds.user_id)
-                        .ok_or("No saved credentials found")?;
-                    let fresh_artists = match client.get_all_artists_for_user(&user_id).await {
-                        Ok(list) => list,
-                        Err(_) => client.get_all_artists().await.map_err(|e| e.to_string())?,
-                    };
+                let client = JellyfinClient::with_auth(server_url, token);
+                let user_id = crate::handlers::auth::get_saved_credentials()
+                    .map_err(|e| e.to_string())?
+                    .map(|creds| creds.user_id)
+                    .ok_or("No saved credentials found")?;
 
-                    if let Err(e) = crate::cache::cache_artists(&fresh_artists).await {
-                        warn!("Failed to cache artists: {}", e);
+                // Fetch both lists and merge them
+                let all_artists_fut = client.get_all_artists();
+                let user_artists_fut = client.get_all_artists_for_user(&user_id);
+
+                let (all_artists_res, user_artists_res) =
+                    tokio::join!(all_artists_fut, user_artists_fut);
+
+                let all_artists = all_artists_res.map_err(|e| e.to_string())?;
+                let user_artists = user_artists_res.map_err(|e| e.to_string())?;
+
+                let mut user_artists_map: HashMap<String, Artist> = user_artists
+                    .into_iter()
+                    .map(|artist| (artist.id.clone(), artist))
+                    .collect();
+
+                let mut merged_artists = Vec::new();
+                for artist in all_artists {
+                    if let Some(user_artist) = user_artists_map.remove(&artist.id) {
+                        merged_artists.push(user_artist);
+                    } else {
+                        merged_artists.push(artist);
                     }
-
-                    fresh_artists
-                } else {
-                    return Err(
-                        "No cached artists available and no server credentials provided"
-                            .to_string(),
-                    );
                 }
+
+                // Add any remaining artists from the user-specific list
+                merged_artists.extend(user_artists_map.into_values());
+
+                if let Err(e) = crate::cache::cache_artists(&merged_artists).await {
+                    warn!("Failed to cache artists: {}", e);
+                }
+
+                merged_artists
             }
         }
+    } else {
+        crate::cache::get_artists()
+            .await
+            .map_err(|_| "No credentials provided and cache is unavailable".to_string())?
     };
 
     let result_artists = artists;

@@ -5,9 +5,9 @@ import { COLOR_SCHEMES, type ColorScheme } from '@/lib/color-schemes'
 export const useTheme = () => {
   const selectedSchemeName = useLocalStorage('color-scheme', 'default-light')
 
-  const selectedScheme = computed(() => {
-    return COLOR_SCHEMES.find(s => s.name === selectedSchemeName.value) || COLOR_SCHEMES[0]
-  })
+  const selectedScheme = computed(() =>
+    COLOR_SCHEMES.find(s => s.name === selectedSchemeName.value) || COLOR_SCHEMES[0],
+  )
 
   const setColorScheme = (schemeName: string) => {
     selectedSchemeName.value = schemeName

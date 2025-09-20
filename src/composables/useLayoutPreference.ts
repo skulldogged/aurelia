@@ -6,13 +6,9 @@ export const useLayoutPreference = (storageKey = 'songlist-layout', defaultLayou
   const getInitialLayout = (): LayoutMode => {
     try {
       const stored = localStorage.getItem(storageKey)
-      if (stored === 'list') {
-        localStorage.setItem(storageKey, 'comfy') // Migrate old value
-        return 'comfy'
-      }
-      if (stored && ['comfy', 'compact'].includes(stored)) {
+
+      if (stored && ['comfy', 'compact'].includes(stored))
         return stored as LayoutMode
-      }
     } catch (error) {
       // localStorage might not be available (SSR, etc.)
       console.warn('Failed to read layout preference from localStorage:', error)
@@ -41,9 +37,8 @@ export const usePageSizePreference = (storageKey = 'songlist-pagesize', defaultP
       const stored = localStorage.getItem(storageKey)
       if (stored) {
         const parsed = parseInt(stored, 10)
-        if (!isNaN(parsed) && parsed > 0 && parsed <= 100) {
+        if (!isNaN(parsed) && parsed > 0 && parsed <= 100)
           return parsed
-        }
       }
     } catch (error) {
       console.warn('Failed to read page size preference from localStorage:', error)
@@ -61,18 +56,15 @@ export const usePageSizePreference = (storageKey = 'songlist-pagesize', defaultP
     }
   })
 
-  return {
-    pageSize,
-  }
+  return { pageSize }
 }
 
 export const useSortPreference = (storageKey = 'songlist-sort', defaultSort: string = 'title') => {
   const getInitialSort = (): string => {
     try {
       const stored = localStorage.getItem(storageKey)
-      if (stored) {
+      if (stored)
         return stored
-      }
     } catch (error) {
       console.warn('Failed to read sort preference from localStorage:', error)
     }
@@ -89,7 +81,5 @@ export const useSortPreference = (storageKey = 'songlist-sort', defaultSort: str
     }
   })
 
-  return {
-    sort,
-  }
+  return { sort }
 }

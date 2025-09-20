@@ -85,9 +85,8 @@ const getStoredEQBands = (): EQBand[] => {
     const stored = localStorage.getItem(STORAGE_KEYS.EQ_BANDS)
     if (stored) {
       const parsed = JSON.parse(stored)
-      if (Array.isArray(parsed) && parsed.length === 5) {
+      if (Array.isArray(parsed) && parsed.length === 5)
         return parsed as EQBand[]
-      }
     }
   } catch (error) {
     playerLogger.warn('Failed to load EQ bands from localStorage:', error)
@@ -221,11 +220,10 @@ export const usePlayerStore = defineStore('player', () => {
 
   const setCurrentIndex = (index: number) => {
     currentIndex.value = index
-    if (index >= 0 && index < playlist.value.length) {
+    if (index >= 0 && index < playlist.value.length)
       currentSong.value = playlist.value[index]
-    } else {
+    else
       currentSong.value = null
-    }
   }
 
   const setAudioReady = (ready: boolean) => {
@@ -241,7 +239,6 @@ export const usePlayerStore = defineStore('player', () => {
 
     let nextIndex: number
     if (isShuffled.value) {
-      // Random next song (excluding current)
       const availableIndices = playlist.value
         .map((_, i) => i)
         .filter(i => i !== currentIndex.value)
@@ -258,7 +255,6 @@ export const usePlayerStore = defineStore('player', () => {
 
     let prevIndex: number
     if (isShuffled.value) {
-      // Random previous song (excluding current)
       const availableIndices = playlist.value
         .map((_, i) => i)
         .filter(i => i !== currentIndex.value)

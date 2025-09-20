@@ -62,9 +62,8 @@ export const usePlayerSession = () => {
   watch(
     () => playerStore.currentSong,
     async (newSong, oldSong) => {
-      if (oldSong && playerStore.isPlaying) {
+      if (oldSong && playerStore.isPlaying)
         await sessionManager.reportPlaybackStop(oldSong.id, playerStore.currentTime)
-      }
 
       if (newSong && playerStore.isPlaying) {
         await sessionManager.reportPlaybackStart(
@@ -83,13 +82,12 @@ export const usePlayerSession = () => {
   watch(
     () => playerStore.isPlaying,
     async (isPlaying, wasPlaying) => {
-      if (!playerStore.currentSong) {
+      if (!playerStore.currentSong)
         return
-      }
 
-      if (isPlaying === lastReportedState.isPlaying) {
+      if (isPlaying === lastReportedState.isPlaying)
         return
-      }
+
       lastReportedState.isPlaying = isPlaying
 
       if (isPlaying && !wasPlaying) {
@@ -126,28 +124,25 @@ export const usePlayerSession = () => {
   onUnmounted(async () => {
     stopProgressReporting()
 
-    if (playerStore.currentSong && playerStore.isPlaying) {
+    if (playerStore.currentSong && playerStore.isPlaying)
       await sessionManager.reportPlaybackStop(
         playerStore.currentSong.id,
         playerStore.currentTime,
       )
-    }
   })
 
   watch(
     () => authStore.isAuthenticated(),
     async isAuthenticated => {
-      if (isAuthenticated) {
+      if (isAuthenticated)
         await initialize()
-      }
     },
     { immediate: true },
   )
 
   onMounted(async () => {
-    if (authStore.isAuthenticated()) {
+    if (authStore.isAuthenticated())
       await initialize()
-    }
   })
 
   return {

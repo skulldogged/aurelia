@@ -153,9 +153,8 @@ const initializeEQ = (): boolean => {
       return false
     }
 
-    if (eqNodes) {
+    if (eqNodes)
       eqNodes.forEach(node => node.disconnect())
-    }
 
     eqNodes = DEFAULT_EQ_BANDS.map(band => {
       const filter = audioContext!.createBiquadFilter()
@@ -251,9 +250,8 @@ const updateAudioGraph = (): boolean => {
 
 const loadAudio = async (url: string): Promise<boolean> => {
   try {
-    if (!audioContext) {
+    if (!audioContext)
       throw new Error('AudioContext not initialized')
-    }
 
     stop()
 
@@ -321,13 +319,11 @@ const loadAudio = async (url: string): Promise<boolean> => {
 
 const play = async (): Promise<boolean> => {
   try {
-    if (!mediaElement) {
+    if (!mediaElement)
       throw new Error('Audio not loaded')
-    }
 
-    if (audioContext?.state === 'suspended') {
+    if (audioContext?.state === 'suspended')
       await audioContext.resume()
-    }
 
     await mediaElement.play()
     isPlaying = true
@@ -375,17 +371,12 @@ const stop = (): boolean => {
 
 const seek = async (time: number): Promise<boolean> => {
   try {
-    if (!mediaElement) {
+    if (!mediaElement)
       throw new Error('Audio not loaded')
-    }
 
     const clampedTime = Math.max(0, Math.min(time, mediaElement.duration || 0))
-    const _wasPlaying = !mediaElement.paused
 
     mediaElement.currentTime = clampedTime
-
-    // If it was playing before, it should continue playing after seek
-    // The HTML5 audio element handles this automatically
 
     playerLogger.debug(`WebAudio streaming seeked to ${clampedTime}s`)
     return true
@@ -422,11 +413,15 @@ const getDuration = (): number => {
   return (duration && !isNaN(duration) && isFinite(duration) && duration > 0) ? duration : 0
 }
 
-const getIsPlaying = (): boolean => isPlaying && mediaElement ? !mediaElement.paused && !mediaElement.ended : false
+const getIsPlaying = (): boolean =>
+  isPlaying && mediaElement
+    ? !mediaElement.paused && !mediaElement.ended
+    : false
 
-const getIsReady = (): boolean => {
-  return mediaElement ? mediaElement.readyState >= 2 : false // HAVE_CURRENT_DATA or higher
-}
+const getIsReady = (): boolean =>
+  mediaElement
+    ? mediaElement.readyState >= 2
+    : false
 
 const setupEventListeners = () => {
   if (!mediaElement) return
@@ -455,9 +450,8 @@ const setupEventListeners = () => {
   })
 
   mediaElement.addEventListener('loadedmetadata', () => {
-    if (mediaElement) {
+    if (mediaElement)
       playerLogger.debug(`Metadata loaded, duration: ${mediaElement.duration}s`)
-    }
   })
 
   mediaElement.addEventListener('durationchange', () => {
@@ -465,9 +459,8 @@ const setupEventListeners = () => {
       const duration = mediaElement.duration
       if (duration && !isNaN(duration) && isFinite(duration) && duration > 0) {
         playerLogger.debug(`Duration updated to: ${duration}s`)
-        if (onDurationChange) {
+        if (onDurationChange)
           onDurationChange(duration)
-        }
       }
     }
   })
@@ -483,25 +476,21 @@ const setEQEnabled = (enabled: boolean): boolean => {
     eqEnabled = enabled
 
     const playerStore = usePlayerStore()
-    if (playerStore.eqEnabled !== enabled) {
+    if (playerStore.eqEnabled !== enabled)
       playerStore.setEQEnabled(enabled)
-    }
 
     if (enabled) {
-      if (!eqNodes) {
-        if (!initializeEQ()) {
-          return false
-        }
-      }
+      if (!eqNodes && !initializeEQ())
+        return false
 
       loadStoredEQBands()
 
       if (!updateAudioGraph())
         return false
-    } else {
-      if (!updateAudioGraph())
-        playerLogger.error('Failed to update audio graph when disabling EQ')
+    } else if (!updateAudioGraph()){
+      playerLogger.error('Failed to update audio graph when disabling EQ')
     }
+
     return true
   } catch (error) {
     playerLogger.error('Failed to toggle EQ:', error)
@@ -532,18 +521,17 @@ const setEQBandGain = (bandIndex: number, gain: number): boolean => {
 }
 
 const getEQBandGain = (bandIndex: number): number => {
-  if (!eqNodes || bandIndex < 0 || bandIndex >= eqNodes.length) {
+  if (!eqNodes || bandIndex < 0 || bandIndex >= eqNodes.length)
     return 0
-  }
+
   return eqNodes[bandIndex].gain.value
 }
 
-const getEQBands = (): EQBand[] => {
-  return DEFAULT_EQ_BANDS.map((band, index) => ({
+const getEQBands = (): EQBand[] =>
+  DEFAULT_EQ_BANDS.map((band, index) => ({
     ...band,
     gain: getEQBandGain(index),
   }))
-}
 
 const applyEQPreset = (presetName: string): boolean => {
   try {
@@ -572,7 +560,9 @@ const resetEQ = (): boolean => {
     DEFAULT_EQ_BANDS.forEach((band, index) => {
       setEQBandGain(index, 0)
     })
+
     playerLogger.debug('EQ reset to flat')
+
     return true
   } catch (error) {
     playerLogger.error('Failed to reset EQ:', error)
@@ -587,29 +577,35 @@ const setOnDurationChange = (callback: (duration: number) => void) => {
 const cleanup = () => {
   try {
     stop()
+
     if (mediaElement) {
       mediaElement.src = ''
       mediaElement = null
     }
+
     if (mediaSource) {
       mediaSource.disconnect()
       mediaSource = null
     }
+
     if (gainNode) {
       gainNode.disconnect()
       gainNode = null
     }
+
     if (eqNodes) {
       eqNodes.forEach(node => node.disconnect())
       eqNodes = null
     }
+
     if (analyserNode) {
       analyserNode.disconnect()
       analyserNode = null
     }
-    if (audioContext && audioContext.state !== 'closed') {
+
+    if (audioContext && audioContext.state !== 'closed')
       audioContext.close()
-    }
+
     audioContext = null
     pendingVolume = 1.0
     eqEnabled = false

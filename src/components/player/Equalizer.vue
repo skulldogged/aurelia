@@ -14,17 +14,15 @@
   } from '@/components/ui/select'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
-  import { useAppState } from '@/composables/useAppState'
+  import { usePlayerControls } from '@/composables/usePlayerControls'
+  import { storeToRefs } from 'pinia'
 
-  // Get app state and actions
-  const { appState, setEQEnabled, setEQBandGain, resetEQ } = useAppState()
+  // Get player store
+  const { playerStore } = usePlayerControls()
+  const { eqEnabled, eqBands } = storeToRefs(playerStore)
 
   // WebAudio player instance
   const webAudioPlayer = useWebAudioPlayer()
-
-  // Reactive EQ state from store
-  const eqEnabled = computed(() => appState.eqEnabled)
-  const eqBands = computed(() => appState.eqBands)
 
   // EQ presets (from WebAudio)
   const eqPresets = computed(() => webAudioPlayer.getEQPresets())
@@ -38,6 +36,21 @@
       }
     },
   })
+
+  const setEQEnabled = (enabled: boolean) => {
+    webAudioPlayer.setEQEnabled(enabled)
+    playerStore.setEQEnabled(enabled)
+  }
+
+  const setEQBandGain = (bandIndex: number, gain: number) => {
+    webAudioPlayer.setEQBandGain(bandIndex, gain)
+    playerStore.setEQBandGain(bandIndex, gain)
+  }
+
+  const resetEQ = () => {
+    webAudioPlayer.resetEQ()
+    playerStore.resetEQ()
+  }
 
   // EQ Methods
   const toggleEQEnabled = () => {

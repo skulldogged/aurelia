@@ -19,26 +19,21 @@ export const useAccentColorStore = defineStore('accentColor', () => {
     return themeStore.selectedScheme?.accentColors || []
   })
 
-  const accentColor = computed(() => {
-    const color = accentColors.value.find(c => c.name === accentColorName.value)
-    // Fallback to the first available color if the stored one isn't found
-    return color || accentColors.value[0] || {
+  const accentColor = computed(() =>
+    accentColors.value.find(c => c.name === accentColorName.value) || accentColors.value[0] || {
       name:        'blue',
       displayName: 'Blue',
       hex:         '#3b82f6',
-    }
-  })
+    })
 
   const currentAccentHex = computed(() => accentColor.value.hex)
 
   const currentAccentForeground = computed(() => {
     const color = accentColor.value
-    if (color.foreground) {
+    if (color.foreground)
       return color.foreground
-    }
 
-    const luminance = getLuminance(color.hex)
-    return luminance > 0.4
+    return getLuminance(color.hex) > 0.4
       ? 'oklch(0.21 0.006 285.885)' // dark text
       : 'oklch(0.985 0 0)' // light text
   })
@@ -49,9 +44,8 @@ export const useAccentColorStore = defineStore('accentColor', () => {
 
   const setAccentColorByHex = (hex: string) => {
     const color = accentColors.value.find(c => c.hex === hex)
-    if (color) {
+    if (color)
       setAccentColor(color.name)
-    }
   }
 
   const resetToDefault = () => {
@@ -76,25 +70,21 @@ export const useAccentColorStore = defineStore('accentColor', () => {
 
       root.style.setProperty('--accent', color.hex)
 
-      if (color.foreground) {
+      if (color.foreground)
         root.style.setProperty('--accent-foreground', color.foreground)
-      } else if (luminance > 0.4) {
+      else if (luminance > 0.4)
         root.style.setProperty('--accent-foreground', 'oklch(0.21 0.006 285.885)') // dark text
-      } else {
+      else
         root.style.setProperty('--accent-foreground', 'oklch(0.985 0 0)') // light text
-      }
     }
   }
 
-  const getContrastColor = (hex: string): string => {
-    const luminance = getLuminance(hex)
-    return luminance > 0.4 ? '#000000' : '#ffffff'
-  }
+  const getContrastColor = (hex: string): string =>
+    getLuminance(hex) > 0.4 ? '#000000' : '#ffffff'
 
   watch(accentColor, newColor => {
-    if (newColor) {
+    if (newColor)
       applyAccentColor(newColor)
-    }
   }, { immediate: true })
 
   return {

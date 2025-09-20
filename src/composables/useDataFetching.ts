@@ -58,9 +58,8 @@ export const useDataFetching = (credentials: Credentials | null) => {
         options?.artistId ?? null,
       )
 
-      if (result.status === 'error') {
+      if (result.status === 'error')
         throw new Error(`Failed to fetch songs: ${result.error}`)
-      }
 
       songsState.value.data = result.data
     } catch (error) {
@@ -92,9 +91,8 @@ export const useDataFetching = (credentials: Credentials | null) => {
         options?.offset ?? null,
       )
 
-      if (result.status === 'error') {
+      if (result.status === 'error')
         throw new Error(`Failed to fetch artists: ${result.error}`)
-      }
 
       artistsState.value.data = result.data
     } catch (error) {
@@ -124,9 +122,8 @@ export const useDataFetching = (credentials: Credentials | null) => {
         options?.offset ?? null,
       )
 
-      if (result.status === 'error') {
+      if (result.status === 'error')
         throw new Error(`Failed to fetch albums: ${result.error}`)
-      }
 
       albumsState.value.data = result.data
     } catch (error) {

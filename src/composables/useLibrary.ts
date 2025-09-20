@@ -21,6 +21,7 @@ export const useLibrary = () => {
 
     for (let i = 0; i < length; i++) {
       const song = songs[i]
+
       if (song.album && song.albumId) {
         const albumId = song.albumId
 
@@ -90,9 +91,9 @@ export const useLibrary = () => {
   const syncLibrary = async (credentials: Credentials) => {
     try {
       const syncResult = await commands.syncLibrary(credentials.serverUrl, credentials.token)
-      if (syncResult.status === 'error') {
+      if (syncResult.status === 'error')
         throw new Error(`Failed to sync library: ${syncResult.error}`)
-      }
+
       await loadLibrary(credentials)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sync music library'
@@ -104,9 +105,9 @@ export const useLibrary = () => {
   const clearCache = async (credentials: Credentials) => {
     try {
       const clearResult = await commands.clearCache(credentials.serverUrl, credentials.token)
-      if (clearResult.status === 'error') {
+      if (clearResult.status === 'error')
         throw new Error(`Failed to clear cache: ${clearResult.error}`)
-      }
+
       await loadLibrary(credentials)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to clear music cache'

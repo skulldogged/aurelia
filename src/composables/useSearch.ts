@@ -49,41 +49,37 @@ export const useSearch = (
   }, { immediate: true })
 
   const filteredSongs = computed(() => {
-    if (!searchQuery || searchQuery.length < 2 || !songFuse.value) {
+    if (!searchQuery || searchQuery.length < 2 || !songFuse.value)
       return songs
-    }
+
     return songFuse.value.search(searchQuery).map(result => result.item)
   })
 
   const filteredAlbums = computed(() => {
-    if (!searchQuery || searchQuery.length < 2 || !albumFuse.value) {
+    if (!searchQuery || searchQuery.length < 2 || !albumFuse.value)
       return albums
-    }
+
     return albumFuse.value.search(searchQuery).map(result => result.item)
   })
 
   const filteredArtists = computed(() => {
-    if (!searchQuery || searchQuery.length < 2 || !artistFuse.value) {
+    if (!searchQuery || searchQuery.length < 2 || !artistFuse.value)
       return artists
-    }
+
     return artistFuse.value.search(searchQuery).map(result => result.item)
   })
 
-  const searchAll = computed(() => {
-    if (!searchQuery || searchQuery.length < 2) {
-      return {
-        songs:   songs.slice(0, 5),
-        albums:  albums.slice(0, 5),
-        artists: artists.slice(0, 5),
-      }
-    }
-
-    return {
+  const searchAll = computed(() =>
+    (searchQuery && searchQuery.length >= 2) ? {
       songs:   filteredSongs.value.slice(0, 5),
       albums:  filteredAlbums.value.slice(0, 5),
       artists: filteredArtists.value.slice(0, 5),
-    }
-  })
+    } : {
+      songs:   songs.slice(0, 5),
+      albums:  albums.slice(0, 5),
+      artists: artists.slice(0, 5),
+    },
+  )
 
   const isSearching = computed(() => searchQuery && searchQuery.length >= 2)
 

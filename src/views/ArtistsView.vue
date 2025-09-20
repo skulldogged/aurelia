@@ -10,7 +10,6 @@
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import { uiLogger } from '@/lib/logger'
-  import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
 
   const router = useRouter()
   const { getArtists } = commands
@@ -30,33 +29,34 @@
 
   const searchQuery = ref('')
   const artists = ref<Artist[]>([])
-  const albumArtists = ref<Artist[]>([])
   const isLoading = ref(true)
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
   onMounted(async () => {
     try {
-      const [allResult, albumOnlyResult] = await Promise.all([
-        getArtists(props.serverUrl, props.token, true, false, null, null),
-        getArtists(props.serverUrl, props.token, true, true, null, null),
-      ])
+      // Fetch all artists with their songs included
+      const result = await getArtists(props.serverUrl, props.token, true, null, null)
 
-      if (allResult.status === 'error') {
-        uiLogger.error('Failed to load artists:', allResult.error)
-        throw new Error(allResult.error)
-      }
-      if (albumOnlyResult.status === 'error') {
-        uiLogger.error('Failed to load album artists:', albumOnlyResult.error)
-        throw new Error(albumOnlyResult.error)
+      if (result.status === 'error') {
+        uiLogger.error('Failed to load artists:', result.error)
+        throw new Error(result.error)
       }
 
-      artists.value = allResult.data
-      albumArtists.value = albumOnlyResult.data
+      artists.value = result.data
     } catch (error) {
       uiLogger.error('Failed to load artists:', error)
     } finally {
       isLoading.value = false
     }
+  })
+
+  // Artists who appear as an "album artist" on at least one song
+  const albumArtists = computed(() => {
+    return artists.value.filter(artist =>
+      artist.songs?.some(song =>
+        song.albumArtists?.some(albumArtist => albumArtist.id === artist.id),
+      ),
+    )
   })
 
   const artistsToDisplay = computed(() =>
