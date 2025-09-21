@@ -335,6 +335,10 @@ export type Artist = {
  */
   id:              string;
   /**
+ * Image tags (metadata about available images)
+ */
+  imageTags:       Partial<{ [key in string]: string }> | null;
+  /**
  * URL to artist image
  */
   imageUrl:        string | null;

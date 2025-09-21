@@ -62,7 +62,19 @@
     </div>
     <div v-else-if='artist' class='space-y-12'>
       <!-- Header -->
-      <div class='flex flex-col md:flex-row items-start p-8 blur-card rounded-2xl shadow-lg gap-8'>
+      <div
+        class='relative flex flex-col md:flex-row items-start p-8 blur-card rounded-2xl shadow-lg gap-8 overflow-hidden'
+      >
+        <!-- Backdrop Background -->
+        <!-- <ImageLoader
+          v-if='artist.imageTags?.Backdrop'
+          :image-type='"Backdrop"'
+          :item-id='artist.id'
+          :server-url='serverUrl'
+          :token='token'
+          alt='Artist backdrop'
+          class='absolute inset-0 w-full h-full object-cover opacity-10'
+        /> -->
         <div class='flex-shrink-0 mx-auto md:mx-0'>
           <ImageLoader
             :item-id='artist.id'
@@ -238,7 +250,7 @@
           v-for='album in artistAlbums'
           @click="$emit('select-album', album)"
           :key='album.name'
-          class='cursor-pointer group'
+          class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
         >
           <div class='relative mb-4'>
             <ImageLoader
@@ -305,7 +317,7 @@
           v-for='relatedArtist in relatedArtists'
           @click="$emit('select-artist', relatedArtist)"
           :key='relatedArtist.name'
-          class='cursor-pointer group'
+          class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
         >
           <div class='relative mb-4'>
             <ImageLoader

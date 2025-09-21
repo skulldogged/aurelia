@@ -364,7 +364,7 @@
           v-for='song in mostPlayed'
           @click='playSongs(mostPlayed, song)'
           :key='song.id'
-          class='cursor-pointer group'
+          class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
         >
           <div class='relative mb-2'>
             <ImageLoader
@@ -386,18 +386,18 @@
             <!-- Play button overlay -->
             <div
               class='
-                  absolute inset-0 bg-black/50 rounded-lg opacity-0
-                  group-hover:opacity-100 transition-opacity flex items-center
-                  justify-center
-                '
+                     absolute inset-0 bg-black/50 rounded-lg opacity-0
+                     group-hover:opacity-100 transition-opacity flex items-center
+                     justify-center
+                   '
             >
               <Button
                 @click.stop='playSongs(mostPlayed, song)'
                 :disabled='isLoading || showSkeleton'
                 class='
-                    bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
-                    border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
-                  '
+                       bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
+                       border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
+                     '
                 size='icon'
               >
                 <Play class='h-4 w-4' />
@@ -447,7 +447,7 @@
           v-for='song in recentlyPlayed'
           @click='playSongs(recentlyPlayed, song)'
           :key='song.id'
-          class='cursor-pointer group'
+          class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
         >
           <div class='relative mb-2'>
             <ImageLoader
@@ -530,7 +530,7 @@
           v-for='album in recentlyAdded'
           @click="$emit('select-album', album)"
           :key='album.name'
-          class='cursor-pointer group'
+          class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
         >
           <div class='relative mb-2'>
             <ImageLoader
@@ -588,7 +588,7 @@
       </template>
     </Carousel>
 
-    <Carousel :disabled='isLoading || showSkeleton' title='From Your Library'>
+    <Carousel :disabled='isLoading || showSkeleton' class='mb-8' title='From Your Library'>
       <template v-if='isLoading || showSkeleton'>
         <div
           v-for='n in 10'
@@ -607,7 +607,7 @@
           v-for='album in randomAlbums'
           @click="$emit('select-album', album)"
           :key='album.name'
-          class='cursor-pointer group'
+          class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
         >
           <div class='relative mb-2'>
             <ImageLoader

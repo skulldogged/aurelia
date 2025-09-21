@@ -473,12 +473,7 @@ impl CacheManager {
             process_item(&song.id, &song.image_tags);
         }
         for artist in artists {
-            process_item(
-                &artist.id,
-                &artist.image_tags.as_ref().and_then(|v| {
-                    serde_json::from_value::<HashMap<String, String>>(v.clone()).ok()
-                }),
-            );
+            process_item(&artist.id, &artist.image_tags);
         }
         for album in albums {
             if let Some(id) = &album.id {

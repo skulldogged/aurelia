@@ -44,7 +44,7 @@
 </script>
 
 <template>
-  <section>
+  <section class='blur-card rounded-2xl shadow-lg p-6'>
     <div class='flex justify-between items-center mb-4'>
       <h2 class='text-3xl font-bold'>
         {{ title }}

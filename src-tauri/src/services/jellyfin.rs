@@ -707,7 +707,11 @@ impl JellyfinClient {
 
         let name = item["Name"].as_str().unwrap_or("").to_string();
 
-        let image_tags = item["ImageTags"].clone();
+        let image_tags = item["ImageTags"].as_object().map(|obj| {
+            obj.iter()
+                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                .collect::<HashMap<String, String>>()
+        });
 
         let image_url = item["ImageTags"].as_object().and_then(|tags| {
             if tags.contains_key("Primary") {
@@ -748,7 +752,7 @@ impl JellyfinClient {
         let artist = Artist {
             name,
             id,
-            image_tags: Some(image_tags),
+            image_tags,
             image_url,
             overview,
             provider_ids,

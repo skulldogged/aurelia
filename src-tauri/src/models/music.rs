@@ -110,8 +110,7 @@ pub struct Artist {
     /// Artist ID
     pub id: String,
     /// Image tags (metadata about available images)
-    #[specta(skip)]
-    pub image_tags: Option<serde_json::Value>,
+    pub image_tags: Option<HashMap<String, String>>,
     /// URL to artist image
     pub image_url: Option<String>,
     /// Artist biography/description
