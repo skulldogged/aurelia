@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { onMounted, computed } from 'vue'
+  import { onMounted } from 'vue'
   import { useColorMode } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
   import type { Credentials } from '@/bindings'
@@ -20,6 +20,7 @@
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { usePlayerSession } from '@/composables/usePlayerSession'
   import { appLogger } from '@/lib/logger'
+  import { ref } from 'vue'
 
   useColorMode()
 
@@ -85,6 +86,9 @@
     hasPrevious,
   } = storeToRefs(playerStore)
 
+  const isSyncing = ref(false)
+  const isClearing = ref(false)
+
   usePlayerSession()
 
   onMounted(() => {
@@ -108,19 +112,25 @@
 
   const handleSyncLibrary = async () => {
     if (!credentials.value) return
+    isSyncing.value = true
     try {
       await syncLibrary(credentials.value)
     } catch (err) {
       appLogger.error('Failed to sync library:', err)
+    } finally {
+      isSyncing.value = false
     }
   }
 
   const handleClearCache = async () => {
     if (!credentials.value) return
+    isClearing.value = true
     try {
       await clearCache(credentials.value)
     } catch (err) {
       appLogger.error('Failed to clear cache:', err)
+    } finally {
+      isClearing.value = false
     }
   }
 </script>
@@ -182,7 +192,9 @@
             :key='$route.path'
             :credentials='credentials'
             :current-song='currentSong'
+            :is-clearing='isClearing'
             :is-playing='!!currentSong'
+            :is-syncing='isSyncing'
             :server-url='credentials?.serverUrl'
             :token='credentials?.token'
             :user-id='credentials?.userId'

@@ -25,11 +25,15 @@ export const logger = createConsola({
             logObj.type === 'error' ? '[ERROR]' :
               logObj.type === 'debug' ? '[DEBUG]' : '[LOG]'
 
-        const args = logObj.args?.map((arg: unknown) =>
-          typeof arg === 'object' && arg !== null ?
-            JSON.stringify(arg, replacer, 2) :
-            arg,
-        ) || []
+        const args = logObj.args?.map((arg: unknown) => {
+          if (arg instanceof Error) {
+            return arg.stack || arg.message
+          }
+          if (typeof arg === 'object' && arg !== null) {
+            return JSON.stringify(arg, replacer, 2)
+          }
+          return arg
+        }) || []
 
         const color = levelColors[logObj.type] || levelColors.log
         const style = `color: ${color}; font-weight: bold;`

@@ -198,21 +198,6 @@ export const useImageLoader = () => {
     return loadingPromise
   }
 
-  const clearImageCache = async (): Promise<void> => {
-    try {
-      await invoke('clear_image_cache')
-      dataUrlCache.clear()
-      cacheMetadata.clear()
-      failureCache.clear()
-      loadingPromises.clear()
-      localStorage.removeItem(PERSISTENT_CACHE_KEY)
-      localStorage.removeItem(FAILURE_CACHE_KEY)
-    } catch (error) {
-      console.error('Failed to clear image cache:', error)
-      throw error
-    }
-  }
-
   const getImageCacheStats = async (): Promise<{
     total_size:                 number
     file_count:                 number
@@ -288,7 +273,6 @@ export const useImageLoader = () => {
 
   return {
     getImageUrl,
-    clearImageCache,
     getImageCacheStats,
     preloadRecentImages,
   }

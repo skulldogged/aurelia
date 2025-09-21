@@ -7,7 +7,10 @@ pub mod utils;
 
 pub use anyhow::Result;
 
+#[cfg(debug_assertions)]
+use specta_typescript::BigIntExportBehavior;
 use specta_typescript::Typescript;
+use std::process::Command;
 use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -27,7 +30,19 @@ fn init_logging() {
         .init();
 }
 
+#[cfg(debug_assertions)]
+fn bunx_eslint_formatter(file: &std::path::Path) -> std::io::Result<()> {
+    Command::new("bunx")
+        .arg("eslint")
+        .arg("--fix")
+        .arg(file)
+        .output()
+        .map(|_| ())
+        .map_err(std::io::Error::other)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[allow(clippy::large_stack_frames)]
 pub fn run() {
     init_logging();
     info!("Starting Tauri application");
@@ -68,7 +83,12 @@ pub fn run() {
 
     #[cfg(debug_assertions)]
     builder
-        .export(Typescript::default(), "../src/bindings.ts")
+        .export(
+            Typescript::default()
+                .bigint(BigIntExportBehavior::BigInt)
+                .formatter(bunx_eslint_formatter),
+            "../src/bindings.ts",
+        )
         .expect("Failed to export typescript bindings");
 
     tauri::Builder::default()

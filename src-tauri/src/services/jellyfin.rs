@@ -7,6 +7,7 @@ use crate::models::{
     jellyfin::{ClientCapabilities, JellyfinLyrics},
 };
 use crate::utils;
+use crate::utils::error_handling;
 use reqwest::Client;
 use serde_json;
 use std::collections::HashMap;
@@ -21,6 +22,7 @@ pub struct JellyfinClient {
 
 impl JellyfinClient {
     /// Create a new Jellyfin client
+    #[must_use]
     pub fn new(server_url: String) -> Self {
         Self {
             client: Client::new(),
@@ -30,6 +32,7 @@ impl JellyfinClient {
     }
 
     /// Create a new authenticated Jellyfin client
+    #[must_use]
     pub fn with_auth(server_url: String, token: String) -> Self {
         Self {
             client: Client::new(),
@@ -38,27 +41,20 @@ impl JellyfinClient {
         }
     }
 
-    /// Set the authentication token
-    pub fn set_token(&mut self, token: String) {
-        self.token = Some(token);
-    }
-
-    /// Get the server URL
-    pub fn get_server_url(&self) -> &str {
-        &self.server_url
-    }
-
     /// Get the HTTP client (for internal use)
-    pub fn get_client(&self) -> &Client {
+    #[must_use]
+    pub const fn get_client(&self) -> &Client {
         &self.client
     }
 
     /// Get the authorization header value
+    #[must_use]
     pub fn get_auth_header(&self) -> String {
-        match &self.token {
-            Some(token) => format!("MediaBrowser Token=\"{}\"", token),
-            None => utils::build_jellyfin_auth_header(),
-        }
+        self.token
+            .as_ref()
+            .map_or_else(utils::build_jellyfin_auth_header, |token| {
+                format!("MediaBrowser Token=\"{token}\"")
+            })
     }
 
     /// Authenticate user with Jellyfin server
@@ -78,13 +74,23 @@ impl JellyfinClient {
             .await?;
 
         if !response.status().is_success() {
-            return Err(AppError::Auth(format!(
-                "Login failed: HTTP {}",
-                response.status()
-            )));
+            let status = response.status().as_u16();
+            let message = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error");
+            return Err(error_handling::auth_error_with_context(
+                format!("HTTP {status}: {message}"),
+                &format!("Authentication failed for user '{username}'"),
+            ));
         }
 
-        let auth_response: JellyfinAuthResponse = response.json().await?;
+        let auth_response: JellyfinAuthResponse = response.json().await.map_err(|e| {
+            error_handling::api_parse_error_with_context(
+                e,
+                "Failed to parse authentication response from server",
+            )
+        })?;
         Ok(LoginResponse {
             token: auth_response.access_token,
             user_id: auth_response.user.id,
@@ -113,10 +119,8 @@ impl JellyfinClient {
         }
 
         let response_text = response.text().await?;
-        let response_json: serde_json::Value =
-            serde_json::from_str(&response_text).map_err(|e| {
-                AppError::ApiParse(format!("Failed to parse album artists JSON: {}", e))
-            })?;
+        let response_json: serde_json::Value = serde_json::from_str(&response_text)
+            .map_err(|e| AppError::ApiParse(format!("Failed to parse album artists JSON: {e}")))?;
 
         let items = response_json["Items"].as_array().ok_or_else(|| {
             AppError::ApiParse("Invalid album artists response format".to_string())
@@ -138,8 +142,7 @@ impl JellyfinClient {
         let albums_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Users/{}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,SongCount,Artists,ArtistItems",
-                user_id
+                "/Users/{user_id}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,SongCount,Artists,ArtistItems",
             ),
         );
 
@@ -159,7 +162,7 @@ impl JellyfinClient {
 
         let response_text = response.text().await?;
         let response_json: serde_json::Value = serde_json::from_str(&response_text)
-            .map_err(|e| AppError::ApiParse(format!("Failed to parse albums JSON: {}", e)))?;
+            .map_err(|e| AppError::ApiParse(format!("Failed to parse albums JSON: {e}")))?;
 
         let items = response_json["Items"]
             .as_array()
@@ -168,7 +171,7 @@ impl JellyfinClient {
         let mut albums = Vec::new();
 
         for item in items {
-            let album = self.parse_single_album(item)?;
+            let album = self.parse_single_album(item);
             albums.push(album);
         }
 
@@ -177,48 +180,30 @@ impl JellyfinClient {
     }
 
     /// Parse a single album from JSON
-    fn parse_single_album(&self, item: &serde_json::Value) -> AppResult<crate::models::Album> {
-        let id = item["Id"].as_str().map(|s| s.to_string());
+    fn parse_single_album(&self, item: &serde_json::Value) -> crate::models::Album {
+        let id = item["Id"].as_str().map(std::string::ToString::to_string);
         let name = item["Name"].as_str().unwrap_or("Unknown Album").to_string();
 
-        let artist = if let Some(artists) = item["Artists"].as_array() {
-            artists
-                .first()
-                .and_then(|a| a.as_str())
-                .unwrap_or("Unknown Artist")
-        } else {
-            "Unknown Artist"
-        };
+        let artist = item["Artists"]
+            .as_array()
+            .map_or("Unknown Artist", |artists| {
+                artists
+                    .first()
+                    .and_then(|a| a.as_str())
+                    .unwrap_or("Unknown Artist")
+            });
 
         let artist_id = item["AlbumArtists"]
             .as_array()
             .and_then(|artists| artists.first())
             .and_then(|artist| artist["Id"].as_str())
-            .map(|s| s.to_string());
+            .map(std::string::ToString::to_string);
 
-        let album_art_url = if let Some(tags) = item["ImageTags"].as_object() {
-            if tags.contains_key("Primary") {
-                let base_url = format!(
-                    "{}/Items/{}/Images/Primary",
-                    self.server_url.trim_end_matches('/'),
-                    item["Id"].as_str().unwrap_or("")
-                );
+        let (album_art_url, image_tags) = self.extract_image_info(item, id.as_deref());
 
-                if let Some(token) = &self.token {
-                    Some(format!("{}?api_key={}", base_url, token))
-                } else {
-                    Some(base_url)
-                }
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let song_count = item["SongCount"].as_i64().unwrap_or(0);
 
-        let song_count = item["SongCount"].as_i64().unwrap_or(0) as i32;
-
-        Ok(crate::models::Album {
+        crate::models::Album {
             id,
             name,
             artist: artist.to_string(),
@@ -226,7 +211,8 @@ impl JellyfinClient {
             album_art_url,
             song_count,
             songs: None,
-        })
+            image_tags,
+        }
     }
 
     /// Get music library items
@@ -234,8 +220,7 @@ impl JellyfinClient {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Users/{}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,ArtistItems,MediaSources,Width,Height,Container",
-                user_id
+                "/Users/{user_id}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,ArtistItems,MediaSources,Width,Height,Container"
             ),
         );
 
@@ -254,7 +239,7 @@ impl JellyfinClient {
         }
 
         let response_json: serde_json::Value = response.json().await?;
-        self.parse_music_items(response_json)
+        self.parse_music_items(&response_json)
     }
 
     /// Get recently played music items
@@ -262,8 +247,7 @@ impl JellyfinClient {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Users/{}/Items?IncludeItemTypes=Audio&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=20&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded",
-                user_id
+                "/Users/{user_id}/Items?IncludeItemTypes=Audio&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=20&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded"
             ),
         );
 
@@ -282,11 +266,11 @@ impl JellyfinClient {
         }
 
         let response_json: serde_json::Value = response.json().await?;
-        self.parse_music_items(response_json)
+        self.parse_music_items(&response_json)
     }
 
     /// Parse music items from Jellyfin API response
-    fn parse_music_items(&self, response_json: serde_json::Value) -> AppResult<Vec<Song>> {
+    fn parse_music_items(&self, response_json: &serde_json::Value) -> AppResult<Vec<Song>> {
         let items = response_json["Items"]
             .as_array()
             .ok_or_else(|| AppError::ApiParse("Invalid response format".to_string()))?;
@@ -302,6 +286,7 @@ impl JellyfinClient {
     }
 
     /// Parse a single music item from JSON with manual field mapping
+    #[allow(clippy::too_many_lines)]
     fn parse_single_music_item(&self, item: &serde_json::Value) -> AppResult<Song> {
         let id = item["Id"]
             .as_str()
@@ -312,13 +297,18 @@ impl JellyfinClient {
 
         let item_type = item["Type"].as_str().unwrap_or("").to_string();
 
-        let album = item["Album"].as_str().map(|s| s.to_string());
+        let album = item["Album"].as_str().map(std::string::ToString::to_string);
         let album_id = item["AlbumId"]
             .as_str()
-            .map(|s| s.to_string())
-            .or_else(|| item["ParentId"].as_str().map(|s| s.to_string()));
-        let path = item["Path"].as_str().map(|s| s.to_string());
+            .map(std::string::ToString::to_string)
+            .or_else(|| {
+                item["ParentId"]
+                    .as_str()
+                    .map(std::string::ToString::to_string)
+            });
+        let path = item["Path"].as_str().map(std::string::ToString::to_string);
 
+        #[allow(clippy::cast_precision_loss)]
         let duration = item["RunTimeTicks"]
             .as_i64()
             .map(|ticks| ticks as f64 / 10_000_000.0);
@@ -334,49 +324,56 @@ impl JellyfinClient {
             .as_i64()
             .and_then(|n| n.try_into().ok());
         let track_number = item["IndexNumber"].as_i64().and_then(|n| n.try_into().ok());
-        let premiere_date = item["PremiereDate"].as_str().map(|s| s.to_string());
-        let date_created = item["DateCreated"].as_str().map(|s| s.to_string());
+        let premiere_date = item["PremiereDate"]
+            .as_str()
+            .map(std::string::ToString::to_string);
+        let date_created = item["DateCreated"]
+            .as_str()
+            .map(std::string::ToString::to_string);
 
-        let (bit_rate, sample_rate, codec) = if let Some(streams) = item["MediaStreams"].as_array()
-        {
-            if let Some(audio_stream) = streams.iter().find(|s| s["Type"] == "Audio") {
-                (
-                    audio_stream["BitRate"]
-                        .as_i64()
-                        .and_then(|n| n.try_into().ok()),
-                    audio_stream["SampleRate"]
-                        .as_i64()
-                        .and_then(|n| n.try_into().ok()),
-                    audio_stream["Codec"].as_str().map(|s| s.to_string()),
-                )
-            } else {
-                (None, None, None)
-            }
-        } else {
-            (None, None, None)
-        };
+        let (bit_rate, sample_rate, codec) =
+            item["MediaStreams"]
+                .as_array()
+                .map_or((None, None, None), |streams| {
+                    streams.iter().find(|s| s["Type"] == "Audio").map_or(
+                        (None, None, None),
+                        |audio_stream| {
+                            (
+                                audio_stream["BitRate"]
+                                    .as_i64()
+                                    .and_then(|n| n.try_into().ok()),
+                                audio_stream["SampleRate"]
+                                    .as_i64()
+                                    .and_then(|n| n.try_into().ok()),
+                                audio_stream["Codec"]
+                                    .as_str()
+                                    .map(std::string::ToString::to_string),
+                            )
+                        },
+                    )
+                });
 
-        let album_art_url = self.extract_album_art_url(item, &id);
-        let artists = self.extract_artists(item);
-        let artist_ids = self.extract_artist_ids(item);
-        let genres = self.extract_genres(item);
-        let album_artists = self.extract_album_artists(item);
+        let (album_art_url, image_tags) = self.extract_image_info(item, Some(&id));
+        let artists = Self::extract_artists(item);
+        let artist_ids = Self::extract_artist_ids(item);
+        let genres = Self::extract_genres(item);
+        let album_artists = Self::extract_album_artists(item);
 
         let container = item["Container"]
             .as_str()
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .or_else(|| {
                 item["Path"].as_str().and_then(|p| {
                     std::path::Path::new(p)
                         .extension()
                         .and_then(|os_str| os_str.to_str())
-                        .map(|s| s.to_lowercase())
+                        .map(str::to_lowercase)
                 })
             });
 
         let song = Song {
             id,
-            name: name.clone(),
+            name,
             item_type,
             album,
             album_id,
@@ -384,7 +381,7 @@ impl JellyfinClient {
             artist_ids,
             path,
             duration,
-            album_art_url: album_art_url.clone(),
+            album_art_url,
             year,
             play_count,
             is_favorite,
@@ -399,40 +396,54 @@ impl JellyfinClient {
             date_created,
             album_artists,
             lyrics: None,
+            image_tags,
         };
 
         Ok(song)
     }
 
     /// Extract album artwork URL from item
-    fn extract_album_art_url(&self, item: &serde_json::Value, item_id: &str) -> Option<String> {
-        let image_id = item["AlbumId"].as_str().unwrap_or(item_id);
+    fn extract_image_info(
+        &self,
+        item: &serde_json::Value,
+        item_id: Option<&str>,
+    ) -> (Option<String>, Option<HashMap<String, String>>) {
+        let image_id = item["AlbumId"]
+            .as_str()
+            .or(item_id)
+            .unwrap_or_else(|| item["Id"].as_str().unwrap_or(""));
 
-        if let Some(tags) = item["ImageTags"].as_object()
-            && tags.contains_key("Primary")
-        {
-            let base_url = format!(
-                "{}/Items/{}/Images/Primary",
-                self.server_url.trim_end_matches('/'),
-                image_id
-            );
+        item["ImageTags"].as_object().map_or((None, None), |tags| {
+            let image_tags = tags
+                .iter()
+                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                .collect::<HashMap<String, String>>();
 
-            if let Some(token) = &self.token {
-                return Some(format!("{}?api_key={}", base_url, token));
+            let url = if tags.contains_key("Primary") {
+                let base_url = format!(
+                    "{}/Items/{}/Images/Primary",
+                    self.server_url.trim_end_matches('/'),
+                    image_id
+                );
+                if let Some(token) = &self.token {
+                    Some(format!("{base_url}?api_key={token}"))
+                } else {
+                    Some(base_url)
+                }
             } else {
-                return Some(base_url);
-            }
-        }
-        None
+                None
+            };
+            (url, Some(image_tags))
+        })
     }
 
     /// Extract artists from item
-    fn extract_artists(&self, item: &serde_json::Value) -> Option<Vec<String>> {
+    fn extract_artists(item: &serde_json::Value) -> Option<Vec<String>> {
         let artists_value = &item["Artists"];
 
         if let Some(arr) = artists_value.as_array() {
             let mut artists = Vec::new();
-            for artist_value in arr.iter() {
+            for artist_value in arr {
                 if let Some(artist_str) = artist_value.as_str() {
                     if artist_str.contains('\x1F') {
                         for split_artist in artist_str.split('\x1F').filter(|s| !s.is_empty()) {
@@ -452,7 +463,7 @@ impl JellyfinClient {
             let artists = artists_str
                 .split('\x1F')
                 .filter(|s| !s.is_empty())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<String>>();
             if !artists.is_empty() {
                 return Some(artists);
@@ -462,12 +473,12 @@ impl JellyfinClient {
     }
 
     /// Extract artist IDs from item
-    fn extract_artist_ids(&self, item: &serde_json::Value) -> Option<Vec<String>> {
+    fn extract_artist_ids(item: &serde_json::Value) -> Option<Vec<String>> {
         let artist_items = &item["ArtistItems"];
 
         if let Some(arr) = artist_items.as_array() {
             let mut artist_ids = Vec::new();
-            for item_value in arr.iter() {
+            for item_value in arr {
                 if let Some(id_str) = item_value["Id"].as_str() {
                     if id_str.contains('\x1F') {
                         for split_id in id_str.split('\x1F').filter(|s| !s.is_empty()) {
@@ -486,7 +497,7 @@ impl JellyfinClient {
         if let Some(arr) = artist_items.as_array() {
             let artist_ids = arr
                 .iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .filter_map(|v| v.as_str().map(std::string::ToString::to_string))
                 .collect::<Vec<String>>();
             if !artist_ids.is_empty() {
                 let mut final_ids = Vec::new();
@@ -506,7 +517,7 @@ impl JellyfinClient {
     }
 
     /// Extract genres from item
-    fn extract_genres(&self, item: &serde_json::Value) -> Option<Vec<String>> {
+    fn extract_genres(item: &serde_json::Value) -> Option<Vec<String>> {
         let genres_value = &item["Genres"];
 
         if let Some(arr) = genres_value.as_array() {
@@ -531,7 +542,7 @@ impl JellyfinClient {
             let genres = genres_str
                 .split('\x1F')
                 .filter(|s| !s.is_empty())
-                .map(|s| s.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<String>>();
             if !genres.is_empty() {
                 return Some(genres);
@@ -542,12 +553,12 @@ impl JellyfinClient {
     }
 
     /// Extract album artists from item
-    fn extract_album_artists(&self, item: &serde_json::Value) -> Option<Vec<NameIdPair>> {
+    fn extract_album_artists(item: &serde_json::Value) -> Option<Vec<NameIdPair>> {
         let album_artists_value = &item["AlbumArtists"];
 
         if let Some(arr) = album_artists_value.as_array() {
             let mut album_artists = Vec::new();
-            for artist_value in arr.iter() {
+            for artist_value in arr {
                 if let (Some(id), Some(name)) =
                     (artist_value["Id"].as_str(), artist_value["Name"].as_str())
                 {
@@ -575,8 +586,7 @@ impl JellyfinClient {
         let artist_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Users/{}/Items/{}?Fields=ImageTags,Overview,ProviderIds,CommunityRating",
-                user_id, artist_id
+                "/Users/{user_id}/Items/{artist_id}?Fields=ImageTags,Overview,ProviderIds,CommunityRating"
             ),
         );
 
@@ -622,7 +632,7 @@ impl JellyfinClient {
         let response_text = response.text().await?;
 
         let response_json: serde_json::Value = serde_json::from_str(&response_text)
-            .map_err(|e| AppError::ApiParse(format!("Failed to parse artists JSON: {}", e)))?;
+            .map_err(|e| AppError::ApiParse(format!("Failed to parse artists JSON: {e}")))?;
 
         let items = response_json["Items"]
             .as_array()
@@ -648,8 +658,7 @@ impl JellyfinClient {
             let url = utils::build_jellyfin_url(
                 &self.server_url,
                 &format!(
-                    "/Users/{}/Items?IncludeItemTypes=MusicArtist&Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount&StartIndex={}&Limit={}",
-                    user_id, start_index, limit
+                    "/Users/{user_id}/Items?IncludeItemTypes=MusicArtist&Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount&StartIndex={start_index}&Limit={limit}"
                 ),
             );
 
@@ -700,7 +709,7 @@ impl JellyfinClient {
 
         let image_tags = item["ImageTags"].clone();
 
-        let image_url = if let Some(tags) = item["ImageTags"].as_object() {
+        let image_url = item["ImageTags"].as_object().and_then(|tags| {
             if tags.contains_key("Primary") {
                 let base_url = format!(
                     "{}/Items/{}/Images/Primary",
@@ -709,16 +718,14 @@ impl JellyfinClient {
                 );
 
                 if let Some(token) = &self.token {
-                    Some(format!("{}?api_key={}", base_url, token))
+                    Some(format!("{base_url}?api_key={token}"))
                 } else {
                     Some(base_url)
                 }
             } else {
                 None
             }
-        } else {
-            None
-        };
+        });
 
         let overview = item["Overview"].as_str().and_then(|s| {
             let trimmed = s.trim();
@@ -735,8 +742,8 @@ impl JellyfinClient {
                 .collect::<HashMap<String, String>>()
         });
 
-        let community_rating = item["CommunityRating"].as_f64().map(|f| f as f32);
-        let song_count = item["SongCount"].as_i64().map(|n| n as i32);
+        let community_rating = item["CommunityRating"].as_f64();
+        let song_count = item["SongCount"].as_i64();
 
         let artist = Artist {
             name,
@@ -756,7 +763,7 @@ impl JellyfinClient {
     /// Get lyrics for a track
     pub async fn get_lyrics(&self, item_id: &str) -> AppResult<Option<JellyfinLyrics>> {
         let lyrics_url =
-            utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/Lyrics", item_id));
+            utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{item_id}/Lyrics"));
 
         let response = self
             .client
@@ -782,7 +789,7 @@ impl JellyfinClient {
     ) -> AppResult<()> {
         let fav_url = utils::build_jellyfin_url(
             &self.server_url,
-            &format!("/Users/{}/FavoriteItems/{}", user_id, item_id),
+            &format!("/Users/{user_id}/FavoriteItems/{item_id}"),
         );
 
         let response = if is_favorite {
@@ -893,8 +900,7 @@ impl JellyfinClient {
                 .await
                 .unwrap_or_else(|_| "No response body".to_string());
             return Err(AppError::Network(format!(
-                "Failed to report playback start: HTTP {} - {}",
-                status, body
+                "Failed to report playback start: HTTP {status} - {body}"
             )));
         }
 
@@ -993,7 +999,7 @@ impl JellyfinClient {
     pub async fn mark_item_played(&self, user_id: &str, item_id: &str) -> AppResult<()> {
         let played_url = utils::build_jellyfin_url(
             &self.server_url,
-            &format!("/Users/{}/PlayedItems/{}", user_id, item_id),
+            &format!("/Users/{user_id}/PlayedItems/{item_id}"),
         );
 
         let response = self

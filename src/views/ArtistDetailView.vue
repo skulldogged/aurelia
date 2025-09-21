@@ -424,13 +424,14 @@
             artist:      song.artists?.[0] || 'Unknown Artist',
             artistId:    song.artistIds?.[0] || null,
             albumArtUrl: song.albumArtUrl,
-            songCount:   0,
+            songCount:   BigInt(0),
             songs:       [],
+            imageTags:   song.imageTags,
           })
         }
         const album = albumsMap.get(song.albumId)!
         album.songs!.push(song)
-        album.songCount = album.songs!.length
+        album.songCount = BigInt(album.songs!.length)
       }
     })
 
@@ -529,7 +530,7 @@
     }
     try {
       const [artistsResult, songsResult] = await Promise.all([
-        getArtists(props.serverUrl, props.token, true, null, null),
+        getArtists(props.serverUrl, props.token, true, null, null, null),
         getSongs(props.serverUrl, props.token, null, null, null, null),
       ])
 

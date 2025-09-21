@@ -12,7 +12,12 @@
 
     <AppearanceSettings />
     <ServerSettings @logout='$emit("logout")' :credentials='credentials' />
-    <LibrarySettings @clear-cache='$emit("clear-cache")' @sync-library='$emit("sync-library")' />
+    <LibrarySettings
+      @clear-cache='$emit("clear-cache")'
+      @sync-library='$emit("sync-library")'
+      :is-clearing='isClearing'
+      :is-syncing='isSyncing'
+    />
   </div>
 </template>
 
@@ -30,6 +35,8 @@
 
   defineProps<{
     credentials: Credentials | null
+    isSyncing:   boolean
+    isClearing:  boolean
   }>()
 
   defineEmits<{

@@ -436,11 +436,6 @@
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const updateProgress = () => {
-    if (activePlayer.value && playerStore.duration > 0) {
-    }
-  }
-
   const onLoadedMetadata = (playerIndex: number) => {
     const player = players[playerIndex].value
     if (player) {
@@ -460,7 +455,6 @@
       const player = players[playerIndex].value
       if (player) {
         playerStore.setCurrentTime(player.currentTime)
-        updateProgress()
       }
     }
   }

@@ -35,7 +35,7 @@
   onMounted(async () => {
     try {
       // Fetch all artists with their songs included
-      const result = await getArtists(props.serverUrl, props.token, true, null, null)
+      const result = await getArtists(props.serverUrl, props.token, true, null, null, null)
 
       if (result.status === 'error') {
         uiLogger.error('Failed to load artists:', result.error)

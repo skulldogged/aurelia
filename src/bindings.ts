@@ -3,563 +3,562 @@
 
 /** user-defined commands **/
 
-
 export const commands = {
 /**
  * Login to Jellyfin server
  */
-async loginToJellyfin(serverUrl: string, username: string, password: string) : Promise<Result<LoginResponse, string>> {
+  loginToJellyfin: async (serverUrl: string, username: string, password: string): Promise<Result<LoginResponse, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("login_to_jellyfin", { serverUrl, username, password }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('login_to_jellyfin', { serverUrl, username, password }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Save user credentials to disk
  */
-async saveCredentials(serverUrl: string, username: string, token: string, userId: string) : Promise<Result<null, string>> {
+  saveCredentials: async (serverUrl: string, username: string, token: string, userId: string): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("save_credentials", { serverUrl, username, token, userId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('save_credentials', { serverUrl, username, token, userId }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Load saved credentials from disk
  */
-async getSavedCredentials() : Promise<Result<Credentials | null, string>> {
+  getSavedCredentials: async (): Promise<Result<Credentials | null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_saved_credentials") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_saved_credentials') }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Save user volume preference
  */
-async saveVolume(volume: number) : Promise<Result<null, string>> {
+  saveVolume: async (volume: number): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("save_volume", { volume }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('save_volume', { volume }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Load saved volume preference
  */
-async getSavedVolume() : Promise<Result<number | null, string>> {
+  getSavedVolume: async (): Promise<Result<number | null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_saved_volume") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_saved_volume') }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get songs with optional filtering
  */
-async getSongs(serverUrl: string | null, token: string | null, limit: number | null, offset: number | null, albumId: string | null, artistId: string | null) : Promise<Result<Song[], string>> {
+  getSongs: async (serverUrl: string | null, token: string | null, limit: number | null, offset: number | null, albumId: string | null, artistId: string | null): Promise<Result<Song[], string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_songs", { serverUrl, token, limit, offset, albumId, artistId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_songs', { serverUrl, token, limit, offset, albumId, artistId }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get single song by ID
  */
-async getSong(songId: string) : Promise<Result<Song, string>> {
+  getSong: async (songId: string): Promise<Result<Song, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_song", { songId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_song', { songId }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get artists with optional filtering and song inclusion
  */
-async getArtists(serverUrl: string | null, token: string | null, includeSongs: boolean | null, limit: number | null, offset: number | null) : Promise<Result<Artist[], string>> {
+  getArtists: async (serverUrl: string | null, token: string | null, includeSongs: boolean | null, albumArtistsOnly: boolean | null, limit: number | null, offset: number | null): Promise<Result<Artist[], string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_artists", { serverUrl, token, includeSongs, limit, offset }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_artists', { serverUrl, token, includeSongs, albumArtistsOnly, limit, offset }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get single artist by ID
  */
-async getArtist(artistId: string, includeSongs: boolean | null, albumArtistsOnly: boolean | null) : Promise<Result<Artist, string>> {
+  getArtist: async (artistId: string, includeSongs: boolean | null, albumArtistsOnly: boolean | null): Promise<Result<Artist, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_artist", { artistId, includeSongs, albumArtistsOnly }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_artist', { artistId, includeSongs, albumArtistsOnly }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get albums with optional filtering and song inclusion
  */
-async getAlbums(serverUrl: string | null, token: string | null, includeSongs: boolean | null, limit: number | null, offset: number | null) : Promise<Result<Album[], string>> {
+  getAlbums: async (serverUrl: string | null, token: string | null, includeSongs: boolean | null, limit: number | null, offset: number | null): Promise<Result<Album[], string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_albums", { serverUrl, token, includeSongs, limit, offset }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_albums', { serverUrl, token, includeSongs, limit, offset }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get single album by ID
  */
-async getAlbum(albumId: string, includeSongs: boolean | null) : Promise<Result<Album, string>> {
+  getAlbum: async (albumId: string, includeSongs: boolean | null): Promise<Result<Album, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_album", { albumId, includeSongs }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_album', { albumId, includeSongs }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get audio stream URL
  */
-async getAudioStreamUrl(serverUrl: string, token: string, itemId: string, container: string | null) : Promise<Result<string, string>> {
+  getAudioStreamUrl: async (serverUrl: string, token: string, itemId: string, container: string | null): Promise<Result<string, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_audio_stream_url", { serverUrl, token, itemId, container }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_audio_stream_url', { serverUrl, token, itemId, container }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Toggle favorite status for a track
  */
-async toggleFavoriteStatus(serverUrl: string, token: string, userId: string, itemId: string, isFavorite: boolean) : Promise<Result<boolean, string>> {
+  toggleFavoriteStatus: async (serverUrl: string, token: string, userId: string, itemId: string, isFavorite: boolean): Promise<Result<boolean, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("toggle_favorite_status", { serverUrl, token, userId, itemId, isFavorite }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('toggle_favorite_status', { serverUrl, token, userId, itemId, isFavorite }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Sync music library - update existing data without clearing cache
  */
-async syncLibrary(serverUrl: string, token: string) : Promise<Result<null, string>> {
+  syncLibrary: async (serverUrl: string, token: string): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("sync_library", { serverUrl, token }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('sync_library', { serverUrl, token }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Clear the music cache, then re-fetch and cache the library
  */
-async clearCache(serverUrl: string, token: string) : Promise<Result<null, string>> {
+  clearCache: async (serverUrl: string, token: string): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("clear_cache", { serverUrl, token }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('clear_cache', { serverUrl, token }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get recently played songs
  */
-async getRecentlyPlayed(serverUrl: string, token: string) : Promise<Result<Song[], string>> {
+  getRecentlyPlayed: async (serverUrl: string, token: string): Promise<Result<Song[], string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_recently_played", { serverUrl, token }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('get_recently_played', { serverUrl, token }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Register client capabilities with Jellyfin server
  */
-async registerClientCapabilities(serverUrl: string, token: string, deviceName: string, deviceId: string, appVersion: string) : Promise<Result<null, string>> {
+  registerClientCapabilities: async (serverUrl: string, token: string, deviceName: string, deviceId: string, appVersion: string): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("register_client_capabilities", { serverUrl, token, deviceName, deviceId, appVersion }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('register_client_capabilities', { serverUrl, token, deviceName, deviceId, appVersion }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Report playback start to Jellyfin server
  */
-async reportPlaybackStart(serverUrl: string, token: string, itemId: string, positionTicks: number | null) : Promise<Result<null, string>> {
+  reportPlaybackStart: async (serverUrl: string, token: string, itemId: string, positionTicks: number | null): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("report_playback_start", { serverUrl, token, itemId, positionTicks }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('report_playback_start', { serverUrl, token, itemId, positionTicks }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Report playback progress to Jellyfin server
  */
-async reportPlaybackProgress(serverUrl: string, token: string, itemId: string, positionTicks: number | null, eventName: string | null, isPaused: boolean | null) : Promise<Result<null, string>> {
+  reportPlaybackProgress: async (serverUrl: string, token: string, itemId: string, positionTicks: number | null, eventName: string | null, isPaused: boolean | null): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("report_playback_progress", { serverUrl, token, itemId, positionTicks, eventName, isPaused }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('report_playback_progress', { serverUrl, token, itemId, positionTicks, eventName, isPaused }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Report playback stop to Jellyfin server
  */
-async reportPlaybackStop(serverUrl: string, token: string, itemId: string, positionTicks: number | null) : Promise<Result<null, string>> {
+  reportPlaybackStop: async (serverUrl: string, token: string, itemId: string, positionTicks: number | null): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("report_playback_stop", { serverUrl, token, itemId, positionTicks }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('report_playback_stop', { serverUrl, token, itemId, positionTicks }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Mark item as played in Jellyfin
  */
-async markItemPlayed(serverUrl: string, token: string, userId: string, itemId: string) : Promise<Result<null, string>> {
+  markItemPlayed: async (serverUrl: string, token: string, userId: string, itemId: string): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("mark_item_played", { serverUrl, token, userId, itemId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
+      return { status: 'ok', data: await TAURI_INVOKE('mark_item_played', { serverUrl, token, userId, itemId }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get lyrics for a track
  */
-async getLyrics(id: string, artist: string, title: string, path: string | null) : Promise<Result<string, string>> {
+  getLyrics: async (id: string, artist: string, title: string, path: string | null): Promise<Result<string, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_lyrics", { id, artist, title, path }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async getCachedImageDataUrl(itemId: string, imageType: string) : Promise<Result<string | null, string>> {
+      return { status: 'ok', data: await TAURI_INVOKE('get_lyrics', { id, artist, title, path }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  getCachedImageDataUrl: async (itemId: string, imageType: string): Promise<Result<string | null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_cached_image_data_url", { itemId, imageType }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async cacheImageFromUrl(itemId: string, imageType: string, imageUrl: string, serverUrl: string, token: string) : Promise<Result<string, string>> {
+      return { status: 'ok', data: await TAURI_INVOKE('get_cached_image_data_url', { itemId, imageType }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  cacheImageFromUrl: async (itemId: string, imageType: string, imageUrl: string, serverUrl: string, token: string): Promise<Result<string, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("cache_image_from_url", { itemId, imageType, imageUrl, serverUrl, token }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async clearImageCache() : Promise<Result<null, string>> {
+      return { status: 'ok', data: await TAURI_INVOKE('cache_image_from_url', { itemId, imageType, imageUrl, serverUrl, token }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  clearImageCache: async (): Promise<Result<null, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("clear_image_cache") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-async getImageCacheStats() : Promise<Result<string, string>> {
+      return { status: 'ok', data: await TAURI_INVOKE('clear_image_cache') }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  getImageCacheStats: async (): Promise<Result<string, string>> => {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_image_cache_stats") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-}
+      return { status: 'ok', data: await TAURI_INVOKE('get_image_cache_stats') }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
 }
 
 /** user-defined events **/
 
-
-
 /** user-defined constants **/
-
-
 
 /** user-defined types **/
 
 /**
  * Consolidated album type with all information
  */
-export type Album = { 
+export type Album = {
 /**
  * Album ID from Jellyfin
  */
-id: string | null; 
-/**
+  id:          string | null;
+  /**
  * Album name
  */
-name: string; 
-/**
+  name:        string;
+  /**
  * Primary artist name
  */
-artist: string; 
-/**
+  artist:      string;
+  /**
  * Primary artist ID
  */
-artistId: string | null; 
-/**
+  artistId:    string | null;
+  /**
  * URL to album artwork
  */
-albumArtUrl: string | null; 
-/**
+  albumArtUrl: string | null;
+  /**
  * Number of songs in album
  */
-songCount: number; 
-/**
+  songCount:   bigint;
+  /**
  * Optional list of songs in this album (only populated when needed)
  */
-songs: Song[] | null }
+  songs:       Song[] | null;
+  /**
+ * Image tags
+ */
+  imageTags:   Partial<{ [key in string]: string }> | null }
 /**
  * Consolidated artist type with all information
  */
-export type Artist = { 
+export type Artist = {
 /**
  * Artist name
  */
-name: string; 
-/**
+  name:            string;
+  /**
  * Artist ID
  */
-id: string; 
-/**
+  id:              string;
+  /**
  * URL to artist image
  */
-imageUrl: string | null; 
-/**
+  imageUrl:        string | null;
+  /**
  * Artist biography/description
  */
-overview: string | null; 
-/**
- * External provider IDs (MusicBrainz, etc.)
+  overview:        string | null;
+  /**
+ * External provider IDs (`MusicBrainz`, etc.)
  */
-providerIds: Partial<{ [key in string]: string }> | null; 
-/**
+  providerIds:     Partial<{ [key in string]: string }> | null;
+  /**
  * Community rating
  */
-communityRating: number | null; 
-/**
+  communityRating: number | null;
+  /**
  * Number of songs by this artist
  */
-songCount: number | null; 
-/**
+  songCount:       bigint | null;
+  /**
  * Optional list of songs by this artist (only populated when needed)
  */
-songs: Song[] | null }
+  songs:           Song[] | null }
 /**
  * User credentials for Jellyfin authentication
  */
-export type Credentials = { 
+export type Credentials = {
 /**
  * Jellyfin server URL
  */
-serverUrl: string; 
-/**
+  serverUrl: string;
+  /**
  * Username
  */
-username: string; 
-/**
+  username:  string;
+  /**
  * Authentication token
  */
-token: string; 
-/**
+  token:     string;
+  /**
  * User ID
  */
-userId: string }
+  userId:    string }
 /**
  * Response from successful Jellyfin login
  */
-export type LoginResponse = { 
+export type LoginResponse = {
 /**
  * User authentication token
  */
-token: string; 
-/**
+  token:  string;
+  /**
  * User ID
  */
-userId: string }
+  userId: string }
 /**
  * Generic name-ID pair used for artists and other entities
  */
-export type NameIdPair = { 
+export type NameIdPair = {
 /**
  * Display name
  */
-name: string; 
-/**
+  name: string;
+  /**
  * Unique identifier
  */
-id: string }
+  id:   string }
 /**
  * Song representing a music track or audio file
  */
-export type Song = { 
+export type Song = {
 /**
  * Unique identifier
  */
-id: string; 
-/**
+  id:           string;
+  /**
  * Song title
  */
-name: string; 
-/**
+  name:         string;
+  /**
  * Type of item (usually "Audio")
  */
-itemType: string; 
-/**
+  itemType:     string;
+  /**
  * Album name
  */
-album: string | null; 
-/**
+  album:        string | null;
+  /**
  * Album ID
  */
-albumId: string | null; 
-/**
+  albumId:      string | null;
+  /**
  * List of artist names
  */
-artists: string[] | null; 
-/**
+  artists:      string[] | null;
+  /**
  * List of artist IDs corresponding to artists
  */
-artistIds: string[] | null; 
-/**
+  artistIds:    string[] | null;
+  /**
  * File path
  */
-path: string | null; 
-/**
+  path:         string | null;
+  /**
  * Duration in seconds
  */
-duration: number | null; 
-/**
+  duration:     number | null;
+  /**
  * URL to album artwork
  */
-albumArtUrl: string | null; 
-/**
+  albumArtUrl:  string | null;
+  /**
  * Release year
  */
-year: number | null; 
-/**
+  year:         number | null;
+  /**
  * Number of times played
  */
-playCount: number | null; 
-/**
+  playCount:    number | null;
+  /**
  * Whether this item is marked as favorite
  */
-isFavorite: boolean | null; 
-/**
+  isFavorite:   boolean | null;
+  /**
  * Track number in album
  */
-trackNumber: number | null; 
-/**
+  trackNumber:  number | null;
+  /**
  * Audio container/format
  */
-container: string | null; 
-/**
+  container:    string | null;
+  /**
  * Audio bitrate
  */
-bitRate: number | null; 
-/**
+  bitRate:      number | null;
+  /**
  * Audio sample rate
  */
-sampleRate: number | null; 
-/**
+  sampleRate:   number | null;
+  /**
  * Audio codec
  */
-codec: string | null; 
-/**
+  codec:        string | null;
+  /**
  * Music genres
  */
-genres: string[] | null; 
-/**
+  genres:       string[] | null;
+  /**
  * Premiere/release date
  */
-premiereDate: string | null; 
-/**
+  premiereDate: string | null;
+  /**
  * Last played date
  */
-datePlayed: string | null; 
-/**
+  datePlayed:   string | null;
+  /**
  * Date created (when added to server)
  */
-dateCreated: string | null; 
-/**
+  dateCreated:  string | null;
+  /**
  * Album artists (different from track artists)
  */
-albumArtists: NameIdPair[] | null; 
-/**
+  albumArtists: NameIdPair[] | null;
+  /**
  * Song lyrics
  */
-lyrics: string | null }
+  lyrics:       string | null;
+  /**
+ * Image tags
+ */
+  imageTags:    Partial<{ [key in string]: string }> | null }
 
 /** tauri-specta globals **/
 
 import {
-	invoke as TAURI_INVOKE,
-	Channel as TAURI_CHANNEL,
-} from "@tauri-apps/api/core";
-import * as TAURI_API_EVENT from "@tauri-apps/api/event";
-import { type WebviewWindow as __WebviewWindow__ } from "@tauri-apps/api/webviewWindow";
+  invoke as TAURI_INVOKE,
+  Channel as TAURI_CHANNEL,
+} from '@tauri-apps/api/core'
+import * as TAURI_API_EVENT from '@tauri-apps/api/event'
+import { type WebviewWindow as __WebviewWindow__ } from '@tauri-apps/api/webviewWindow'
 
 type __EventObj__<T> = {
-	listen: (
-		cb: TAURI_API_EVENT.EventCallback<T>,
-	) => ReturnType<typeof TAURI_API_EVENT.listen<T>>;
-	once: (
-		cb: TAURI_API_EVENT.EventCallback<T>,
-	) => ReturnType<typeof TAURI_API_EVENT.once<T>>;
-	emit: null extends T
-		? (payload?: T) => ReturnType<typeof TAURI_API_EVENT.emit>
-		: (payload: T) => ReturnType<typeof TAURI_API_EVENT.emit>;
-};
+  listen: (
+    cb: TAURI_API_EVENT.EventCallback<T>,
+  ) => ReturnType<typeof TAURI_API_EVENT.listen<T>>;
+  once: (
+    cb: TAURI_API_EVENT.EventCallback<T>,
+  ) => ReturnType<typeof TAURI_API_EVENT.once<T>>;
+  emit: null extends T
+    ? (payload?: T) => ReturnType<typeof TAURI_API_EVENT.emit>
+    : (payload: T) => ReturnType<typeof TAURI_API_EVENT.emit>;
+}
 
 export type Result<T, E> =
-	| { status: "ok"; data: T }
-	| { status: "error"; error: E };
+	| { status: 'ok'; data: T }
+	| { status: 'error'; error: E }
 
-function __makeEvents__<T extends Record<string, any>>(
-	mappings: Record<keyof T, string>,
-) {
-	return new Proxy(
-		{} as unknown as {
-			[K in keyof T]: __EventObj__<T[K]> & {
-				(handle: __WebviewWindow__): __EventObj__<T[K]>;
-			};
-		},
-		{
-			get: (_, event) => {
-				const name = mappings[event as keyof T];
+const __makeEvents__ = <T extends Record<string, any>>(mappings: Record<keyof T, string>) => new Proxy(
+  {} as unknown as {
+    [K in keyof T]: __EventObj__<T[K]> & {
+      (handle: __WebviewWindow__): __EventObj__<T[K]>;
+    };
+  },
+  {
+    get: (_, event) => {
+      const name = mappings[event as keyof T]
 
-				return new Proxy((() => {}) as any, {
-					apply: (_, __, [window]: [__WebviewWindow__]) => ({
-						listen: (arg: any) => window.listen(name, arg),
-						once: (arg: any) => window.once(name, arg),
-						emit: (arg: any) => window.emit(name, arg),
-					}),
-					get: (_, command: keyof __EventObj__<any>) => {
-						switch (command) {
-							case "listen":
-								return (arg: any) => TAURI_API_EVENT.listen(name, arg);
-							case "once":
-								return (arg: any) => TAURI_API_EVENT.once(name, arg);
-							case "emit":
-								return (arg: any) => TAURI_API_EVENT.emit(name, arg);
-						}
-					},
-				});
-			},
-		},
-	);
-}
+      return new Proxy((() => {}) as any, {
+        apply: (_, __, [window]: [__WebviewWindow__]) => ({
+          listen: (arg: any) => window.listen(name, arg),
+          once:   (arg: any) => window.once(name, arg),
+          emit:   (arg: any) => window.emit(name, arg),
+        }),
+        get: (_, command: keyof __EventObj__<any>) => {
+          switch (command) {
+            case 'listen':
+              return (arg: any) => TAURI_API_EVENT.listen(name, arg)
+            case 'once':
+              return (arg: any) => TAURI_API_EVENT.once(name, arg)
+            case 'emit':
+              return (arg: any) => TAURI_API_EVENT.emit(name, arg)
+          }
+        },
+      })
+    },
+  },
+)

@@ -185,7 +185,8 @@
     loading.value = true
     try {
       await fetchSongs()
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch music library:', err)
     } finally {
       loading.value = false
     }

@@ -1,16 +1,17 @@
-//! LrcLib API service client
+//! `LrcLib` API service client
 
 use crate::error::{AppError, AppResult};
 use crate::models::LrcLibTrackResponse;
 use crate::utils;
 
-/// LrcLib API client for fetching lyrics
+/// `LrcLib` API client for fetching lyrics
 pub struct LrcLibClient {
     client: reqwest::Client,
 }
 
 impl LrcLibClient {
-    /// Create a new LrcLib client
+    /// Create a new `LrcLib` client
+    #[must_use]
     pub fn new() -> Self {
         Self {
             client: reqwest::Client::new(),
@@ -18,7 +19,11 @@ impl LrcLibClient {
     }
 
     /// Search for lyrics by artist and track name
-    pub async fn search_lyrics(&self, artist: &str, title: &str) -> AppResult<Vec<LrcLibTrackResponse>> {
+    pub async fn search_lyrics(
+        &self,
+        artist: &str,
+        title: &str,
+    ) -> AppResult<Vec<LrcLibTrackResponse>> {
         let response = self
             .client
             .get(utils::constants::LRCLIB_SEARCH_URL)
@@ -38,6 +43,7 @@ impl LrcLibClient {
     }
 
     /// Get the best lyrics match from search results
+    #[must_use]
     pub fn get_best_lyrics(search_results: &[LrcLibTrackResponse]) -> Option<String> {
         // Take the first result that has lyrics
         search_results

@@ -24,9 +24,14 @@
             Update your local music library with the latest data from Jellyfin server.
             This will add new songs and update existing metadata without removing your current data.
           </p>
-          <Button @click='$emit("sync-library")' class='px-6' variant='default'>
-            <RefreshCw class='w-4 h-4 mr-2' />
-            Sync Library
+          <Button
+            @click='$emit("sync-library")'
+            :disabled='isSyncing'
+            class='px-6'
+            variant='default'
+          >
+            <RefreshCw :class="{'animate-spin': isSyncing}" class='w-4 h-4 mr-2' />
+            {{ isSyncing ? 'Syncing...' : 'Sync Library' }}
           </Button>
         </div>
       </div>
@@ -46,9 +51,14 @@
             This action will clear your local music library cache and refresh all music data from the server.
             Your playlists and settings will remain unchanged.
           </p>
-          <Button @click='$emit("clear-cache")' class='px-6' variant='destructive'>
+          <Button
+            @click='$emit("clear-cache")'
+            :disabled='isClearing'
+            class='px-6'
+            variant='destructive'
+          >
             <Trash2 class='w-4 h-4 mr-2' />
-            Clear Cache
+            {{ isClearing ? 'Clearing...' : 'Clear Cache' }}
           </Button>
         </div>
       </div>
@@ -68,5 +78,10 @@
   defineEmits<{
     (e: 'sync-library'): void
     (e: 'clear-cache'): void
+  }>()
+
+  defineProps<{
+    isSyncing:  boolean
+    isClearing: boolean
   }>()
 </script>

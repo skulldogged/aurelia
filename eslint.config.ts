@@ -4,9 +4,10 @@ import stylistic from '@stylistic/eslint-plugin'
 import ts from 'typescript-eslint'
 import pluginVue from 'eslint-plugin-vue'
 import globals from 'globals'
-import type { ESLint } from 'eslint'
+import { defineConfig } from 'eslint/config'
+import { ESLint } from 'eslint'
 
-export default ts.config(
+export default defineConfig(
   js.configs.recommended,
   ...ts.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
@@ -27,7 +28,6 @@ export default ts.config(
       'src-tauri/**',
       '*.d.ts',
       'src/components/ui/**',
-      'src/bindings.ts',
     ],
   },
 
@@ -135,6 +135,20 @@ export default ts.config(
       'vue/no-v-text-v-html-on-component': 'off',
     },
   },
+
+  // Generated bindings file rules
+  {
+    files: ['src/bindings.ts'],
+    rules: {
+      // Allow any types in generated bindings
+      '@typescript-eslint/no-explicit-any': 'off',
+      // Allow longer lines in generated bindings
+      '@stylistic/max-len':                 'off',
+      // Allow unused vars in generated bindings
+      '@typescript-eslint/no-unused-vars':  'off',
+    },
+  },
+
   {
     languageOptions: {
       globals: {

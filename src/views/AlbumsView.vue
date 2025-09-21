@@ -58,13 +58,14 @@
             artist:      artistName,
             artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
             albumArtUrl: song.albumArtUrl,
-            songCount:   0,
+            songCount:   BigInt(0),
             songs:       [],
+            imageTags:   song.imageTags,
           })
         }
         const album = albumsMap.get(song.albumId)!
         album.songs!.push(song)
-        album.songCount = album.songs!.length
+        album.songCount = BigInt(album.songs!.length)
       }
     })
 

@@ -6,9 +6,67 @@ import { authLogger } from '@/lib/logger'
 
 export type AuthStatus = 'pending' | 'loggedIn' | 'loggedOut' | 'error'
 
+export type AuthErrorType = 'network' | 'auth' | 'config' | 'unknown'
+
 export interface AuthError {
-  message: string
-  code?:   string
+  message:      string
+  type:         AuthErrorType
+  code?:        string
+  isRetryable?: boolean
+}
+
+/// Categorize error messages from backend into structured error types
+const categorizeAuthError = (errorMessage: string): AuthError => {
+  const lowerMessage = errorMessage.toLowerCase()
+
+  // Network-related errors
+  if (lowerMessage.includes('network') ||
+      lowerMessage.includes('connection') ||
+      lowerMessage.includes('timeout') ||
+      lowerMessage.includes('unreachable')) {
+    return {
+      message:     'Unable to connect to the server. Please check your internet connection and server URL.',
+      type:        'network',
+      code:        'NETWORK_ERROR',
+      isRetryable: true,
+    }
+  }
+
+  // Authentication errors
+  if (lowerMessage.includes('authentication') ||
+      lowerMessage.includes('login') ||
+      lowerMessage.includes('credentials') ||
+      lowerMessage.includes('password') ||
+      lowerMessage.includes('unauthorized')) {
+    return {
+      message:     'Invalid username or password. Please check your credentials.',
+      type:        'auth',
+      code:        'AUTH_FAILED',
+      isRetryable: false,
+    }
+  }
+
+  // Configuration errors
+  if (lowerMessage.includes('configuration') ||
+      lowerMessage.includes('config') ||
+      lowerMessage.includes('corrupted') ||
+      lowerMessage.includes('directory') ||
+      lowerMessage.includes('file')) {
+    return {
+      message:     'Application configuration issue. Please try restarting the application.',
+      type:        'config',
+      code:        'CONFIG_ERROR',
+      isRetryable: false,
+    }
+  }
+
+  // Default unknown error
+  return {
+    message:     errorMessage,
+    type:        'unknown',
+    code:        'UNKNOWN_ERROR',
+    isRetryable: true,
+  }
 }
 
 export const useAuth = () => {
@@ -25,10 +83,7 @@ export const useAuth = () => {
 
       if (savedCredentialsResult.status === 'error') {
         authLogger.error('Failed to load saved credentials:', savedCredentialsResult.error)
-        error.value = {
-          message: 'Failed to load saved credentials',
-          code:    savedCredentialsResult.error,
-        }
+        error.value = categorizeAuthError(savedCredentialsResult.error)
         authStatus.value = 'error'
         return
       }
@@ -52,10 +107,8 @@ export const useAuth = () => {
       }
     } catch (err) {
       authLogger.error('Error loading credentials:', err)
-      error.value = {
-        message: err instanceof Error ? err.message : 'Unknown authentication error',
-        code:    'AUTH_INIT_FAILED',
-      }
+      const errorMessage = err instanceof Error ? err.message : 'Unknown authentication error'
+      error.value = categorizeAuthError(errorMessage)
       authStatus.value = 'error'
     }
   })
@@ -67,11 +120,6 @@ export const useAuth = () => {
     error.value = null
   }
 
-  const loginError = (message: string, code?: string) => {
-    error.value = { message, code }
-    authStatus.value = 'error'
-  }
-
   const logout = () => {
     credentials.value = null
     authStore.clearCredentials()
@@ -81,9 +129,8 @@ export const useAuth = () => {
 
   const clearError = () => {
     error.value = null
-    if (authStatus.value === 'error') {
+    if (authStatus.value === 'error')
       authStatus.value = 'loggedOut'
-    }
   }
 
   return {
@@ -91,7 +138,6 @@ export const useAuth = () => {
     credentials: readonly(credentials),
     error:       readonly(error),
     login,
-    loginError,
     logout,
     clearError,
   }

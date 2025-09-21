@@ -56,13 +56,14 @@
               artist:      song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist',
               artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
               albumArtUrl: song.albumArtUrl,
-              songCount:   0,
+              songCount:   BigInt(0),
               songs:       [],
+              imageTags:   song.imageTags,
             })
           }
           const currentAlbum = albumsMap.get(song.albumId)!
           currentAlbum.songs!.push(song)
-          currentAlbum.songCount = currentAlbum.songs!.length
+          currentAlbum.songCount = BigInt(currentAlbum.songs!.length)
         }
       })
 

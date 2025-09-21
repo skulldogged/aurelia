@@ -3,7 +3,9 @@
 use crate::models::{Credentials, LoginResponse};
 use crate::services::JellyfinClient;
 use crate::utils;
+use crate::utils::error_handling;
 use std::fs;
+use tracing::error;
 
 /// Login to Jellyfin server
 #[tauri::command]
@@ -13,11 +15,17 @@ pub async fn login_to_jellyfin(
     username: String,
     password: String,
 ) -> Result<LoginResponse, String> {
-    let client = JellyfinClient::new(server_url);
-    client
-        .authenticate(&username, &password)
-        .await
-        .map_err(|e| e.to_string())
+    let client = JellyfinClient::new(server_url.clone());
+    match client.authenticate(&username, &password).await {
+        Ok(response) => Ok(response),
+        Err(e) => {
+            error!(
+                "Authentication failed for user '{}' on server '{}': {}",
+                username, server_url, e
+            );
+            Err(error_handling::error_to_user_message(&e))
+        }
+    }
 }
 
 /// Save user credentials to disk
@@ -39,28 +47,37 @@ pub fn save_credentials(
         user_id,
     };
 
-    let json = serde_json::to_string_pretty(&credentials)
-        .map_err(|e| format!("Failed to serialize credentials: {}", e))?;
+    let json = match serde_json::to_string_pretty(&credentials) {
+        Ok(json) => json,
+        Err(e) => return Err(format!("Failed to serialize credentials: {e}")),
+    };
 
-    fs::write(&credentials_path, json).map_err(|e| format!("Failed to save credentials: {}", e))
+    fs::write(&credentials_path, json).map_err(|e| format!("Failed to save credentials: {e}"))
 }
 
 /// Load saved credentials from disk
 #[tauri::command]
 #[specta::specta]
 pub fn get_saved_credentials() -> Result<Option<Credentials>, String> {
-    let app_dir = utils::get_app_data_dir()?;
+    let app_dir = match utils::get_app_data_dir() {
+        Ok(dir) => dir,
+        Err(e) => return Err(format!("Application data directory not accessible: {e}")),
+    };
     let credentials_path = app_dir.join("credentials.json");
 
     if !credentials_path.exists() {
         return Ok(None);
     }
 
-    let json = fs::read_to_string(&credentials_path)
-        .map_err(|e| format!("Failed to read credentials: {}", e))?;
+    let json = match fs::read_to_string(&credentials_path) {
+        Ok(json) => json,
+        Err(e) => return Err(format!("Failed to read saved credentials: {e}")),
+    };
 
-    let credentials: Credentials =
-        serde_json::from_str(&json).map_err(|e| format!("Failed to parse credentials: {}", e))?;
+    let credentials: Credentials = match serde_json::from_str(&json) {
+        Ok(credentials) => credentials,
+        Err(e) => return Err(format!("Saved credentials are corrupted: {e}")),
+    };
 
     Ok(Some(credentials))
 }
@@ -72,10 +89,12 @@ pub fn save_volume(volume: f64) -> Result<(), String> {
     let app_dir = utils::ensure_app_data_dir()?;
     let volume_path = app_dir.join("volume.json");
 
-    let json =
-        serde_json::to_string(&volume).map_err(|e| format!("Failed to serialize volume: {}", e))?;
+    let json = match serde_json::to_string(&volume) {
+        Ok(json) => json,
+        Err(e) => return Err(format!("Failed to serialize volume: {e}")),
+    };
 
-    fs::write(&volume_path, json).map_err(|e| format!("Failed to save volume: {}", e))
+    fs::write(&volume_path, json).map_err(|e| format!("Failed to save volume: {e}"))
 }
 
 /// Load saved volume preference
@@ -89,11 +108,15 @@ pub fn get_saved_volume() -> Result<Option<f64>, String> {
         return Ok(None);
     }
 
-    let json =
-        fs::read_to_string(&volume_path).map_err(|e| format!("Failed to read volume: {}", e))?;
+    let json = match fs::read_to_string(&volume_path) {
+        Ok(json) => json,
+        Err(e) => return Err(format!("Failed to read volume: {e}")),
+    };
 
-    let volume: f64 =
-        serde_json::from_str(&json).map_err(|e| format!("Failed to parse volume: {}", e))?;
+    let volume: f64 = match serde_json::from_str(&json) {
+        Ok(volume) => volume,
+        Err(e) => return Err(format!("Failed to parse volume: {e}")),
+    };
 
     Ok(Some(volume))
 }

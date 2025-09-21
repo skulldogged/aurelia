@@ -3,7 +3,7 @@
 //! Uses thiserror for structured error types and anyhow for ergonomic error handling
 
 /// Application-specific error type using thiserror
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum AppError {
     #[error("Network error: {0}")]
     Network(String),
@@ -35,24 +35,24 @@ pub enum AppError {
 
 impl From<reqwest::Error> for AppError {
     fn from(err: reqwest::Error) -> Self {
-        AppError::Network(err.to_string())
+        Self::Network(err.to_string())
     }
 }
 
 impl From<serde_json::Error> for AppError {
     fn from(err: serde_json::Error) -> Self {
-        AppError::Serialization(err.to_string())
+        Self::Serialization(err.to_string())
     }
 }
 
 impl From<std::io::Error> for AppError {
     fn from(err: std::io::Error) -> Self {
-        AppError::FileSystem(err.to_string())
+        Self::FileSystem(err.to_string())
     }
 }
 
 /// Result type alias for convenience
 pub type AppResult<T> = std::result::Result<T, AppError>;
 
-/// Convenience type for anyhow::Result (for internal use where we want ergonomic error handling)
+/// Convenience type for `anyhow::Result` (for internal use where we want ergonomic error handling)
 pub type Result<T> = anyhow::Result<T>;

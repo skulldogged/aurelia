@@ -1,6 +1,7 @@
 import { ref, computed, readonly } from 'vue'
 import type { Song, Album, Artist, Credentials } from '@/bindings'
 import { commands } from '@/bindings'
+import { appLogger } from '@/lib/logger'
 
 export const useLibrary = () => {
   const allSongs = ref<Song[]>([])
@@ -32,14 +33,15 @@ export const useLibrary = () => {
             artist:      song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist',
             artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
             albumArtUrl: song.albumArtUrl,
-            songCount:   0,
+            songCount:   BigInt(0),
             songs:       [],
+            imageTags:   song.imageTags,
           })
         }
 
         const album = albumsMap.get(albumId)!
         album.songs!.push(song)
-        album.songCount = album.songs!.length
+        album.songCount = BigInt(album.songs!.length)
       }
     }
 
@@ -90,28 +92,34 @@ export const useLibrary = () => {
 
   const syncLibrary = async (credentials: Credentials) => {
     try {
+      appLogger.info('Starting library sync...')
       const syncResult = await commands.syncLibrary(credentials.serverUrl, credentials.token)
       if (syncResult.status === 'error')
         throw new Error(`Failed to sync library: ${syncResult.error}`)
 
       await loadLibrary(credentials)
+      appLogger.info('Library sync completed successfully.')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to sync music library'
       libraryError.value = errorMessage
+      appLogger.error('Failed to sync library:', err)
       throw new Error(errorMessage)
     }
   }
 
   const clearCache = async (credentials: Credentials) => {
     try {
+      appLogger.info('Starting cache clear...')
       const clearResult = await commands.clearCache(credentials.serverUrl, credentials.token)
       if (clearResult.status === 'error')
         throw new Error(`Failed to clear cache: ${clearResult.error}`)
 
       await loadLibrary(credentials)
+      appLogger.info('Cache clear completed successfully.')
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to clear music cache'
       libraryError.value = errorMessage
+      appLogger.error('Failed to clear cache:', err)
       throw new Error(errorMessage)
     }
   }

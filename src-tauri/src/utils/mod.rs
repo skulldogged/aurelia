@@ -12,7 +12,7 @@ pub mod constants {
     pub const JELLYFIN_VERSION: &str = "1.0.0";
     pub const JELLYFIN_DEVICE_ID: &str = "1";
 
-    /// LrcLib API endpoint
+    /// `LrcLib` API endpoint
     pub const LRCLIB_SEARCH_URL: &str = "https://lrclib.net/api/search";
 
     /// Application directory name
@@ -33,23 +33,23 @@ pub fn get_app_data_dir() -> Result<PathBuf, String> {
 pub fn ensure_app_data_dir() -> Result<PathBuf, String> {
     let app_dir = get_app_data_dir()?;
     std::fs::create_dir_all(&app_dir)
-        .map_err(|e| format!("Failed to create app directory: {}", e))?;
+        .map_err(|e| format!("Failed to create app directory: {e}"))?;
     Ok(app_dir)
 }
 
 /// Check if an audio container supports seeking
+#[must_use]
 pub fn supports_seeking(container: Option<&str>) -> bool {
-    container
-        .map(|c| {
-            let c_lower = c.to_lowercase();
-            constants::SEEKABLE_CONTAINERS
-                .iter()
-                .any(|&supported| supported == c_lower)
-        })
-        .unwrap_or(false)
+    container.is_some_and(|c| {
+        let c_lower = c.to_lowercase();
+        constants::SEEKABLE_CONTAINERS
+            .iter()
+            .any(|&supported| supported == c_lower)
+    })
 }
 
 /// Build Jellyfin authorization header
+#[must_use]
 pub fn build_jellyfin_auth_header() -> String {
     format!(
         "MediaBrowser Client=\"{}\", Device=\"{}\", DeviceId=\"{}\", Version=\"{}\", Token=\"\"",
@@ -61,6 +61,7 @@ pub fn build_jellyfin_auth_header() -> String {
 }
 
 /// Build Jellyfin API URL
+#[must_use]
 pub fn build_jellyfin_url(server_url: &str, endpoint: &str) -> String {
     format!(
         "{}/{}",
@@ -72,16 +73,20 @@ pub fn build_jellyfin_url(server_url: &str, endpoint: &str) -> String {
 /// Pagination utilities
 pub mod pagination {
     /// Apply pagination to a vector using optional offset and limit
+    #[must_use]
     pub fn apply_pagination<T>(
         mut items: Vec<T>,
         offset: Option<i32>,
         limit: Option<i32>,
     ) -> Vec<T> {
-        if let Some(offset) = offset {
+        // Convert to usize safely - validation ensures non-negative values
+        #[allow(clippy::cast_sign_loss)]
+        if let Some(offset) = offset.filter(|&o| o >= 0) {
             items = items.into_iter().skip(offset as usize).collect();
         }
 
-        if let Some(limit) = limit {
+        #[allow(clippy::cast_sign_loss)]
+        if let Some(limit) = limit.filter(|&l| l >= 0) {
             items = items.into_iter().take(limit as usize).collect();
         }
 

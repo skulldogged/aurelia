@@ -1,13 +1,13 @@
-//! LrcLib API data models
+//! `LrcLib` API data models
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-/// LrcLib track response containing lyrics
+/// `LrcLib` track response containing lyrics
 #[derive(Serialize, Deserialize, Debug, Type)]
 #[specta(rename_all = "camelCase")]
 pub struct LrcLibTrackResponse {
-    /// Track ID in LrcLib
+    /// Track ID in `LrcLib`
     pub id: i32,
     /// Track name
     pub name: String,
