@@ -183,9 +183,9 @@ export const commands = {
   /**
  * Register client capabilities with Jellyfin server
  */
-  registerClientCapabilities: async (serverUrl: string, token: string, deviceName: string, deviceId: string, appVersion: string): Promise<Result<null, string>> => {
+  registerClientCapabilities: async (serverUrl: string, token: string): Promise<Result<null, string>> => {
     try {
-      return { status: 'ok', data: await TAURI_INVOKE('register_client_capabilities', { serverUrl, token, deviceName, deviceId, appVersion }) }
+      return { status: 'ok', data: await TAURI_INVOKE('register_client_capabilities', { serverUrl, token }) }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { status: 'error', error: e  as any }

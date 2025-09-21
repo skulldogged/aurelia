@@ -11,7 +11,7 @@ use crate::utils::error_handling;
 use reqwest::Client;
 use serde_json;
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, error};
 
 /// Jellyfin API client
 pub struct JellyfinClient {
@@ -101,7 +101,7 @@ impl JellyfinClient {
     pub async fn get_album_artists(&self) -> AppResult<Vec<Artist>> {
         let artists_url = utils::build_jellyfin_url(
             &self.server_url,
-            "/Artists/AlbumArtists?Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount",
+            "/Artists/AlbumArtists?Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating",
         );
 
         let response = self
@@ -142,7 +142,7 @@ impl JellyfinClient {
         let albums_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Users/{user_id}/Items?IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,SongCount,Artists,ArtistItems",
+                "/Items?userId={user_id}&IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,Artists",
             ),
         );
 
@@ -220,7 +220,7 @@ impl JellyfinClient {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Users/{user_id}/Items?IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,ArtistItems,MediaSources,Width,Height,Container"
+                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,MediaSources,Width,Height,Container"
             ),
         );
 
@@ -247,7 +247,7 @@ impl JellyfinClient {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Users/{user_id}/Items?IncludeItemTypes=Audio&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=20&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,ArtistItems,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded"
+                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=20&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded"
             ),
         );
 
@@ -420,10 +420,9 @@ impl JellyfinClient {
                 .collect::<HashMap<String, String>>();
 
             let url = if tags.contains_key("Primary") {
-                let base_url = format!(
-                    "{}/Items/{}/Images/Primary",
-                    self.server_url.trim_end_matches('/'),
-                    image_id
+                let base_url = utils::build_jellyfin_url(
+                    &self.server_url,
+                    &format!("/Items/{}/Images/Primary", image_id),
                 );
                 if let Some(token) = &self.token {
                     Some(format!("{base_url}?api_key={token}"))
@@ -586,7 +585,7 @@ impl JellyfinClient {
         let artist_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Users/{user_id}/Items/{artist_id}?Fields=ImageTags,Overview,ProviderIds,CommunityRating"
+                "/Items/{artist_id}?userId={user_id}&Fields=ImageTags,Overview,ProviderIds,CommunityRating"
             ),
         );
 
@@ -612,7 +611,7 @@ impl JellyfinClient {
     pub async fn get_all_artists(&self) -> AppResult<Vec<Artist>> {
         let artists_url = utils::build_jellyfin_url(
             &self.server_url,
-            "/Artists?Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount",
+            "/Artists?Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating",
         );
 
         let response = self
@@ -658,7 +657,7 @@ impl JellyfinClient {
             let url = utils::build_jellyfin_url(
                 &self.server_url,
                 &format!(
-                    "/Users/{user_id}/Items?IncludeItemTypes=MusicArtist&Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,SongCount&StartIndex={start_index}&Limit={limit}"
+                    "/Items?userId={user_id}&IncludeItemTypes=MusicArtist&Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating&StartIndex={start_index}&Limit={limit}"
                 ),
             );
 
@@ -715,10 +714,9 @@ impl JellyfinClient {
 
         let image_url = item["ImageTags"].as_object().and_then(|tags| {
             if tags.contains_key("Primary") {
-                let base_url = format!(
-                    "{}/Items/{}/Images/Primary",
-                    self.server_url.trim_end_matches('/'),
-                    id
+                let base_url = utils::build_jellyfin_url(
+                    &self.server_url,
+                    &format!("/Items/{}/Images/Primary", id),
                 );
 
                 if let Some(token) = &self.token {
@@ -793,7 +791,7 @@ impl JellyfinClient {
     ) -> AppResult<()> {
         let fav_url = utils::build_jellyfin_url(
             &self.server_url,
-            &format!("/Users/{user_id}/FavoriteItems/{item_id}"),
+            &format!("/UserFavoriteItems/{item_id}?userId={user_id}"),
         );
 
         let response = if is_favorite {
@@ -830,41 +828,51 @@ impl JellyfinClient {
             item_id, container, supports_seeking
         );
 
-        if supports_seeking {
-            format!(
-                "{}/Audio/{}/stream?api_key={}&static=true",
-                self.server_url.trim_end_matches('/'),
-                item_id,
-                token_param
-            )
+        let base_url = if supports_seeking {
+            utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream", item_id))
         } else {
-            format!(
-                "{}/Audio/{}/stream.aac?api_key={}",
-                self.server_url.trim_end_matches('/'),
-                item_id,
-                token_param
-            )
-        }
+            utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream.aac", item_id))
+        };
+
+        format!(
+            "{}?api_key={}{}",
+            base_url,
+            token_param,
+            if supports_seeking { "&static=true" } else { "" }
+        )
     }
 
     /// Register client capabilities with the Jellyfin server
     pub async fn register_capabilities(&self, capabilities: &ClientCapabilities) -> AppResult<()> {
         let capabilities_url =
-            utils::build_jellyfin_url(&self.server_url, "/Sessions/Capabilities");
+            utils::build_jellyfin_url(&self.server_url, "/Sessions/Capabilities/Full");
+
+        let request_body = serde_json::json!({
+            "capabilities": capabilities
+        });
 
         let response = self
             .client
             .post(&capabilities_url)
             .header("Authorization", self.get_auth_header())
             .header("Content-Type", "application/json")
-            .json(capabilities)
+            .json(&request_body)
             .send()
             .await?;
 
         if !response.status().is_success() {
+            let status = response.status();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "No response body".to_string());
+            error!(
+                "Failed to register capabilities: HTTP {} - Response body: {}",
+                status, body
+            );
             return Err(AppError::Network(format!(
-                "Failed to register capabilities: HTTP {}",
-                response.status()
+                "Failed to register capabilities: HTTP {} - {}",
+                status, body
             )));
         }
 
@@ -881,7 +889,10 @@ impl JellyfinClient {
         let playing_url = utils::build_jellyfin_url(&self.server_url, "/Sessions/Playing");
 
         let mut request_body = serde_json::json!({
-            "ItemId": item_id
+            "ItemId": item_id,
+            "CanSeek": true,
+            "IsPaused": false,
+            "IsMuted": false
         });
 
         if let Some(position) = position_ticks {
@@ -924,7 +935,8 @@ impl JellyfinClient {
             utils::build_jellyfin_url(&self.server_url, "/Sessions/Playing/Progress");
 
         let mut request_body = serde_json::json!({
-            "ItemId": item_id
+            "ItemId": item_id,
+            "IsMuted": false
         });
 
         if let Some(position) = position_ticks {
@@ -937,6 +949,8 @@ impl JellyfinClient {
 
         if let Some(paused) = is_paused {
             request_body["IsPaused"] = serde_json::json!(paused);
+        } else {
+            request_body["IsPaused"] = serde_json::json!(false);
         }
 
         let response = self
@@ -972,7 +986,8 @@ impl JellyfinClient {
 
         let mut request_body = serde_json::json!({
             "ItemId": item_id,
-            "IsPaused": true
+            "IsPaused": false,
+            "IsMuted": false
         });
 
         if let Some(position) = position_ticks {
@@ -1003,7 +1018,7 @@ impl JellyfinClient {
     pub async fn mark_item_played(&self, user_id: &str, item_id: &str) -> AppResult<()> {
         let played_url = utils::build_jellyfin_url(
             &self.server_url,
-            &format!("/Users/{user_id}/PlayedItems/{item_id}"),
+            &format!("/UserPlayedItems/{item_id}?userId={user_id}"),
         );
 
         let response = self

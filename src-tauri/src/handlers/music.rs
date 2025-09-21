@@ -1,7 +1,10 @@
 //! Music-related command handlers
 
 use crate::cache;
-use crate::models::{Album, Artist, Song, jellyfin::ClientCapabilities};
+use crate::models::{
+    Album, Artist, Song,
+    jellyfin::{ClientCapabilities, DeviceProfile, DirectPlayProfile, TranscodingProfile},
+};
 use crate::services::JellyfinClient;
 use crate::utils::pagination;
 use std::collections::HashMap;
@@ -490,34 +493,88 @@ pub async fn clear_cache(app: AppHandle, server_url: String, token: String) -> R
 /// Register client capabilities with Jellyfin server
 #[tauri::command]
 #[specta::specta]
-pub async fn register_client_capabilities(
-    server_url: String,
-    token: String,
-    device_name: String,
-    device_id: String,
-    app_version: String,
-) -> Result<(), String> {
+pub async fn register_client_capabilities(server_url: String, token: String) -> Result<(), String> {
     let client = JellyfinClient::with_auth(server_url, token);
 
     let capabilities = ClientCapabilities {
         playable_media_types: vec!["Audio".to_string()],
         supported_commands: vec![
             "Play".to_string(),
-            "Pause".to_string(),
-            "Stop".to_string(),
-            "Seek".to_string(),
-            "NextTrack".to_string(),
-            "PreviousTrack".to_string(),
             "SetRepeatMode".to_string(),
-            "SetShuffleMode".to_string(),
+            "SetShuffleQueue".to_string(),
+            "VolumeUp".to_string(),
+            "VolumeDown".to_string(),
+            "Mute".to_string(),
+            "Unmute".to_string(),
+            "ToggleMute".to_string(),
             "SetVolume".to_string(),
         ],
         supports_media_control: true,
         supports_persistent_identifier: true,
-        app_version,
-        app_name: "Tauri Music Player".to_string(),
-        device_name,
-        device_id,
+        device_profile: DeviceProfile {
+            name: Some("Tauri Music Player".to_string()),
+            id: None,
+            max_streaming_bitrate: Some(320000),
+            max_static_bitrate: Some(320000),
+            music_streaming_transcoding_bitrate: Some(128000),
+            max_static_music_bitrate: Some(320000),
+            direct_play_profiles: vec![
+                DirectPlayProfile {
+                    container: "mp3".to_string(),
+                    audio_codec: Some("mp3".to_string()),
+                    video_codec: None,
+                    profile_type: "Audio".to_string(),
+                },
+                DirectPlayProfile {
+                    container: "flac".to_string(),
+                    audio_codec: Some("flac".to_string()),
+                    video_codec: None,
+                    profile_type: "Audio".to_string(),
+                },
+                DirectPlayProfile {
+                    container: "aac".to_string(),
+                    audio_codec: Some("aac".to_string()),
+                    video_codec: None,
+                    profile_type: "Audio".to_string(),
+                },
+                DirectPlayProfile {
+                    container: "ogg".to_string(),
+                    audio_codec: Some("vorbis".to_string()),
+                    video_codec: None,
+                    profile_type: "Audio".to_string(),
+                },
+                DirectPlayProfile {
+                    container: "m4a".to_string(),
+                    audio_codec: Some("aac".to_string()),
+                    video_codec: None,
+                    profile_type: "Audio".to_string(),
+                },
+            ],
+            transcoding_profiles: vec![TranscodingProfile {
+                container: "aac".to_string(),
+                profile_type: "Audio".to_string(),
+                video_codec: None,
+                audio_codec: Some("aac".to_string()),
+                protocol: "http".to_string(),
+                estimate_content_length: Some(false),
+                enable_mpegts_m2_ts_mode: Some(false),
+                transcode_seek_info: Some("Auto".to_string()),
+                copy_timestamps: Some(false),
+                context: Some("Streaming".to_string()),
+                enable_subtitles_in_manifest: Some(false),
+                max_audio_channels: Some("2".to_string()),
+                min_segments: Some(0),
+                segment_length: Some(0),
+                break_on_non_key_frames: Some(false),
+                conditions: vec![],
+                enable_audio_vbr_encoding: Some(true),
+            }],
+            container_profiles: vec![],
+            codec_profiles: vec![],
+            subtitle_profiles: vec![],
+        },
+        app_store_url: None,
+        icon_url: None,
     };
 
     client

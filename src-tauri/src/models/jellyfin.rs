@@ -27,6 +27,228 @@ pub struct JellyfinLyricLine {
     pub timestamp: Option<f64>,
 }
 
+/// Device profile for client capabilities
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct DeviceProfile {
+    /// Device profile name
+    #[serde(rename = "Name")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Device profile ID
+    #[serde(rename = "Id")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// Maximum streaming bitrate
+    #[serde(rename = "MaxStreamingBitrate")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_streaming_bitrate: Option<i32>,
+    /// Maximum static bitrate
+    #[serde(rename = "MaxStaticBitrate")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_static_bitrate: Option<i32>,
+    /// Music streaming transcoding bitrate
+    #[serde(rename = "MusicStreamingTranscodingBitrate")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub music_streaming_transcoding_bitrate: Option<i32>,
+    /// Maximum static music bitrate
+    #[serde(rename = "MaxStaticMusicBitrate")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_static_music_bitrate: Option<i32>,
+    /// Direct play profiles
+    #[serde(rename = "DirectPlayProfiles")]
+    pub direct_play_profiles: Vec<DirectPlayProfile>,
+    /// Transcoding profiles
+    #[serde(rename = "TranscodingProfiles")]
+    pub transcoding_profiles: Vec<TranscodingProfile>,
+    /// Container profiles
+    #[serde(rename = "ContainerProfiles")]
+    pub container_profiles: Vec<ContainerProfile>,
+    /// Codec profiles
+    #[serde(rename = "CodecProfiles")]
+    pub codec_profiles: Vec<CodecProfile>,
+    /// Subtitle profiles
+    #[serde(rename = "SubtitleProfiles")]
+    pub subtitle_profiles: Vec<SubtitleProfile>,
+}
+
+/// Direct play profile
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct DirectPlayProfile {
+    /// Container format
+    #[serde(rename = "Container")]
+    pub container: String,
+    /// Audio codec
+    #[serde(rename = "AudioCodec")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_codec: Option<String>,
+    /// Video codec
+    #[serde(rename = "VideoCodec")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_codec: Option<String>,
+    /// Profile type
+    #[serde(rename = "Type")]
+    pub profile_type: String,
+}
+
+/// Transcoding profile
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct TranscodingProfile {
+    /// Container format
+    #[serde(rename = "Container")]
+    pub container: String,
+    /// Profile type
+    #[serde(rename = "Type")]
+    pub profile_type: String,
+    /// Video codec
+    #[serde(rename = "VideoCodec")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_codec: Option<String>,
+    /// Audio codec
+    #[serde(rename = "AudioCodec")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_codec: Option<String>,
+    /// Protocol
+    #[serde(rename = "Protocol")]
+    pub protocol: String,
+    /// Estimate content length
+    #[serde(rename = "EstimateContentLength")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub estimate_content_length: Option<bool>,
+    /// Enable MPEG-TS M2TS mode
+    #[serde(rename = "EnableMpegtsM2TsMode")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_mpegts_m2_ts_mode: Option<bool>,
+    /// Transcode seek info
+    #[serde(rename = "TranscodeSeekInfo")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transcode_seek_info: Option<String>,
+    /// Copy timestamps
+    #[serde(rename = "CopyTimestamps")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub copy_timestamps: Option<bool>,
+    /// Context
+    #[serde(rename = "Context")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
+    /// Enable subtitles in manifest
+    #[serde(rename = "EnableSubtitlesInManifest")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_subtitles_in_manifest: Option<bool>,
+    /// Maximum audio channels
+    #[serde(rename = "MaxAudioChannels")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_audio_channels: Option<String>,
+    /// Minimum segments
+    #[serde(rename = "MinSegments")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_segments: Option<i32>,
+    /// Segment length
+    #[serde(rename = "SegmentLength")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub segment_length: Option<i32>,
+    /// Break on non-key frames
+    #[serde(rename = "BreakOnNonKeyFrames")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub break_on_non_key_frames: Option<bool>,
+    /// Conditions
+    #[serde(rename = "Conditions")]
+    pub conditions: Vec<ProfileCondition>,
+    /// Enable audio VBR encoding
+    #[serde(rename = "EnableAudioVbrEncoding")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_audio_vbr_encoding: Option<bool>,
+}
+
+/// Container profile
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct ContainerProfile {
+    /// Profile type
+    #[serde(rename = "Type")]
+    pub profile_type: String,
+    /// Conditions
+    #[serde(rename = "Conditions")]
+    pub conditions: Vec<ProfileCondition>,
+    /// Container
+    #[serde(rename = "Container")]
+    pub container: String,
+    /// Sub container
+    #[serde(rename = "SubContainer")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_container: Option<String>,
+}
+
+/// Codec profile
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct CodecProfile {
+    /// Profile type
+    #[serde(rename = "Type")]
+    pub profile_type: String,
+    /// Conditions
+    #[serde(rename = "Conditions")]
+    pub conditions: Vec<ProfileCondition>,
+    /// Apply conditions
+    #[serde(rename = "ApplyConditions")]
+    pub apply_conditions: Vec<ProfileCondition>,
+    /// Codec
+    #[serde(rename = "Codec")]
+    pub codec: String,
+    /// Container
+    #[serde(rename = "Container")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container: Option<String>,
+    /// Sub container
+    #[serde(rename = "SubContainer")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_container: Option<String>,
+}
+
+/// Subtitle profile
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct SubtitleProfile {
+    /// Format
+    #[serde(rename = "Format")]
+    pub format: String,
+    /// Method
+    #[serde(rename = "Method")]
+    pub method: String,
+    /// DIDL mode
+    #[serde(rename = "DidlMode")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub didl_mode: Option<String>,
+    /// Language
+    #[serde(rename = "Language")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
+    /// Container
+    #[serde(rename = "Container")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container: Option<String>,
+}
+
+/// Profile condition
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct ProfileCondition {
+    /// Condition type
+    #[serde(rename = "Condition")]
+    pub condition: String,
+    /// Property
+    #[serde(rename = "Property")]
+    pub property: String,
+    /// Value
+    #[serde(rename = "Value")]
+    pub value: String,
+    /// Is required
+    #[serde(rename = "IsRequired")]
+    pub is_required: bool,
+}
+
 /// Client capabilities for session registration
 #[derive(Serialize, Deserialize, Debug, Type)]
 #[specta(rename_all = "camelCase")]
@@ -43,18 +265,17 @@ pub struct ClientCapabilities {
     /// Whether the client supports persistent identifier
     #[serde(rename = "SupportsPersistentIdentifier")]
     pub supports_persistent_identifier: bool,
-    /// Application version
-    #[serde(rename = "AppVersion")]
-    pub app_version: String,
-    /// Application name
-    #[serde(rename = "AppName")]
-    pub app_name: String,
-    /// Device name
-    #[serde(rename = "DeviceName")]
-    pub device_name: String,
-    /// Device ID
-    #[serde(rename = "DeviceId")]
-    pub device_id: String,
+    /// Device profile
+    #[serde(rename = "DeviceProfile")]
+    pub device_profile: DeviceProfile,
+    /// App store URL
+    #[serde(rename = "AppStoreUrl")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app_store_url: Option<String>,
+    /// Icon URL
+    #[serde(rename = "IconUrl")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
 }
 
 /// Playback information for session reporting

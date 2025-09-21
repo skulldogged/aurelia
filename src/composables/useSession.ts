@@ -55,11 +55,8 @@ export const useSession = () => {
 
     try {
       await invoke('register_client_capabilities', {
-        serverUrl:  authStore.serverUrl,
-        token:      authStore.token,
-        deviceName: sessionState.value.deviceName,
-        deviceId:   sessionState.value.deviceId,
-        appVersion: sessionState.value.appVersion,
+        serverUrl: authStore.serverUrl,
+        token:     authStore.token,
       })
 
       sessionState.value.isRegistered = true
