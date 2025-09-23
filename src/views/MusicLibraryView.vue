@@ -62,25 +62,14 @@
           </div>
         </div>
 
-        <div
-          v-if='(hasError || songsState.error) && !showSkeleton && !loading && !dataLoading'
-          class='text-center py-12'
-        >
-          <p class='text-destructive mb-4'>
-            {{ songsState.error || 'Failed to load songs' }}
-          </p>
-          <Button @click='fetchMusicLibrary' variant='destructive'>
-            Try Again
-          </Button>
-        </div>
-        <div v-else class='w-full'>
+        <div class='w-full'>
           <SongList
             @play-song='playSong'
             @toggle-favorite='handleToggleFavorite'
             :current-song='props.currentSong'
             :is-playing='props.isPlaying'
             :layout='viewLayout'
-            :loading='loading || dataLoading || showSkeleton'
+            :loading='libraryLoading || showSkeleton'
             :server-url='props.credentials.serverUrl'
             :show-album='true'
             :show-album-art='true'
@@ -113,21 +102,21 @@
   } from '@/components/ui/select'
   import type { Song, Credentials } from '@/bindings'
   import Fuse from 'fuse.js'
-  import { useDataFetching } from '@/composables/useDataFetching'
   import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
 
   const props = defineProps<{
     currentSong: Song | null
     isPlaying:   boolean
     credentials: Credentials
+    libraryLoaded: boolean
+    libraryLoading: boolean
+    allSongs: Song[]
   }>()
 
   const emit = defineEmits<{
     'play-song':       [song: Song]
     'toggle-favorite': [song: Song]
   }>()
-
-  const { songs, isLoading: dataLoading, hasError, songsState, fetchSongs } = useDataFetching(props.credentials)
 
   const searchQuery = ref('')
 
@@ -138,7 +127,7 @@
 
   const songFuse = ref<Fuse<Song>>()
 
-  watch(songs, newSongs => {
+  watch(() => props.allSongs, newSongs => {
     if (newSongs && newSongs.length > 0) {
       songFuse.value = new Fuse(newSongs, {
         keys: [
@@ -155,7 +144,7 @@
 
   const filteredSongs = computed(() => {
     if (!searchQuery.value || searchQuery.value.length < 2 || !songFuse.value) {
-      return songs.value
+      return props.allSongs
     }
     return songFuse.value.search(searchQuery.value).map(result => result.item)
   })
@@ -178,27 +167,7 @@
     }
   })
 
-  const loading = ref(false)
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
-
-  const fetchMusicLibrary = async () => {
-    loading.value = true
-    try {
-      await fetchSongs()
-    } catch (err) {
-      console.error('Failed to fetch music library:', err)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  onMounted(fetchMusicLibrary)
-
-  watch(() => props.credentials, newCredentials => {
-    if (newCredentials) {
-      fetchMusicLibrary()
-    }
-  }, { immediate: false })
 
   const playSong = (song: Song) => {
     emit('play-song', song)

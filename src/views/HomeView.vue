@@ -12,11 +12,14 @@
   import { uiLogger } from '@/lib/logger'
 
   const router = useRouter()
-  const { getSongs, getRecentlyPlayed } = commands
+  const { getRecentlyPlayed } = commands
 
   const props = defineProps<{
-    serverUrl: string,
-    token:     string,
+    serverUrl:      string,
+    token:          string,
+    libraryLoaded:  boolean,
+    libraryLoading: boolean,
+    allAlbums:      Album[],
   }>()
 
   const emit = defineEmits<{
@@ -24,122 +27,89 @@
     'select-album': [album: Album]
   }>()
 
-  const songs = ref<Song[]>([])
   const recentlyPlayedSongs = ref<Song[]>([])
-  const isLoading = ref(true)
   const showSkeleton = ref(false) // Dev toggle for skeleton adjustment
 
-  onMounted(async () => {
-    isLoading.value = true
-
+  const fetchRecentlyPlayed = async () => {
     if (!props.serverUrl || !props.token) {
       uiLogger.error('Missing serverUrl or token props')
-      isLoading.value = false
       return
     }
 
     try {
-      const [songsResult, recentlyPlayedResult] = await Promise.all([
-        getSongs(props.serverUrl, props.token, null, null, null, null),
-        getRecentlyPlayed(props.serverUrl, props.token),
-      ])
+      const recentlyPlayedResult = await getRecentlyPlayed(props.serverUrl, props.token)
 
-      if (songsResult.status === 'error') {
-        uiLogger.error('Failed to fetch songs:', songsResult.error)
-        throw new Error(songsResult.error)
-      }
       if (recentlyPlayedResult.status === 'error') {
         uiLogger.error('Failed to fetch recently played:', recentlyPlayedResult.error)
         throw new Error(recentlyPlayedResult.error)
       }
 
-      songs.value = songsResult.data
       recentlyPlayedSongs.value = recentlyPlayedResult.data
     } catch (error) {
-      uiLogger.error('Error fetching data:', error)
-    } finally {
-      isLoading.value = false
+      uiLogger.error('Error fetching recently played:', error)
+    }
+  }
+
+  onMounted(fetchRecentlyPlayed)
+
+  // Refetch recently played songs when navigating back to this view
+  watch(() => props.libraryLoaded, loaded => {
+    if (loaded && props.serverUrl && props.token && recentlyPlayedSongs.value.length === 0) {
+      fetchRecentlyPlayed()
     }
   })
 
-  const albums = computed(() => {
-    const albumsMap = new Map<string, Album>()
-    songs.value.forEach(song => {
-      if (song.album && song.albumId) {
-        if (!albumsMap.has(song.albumId)) {
-          albumsMap.set(song.albumId, {
-            id:          song.albumId,
-            name:        song.album,
-            artist:      song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist',
-            artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
-            albumArtUrl: song.albumArtUrl,
-            songCount:   BigInt(0),
-            songs:       [],
-            imageTags:   song.imageTags,
-          })
-        }
-        const album = albumsMap.get(song.albumId)!
-        album.songs!.push(song)
-        album.songCount = BigInt(album.songs!.length)
-      }
-    })
-    return Array.from(albumsMap.values())
-  })
+  const mostPlayed = computed(() =>
+    recentlyPlayedSongs.value.length > 0
+      ? [...recentlyPlayedSongs.value]
+        .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+        .slice(0, 10)
+      : [],
+  )
 
-  const mostPlayed = computed(() => {
-    return [...songs.value]
-      .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
-      .slice(0, 10)
-  })
+  const recentlyPlayed = computed(() => recentlyPlayedSongs.value)
 
-  const recentlyPlayed = computed(() => {
-    return recentlyPlayedSongs.value
-  })
-
-  const recentlyAdded = computed(() => {
-    return albums.value
+  const recentlyAdded = computed(() =>
+    props.allAlbums
       .filter(album => album.name && album.name.trim().length > 0)
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 10)
-  })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 10),
+  )
 
-  const randomAlbums = computed(() => {
-    return [...albums.value]
+  const randomAlbums = computed(() =>
+    [...props.allAlbums]
       .filter(album => album.name && album.name.trim().length > 0)
-      .sort(() => 0.5 - Math.random())
-      .slice(0, 10)
-  })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 10),
+  )
 
   const featuredAlbums = ref<Album[]>([])
   const currentFeaturedIndex = ref(0)
 
-  const featuredAlbum = computed(() => {
-    return featuredAlbums.value[currentFeaturedIndex.value] || null
-  })
+  const featuredAlbum = computed(() =>
+    featuredAlbums.value[currentFeaturedIndex.value] || null,
+  )
 
-  const isValidAlbumName = (name: string | undefined | null): boolean => {
-    return !!(name && name.trim().length > 0)
-  }
+  const isValidAlbumName = (name: string | undefined | null): boolean =>
+    !!(name && name.trim().length > 0)
 
   const initializeFeaturedAlbums = () => {
-    featuredAlbums.value = [...albums.value].sort(() => 0.5 - Math.random())
+    featuredAlbums.value = [...props.allAlbums].sort(() => 0.5 - Math.random())
   }
 
   const nextFeaturedAlbum = () => {
-    if (featuredAlbums.value.length > 1) {
+    if (featuredAlbums.value.length > 1)
       currentFeaturedIndex.value = (currentFeaturedIndex.value + 1) % featuredAlbums.value.length
-    }
   }
 
   const prevFeaturedAlbum = () => {
-    if (featuredAlbums.value.length > 1) {
+    if (featuredAlbums.value.length > 1)
       currentFeaturedIndex.value = currentFeaturedIndex.value === 0
         ? featuredAlbums.value.length - 1
         : currentFeaturedIndex.value - 1
-    }
   }
 
-  watch(() => albums.value, () => {
+  watch(() => props.allAlbums, () => {
     initializeFeaturedAlbums()
   }, { immediate: true })
 
@@ -150,9 +120,8 @@
     }
 
     const invalidSongs = songs.filter(song => !song || !song.id)
-    if (invalidSongs.length > 0) {
+    if (invalidSongs.length > 0)
       uiLogger.error('Found songs with invalid IDs:', invalidSongs)
-    }
 
     if (startWith) {
       const startIndex = songs.findIndex(song => song.id === startWith.id)
@@ -173,10 +142,7 @@
       return
     }
 
-    const albumSongs = songs.value
-      .filter(song => song.album === featuredAlbum.value.name)
-      .sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0))
-
+    const albumSongs = featuredAlbum.value.songs || []
     if (albumSongs.length > 0) {
       emit('play-songs', albumSongs)
       if (isValidAlbumName(featuredAlbum.value.name)) {
@@ -188,17 +154,9 @@
   }
 
   const playAlbumSongs = (album: Album) => {
-    // Use the album's songs array if available (more efficient), otherwise filter from all songs
-    let albumSongs: Song[]
+    // Use the album's songs array if available (more efficient)
     if (album.songs && album.songs.length > 0) {
-      albumSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
-    } else {
-      albumSongs = songs.value
-        .filter(song => song.album === album.name)
-        .sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
-    }
-
-    if (albumSongs.length > 0) {
+      const albumSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
       emit('play-songs', albumSongs)
     } else {
       uiLogger.warn('No songs found for album', album.name)
@@ -226,13 +184,13 @@
 
     <!-- Featured Album Section -->
     <div
-      v-if='featuredAlbum || isLoading || showSkeleton'
+      v-if='featuredAlbum || libraryLoading || showSkeleton'
       class='relative isolate rounded-2xl p-8 mb-8 overflow-hidden blur-card'
     >
       <!-- Blurred Background -->
       <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-2xl blur-md scale-105 overflow-hidden'>
         <ImageLoader
-          v-if='featuredAlbum && !isLoading && !showSkeleton'
+          v-if='featuredAlbum && !libraryLoading && !showSkeleton'
           :item-id='featuredAlbum.id || featuredAlbum.name'
           :server-url='serverUrl'
           :token='token'
@@ -244,7 +202,7 @@
       <!-- Content -->
       <div class='relative z-10 flex items-center space-x-6'>
         <div class='flex-shrink-0'>
-          <template v-if='isLoading || showSkeleton'>
+          <template v-if='libraryLoading || showSkeleton'>
             <Skeleton class='w-48 h-48 rounded-xl' />
           </template>
           <template v-else-if='featuredAlbum'>
@@ -266,7 +224,7 @@
           </template>
         </div>
         <div class='flex-1 min-w-0'>
-          <template v-if='isLoading || showSkeleton'>
+          <template v-if='libraryLoading || showSkeleton'>
             <Skeleton class='h-10 w-3/4 mb-2' />
             <Skeleton class='h-7 w-1/2 mb-4' />
             <Skeleton class='h-5 w-1/4 mb-6' />
@@ -301,11 +259,11 @@
               <span v-else>{{ featuredAlbum.artist }}</span>
             </p>
             <p class='text-sm text-white/80 mb-6 drop-shadow-md'>
-              {{ featuredAlbum.songCount }} songs
+              {{ featuredAlbum.songs?.length || 0 }} songs
             </p>
             <button
               @click='playFeaturedAlbum'
-              :disabled='isLoading || showSkeleton'
+              :disabled='libraryLoading || showSkeleton'
               class='
                   bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8
                   py-3 rounded-full font-semibold transition-colors border
@@ -322,7 +280,7 @@
       <div v-if='featuredAlbums.length > 1' class='absolute bottom-4 right-4 z-20 flex space-x-2'>
         <button
           @click='prevFeaturedAlbum'
-          :disabled='isLoading || showSkeleton'
+          :disabled='libraryLoading || showSkeleton'
           class='
               flex items-center justify-center bg-white/20 p-2 text-white
               backdrop-blur-sm transition-colors hover:bg-white/30
@@ -333,7 +291,7 @@
         </button>
         <button
           @click='nextFeaturedAlbum'
-          :disabled='isLoading || showSkeleton'
+          :disabled='libraryLoading || showSkeleton'
           class='
             flex items-center justify-center bg-white/20 p-2 text-white
             backdrop-blur-sm transition-colors hover:bg-white/30
@@ -345,8 +303,12 @@
       </div>
     </div>
 
-    <Carousel :disabled='isLoading || showSkeleton' class='mb-8' title='Most Played'>
-      <template v-if='isLoading || showSkeleton'>
+    <Carousel
+      :disabled='libraryLoading || showSkeleton || !libraryLoaded || recentlyPlayedSongs.length === 0'
+      class='mb-8'
+      title='Most Played'
+    >
+      <template v-if='libraryLoading || showSkeleton || !libraryLoaded || recentlyPlayedSongs.length === 0'>
         <div
           v-for='n in 10'
           :key='`most-played-skeleton-${n}`'
@@ -393,7 +355,7 @@
             >
               <Button
                 @click.stop='playSongs(mostPlayed, song)'
-                :disabled='isLoading || showSkeleton'
+                :disabled='libraryLoading || showSkeleton'
                 class='
                        bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                        border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
@@ -428,8 +390,12 @@
       </template>
     </Carousel>
 
-    <Carousel :disabled='isLoading || showSkeleton' class='mb-8' title='Recently Played'>
-      <template v-if='isLoading || showSkeleton'>
+    <Carousel
+      :disabled='libraryLoading || showSkeleton || !libraryLoaded || recentlyPlayedSongs.length === 0'
+      class='mb-8'
+      title='Recently Played'
+    >
+      <template v-if='libraryLoading || showSkeleton || !libraryLoaded || recentlyPlayedSongs.length === 0'>
         <div
           v-for='n in 10'
           :key='`recently-played-skeleton-${n}`'
@@ -476,7 +442,7 @@
             >
               <Button
                 @click.stop='playSongs(recentlyPlayed, song)'
-                :disabled='isLoading || showSkeleton'
+                :disabled='libraryLoading || showSkeleton'
                 class='
                     bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                     border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
@@ -511,8 +477,8 @@
       </template>
     </Carousel>
 
-    <Carousel :disabled='isLoading || showSkeleton' class='mb-8' title='Recently Added'>
-      <template v-if='isLoading || showSkeleton'>
+    <Carousel :disabled='libraryLoading || showSkeleton || !libraryLoaded' class='mb-8' title='Recently Added'>
+      <template v-if='libraryLoading || showSkeleton || !libraryLoaded'>
         <div
           v-for='n in 10'
           :key='`recently-added-skeleton-${n}`'
@@ -559,7 +525,7 @@
             >
               <Button
                 @click.stop='playAlbumSongs(album)'
-                :disabled='isLoading || showSkeleton'
+                :disabled='libraryLoading || showSkeleton'
                 class='
                     bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                     border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
@@ -588,8 +554,8 @@
       </template>
     </Carousel>
 
-    <Carousel :disabled='isLoading || showSkeleton' class='mb-8' title='From Your Library'>
-      <template v-if='isLoading || showSkeleton'>
+    <Carousel :disabled='libraryLoading || showSkeleton || !libraryLoaded' class='mb-8' title='From Your Library'>
+      <template v-if='libraryLoading || showSkeleton || !libraryLoaded'>
         <div
           v-for='n in 10'
           :key='`library-skeleton-${n}`'
@@ -636,7 +602,7 @@
             >
               <Button
                 @click.stop='playAlbumSongs(album)'
-                :disabled='isLoading || showSkeleton'
+                :disabled='libraryLoading || showSkeleton'
                 class='
                     bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                     border-white/20 disabled:opacity-50 disabled:cursor-not-allowed

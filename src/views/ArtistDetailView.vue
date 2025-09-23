@@ -3,14 +3,14 @@
     <div class='flex justify-end'>
       <Button
         @click='showSkeleton = !showSkeleton'
-        :disabled='artistLoading'
+        :disabled='libraryLoading || !libraryLoaded || !artist'
         size='sm'
         variant='outline'
       >
         {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
       </Button>
     </div>
-    <div v-if='artistLoading || showSkeleton' class='space-y-8'>
+    <div v-if='libraryLoading || !libraryLoaded || !artist || showSkeleton' class='space-y-8'>
       <!-- Header Skeleton -->
       <div class='flex items-center p-8 blur-card rounded-2xl'>
         <Skeleton class='w-48 h-48 rounded-lg' />
@@ -247,7 +247,7 @@
       <!-- Albums Carousel -->
       <Carousel
         v-if='artistAlbums.length > 0'
-        :disabled='artistLoading'
+        :disabled='libraryLoading || !libraryLoaded || !artist'
         :title="isFeaturedOnlyArtist ? 'Appears On' : 'Albums'"
       >
         <div
@@ -309,14 +309,14 @@
             </p>
             <p class='text-xs text-muted-foreground'>
               <span v-if='isAlbumSingle(album)'>Single</span>
-              <span v-else>{{ album.songCount }} songs</span>
+              <span v-else>{{ album.songs?.length || 0 }} songs</span>
             </p>
           </div>
         </div>
       </Carousel>
 
       <!-- Related Artists -->
-      <Carousel v-if='relatedArtists.length > 0' :disabled='artistLoading' title='Related Artists'>
+      <Carousel v-if='relatedArtists.length > 0' :disabled='libraryLoading || !libraryLoaded || !artist' title='Related Artists'>
         <div
           v-for='relatedArtist in relatedArtists'
           @click="$emit('select-artist', relatedArtist)"
@@ -345,7 +345,7 @@
               {{ relatedArtist.name }}
             </h3>
             <p class='text-sm text-muted-foreground truncate'>
-              {{ relatedArtist.songCount }} songs
+              {{ relatedArtist.songs?.length || 0 }} songs
             </p>
           </div>
         </div>
@@ -407,6 +407,10 @@
     serverUrl:   string,
     token:       string,
     userId:      string,
+    libraryLoaded: boolean,
+    libraryLoading: boolean,
+    allArtists: Artist[],
+    allSongs: Song[],
   }>()
 
   const emit = defineEmits<{
@@ -418,23 +422,20 @@
 
   const route = useRoute()
   const artistId = computed(() => route.params.artistId as string)
-
-  const { getSongs, getArtists, getArtist } = commands
-
-  const artist = ref<Artist | null>(null)
-  const artistLoading = ref(false)
   const showSkeleton = ref(false)
-  const allSongs = ref<Song[]>([])
-  const allArtists = ref<Artist[]>([])
   const showFullOverview = ref(false)
   const showShareDialog = ref(false)
 
+  const artist = computed(() => {
+    if (!props.libraryLoaded || !props.allArtists.length) return null
+    return props.allArtists.find(a => a.id === artistId.value) || null
+  })
+
   const artistSongs = computed(() =>
     artist.value
-      ? allSongs.value.filter(song =>
+      ? props.allSongs.filter(song =>
         song.artists
-        && song.artists.includes(artist.value!.name)).sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0),
-      )
+        && song.artists.includes(artist.value!.name)).sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
       : [])
 
   const artistAlbums = computed(() => {
@@ -453,6 +454,7 @@
             songCount:   BigInt(0),
             songs:       [],
             imageTags:   song.imageTags,
+            providerIds: null,
           })
         }
         const album = albumsMap.get(song.albumId)!
@@ -473,18 +475,18 @@
 
     // 1. Get all data for the current artist
     const currentArtistName = artist.value.name
-    const currentArtistSongs = allSongs.value.filter(s => s.artists?.includes(currentArtistName))
+    const currentArtistSongs = props.allSongs.filter(s => s.artists?.includes(currentArtistName))
     const currentArtistGenres = new Set(currentArtistSongs.flatMap(s => s.genres || []))
     const currentArtistAlbums = new Set(currentArtistSongs.map(s => s.album).filter(Boolean))
 
     const artistScores = new Map<string, number>()
 
     // 2. Iterate over every *other* artist to calculate a similarity score
-    allArtists.value.forEach(otherArtist => {
+    props.allArtists.forEach(otherArtist => {
       if (otherArtist.name === currentArtistName) return
 
       let score = 0
-      const otherArtistSongs = allSongs.value.filter(s => s.artists?.includes(otherArtist.name))
+      const otherArtistSongs = props.allSongs.filter(s => s.artists?.includes(otherArtist.name))
       if (otherArtistSongs.length === 0) return
 
       // 3. Calculate score based on collaborations, genres, and albums
@@ -517,7 +519,7 @@
     // 4. Sort artists by score and return the top 6
     const sortedArtists = [...artistScores.entries()].sort((a, b) => b[1] - a[1])
 
-    const allArtistsMap = new Map(allArtists.value.map(a => [a.name, a]))
+    const allArtistsMap = new Map(props.allArtists.map(a => [a.name, a]))
 
     return sortedArtists.slice(0, 6).map(([name]) => {
       const artistInfo = allArtistsMap.get(name)
@@ -547,70 +549,6 @@
     return primarySongs.value.length === 0 && featuredSongs.value.length > 0
   })
 
-  const fetchArtistData = async () => {
-    artistLoading.value = true
-    if (!artistId.value) {
-      artist.value = null
-      artistLoading.value = false
-      return
-    }
-    try {
-      const [artistsResult, songsResult] = await Promise.all([
-        getArtists(props.serverUrl, props.token, true, null, null, null),
-        getSongs(props.serverUrl, props.token, null, null, null, null),
-      ])
-
-      if (artistsResult.status === 'error') {
-        uiLogger.error('Failed to fetch artists:', artistsResult.error)
-        throw new Error(artistsResult.error)
-      }
-      if (songsResult.status === 'error') {
-        uiLogger.error('Failed to fetch songs:', songsResult.error)
-        throw new Error(songsResult.error)
-      }
-
-      uiLogger.debug('Fetched artists count:', artistsResult.data.length)
-      uiLogger.debug('Fetched songs count:', songsResult.data.length)
-
-      const foundArtist = artistsResult.data.find(a => a.id === artistId.value)
-      if (foundArtist) {
-        artist.value = foundArtist
-        allArtists.value = artistsResult.data
-        allSongs.value = songsResult.data
-        uiLogger.debug('Artist detail (from list):', foundArtist)
-      } else {
-        uiLogger.error('Artist not found in library:', artistId.value)
-        uiLogger.debug('Attempting direct artist fetch for id:', artistId.value)
-        // If the artist is not found in the main list (e.g., a featured artist),
-        // fetch their details directly.
-        try {
-          const directFetchResult = await getArtist(artistId.value, false, false)
-          if (directFetchResult.status === 'error') {
-            throw new Error(directFetchResult.error)
-          }
-          if (directFetchResult.data) {
-            artist.value = directFetchResult.data
-            uiLogger.debug('Artist detail (direct):', directFetchResult.data)
-            // We might not have all songs here, but the detail view will render.
-            // The song list for this artist might be incomplete.
-            allSongs.value = songsResult.data // Keep the songs from the main library
-            allArtists.value = artistsResult.data
-          } else {
-            artist.value = null
-            uiLogger.warn('Direct artist fetch returned no data for id:', artistId.value)
-          }
-        } catch (directFetchError) {
-          uiLogger.error('Failed to fetch artist details directly:', directFetchError)
-          artist.value = null
-        }
-      }
-    } catch (error) {
-      uiLogger.error('Failed to fetch artist details:', error)
-      artist.value = null
-    } finally {
-      artistLoading.value = false
-    }
-  }
 
   const playArtistShuffle = () => {
     if (artistSongs.value.length > 0) {
@@ -662,7 +600,7 @@
   const albumTrackCountsById = computed(() => {
     const counts = new Map<string, number>()
 
-    for (const s of allSongs.value)
+    for (const s of props.allSongs)
       if (s.albumId)
         counts.set(s.albumId, (counts.get(s.albumId) || 0) + 1)
 
@@ -724,7 +662,6 @@
   const albumCollaboratorsFor = (album: Album): NameId[] =>
     albumArtistPairsFor(album).filter(p => p.name !== artist.value?.name)
 
-  watch(artistId, fetchArtistData, { immediate: true })
 
   const getIconForProvider = (provider: string): SimpleIcon | null => {
     const key = provider.toLowerCase().replace('artist', '')

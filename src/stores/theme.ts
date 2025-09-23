@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, watch } from 'vue'
 import { useLocalStorage } from '@vueuse/core'
-import { COLOR_SCHEMES, type ColorScheme } from '@/lib/color-schemes'
+import { COLOR_SCHEMES } from '@/lib/color-schemes'
 
 export const useThemeStore = defineStore('theme', () => {
   const selectedSchemeName = useLocalStorage('color-scheme', 'default-light')
@@ -20,23 +20,10 @@ export const useThemeStore = defineStore('theme', () => {
     selectedSchemeName.value = schemeName
   }
 
-  const toggleDarkMode = () => {
-    const currentScheme = selectedScheme.value
-    if (currentScheme) {
-      const isDark = currentScheme.name.includes('dark')
-      const baseName = currentScheme.name.replace('-dark', '').replace('-light', '')
-      const newSchemeName = isDark ? `${baseName}-light` : `${baseName}-dark`
-
-      const targetScheme = COLOR_SCHEMES.find(s => s.name === newSchemeName)
-      if (targetScheme)
-        setColorScheme(newSchemeName)
-    }
-  }
-
-  const applyColorScheme = (scheme: ColorScheme) => {
-    if (typeof window !== 'undefined') {
+  watch(selectedScheme, newScheme => {
+    if (typeof window !== 'undefined' && newScheme) {
       const root = document.documentElement
-      const colors = scheme.colors
+      const colors = newScheme.colors
 
       root.style.setProperty('--background', colors.background)
       root.style.setProperty('--foreground', colors.foreground)
@@ -62,15 +49,6 @@ export const useThemeStore = defineStore('theme', () => {
       root.style.setProperty('--chart-5', colors.chart5)
       root.style.setProperty('--sidebar', colors.sidebar)
     }
-  }
-
-  const resetToDefault = () => {
-    setColorScheme('default-light')
-  }
-
-  watch(selectedScheme, newScheme => {
-    if (newScheme)
-      applyColorScheme(newScheme)
   }, { immediate: true })
 
   return {
@@ -79,8 +57,5 @@ export const useThemeStore = defineStore('theme', () => {
     colorSchemes,
     isDarkMode,
     setColorScheme,
-    toggleDarkMode,
-    applyColorScheme,
-    resetToDefault,
   }
 })

@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, watch, computed, type Ref, type ComputedRef } from 'vue'
 
 export type LayoutMode = 'comfy' | 'compact'
 
@@ -82,4 +82,74 @@ export const useSortPreference = (storageKey = 'songlist-sort', defaultSort: str
   })
 
   return { sort }
+}
+
+export const usePagination = <T>(
+  items: Ref<T[]> | ComputedRef<T[]>,
+  pageSizeKey = 'page-size',
+  defaultPageSize = 20,
+) => {
+  const pageIndex = ref(0)
+  const { pageSize } = usePageSizePreference(pageSizeKey, defaultPageSize)
+
+  // Reset to first page when page size changes
+  watch(pageSize, () => {
+    pageIndex.value = 0
+  })
+
+  // Reset to first page when items change
+  watch(() => items.value.length, () => {
+    pageIndex.value = 0
+  })
+
+  const total = computed(() => items.value.length)
+  const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+  const canPreviousPage = computed(() => pageIndex.value > 0)
+  const canNextPage = computed(() => pageIndex.value < pageCount.value - 1)
+
+  const pagedItems = computed(() => {
+    const start = pageIndex.value * pageSize.value
+    const end = start + pageSize.value
+    return items.value.slice(start, end)
+  })
+
+  const goToPreviousPage = () => {
+    if (canPreviousPage.value) pageIndex.value -= 1
+  }
+
+  const goToNextPage = () => {
+    if (canNextPage.value) pageIndex.value += 1
+  }
+
+  const goToFirstPage = () => {
+    pageIndex.value = 0
+  }
+
+  const goToLastPage = () => {
+    pageIndex.value = pageCount.value - 1
+  }
+
+  const setPageSize = (value: number) => {
+    const oldStart = pageIndex.value * pageSize.value
+    pageSize.value = value
+    pageIndex.value = Math.floor(oldStart / pageSize.value)
+  }
+
+  const pageSizeOptions = [10, 20, 30, 50]
+
+  return {
+    pageIndex,
+    pageSize,
+    total,
+    pageCount,
+    canPreviousPage,
+    canNextPage,
+    pagedItems,
+    goToPreviousPage,
+    goToNextPage,
+    goToFirstPage,
+    goToLastPage,
+    setPageSize,
+    pageSizeOptions,
+  }
 }

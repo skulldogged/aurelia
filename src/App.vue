@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { onMounted } from 'vue'
+  import { onMounted, watch } from 'vue'
   import { useColorMode } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
   import type { Credentials } from '@/bindings'
@@ -14,25 +14,20 @@
   import WindowControls from '@/components/shared/WindowControls.vue'
 
   import { useAuth } from '@/composables/useAuth'
-  import { useLibrary } from '@/composables/useLibrary'
+  import { useLibraryStore } from '@/stores'
   import { useNavigation } from '@/composables/useNavigation'
   import { usePlayerControls } from '@/composables/usePlayerControls'
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { usePlayerSession } from '@/composables/usePlayerSession'
+  import { useImageLoader } from '@/composables/useImageLoader'
   import { appLogger } from '@/lib/logger'
   import { ref } from 'vue'
 
   useColorMode()
 
   const { authStatus, credentials, error: authError, login, logout, clearError: clearAuthError } = useAuth()
-  const {
-    allSongs,
-    allArtistsWithSongs,
-    allAlbums,
-    loadLibrary,
-    syncLibrary,
-    clearCache,
-  } = useLibrary()
+  const libraryStore = useLibraryStore()
+  const { preloadRecentImages } = useImageLoader()
   const {
     currentView,
     canGoBack,
@@ -95,6 +90,32 @@
     playerStore.setVolume(playerStore.volume)
   })
 
+  // Load library data when user becomes logged in
+  watch(authStatus, async (newStatus) => {
+    if (newStatus === 'loggedIn' && credentials.value) {
+      try {
+        await libraryStore.loadLibrary(credentials.value)
+
+        // Preload recent images for better performance
+        try {
+          await preloadRecentImages(credentials.value.serverUrl, credentials.value.token, 20)
+          appLogger.info('Preloaded recent images for better performance')
+        } catch (err) {
+          appLogger.warn('Failed to preload images:', err)
+        }
+      } catch (err) {
+        appLogger.error('Failed to load library on auth:', err)
+      }
+    }
+  })
+
+  // Clear library data on logout
+  watch(authStatus, (newStatus) => {
+    if (newStatus === 'loggedOut') {
+      libraryStore.clearData()
+    }
+  })
+
   const handleLogin = async (loginCredentials: Credentials) => {
     login(loginCredentials)
   }
@@ -114,7 +135,7 @@
     if (!credentials.value) return
     isSyncing.value = true
     try {
-      await syncLibrary(credentials.value)
+      await libraryStore.syncLibrary(credentials.value)
     } catch (err) {
       appLogger.error('Failed to sync library:', err)
     } finally {
@@ -126,7 +147,7 @@
     if (!credentials.value) return
     isClearing.value = true
     try {
-      await clearCache(credentials.value)
+      await libraryStore.clearCache(credentials.value)
     } catch (err) {
       appLogger.error('Failed to clear cache:', err)
     } finally {
@@ -184,7 +205,7 @@
             @logout='handleLogout'
             @play-song='playSong'
             @play-songs='playSongs'
-            @reload-library='() => credentials && loadLibrary(credentials)'
+            @reload-library='() => credentials && libraryStore.loadLibrary(credentials)'
             @select-album='navigateToAlbum'
             @select-artist='navigateToArtist'
             @sync-library='handleSyncLibrary'
@@ -198,6 +219,12 @@
             :server-url='credentials?.serverUrl'
             :token='credentials?.token'
             :user-id='credentials?.userId'
+            :library-loaded='libraryStore.isLoaded'
+            :library-loading='libraryStore.isLoading'
+            :all-songs='libraryStore.allSongs'
+            :all-artists='libraryStore.allArtistsWithSongs'
+            :all-albums='libraryStore.allAlbums'
+            :album-artists='libraryStore.albumArtistsWithSongs'
           />
         </transition>
       </router-view>
@@ -207,12 +234,12 @@
           @close='toggleSearchVisibility(false)'
           @play-song='playSong'
           @result-clicked='onResultClick'
-          :albums='allAlbums as any'
-          :artists='allArtistsWithSongs as any'
+          :albums='libraryStore.allAlbums as any'
+          :artists='libraryStore.allArtistsWithSongs as any'
           :is-visible='isSearchVisible'
           :query='searchQuery'
           :server-url='credentials?.serverUrl'
-          :songs='allSongs as any'
+          :songs='libraryStore.allSongs as any'
           :token='credentials?.token'
         />
       </template>

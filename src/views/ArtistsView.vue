@@ -1,7 +1,7 @@
 <script setup lang="ts">
-  import { ref, onMounted, watch, computed } from 'vue'
+  import { ref, watch, computed } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Song, Artist, commands } from '@/bindings'
+  import { Song, Artist } from '@/bindings'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Skeleton } from '@/components/ui/skeleton'
@@ -9,16 +9,27 @@
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { uiLogger } from '@/lib/logger'
+  import { usePagination } from '@/composables/useLayoutPreference'
+  import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+  } from '@/components/ui/select'
+  import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
 
   const router = useRouter()
-  const { getArtists } = commands
 
   const showAllArtists = ref(false)
 
   const props = defineProps<{
-    serverUrl: string,
-    token:     string,
+    serverUrl:      string,
+    token:          string,
+    libraryLoaded:  boolean,
+    libraryLoading: boolean,
+    allArtists:     Artist[],
   }>()
 
   const emit = defineEmits<{
@@ -28,31 +39,11 @@
   }>()
 
   const searchQuery = ref('')
-  const artists = ref<Artist[]>([])
-  const isLoading = ref(true)
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
-
-  onMounted(async () => {
-    try {
-      // Fetch all artists with their songs included
-      const result = await getArtists(props.serverUrl, props.token, true, null, null, null)
-
-      if (result.status === 'error') {
-        uiLogger.error('Failed to load artists:', result.error)
-        throw new Error(result.error)
-      }
-
-      artists.value = result.data
-    } catch (error) {
-      uiLogger.error('Failed to load artists:', error)
-    } finally {
-      isLoading.value = false
-    }
-  })
 
   // Artists who appear as an "album artist" on at least one song
   const albumArtists = computed(() => {
-    return artists.value.filter(artist =>
+    return props.allArtists.filter(artist =>
       artist.songs?.some(song =>
         song.albumArtists?.some(albumArtist => albumArtist.id === artist.id),
       ),
@@ -60,7 +51,7 @@
   })
 
   const artistsToDisplay = computed(() =>
-    showAllArtists.value ? artists.value : (albumArtists.value?.length ? albumArtists.value : artists.value),
+    showAllArtists.value ? props.allArtists : (albumArtists.value?.length ? albumArtists.value : props.allArtists),
   )
 
   // Use artists directly from props, sorted alphabetically (case-insensitive)
@@ -86,6 +77,23 @@
     if (!searchQuery.value || searchQuery.value.length < 2) return artistsWithSongs.value
     return artistsFuse.value.search(searchQuery.value).map(result => result.item)
   })
+
+  // Pagination
+  const {
+    pagedItems: pagedArtists,
+    pageIndex,
+    pageSize,
+    total,
+    pageCount,
+    canPreviousPage,
+    canNextPage,
+    goToPreviousPage,
+    goToNextPage,
+    goToFirstPage,
+    goToLastPage,
+    setPageSize,
+    pageSizeOptions,
+  } = usePagination(filteredArtists, 'artists-pagesize', 20)
 
   const toggleArtistMode = () => {
     showAllArtists.value = !showAllArtists.value
@@ -135,7 +143,10 @@
       </div>
     </div>
 
-    <div v-if='isLoading || showSkeleton' class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
+    <div
+      v-if='libraryLoading || showSkeleton'
+      class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'
+    >
       <!-- Skeleton loading grid -->
       <div
         v-for='n in 20'
@@ -155,7 +166,7 @@
     </div>
     <div v-else class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
       <div
-        v-for='artist in filteredArtists'
+        v-for='artist in pagedArtists'
         @click='selectArtist(artist)'
         :key='artist.name'
         class='cursor-pointer group'
@@ -210,12 +221,72 @@
     </div>
 
     <div
-      v-if='!isLoading && !showSkeleton && filteredArtists && filteredArtists.length === 0'
+      v-if='!libraryLoading && !showSkeleton && filteredArtists && filteredArtists.length === 0'
       class='text-center py-12'
     >
       <p class='text-muted-foreground'>
         No artists found
       </p>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div v-if='pageCount > 1' class='flex items-center justify-between border-t border-border pt-6 mt-8'>
+      <div class='flex items-center gap-2'>
+        <span class='text-sm text-muted-foreground'>Artists per page:</span>
+        <Select @update:model-value='(v) => setPageSize(Number(v))' :model-value='String(pageSize)'>
+          <SelectTrigger class='w-20'>
+            <SelectValue placeholder='Per page' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem v-for='option in pageSizeOptions' :key='option' :value='String(option)'>
+                {{ option }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div class='flex items-center gap-2'>
+        <span class='text-sm text-muted-foreground'>
+          Page {{ pageIndex + 1 }} of {{ pageCount }} ({{ total }} total)
+        </span>
+      </div>
+
+      <div class='flex items-center gap-1'>
+        <Button
+          @click='goToFirstPage'
+          :disabled='!canPreviousPage'
+          size='sm'
+          variant='outline'
+        >
+          <ChevronsLeft class='h-4 w-4' />
+        </Button>
+        <Button
+          @click='goToPreviousPage'
+          :disabled='!canPreviousPage'
+          size='sm'
+          variant='outline'
+        >
+          <ChevronLeft class='h-4 w-4' />
+        </Button>
+        <Button
+          @click='goToNextPage'
+          :disabled='!canNextPage'
+          size='sm'
+          variant='outline'
+        >
+          <ChevronRight class='h-4 w-4' />
+        </Button>
+        <Button
+          @click='goToLastPage'
+          :disabled='!canNextPage'
+          size='sm'
+          variant='outline'
+        >
+          <ChevronsRight class='h-4 w-4' />
+        </Button>
+      </div>
     </div>
   </div>
 </template>

@@ -42,16 +42,6 @@ export const useAccentColorStore = defineStore('accentColor', () => {
     accentColorName.value = colorName
   }
 
-  const setAccentColorByHex = (hex: string) => {
-    const color = accentColors.value.find(c => c.hex === hex)
-    if (color)
-      setAccentColor(color.name)
-  }
-
-  const resetToDefault = () => {
-    accentColorName.value = 'blue'
-  }
-
   const getLuminance = (hex: string): number => {
     const r = parseInt(hex.slice(1, 3), 16)
     const g = parseInt(hex.slice(3, 5), 16)
@@ -79,9 +69,6 @@ export const useAccentColorStore = defineStore('accentColor', () => {
     }
   }
 
-  const getContrastColor = (hex: string): string =>
-    getLuminance(hex) > 0.4 ? '#000000' : '#ffffff'
-
   watch(accentColor, newColor => {
     if (newColor)
       applyAccentColor(newColor)
@@ -94,10 +81,7 @@ export const useAccentColorStore = defineStore('accentColor', () => {
     currentAccentHex,
     currentAccentForeground,
     setAccentColor,
-    setAccentColorByHex,
-    resetToDefault,
     applyAccentColor,
     getLuminance,
-    getContrastColor,
   }
 })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-  import { computed, ref, watch, onMounted } from 'vue'
+  import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Song, Album, commands } from '@/bindings'
+  import { Song, Album } from '@/bindings'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import { Skeleton } from '@/components/ui/skeleton'
@@ -9,14 +9,25 @@
   import Fuse from 'fuse.js'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { uiLogger } from '@/lib/logger'
+  import { usePagination } from '@/composables/useLayoutPreference'
+  import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+  } from '@/components/ui/select'
+  import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
 
   const router = useRouter()
-  const { getSongs } = commands
 
   const props = defineProps<{
-    serverUrl: string,
-    token:     string,
+    serverUrl:      string,
+    token:          string,
+    libraryLoaded:  boolean,
+    libraryLoading: boolean,
+    allAlbums:      Album[],
   }>()
 
   const emit = defineEmits<{
@@ -25,56 +36,9 @@
   }>()
 
   const searchQuery = ref('')
-  const allSongs = ref<Song[]>([])
-  const isLoading = ref(true)
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
-  onMounted(async () => {
-    try {
-      const songsResult = await getSongs(props.serverUrl, props.token, null, null, null, null)
-      if (songsResult.status === 'error') {
-        uiLogger.error('Failed to load music library:', songsResult.error)
-        throw new Error(songsResult.error)
-      }
-      allSongs.value = songsResult.data
-    } catch (error) {
-      uiLogger.error('Failed to load music library:', error)
-    } finally {
-      isLoading.value = false
-    }
-  })
-
-  const albumsWithSongs = computed(() => {
-    const albumsMap = new Map<string, Album>()
-
-    allSongs.value.forEach(song => {
-      if (song.album && song.albumId) {
-        if (!albumsMap.has(song.albumId)) {
-          const artistName = song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist'
-
-          albumsMap.set(song.albumId, {
-            id:          song.albumId,
-            name:        song.album,
-            artist:      artistName,
-            artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
-            albumArtUrl: song.albumArtUrl,
-            songCount:   BigInt(0),
-            songs:       [],
-            imageTags:   song.imageTags,
-          })
-        }
-        const album = albumsMap.get(song.albumId)!
-        album.songs!.push(song)
-        album.songCount = BigInt(album.songs!.length)
-      }
-    })
-
-    return Array.from(albumsMap.values()).sort((a, b) =>
-      a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-    )
-  })
-
-  const albumsFuse = ref(new Fuse(albumsWithSongs.value, {
+  const albumsFuse = ref(new Fuse(props.allAlbums, {
     keys: [
       { name: 'name', weight: 0.6 },
       { name: 'artist', weight: 0.4 },
@@ -84,14 +48,35 @@
     minMatchCharLength: 2,
   }))
 
-  watch(albumsWithSongs, newAlbums => {
+  watch(() => props.allAlbums, newAlbums => {
     albumsFuse.value.setCollection(newAlbums)
   })
 
   const filteredAlbums = computed(() => {
-    if (!searchQuery.value || searchQuery.value.length < 2) return albumsWithSongs.value
+    if (!searchQuery.value || searchQuery.value.length < 2)
+      return [...props.allAlbums].sort((a, b) =>
+        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+      )
+
     return albumsFuse.value.search(searchQuery.value).map(result => result.item)
   })
+
+  // Pagination
+  const {
+    pagedItems: pagedAlbums,
+    pageIndex,
+    pageSize,
+    total,
+    pageCount,
+    canPreviousPage,
+    canNextPage,
+    goToPreviousPage,
+    goToNextPage,
+    goToFirstPage,
+    goToLastPage,
+    setPageSize,
+    pageSizeOptions,
+  } = usePagination(filteredAlbums, 'albums-pagesize', 20)
 
   const playAlbum = (album: Album) => {
     if (album.songs && album.songs.length > 0) {
@@ -128,7 +113,10 @@
       </div>
     </div>
 
-    <div v-if='isLoading || showSkeleton' class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
+    <div
+      v-if='libraryLoading || showSkeleton'
+      class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'
+    >
       <div
         v-for='n in 20'
         :key='`skeleton-${n}`'
@@ -144,7 +132,7 @@
     </div>
     <div v-else class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
       <div
-        v-for='album in filteredAlbums'
+        v-for='album in pagedAlbums'
         @click='selectAlbum(album)'
         :key='album.name'
         class='cursor-pointer group'
@@ -203,10 +191,70 @@
       </div>
     </div>
 
-    <div v-if='!isLoading && !showSkeleton && filteredAlbums.length === 0' class='text-center py-12'>
+    <div v-if='!libraryLoading && !showSkeleton && filteredAlbums.length === 0' class='text-center py-12'>
       <p class='text-muted-foreground'>
         No albums found
       </p>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div v-if='pageCount > 1' class='flex items-center justify-between border-t border-border pt-6 mt-8'>
+      <div class='flex items-center gap-2'>
+        <span class='text-sm text-muted-foreground'>Albums per page:</span>
+        <Select @update:model-value='(v) => setPageSize(Number(v))' :model-value='String(pageSize)'>
+          <SelectTrigger class='w-20'>
+            <SelectValue placeholder='Per page' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem v-for='option in pageSizeOptions' :key='option' :value='String(option)'>
+                {{ option }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div class='flex items-center gap-2'>
+        <span class='text-sm text-muted-foreground'>
+          Page {{ pageIndex + 1 }} of {{ pageCount }} ({{ total }} total)
+        </span>
+      </div>
+
+      <div class='flex items-center gap-1'>
+        <Button
+          @click='goToFirstPage'
+          :disabled='!canPreviousPage'
+          size='sm'
+          variant='outline'
+        >
+          <ChevronsLeft class='h-4 w-4' />
+        </Button>
+        <Button
+          @click='goToPreviousPage'
+          :disabled='!canPreviousPage'
+          size='sm'
+          variant='outline'
+        >
+          <ChevronLeft class='h-4 w-4' />
+        </Button>
+        <Button
+          @click='goToNextPage'
+          :disabled='!canNextPage'
+          size='sm'
+          variant='outline'
+        >
+          <ChevronRight class='h-4 w-4' />
+        </Button>
+        <Button
+          @click='goToLastPage'
+          :disabled='!canNextPage'
+          size='sm'
+          variant='outline'
+        >
+          <ChevronsRight class='h-4 w-4' />
+        </Button>
+      </div>
     </div>
   </div>
 </template>

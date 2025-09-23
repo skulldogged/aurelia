@@ -15,6 +15,9 @@
     isPlaying:   boolean
     serverUrl:   string
     token:       string
+    libraryLoaded: boolean
+    libraryLoading: boolean
+    allAlbums: Album[]
   }>()
 
   const emit = defineEmits<{
@@ -24,58 +27,13 @@
   }>()
 
   const route = useRoute()
-  const { getSongs } = commands
-  const album = ref<Album | null>(null)
-  const allSongs = ref<Song[]>([])
-  const albumLoading = ref(false)
   const showSkeleton = ref(false) // Dev toggle for skeleton adjustment
   const showShareDialog = ref(false)
 
-  onMounted(async () => {
-    if (!props.serverUrl || !props.token) {
-      uiLogger.error('Missing serverUrl or token props')
-      return
-    }
-
-    albumLoading.value = true
-    try {
-      const albumName = decodeURIComponent(route.params.albumName as string)
-
-      const songsResult = await getSongs(props.serverUrl, props.token, null, null, null, null)
-      if (songsResult.status === 'error') {
-        uiLogger.error('Failed to fetch songs:', songsResult.error)
-        throw new Error(songsResult.error)
-      }
-      allSongs.value = songsResult.data
-
-      const albumsMap = new Map<string, Album>()
-      allSongs.value.forEach(song => {
-        if (song.album && song.albumId) {
-          if (!albumsMap.has(song.albumId)) {
-            albumsMap.set(song.albumId, {
-              id:          song.albumId,
-              name:        song.album,
-              artist:      song.albumArtists?.[0]?.name || song.artists?.[0] || 'Unknown Artist',
-              artistId:    song.albumArtists?.[0]?.id || song.artistIds?.[0] || null,
-              albumArtUrl: song.albumArtUrl,
-              songCount:   BigInt(0),
-              songs:       [],
-              imageTags:   song.imageTags,
-            })
-          }
-          const currentAlbum = albumsMap.get(song.albumId)!
-          currentAlbum.songs!.push(song)
-          currentAlbum.songCount = BigInt(currentAlbum.songs!.length)
-        }
-      })
-
-      const allAlbums = Array.from(albumsMap.values())
-      album.value = allAlbums.find(a => a.name === albumName) || null
-    } catch (error) {
-      uiLogger.error('Error fetching albums:', error)
-    } finally {
-      albumLoading.value = false
-    }
+  const album = computed(() => {
+    if (!props.libraryLoaded || !props.allAlbums.length) return null
+    const albumName = decodeURIComponent(route.params.albumName as string)
+    return props.allAlbums.find(a => a.name === albumName) || null
   })
 
   const albumSongs = computed(() => {
@@ -156,14 +114,14 @@
     <div class='flex justify-end'>
       <Button
         @click='showSkeleton = !showSkeleton'
-        :disabled='albumLoading'
+        :disabled='libraryLoading || !libraryLoaded || !album'
         size='sm'
         variant='outline'
       >
         {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
       </Button>
     </div>
-    <div v-if='albumLoading || showSkeleton' class='space-y-8'>
+    <div v-if='libraryLoading || !libraryLoaded || !album || showSkeleton' class='space-y-8'>
       <!-- Header Skeleton -->
       <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
         <Skeleton class='w-48 h-48 rounded-lg' />
@@ -281,7 +239,7 @@
           @toggle-favorite="(song) => $emit('toggle-favorite', song)"
           :current-song='props.currentSong'
           :is-playing='props.isPlaying'
-          :loading='albumLoading || showSkeleton'
+          :loading='libraryLoading || !libraryLoaded || !album || showSkeleton'
           :server-url='props.serverUrl'
           :show-album-art='false'
           :show-artist='hasMultipleArtists'
