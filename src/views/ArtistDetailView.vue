@@ -140,6 +140,10 @@
                   <Shuffle class='w-4 h-4 mr-2' />
                   Shuffle All
                 </Button>
+                <Button @click='showShareDialog = true' variant='outline'>
+                  <Share2 class='w-4 h-4 mr-2' />
+                  Share
+                </Button>
               </div>
             </div>
 
@@ -352,6 +356,14 @@
     <div v-else class='text-center py-12 text-muted-foreground'>
       Artist not found.
     </div>
+
+    <ShareDialog
+      v-if='artist'
+      v-model:open='showShareDialog'
+      :item-id='artist.id'
+      :item-name='artist.name'
+      :item-type="'artist'"
+    />
   </div>
 </template>
 
@@ -360,7 +372,7 @@
   import { useRoute } from 'vue-router'
   import { useBreakpoints } from '@vueuse/core'
   import { Button } from '@/components/ui/button'
-  import { Music, Play, Pause, Shuffle, Star } from 'lucide-vue-next'
+  import { Music, Play, Pause, Shuffle, Star, Share2 } from 'lucide-vue-next'
   import { Song, Album, Artist, commands } from '@/bindings'
   import type { SimpleIcon } from 'simple-icons'
   import {
@@ -377,6 +389,7 @@
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import Carousel from '@/components/shared/Carousel.vue'
+  import ShareDialog from '@/components/shared/ShareDialog.vue'
   import { uiLogger } from '@/lib/logger'
   import { Skeleton } from '@/components/ui/skeleton'
 
@@ -414,6 +427,7 @@
   const allSongs = ref<Song[]>([])
   const allArtists = ref<Artist[]>([])
   const showFullOverview = ref(false)
+  const showShareDialog = ref(false)
 
   const artistSongs = computed(() =>
     artist.value

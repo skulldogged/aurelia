@@ -1,10 +1,12 @@
 //! Service layer for external API interactions
 //!
 //! This module contains service clients for interacting with external APIs
-//! like Jellyfin and `LrcLib`.
+//! like Jellyfin, `LrcLib`, and MusicBrainz.
 
 pub mod jellyfin;
 pub mod lrclib;
+pub mod musicbrainz;
 
 pub use jellyfin::*;
 pub use lrclib::*;
+pub use musicbrainz::*;

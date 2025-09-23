@@ -74,6 +74,9 @@ pub fn run() {
         handlers::music::report_playback_progress,
         handlers::music::report_playback_stop,
         handlers::music::mark_item_played,
+        handlers::music::get_song_share_urls,
+        handlers::music::get_album_share_urls,
+        handlers::music::get_artist_share_urls,
         handlers::lyrics::get_lyrics,
         handlers::images::get_cached_image_data_url,
         handlers::images::cache_image_from_url,
@@ -93,6 +96,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {

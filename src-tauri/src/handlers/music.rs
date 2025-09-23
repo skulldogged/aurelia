@@ -169,12 +169,47 @@ pub async fn get_albums(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_album(album_id: String, include_songs: Option<bool>) -> Result<Album, String> {
-    let albums = cache::get_albums().await?;
+    let mut albums = cache::get_albums().await?;
 
-    let mut album = albums
-        .into_iter()
-        .find(|album| album.id.as_ref() == Some(&album_id))
-        .ok_or_else(|| format!("Album with ID '{album_id}' not found"))?;
+    let album_position = albums
+        .iter()
+        .position(|album| album.id.as_ref() == Some(&album_id));
+
+    let mut album = if let Some(pos) = album_position {
+        albums.swap_remove(pos)
+    } else {
+        return Err(format!("Album with ID '{album_id}' not found"));
+    };
+
+    // If album doesn't have provider_ids, try to refresh from server
+    if album.provider_ids.is_none()
+        && let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials()
+    {
+        let client = JellyfinClient::with_auth(creds.server_url, creds.token);
+        match client.get_albums(&creds.user_id).await {
+            Ok(fresh_albums) => {
+                // Update cache with fresh data
+                if let Err(e) = cache::cache_albums(&fresh_albums).await {
+                    warn!("Failed to update album cache: {}", e);
+                }
+
+                // Find the fresh album
+                if let Some(fresh_album) = fresh_albums
+                    .into_iter()
+                    .find(|a| a.id.as_ref() == Some(&album_id))
+                {
+                    album = fresh_album;
+                    println!(
+                        "Refreshed album data from server - now has provider_ids: {:?}",
+                        album.provider_ids
+                    );
+                }
+            }
+            Err(e) => {
+                warn!("Failed to refresh album data from server: {}", e);
+            }
+        }
+    }
 
     if include_songs.unwrap_or(false) {
         let all_songs = cache::get_songs().await?;
@@ -694,4 +729,34 @@ pub async fn mark_item_played(
 
     info!("Successfully marked item {} as played", item_id);
     Ok(())
+}
+
+/// Get share URLs for a song
+#[tauri::command]
+#[specta::specta]
+pub async fn get_song_share_urls(
+    song_id: String,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let song = get_song(song_id).await?;
+    crate::services::MusicBrainzService::get_song_share_urls(&song).await
+}
+
+/// Get share URLs for an album
+#[tauri::command]
+#[specta::specta]
+pub async fn get_album_share_urls(
+    album_id: String,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let album = get_album(album_id, None).await?;
+    crate::services::MusicBrainzService::get_album_share_urls(&album).await
+}
+
+/// Get share URLs for an artist
+#[tauri::command]
+#[specta::specta]
+pub async fn get_artist_share_urls(
+    artist_id: String,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let artist = get_artist(artist_id, None, None).await?;
+    crate::services::MusicBrainzService::get_artist_share_urls(&artist).await
 }

@@ -3,9 +3,10 @@
   import { useRoute } from 'vue-router'
   import SongList from '@/components/shared/SongList.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import ShareDialog from '@/components/shared/ShareDialog.vue'
   import { Skeleton } from '@/components/ui/skeleton'
   import { Button } from '@/components/ui/button'
-  import { Play, Shuffle, Music } from 'lucide-vue-next'
+  import { Play, Shuffle, Music, Share2 } from 'lucide-vue-next'
   import { Song, Album, NameIdPair, commands } from '@/bindings'
   import { uiLogger } from '@/lib/logger'
 
@@ -28,6 +29,7 @@
   const allSongs = ref<Song[]>([])
   const albumLoading = ref(false)
   const showSkeleton = ref(false) // Dev toggle for skeleton adjustment
+  const showShareDialog = ref(false)
 
   onMounted(async () => {
     if (!props.serverUrl || !props.token) {
@@ -261,6 +263,10 @@
               <Shuffle class='w-4 h-4 mr-2' />
               Shuffle
             </Button>
+            <Button @click='showShareDialog = true' variant='outline'>
+              <Share2 class='w-4 h-4 mr-2' />
+              Share
+            </Button>
           </div>
         </div>
       </div>
@@ -290,5 +296,13 @@
     <div v-else class='text-center py-12 text-muted-foreground'>
       Album not found.
     </div>
+
+    <ShareDialog
+      v-if='album'
+      v-model:open='showShareDialog'
+      :item-id='album.id || ""'
+      :item-name='album.name'
+      :item-type="'album'"
+    />
   </div>
 </template>

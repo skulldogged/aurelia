@@ -142,7 +142,7 @@ impl JellyfinClient {
         let albums_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items?userId={user_id}&IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,Artists",
+                "/Items?userId={user_id}&IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,Artists,ProviderIds",
             ),
         );
 
@@ -203,6 +203,12 @@ impl JellyfinClient {
 
         let song_count = item["SongCount"].as_i64().unwrap_or(0);
 
+        let provider_ids = item["ProviderIds"].as_object().map(|obj| {
+            obj.iter()
+                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                .collect::<HashMap<String, String>>()
+        });
+
         crate::models::Album {
             id,
             name,
@@ -212,6 +218,7 @@ impl JellyfinClient {
             song_count,
             songs: None,
             image_tags,
+            provider_ids,
         }
     }
 
@@ -820,26 +827,21 @@ impl JellyfinClient {
 
     /// Get audio stream URL
     pub fn get_audio_stream_url(&self, item_id: &str, container: Option<&str>) -> String {
-        let supports_seeking = utils::supports_seeking(container);
-        let token_param = self.token.as_deref().unwrap_or("");
-
-        debug!(
-            "Audio stream - Item ID: {}, Container: {:?}, Supports seeking: {}",
-            item_id, container, supports_seeking
-        );
-
-        let base_url = if supports_seeking {
-            utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream", item_id))
-        } else {
-            utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream.aac", item_id))
-        };
-
-        format!(
-            "{}?api_key={}{}",
-            base_url,
-            token_param,
-            if supports_seeking { "&static=true" } else { "" }
-        )
+        match utils::supports_seeking(container) {
+            true => format!(
+                "{}?api_key={}&static=true",
+                utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream", item_id)),
+                self.token.as_deref().unwrap_or("")
+            ),
+            false => format!(
+                "{}?api_key={}",
+                utils::build_jellyfin_url(
+                    &self.server_url,
+                    &format!("/Audio/{}/stream.aac", item_id)
+                ),
+                self.token.as_deref().unwrap_or("")
+            ),
+        }
     }
 
     /// Register client capabilities with the Jellyfin server

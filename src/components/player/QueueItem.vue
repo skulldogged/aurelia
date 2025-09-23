@@ -5,10 +5,12 @@
     ContextMenuItem,
     ContextMenuTrigger,
   } from '@/components/ui/context-menu'
-  import { GripVertical, Play, Trash2, ListPlus } from 'lucide-vue-next'
+  import { GripVertical, Play, Trash2, ListPlus, Share2 } from 'lucide-vue-next'
   import { Button } from '@/components/ui/button'
   import { Song } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import ShareDialog from '@/components/shared/ShareDialog.vue'
+  import { ref } from 'vue'
 
   defineProps<{
     song:       Song,
@@ -22,6 +24,8 @@
     remove: [song: Song]
     play:   [song: Song]
   }>()
+
+  const showShareDialog = ref(false)
 
   const formatDuration = (seconds: number) => {
     if (isNaN(seconds) || seconds < 0)
@@ -105,6 +109,17 @@
         <ListPlus class='w-4 h-4 mr-2' />
         Add to Playlist
       </ContextMenuItem>
+      <ContextMenuItem @click='showShareDialog = true'>
+        <Share2 class='w-4 h-4 mr-2' />
+        Share
+      </ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>
+
+  <ShareDialog
+    v-model:open='showShareDialog'
+    :item-id='song.id'
+    :item-name='song.name'
+    :item-type="'song'"
+  />
 </template>

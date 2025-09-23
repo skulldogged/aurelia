@@ -236,6 +236,39 @@ export const commands = {
     }
   },
   /**
+ * Get share URLs for a song
+ */
+  getSongShareUrls: async (songId: string): Promise<Result<Partial<{ [key in string]: string }>, string>> => {
+    try {
+      return { status: 'ok', data: await TAURI_INVOKE('get_song_share_urls', { songId }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
+ * Get share URLs for an album
+ */
+  getAlbumShareUrls: async (albumId: string): Promise<Result<Partial<{ [key in string]: string }>, string>> => {
+    try {
+      return { status: 'ok', data: await TAURI_INVOKE('get_album_share_urls', { albumId }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
+ * Get share URLs for an artist
+ */
+  getArtistShareUrls: async (artistId: string): Promise<Result<Partial<{ [key in string]: string }>, string>> => {
+    try {
+      return { status: 'ok', data: await TAURI_INVOKE('get_artist_share_urls', { artistId }) }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { status: 'error', error: e  as any }
+    }
+  },
+  /**
  * Get lyrics for a track
  */
   getLyrics: async (id: string, artist: string, title: string, path: string | null): Promise<Result<string, string>> => {
@@ -321,7 +354,11 @@ export type Album = {
   /**
  * Image tags
  */
-  imageTags:   Partial<{ [key in string]: string }> | null }
+  imageTags:   Partial<{ [key in string]: string }> | null;
+  /**
+ * External provider IDs (`MusicBrainz`, etc.)
+ */
+  providerIds: Partial<{ [key in string]: string }> | null }
 /**
  * Consolidated artist type with all information
  */

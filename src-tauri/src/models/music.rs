@@ -155,6 +155,8 @@ pub struct Album {
     /// Image tags
     #[serde(rename = "imageTags")]
     pub image_tags: Option<HashMap<String, String>>,
+    /// External provider IDs (`MusicBrainz`, etc.)
+    pub provider_ids: Option<HashMap<String, String>>,
 }
 
 impl PartialEq for Album {
