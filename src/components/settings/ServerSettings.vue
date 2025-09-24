@@ -1,3 +1,29 @@
+<script setup lang="ts">
+  import {
+    Link,
+    LogOut,
+    Server,
+    User,
+  } from 'lucide-vue-next'
+
+  import { Button } from '@/components/ui/button'
+
+  interface Credentials {
+    serverUrl: string
+    token:     string
+    userId:    string
+    username:  string
+  }
+
+  defineProps<{
+    credentials: Credentials | null
+  }>()
+
+  defineEmits<{
+    (e: 'logout'): void
+  }>()
+</script>
+
 <template>
   <!-- Server Section -->
   <section class='space-y-6'>
@@ -63,28 +89,3 @@
     </div>
   </section>
 </template>
-
-<script setup lang="ts">
-  import { Button } from '@/components/ui/button'
-  import {
-    Server,
-    Link,
-    User,
-    LogOut,
-  } from 'lucide-vue-next'
-
-  interface Credentials {
-    serverUrl: string
-    username:  string
-    token:     string
-    userId:    string
-  }
-
-  defineProps<{
-    credentials: Credentials | null
-  }>()
-
-  defineEmits<{
-    (e: 'logout'): void
-  }>()
-</script>

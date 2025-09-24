@@ -1,27 +1,31 @@
 <script setup lang="ts">
-  import { ref, watch } from 'vue'
+  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
+  import { nextTick, ref, watch } from 'vue'
+  import { useRoute } from 'vue-router'
+
   import Sidebar from './Sidebar.vue'
   import TopBar from './TopBar.vue'
-  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import 'overlayscrollbars/overlayscrollbars.css'
 
   defineProps<{
-    currentView:     string
     canGoBack:       boolean
     canGoForward:    boolean
+    currentView:     string
     hasPlayer:       boolean
-    isQueueOpen:     boolean
     isEqualizerOpen: boolean
+    isQueueOpen:     boolean
   }>()
 
+  const route = useRoute()
   const topBar = ref<InstanceType<typeof TopBar> | null>(null)
+  const scrollbarsRef = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
 
   const emit = defineEmits<{
+    'global-search':    [query: string]
+    'logout':           []
     'navigate':         [view: string]
     'navigate-back':    []
     'navigate-forward': []
-    'logout':           []
-    'global-search':    [query: string]
   }>()
 
   const storedState = localStorage.getItem('sidebarCollapsed')
@@ -31,9 +35,19 @@
     localStorage.setItem('sidebarCollapsed', JSON.stringify(newState))
   })
 
-  const onResultClick = () => {
-    topBar.value?.clearSearch()
-  }
+  // Scroll to top when route changes
+  watch(() => route.path, async () => {
+    await nextTick()
+    // Wait for the page transition animation to complete (0.1s + small buffer)
+    setTimeout(() => {
+      const osInstance = scrollbarsRef.value?.osInstance?.()
+      if (osInstance) {
+        const elements = osInstance.elements()
+        if (elements.scrollOffsetElement)
+          elements.scrollOffsetElement.scrollTop = 0
+      }
+    }, 100) // 150ms to account for 0.1s transition + buffer
+  })
 </script>
 
 <template>
@@ -48,7 +62,7 @@
       :can-go-back='canGoBack'
       :can-go-forward='canGoForward'
     />
-    <slot :on-result-click='onResultClick' name='search-results' />
+    <slot :on-result-click='topBar?.clearSearch' name='search-results' />
     <div class='flex flex-grow min-h-0 bg-sidebar'>
       <Sidebar
         @navigate="(view) => emit('navigate', view)"
@@ -63,7 +77,12 @@
             (isQueueOpen || isEqualizerOpen) ? 'border-r rounded-tr-xl rounded-br-xl' : ''
           ]"
         >
-          <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='h-full' defer>
+          <OverlayScrollbarsComponent
+            ref='scrollbarsRef'
+            :options='{ scrollbars: { autoHide: "scroll" } }'
+            class='h-full'
+            defer
+          >
             <slot />
           </OverlayScrollbarsComponent>
         </main>

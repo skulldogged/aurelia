@@ -1,3 +1,97 @@
+<script setup lang="ts">
+  import Fuse from 'fuse.js'
+  import { computed, ref, watch } from 'vue'
+
+  import type { Credentials, Song } from '@/bindings'
+
+  import SongList from '@/components/shared/SongList.vue'
+  import { Button } from '@/components/ui/button'
+  import { Input } from '@/components/ui/input'
+  import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+  } from '@/components/ui/select'
+  import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
+
+  const props = defineProps<{
+    allSongs:       Song[]
+    credentials:    Credentials
+    currentSong:    null | Song
+    isPlaying:      boolean
+    libraryLoaded:  boolean
+    libraryLoading: boolean
+  }>()
+
+  const emit = defineEmits<{
+    'play-song':       [song: Song]
+    'toggle-favorite': [song: Song]
+  }>()
+
+  const searchQuery = ref('')
+
+  const { layout: viewLayout } = useLayoutPreference('songlist-layout', 'comfy')
+  const { sort: sortOption } = useSortPreference('songlist-sort', 'Title')
+
+  const sortingOptions = ['Title', 'Artist', 'Album', 'Date Added', 'Play Count']
+
+  const songFuse = ref<Fuse<Song>>()
+
+  watch(() => props.allSongs, newSongs => {
+    if (newSongs && newSongs.length > 0) {
+      songFuse.value = new Fuse(newSongs, {
+        includeScore: true,
+        keys:         [
+          { name: 'name', weight: 0.5 },
+          { name: 'artists', weight: 0.3 },
+          { name: 'album', weight: 0.2 },
+        ],
+        minMatchCharLength: 2,
+        threshold:          0.2,
+      })
+    }
+  }, { immediate: true })
+
+  const filteredSongs = computed(() => {
+    if (!searchQuery.value || searchQuery.value.length < 2 || !songFuse.value) {
+      return props.allSongs
+    }
+    return songFuse.value.search(searchQuery.value).map(result => result.item)
+  })
+
+  const sortedSongs = computed(() => {
+    const songsToSort = [...filteredSongs.value]
+    switch (sortOption.value) {
+      case 'Album':
+        return songsToSort.sort((a, b) => (a.album || '').localeCompare(b.album || ''))
+      case 'Artist':
+        return songsToSort.sort((a, b) => (a.artists?.[0] || '').localeCompare(b.artists?.[0] || ''))
+      case 'Date Added':
+        return songsToSort.sort((a, b) => (b.dateCreated || '').localeCompare(a.dateCreated || ''))
+      case 'Play Count':
+        return songsToSort.sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+      case 'Title':
+        return songsToSort.sort((a, b) => a.name.localeCompare(b.name))
+      default:
+        return songsToSort
+    }
+  })
+
+  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
+
+  const playSong = (song: Song): void => {
+    emit('play-song', song)
+  }
+
+  const handleToggleFavorite = (song: Song): void => {
+    emit('toggle-favorite', song)
+  }
+</script>
+
 <template>
   <div class='h-full flex flex-col'>
     <div class='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full'>
@@ -85,95 +179,3 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-  import { ref, onMounted, watch, computed } from 'vue'
-  import SongList from '@/components/shared/SongList.vue'
-  import { Button } from '@/components/ui/button'
-  import { Input } from '@/components/ui/input'
-  import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectLabel,
-    SelectTrigger,
-    SelectValue,
-  } from '@/components/ui/select'
-  import type { Song, Credentials } from '@/bindings'
-  import Fuse from 'fuse.js'
-  import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
-
-  const props = defineProps<{
-    currentSong: Song | null
-    isPlaying:   boolean
-    credentials: Credentials
-    libraryLoaded: boolean
-    libraryLoading: boolean
-    allSongs: Song[]
-  }>()
-
-  const emit = defineEmits<{
-    'play-song':       [song: Song]
-    'toggle-favorite': [song: Song]
-  }>()
-
-  const searchQuery = ref('')
-
-  const { layout: viewLayout } = useLayoutPreference('songlist-layout', 'comfy')
-  const { sort: sortOption } = useSortPreference('songlist-sort', 'Title')
-
-  const sortingOptions = ['Title', 'Artist', 'Album', 'Date Added', 'Play Count']
-
-  const songFuse = ref<Fuse<Song>>()
-
-  watch(() => props.allSongs, newSongs => {
-    if (newSongs && newSongs.length > 0) {
-      songFuse.value = new Fuse(newSongs, {
-        keys: [
-          { name: 'name', weight: 0.5 },
-          { name: 'artists', weight: 0.3 },
-          { name: 'album', weight: 0.2 },
-        ],
-        includeScore:       true,
-        threshold:          0.2,
-        minMatchCharLength: 2,
-      })
-    }
-  }, { immediate: true })
-
-  const filteredSongs = computed(() => {
-    if (!searchQuery.value || searchQuery.value.length < 2 || !songFuse.value) {
-      return props.allSongs
-    }
-    return songFuse.value.search(searchQuery.value).map(result => result.item)
-  })
-
-  const sortedSongs = computed(() => {
-    const songsToSort = [...filteredSongs.value]
-    switch (sortOption.value) {
-      case 'Title':
-        return songsToSort.sort((a, b) => a.name.localeCompare(b.name))
-      case 'Artist':
-        return songsToSort.sort((a, b) => (a.artists?.[0] || '').localeCompare(b.artists?.[0] || ''))
-      case 'Album':
-        return songsToSort.sort((a, b) => (a.album || '').localeCompare(b.album || ''))
-      case 'Date Added':
-        return songsToSort.sort((a, b) => (b.dateCreated || '').localeCompare(a.dateCreated || ''))
-      case 'Play Count':
-        return songsToSort.sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
-      default:
-        return songsToSort
-    }
-  })
-
-  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
-
-  const playSong = (song: Song) => {
-    emit('play-song', song)
-  }
-
-  const handleToggleFavorite = (song: Song) => {
-    emit('toggle-favorite', song)
-  }
-</script>

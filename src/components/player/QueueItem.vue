@@ -1,49 +1,51 @@
 <script setup lang="ts">
+  import { GripVertical, ListPlus, Play, Share2, Trash2 } from 'lucide-vue-next'
+  import { ref } from 'vue'
+
+  import { Song } from '@/bindings'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import ShareDialog from '@/components/shared/ShareDialog.vue'
+  import { Button } from '@/components/ui/button'
   import {
     ContextMenu,
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuTrigger,
   } from '@/components/ui/context-menu'
-  import { GripVertical, Play, Trash2, ListPlus, Share2 } from 'lucide-vue-next'
-  import { Button } from '@/components/ui/button'
-  import { Song } from '@/bindings'
-  import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import ShareDialog from '@/components/shared/ShareDialog.vue'
-  import { ref } from 'vue'
 
   defineProps<{
-    song:       Song,
+    class?:     string,
     isCurrent:  boolean,
     isDragging: boolean,
     serverUrl?: string,
+    song:       Song,
     token?:     string
   }>()
 
   const emit = defineEmits<{
-    remove: [song: Song]
     play:   [song: Song]
+    remove: [song: Song]
   }>()
 
   const showShareDialog = ref(false)
 
-  const formatDuration = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0)
-      return '0:00'
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = Math.floor(seconds % 60)
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
-  }
+  const formatDuration = (seconds: number): string =>
+    !isNaN(seconds) && isFinite(seconds) && seconds > 0
+      ? `${Math.floor(seconds / 60)}:${(Math.floor(seconds % 60)).toString().padStart(2, '0')}`
+      : '0:00'
 </script>
 
 <template>
   <ContextMenu>
     <ContextMenuTrigger>
       <div
-        :class="{
-          'bg-accent': isCurrent,
-          'hover:bg-accent/20': !isCurrent && !isDragging,
-        }"
+        :class="[
+          {
+            'bg-accent': isCurrent,
+            'hover:bg-accent/20': !isCurrent && !isDragging,
+          },
+          $props.class
+        ]"
         class='flex items-center p-2 rounded-lg transition-colors group'
       >
         <Button class='handle cursor-grab w-4 h-8 p-1' variant='ghost'>

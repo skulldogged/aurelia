@@ -1,15 +1,15 @@
 <script setup lang="ts">
-  import { ref, watch, computed } from 'vue'
+  import Fuse from 'fuse.js'
+  import { Shuffle } from 'lucide-vue-next'
+  import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+  import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Song, Artist } from '@/bindings'
+
+  import { Artist, Song } from '@/bindings'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
-  import { Skeleton } from '@/components/ui/skeleton'
-  import { Shuffle } from 'lucide-vue-next'
-  import Fuse from 'fuse.js'
-  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { usePagination } from '@/composables/useLayoutPreference'
   import {
     Select,
     SelectContent,
@@ -18,18 +18,19 @@
     SelectTrigger,
     SelectValue,
   } from '@/components/ui/select'
-  import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+  import { Skeleton } from '@/components/ui/skeleton'
+  import { usePagination } from '@/composables/useLayoutPreference'
 
   const router = useRouter()
 
   const showAllArtists = ref(false)
 
   const props = defineProps<{
-    serverUrl:      string,
-    token:          string,
+    allArtists:     Artist[],
     libraryLoaded:  boolean,
     libraryLoading: boolean,
-    allArtists:     Artist[],
+    serverUrl:      string,
+    token:          string,
   }>()
 
   const emit = defineEmits<{
@@ -42,13 +43,11 @@
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
   // Artists who appear as an "album artist" on at least one song
-  const albumArtists = computed(() => {
-    return props.allArtists.filter(artist =>
-      artist.songs?.some(song =>
-        song.albumArtists?.some(albumArtist => albumArtist.id === artist.id),
-      ),
-    )
-  })
+  const albumArtists = computed(() => props.allArtists.filter(artist =>
+    artist.songs?.some(song =>
+      song.albumArtists?.some(albumArtist => albumArtist.id === artist.id),
+    ),
+  ))
 
   const artistsToDisplay = computed(() =>
     showAllArtists.value ? props.allArtists : (albumArtists.value?.length ? albumArtists.value : props.allArtists),
@@ -63,10 +62,10 @@
 
   // Fuzzy search setup (Fuse.js)
   const artistsFuse = ref(new Fuse(artistsWithSongs.value, {
-    keys:               ['name'],
     includeScore:       true,
-    threshold:          0.2,
+    keys:               ['name'],
     minMatchCharLength: 2,
+    threshold:          0.2,
   }))
 
   watch(artistsWithSongs, newArtists => {
@@ -80,26 +79,26 @@
 
   // Pagination
   const {
+    canNextPage,
+    canPreviousPage,
+    goToFirstPage,
+    goToLastPage,
+    goToNextPage,
+    goToPreviousPage,
+    pageCount,
     pagedItems: pagedArtists,
     pageIndex,
     pageSize,
-    total,
-    pageCount,
-    canPreviousPage,
-    canNextPage,
-    goToPreviousPage,
-    goToNextPage,
-    goToFirstPage,
-    goToLastPage,
-    setPageSize,
     pageSizeOptions,
+    setPageSize,
+    total,
   } = usePagination(filteredArtists, 'artists-pagesize', 20)
 
-  const toggleArtistMode = () => {
+  const toggleArtistMode = (): void => {
     showAllArtists.value = !showAllArtists.value
   }
 
-  const playArtistShuffle = (artist: Artist) => {
+  const playArtistShuffle = (artist: Artist): void => {
     const artistSongs = artist.songs
     if (artistSongs && artistSongs.length > 0) {
       // Shuffle the songs
@@ -108,7 +107,7 @@
     }
   }
 
-  const selectArtist = (artist: Artist) => {
+  const selectArtist = (artist: Artist): void => {
     if (artist.id)
       router.push(`/songs/artist/${artist.id}`)
   }

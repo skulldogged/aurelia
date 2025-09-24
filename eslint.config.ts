@@ -1,16 +1,18 @@
 import js from '@eslint/js'
-import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions'
 import stylistic from '@stylistic/eslint-plugin'
-import ts from 'typescript-eslint'
-import pluginVue from 'eslint-plugin-vue'
-import globals from 'globals'
-import { defineConfig } from 'eslint/config'
 import { ESLint } from 'eslint'
+import perfectionist from 'eslint-plugin-perfectionist'
+import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions'
+import pluginVue from 'eslint-plugin-vue'
+import { defineConfig } from 'eslint/config'
+import globals from 'globals'
+import ts from 'typescript-eslint'
 
 export default defineConfig(
   js.configs.recommended,
   ...ts.configs.recommended,
   ...pluginVue.configs['flat/recommended'],
+  perfectionist.configs['recommended-natural'],
 
   {
     languageOptions: {
@@ -37,36 +39,52 @@ export default defineConfig(
       '@stylistic': stylistic,
     },
     rules: {
-      '@stylistic/semi':         ['warn', 'never'],
+      '@stylistic/arrow-parens': ['warn', 'as-needed'],
       '@stylistic/comma-dangle': ['warn', 'always-multiline'],
-      '@stylistic/quotes':       ['warn', 'single'],
       '@stylistic/indent':       ['warn', 2, {
-        SwitchCase:             1,
-        VariableDeclarator:     'first',
-        outerIIFEBody:          1,
-        MemberExpression:       1,
+        ArrayExpression:        'first',
+        CallExpression:         { arguments: 'first' },
+        flatTernaryExpressions: false,
         FunctionDeclaration:    { parameters: 'first' },
         FunctionExpression:     { parameters: 'first' },
-        CallExpression:         { arguments: 'first' },
-        ArrayExpression:        'first',
-        ObjectExpression:       'first',
-        ImportDeclaration:      'first',
-        flatTernaryExpressions: false,
         ignoreComments:         false,
+        ImportDeclaration:      'first',
+        MemberExpression:       1,
+        ObjectExpression:       'first',
+        outerIIFEBody:          1,
+        SwitchCase:             1,
+        VariableDeclarator:     'first',
       }],
-      '@stylistic/no-trailing-spaces':      ['warn'],
-      '@stylistic/no-multiple-empty-lines': ['warn', { max: 1 }],
       '@stylistic/key-spacing':             ['warn', { align: 'value' }],
-      '@stylistic/keyword-spacing':         ['warn', { before: true, after: true }],
-      '@stylistic/object-curly-spacing':    ['warn', 'always'],
+      '@stylistic/keyword-spacing':         ['warn', { after: true, before: true }],
       '@stylistic/max-len':                 ['warn', { code: 120 }],
-      '@stylistic/arrow-parens':            ['warn', 'as-needed'],
+      '@stylistic/no-multiple-empty-lines': ['warn', { max: 1 }],
+      '@stylistic/no-trailing-spaces':      ['warn'],
+      '@stylistic/object-curly-spacing':    ['warn', 'always'],
+      '@stylistic/quotes':                  ['warn', 'single'],
+      '@stylistic/semi':                    ['warn', 'never'],
+    },
+  },
+
+  // Arrow function style
+  {
+    rules: {
+      'arrow-body-style': ['warn', 'as-needed'],
     },
   },
 
   // TS tweaks
   {
     rules: {
+      '@typescript-eslint/explicit-function-return-type': [
+        'error',
+        {
+          allowDirectConstAssertionInArrowFunctions: true,
+          allowExpressions:                          true,
+          allowHigherOrderFunctions:                 true,
+          allowTypedFunctionExpressions:             true,
+        },
+      ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -96,13 +114,10 @@ export default defineConfig(
       },
     },
     rules: {
-      '@stylistic/indent':                'off',
-      'vue/multi-word-component-names':   'off',
-      'vue/html-indent':                  ['error', 2, { baseIndent: 1 }],
-      'vue/script-indent':                ['error', 2, { baseIndent: 1, switchCase: 1 }],
-      'vue/html-closing-bracket-newline': ['error', { singleline: 'never', multiline: 'always' }],
-      'vue/attributes-order':             ['error', {
-        order: [
+      '@stylistic/indent':    'off',
+      'vue/attributes-order': ['error', {
+        alphabetical: true,
+        order:        [
           'DEFINITION',
           'LIST_RENDERING',
           'EVENTS',
@@ -117,22 +132,32 @@ export default defineConfig(
           'ATTR_SHORTHAND_BOOL',
           'CONTENT',
         ],
-        alphabetical: true,
       }],
-      'vue/max-attributes-per-line': ['error', { singleline: 3, multiline: 1 }],
-      'vue/html-quotes':             ['warn', 'single', { avoidEscape: true }],
-      'vue/html-self-closing':       ['error', {
+      'vue/block-order': ['error', {
+        order: [
+          'script',
+          'template',
+          'style',
+        ],
+      }],
+      'vue/html-closing-bracket-newline': ['error', { multiline: 'always', singleline: 'never' }],
+      'vue/html-indent':                  ['error', 2, { baseIndent: 1 }],
+      'vue/html-quotes':                  ['warn', 'single', { avoidEscape: true }],
+      'vue/html-self-closing':            ['error', {
         html: {
-          void:      'never',
-          normal:    'always',
           component: 'always',
+          normal:    'always',
+          void:      'never',
         },
-        svg:  'always',
         math: 'always',
+        svg:  'always',
       }],
-      'vue/no-v-html':                     'off',
+      'vue/max-attributes-per-line':       ['error', { multiline: 1, singleline: 3 }],
+      'vue/multi-word-component-names':    'off',
       'vue/no-unused-vars':                'off',
+      'vue/no-v-html':                     'off',
       'vue/no-v-text-v-html-on-component': 'off',
+      'vue/script-indent':                 ['error', 2, { baseIndent: 1, switchCase: 1 }],
     },
   },
 
@@ -140,12 +165,10 @@ export default defineConfig(
   {
     files: ['src/bindings.ts'],
     rules: {
-      // Allow any types in generated bindings
-      '@typescript-eslint/no-explicit-any': 'off',
-      // Allow longer lines in generated bindings
-      '@stylistic/max-len':                 'off',
-      // Allow unused vars in generated bindings
-      '@typescript-eslint/no-unused-vars':  'off',
+      '@stylistic/max-len':                               'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-explicit-any':               'off',
+      '@typescript-eslint/no-unused-vars':                'off',
     },
   },
 

@@ -1,13 +1,14 @@
+import { useLocalStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, watch } from 'vue'
-import { useLocalStorage } from '@vueuse/core'
+
 import { useThemeStore } from './theme'
 
 export interface AccentColor {
-  name:        string
   displayName: string
-  hex:         string
   foreground?: string
+  hex:         string
+  name:        string
 }
 
 export const useAccentColorStore = defineStore('accentColor', () => {
@@ -15,15 +16,13 @@ export const useAccentColorStore = defineStore('accentColor', () => {
 
   const themeStore = useThemeStore()
 
-  const accentColors = computed(() => {
-    return themeStore.selectedScheme?.accentColors || []
-  })
+  const accentColors = computed(() => themeStore.selectedScheme?.accentColors || [])
 
   const accentColor = computed(() =>
     accentColors.value.find(c => c.name === accentColorName.value) || accentColors.value[0] || {
-      name:        'blue',
       displayName: 'Blue',
       hex:         '#3b82f6',
+      name:        'blue',
     })
 
   const currentAccentHex = computed(() => accentColor.value.hex)
@@ -38,7 +37,7 @@ export const useAccentColorStore = defineStore('accentColor', () => {
       : 'oklch(0.985 0 0)' // light text
   })
 
-  const setAccentColor = (colorName: string) => {
+  const setAccentColor = (colorName: string): void => {
     accentColorName.value = colorName
   }
 
@@ -53,7 +52,7 @@ export const useAccentColorStore = defineStore('accentColor', () => {
     return a[0] * 0.2126 + a[1] * 0.7152 + a[2] * 0.0722
   }
 
-  const applyAccentColor = (color: AccentColor) => {
+  const applyAccentColor = (color: AccentColor): void => {
     if (typeof window !== 'undefined' && color) {
       const root = document.documentElement
       const luminance = getLuminance(color.hex)
@@ -75,13 +74,13 @@ export const useAccentColorStore = defineStore('accentColor', () => {
   }, { immediate: true })
 
   return {
-    accentColorName,
     accentColor,
+    accentColorName,
     accentColors,
-    currentAccentHex,
-    currentAccentForeground,
-    setAccentColor,
     applyAccentColor,
+    currentAccentForeground,
+    currentAccentHex,
     getLuminance,
+    setAccentColor,
   }
 })

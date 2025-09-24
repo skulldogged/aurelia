@@ -1,8 +1,10 @@
 <script setup lang="ts">
-  import { computed, onMounted } from 'vue'
-  import { Sliders, RotateCcw } from 'lucide-vue-next'
+  import { RotateCcw, Sliders } from 'lucide-vue-next'
+  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
+  import { storeToRefs } from 'pinia'
+  import { computed } from 'vue'
+
   import { Button } from '@/components/ui/button'
-  import { Slider } from '@/components/ui/slider'
   import {
     Select,
     SelectContent,
@@ -12,14 +14,13 @@
     SelectTrigger,
     SelectValue,
   } from '@/components/ui/select'
-  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-  import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
+  import { Slider } from '@/components/ui/slider'
   import { usePlayerControls } from '@/composables/usePlayerControls'
-  import { storeToRefs } from 'pinia'
+  import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
 
   // Get player store
   const { playerStore } = usePlayerControls()
-  const { eqEnabled, eqBands } = storeToRefs(playerStore)
+  const { eqBands, eqEnabled } = storeToRefs(playerStore)
 
   // WebAudio player instance
   const webAudioPlayer = useWebAudioPlayer()
@@ -31,93 +32,58 @@
   const selectedPreset = computed({
     get: () => getCurrentPreset(),
     set: (value: string) => {
-      if (value !== 'Custom') {
+      if (value !== 'Custom')
         applyEQPreset(value)
-      }
     },
   })
 
-  const setEQEnabled = (enabled: boolean) => {
+  const setEQEnabled = (enabled: boolean): void => {
     webAudioPlayer.setEQEnabled(enabled)
     playerStore.setEQEnabled(enabled)
   }
 
-  const setEQBandGain = (bandIndex: number, gain: number) => {
+  const setEQBandGain = (bandIndex: number, gain: number): void => {
     webAudioPlayer.setEQBandGain(bandIndex, gain)
     playerStore.setEQBandGain(bandIndex, gain)
   }
 
-  const resetEQ = () => {
+  const resetEQ = (): void => {
     webAudioPlayer.resetEQ()
     playerStore.resetEQ()
   }
 
-  // EQ Methods
-  const toggleEQEnabled = () => {
-    setEQEnabled(!eqEnabled.value)
+  const updateEQBand = (bandIndex: number, value: number[] | undefined): void => {
+    if (value && value.length > 0)
+      setEQBandGain(bandIndex, value[0])
   }
 
-  const updateEQBand = (bandIndex: number, value: number[] | undefined) => {
-    if (!value || value.length === 0) return
-
-    const gain = value[0]
-    setEQBandGain(bandIndex, gain)
-  }
-
-  const applyEQPreset = (presetName: string) => {
+  const applyEQPreset = (presetName: string): void => {
     const success = webAudioPlayer.applyEQPreset(presetName)
     if (success) {
-      // The WebAudio player has already applied the preset to the nodes
-      // Now update the store to reflect the new values
       const newBands = webAudioPlayer.getEQBands()
-      for (let i = 0; i < newBands.length; i++) {
+      for (let i = 0; i < newBands.length; i++)
         setEQBandGain(i, newBands[i].gain)
-      }
     }
   }
 
-  const handlePresetChange = (value: unknown) => {
-    if (value && typeof value === 'string' && value !== 'Custom') {
+  const handlePresetChange = (value: unknown): void => {
+    if (value && typeof value === 'string' && value !== 'Custom')
       applyEQPreset(value)
-    }
   }
 
   // Check if current bands match any preset
-  const getCurrentPreset = (): string => {
-    const currentBands = eqBands.value
+  const getCurrentPreset = (): string =>
+    eqPresets.value.find(preset =>
+      preset.bands.every((band, index) =>
+        Math.abs(band.gain - eqBands.value[index].gain) < 0.1,
+      ),
+    )?.name ?? 'Custom'
 
-    for (const preset of eqPresets.value) {
-      const matches = preset.bands.every((band, index) =>
-        Math.abs(band.gain - currentBands[index].gain) < 0.1, // Small tolerance for floating point
-      )
-      if (matches) {
-        return preset.name
-      }
-    }
+  const formatFrequency = (freq: number): string =>
+    freq >= 1000 ? `${(freq / 1000).toFixed(0)}k` : freq.toString()
 
-    return 'Custom'
-  }
-
-  const formatFrequency = (freq: number): string => {
-    if (freq >= 1000) {
-      return `${(freq / 1000).toFixed(0)}k`
-    }
-    return freq.toString()
-  }
-
-  const getFrequencyDescription = (freq: number): string => {
-    if (freq === 60) return 'Bass'
-    if (freq === 250) return 'Low Mids'
-    if (freq === 1000) return 'Mids'
-    if (freq === 4000) return 'High Mids'
-    if (freq === 16000) return 'Treble'
-    return 'Hz'
-  }
-
-  // Initialize component
-  onMounted(() => {
-    // EQ state is already loaded from store
-  })
+  const getFrequencyDescription = (index: number): string =>
+    ['Bass', 'Low Mids', 'Mids', 'High Mids', 'Treble'][index]
 </script>
 
 <template>
@@ -130,7 +96,7 @@
           Equalizer
         </h2>
         <Button
-          @click='toggleEQEnabled'
+          @click='setEQEnabled(!eqEnabled)'
           :variant='eqEnabled ? "default" : "outline"'
           size='sm'
         >
@@ -225,7 +191,7 @@
                     {{ formatFrequency(band.frequency) }}
                   </div>
                   <div class='text-xs text-muted-foreground leading-tight whitespace-nowrap'>
-                    {{ getFrequencyDescription(band.frequency) }}
+                    {{ getFrequencyDescription(index) }}
                   </div>
                   <!-- Gain Value -->
                   <div class='text-xs leading-tight mt-0.5'>

@@ -1,12 +1,9 @@
 <script setup lang="ts">
-  import { Button } from '@/components/ui/button'
-  import { Play, Pause, Heart } from 'lucide-vue-next'
-  import { Song } from '@/bindings'
+  import { Heart, Pause, Play } from 'lucide-vue-next'
   import { computed, ref, watch } from 'vue'
-  import ImagePlaceholder from './ImagePlaceholder.vue'
-  import ImageLoader from './ImageLoader.vue'
-  import { Skeleton } from '@/components/ui/skeleton'
-  import { usePageSizePreference } from '@/composables/useLayoutPreference'
+
+  import { Song } from '@/bindings'
+  import { Button } from '@/components/ui/button'
   import {
     Select,
     SelectContent,
@@ -15,21 +12,26 @@
     SelectTrigger,
     SelectValue,
   } from '@/components/ui/select'
+  import { Skeleton } from '@/components/ui/skeleton'
+  import { usePageSizePreference } from '@/composables/useLayoutPreference'
+
+  import ImageLoader from './ImageLoader.vue'
+  import ImagePlaceholder from './ImagePlaceholder.vue'
 
   const props = defineProps<{
-    songs:            Song[]
-    currentSong:      Song | null
+    currentSong:      null | Song
     isPlaying:        boolean
-    showArtist?:      boolean
-    showAlbum?:       boolean
-    showYear?:        boolean
-    showTrackNumber?: boolean
-    showDuration?:    boolean
-    showAlbumArt?:    boolean
-    serverUrl:        string
-    token:            string
     layout?:          'comfy' | 'compact'
     loading?:         boolean
+    serverUrl:        string
+    showAlbum?:       boolean
+    showAlbumArt?:    boolean
+    showArtist?:      boolean
+    showDuration?:    boolean
+    showTrackNumber?: boolean
+    showYear?:        boolean
+    songs:            Song[]
+    token:            string
   }>()
 
   const shouldShowAlbumArt = computed(() => props.showAlbumArt !== false)
@@ -40,7 +42,7 @@
     'toggle-favorite': [song: Song]
   }>()
 
-  const formatDuration = (seconds?: number | null) => {
+  const formatDuration = (seconds?: null | number): string => {
     if (seconds === undefined || seconds === null) return '?:??'
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
@@ -72,15 +74,15 @@
     return props.songs.slice(start, end)
   })
 
-  const previousPage = () => {
+  const previousPage = (): void => {
     if (canPreviousPage.value) pageIndex.value -= 1
   }
 
-  const nextPage = () => {
+  const nextPage = (): void => {
     if (canNextPage.value) pageIndex.value += 1
   }
 
-  const setPageSize = (value: number) => {
+  const setPageSize = (value: number): void => {
     const oldStart = pageIndex.value * pageSize.value
     pageSize.value = value
     pageIndex.value = Math.floor(oldStart / pageSize.value)

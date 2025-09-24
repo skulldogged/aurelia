@@ -1,8 +1,11 @@
 import { defineStore } from 'pinia'
-import { ref, readonly } from 'vue'
-import type { Song, Album, Artist, Credentials } from '@/bindings'
+import { readonly, ref } from 'vue'
+
+import type { Album, Artist, Credentials, Song } from '@/bindings'
+
 import { commands } from '@/bindings'
 import { appLogger } from '@/lib/logger'
+import { withCustomState, withMultipleResults } from '@/lib/result'
 
 export const useLibraryStore = defineStore('library', () => {
   // State
@@ -11,105 +14,102 @@ export const useLibraryStore = defineStore('library', () => {
   const albumArtistsWithSongs = ref<Artist[]>([])
   const allAlbums = ref<Album[]>([])
   const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  const error = ref<null | string>(null)
   const isLoaded = ref(false)
 
   // Actions
-  const loadLibrary = async (credentials: Credentials) => {
-    if (isLoaded.value) {
-      // Already loaded, no need to fetch again
+  const loadLibrary = async (credentials: Credentials): Promise<void> => {
+    if (isLoaded.value)
       return
-    }
 
-    isLoading.value = true
-    error.value = null
+    // Load songs first
+    await withCustomState(
+      () => commands.getSongs(credentials.serverUrl, credentials.token, null, null, null, null),
+      {
+        onError: errorString => {
+          error.value = `Failed to load songs: ${errorString}`
+          appLogger.error('Failed to load songs:', errorString)
+          isLoading.value = false
+        },
+        onStart: () => {
+          isLoading.value = true
+          error.value = null
+          appLogger.info('Loading library data...')
+        },
+        onSuccess: songs => {
+          allSongs.value = songs
+        },
+      },
+    )
 
-    try {
-      appLogger.info('Loading library data...')
-
-      const songsResult = await commands.getSongs(
-        credentials.serverUrl,
-        credentials.token,
-        null, null, null, null,
-      )
-
-      if (songsResult.status === 'error') {
-        throw new Error(`Failed to load songs: ${songsResult.error}`)
-      }
-
-      allSongs.value = songsResult.data
-
-      const [artistsWithSongsResult, albumArtistsResult, albumsResult] = await Promise.all([
-        commands.getArtists(credentials.serverUrl, credentials.token, true, false, null, null),
-        commands.getArtists(credentials.serverUrl, credentials.token, true, true, null, null),
-        commands.getAlbums(credentials.serverUrl, credentials.token, true, null, null), // includeSongs: true
-      ])
-
-      if (artistsWithSongsResult.status === 'error') {
-        throw new Error(`Failed to load artists: ${artistsWithSongsResult.error}`)
-      }
-      if (albumArtistsResult.status === 'error') {
-        throw new Error(`Failed to load album artists: ${albumArtistsResult.error}`)
-      }
-      if (albumsResult.status === 'error') {
-        throw new Error(`Failed to load albums: ${albumsResult.error}`)
-      }
-
-      allArtistsWithSongs.value = artistsWithSongsResult.data
-      albumArtistsWithSongs.value = albumArtistsResult.data
-      allAlbums.value = albumsResult.data
-
-      isLoaded.value = true
-      appLogger.info('Library data loaded successfully')
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load music library'
-      error.value = errorMessage
-      appLogger.error('Failed to load library:', err)
-      throw new Error(errorMessage)
-    } finally {
-      isLoading.value = false
-    }
+    // Then load artists and albums in parallel
+    await withMultipleResults(
+      [
+        () => commands.getArtists(credentials.serverUrl, credentials.token, true, false, null, null),
+        () => commands.getArtists(credentials.serverUrl, credentials.token, true, true, null, null),
+        () => commands.getAlbums(credentials.serverUrl, credentials.token, true, null, null),
+      ] as const,
+      {
+        onError: errors => {
+          error.value = `Failed to load library data: ${errors.join(', ')}`
+          isLoading.value = false
+          appLogger.error('Failed to load library data:', errors)
+        },
+        onSuccess: ([artistsWithSongs, albumArtists, albums]) => {
+          allArtistsWithSongs.value = artistsWithSongs
+          albumArtistsWithSongs.value = albumArtists
+          allAlbums.value = albums
+          isLoaded.value = true
+          isLoading.value = false
+          appLogger.info('Library data loaded successfully')
+        },
+      },
+    )
   }
 
-  const syncLibrary = async (credentials: Credentials) => {
-    try {
-      appLogger.info('Starting library sync...')
-      const syncResult = await commands.syncLibrary(credentials.serverUrl, credentials.token)
-      if (syncResult.status === 'error')
-        throw new Error(`Failed to sync library: ${syncResult.error}`)
+  const syncLibrary = async (credentials: Credentials): Promise<void> => {
+    appLogger.info('Starting library sync...')
 
-      // Reset loaded state to force reload
-      isLoaded.value = false
-      await loadLibrary(credentials)
-      appLogger.info('Library sync completed successfully.')
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to sync music library'
-      error.value = errorMessage
-      appLogger.error('Failed to sync library:', err)
-      throw new Error(errorMessage)
-    }
+    await withCustomState(
+      () => commands.syncLibrary(credentials.serverUrl, credentials.token),
+      {
+        onError: errorString => {
+          const errorMessage = `Failed to sync library: ${errorString}`
+          error.value = errorMessage
+          appLogger.error('Failed to sync library:', errorString)
+        },
+        onSuccess: async () => {
+          // Reset loaded state to force reload
+          isLoaded.value = false
+          await loadLibrary(credentials)
+          appLogger.info('Library sync completed successfully.')
+        },
+      },
+    )
   }
 
-  const clearCache = async (credentials: Credentials) => {
-    try {
-      appLogger.info('Starting cache clear...')
-      const clearResult = await commands.clearCache(credentials.serverUrl, credentials.token)
-      if (clearResult.status === 'error')
-        throw new Error(`Failed to clear cache: ${clearResult.error}`)
+  const clearCache = async (credentials: Credentials): Promise<void> => {
+    appLogger.info('Starting cache clear...')
 
-      // Reset loaded state to force reload
-      isLoaded.value = false
-      await loadLibrary(credentials)
-      appLogger.info('Cache clear completed successfully.')
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to clear music cache'
-      error.value = errorMessage
-      appLogger.error('Failed to clear cache:', err)
-      throw new Error(errorMessage)
-    }
+    await withCustomState(
+      () => commands.clearCache(credentials.serverUrl, credentials.token),
+      {
+        onError: errorString => {
+          const errorMessage = `Failed to clear cache: ${errorString}`
+          error.value = errorMessage
+          appLogger.error('Failed to clear cache:', errorString)
+        },
+        onSuccess: async () => {
+          // Reset loaded state to force reload
+          isLoaded.value = false
+          await loadLibrary(credentials)
+          appLogger.info('Cache clear completed successfully.')
+        },
+      },
+    )
   }
 
-  const clearData = () => {
+  const clearData = (): void => {
     allSongs.value = []
     allArtistsWithSongs.value = []
     albumArtistsWithSongs.value = []
@@ -119,19 +119,19 @@ export const useLibraryStore = defineStore('library', () => {
   }
 
   return {
-    // State
-    allSongs: readonly(allSongs),
-    allArtistsWithSongs: readonly(allArtistsWithSongs),
     albumArtistsWithSongs: readonly(albumArtistsWithSongs),
-    allAlbums: readonly(allAlbums),
-    isLoading: readonly(isLoading),
-    error: readonly(error),
-    isLoaded: readonly(isLoaded),
+    allAlbums:             readonly(allAlbums),
+    allArtistsWithSongs:   readonly(allArtistsWithSongs),
+    // State
+    allSongs:              readonly(allSongs),
+    clearCache,
+    clearData,
+    error:                 readonly(error),
 
+    isLoaded:  readonly(isLoaded),
+    isLoading: readonly(isLoading),
     // Actions
     loadLibrary,
     syncLibrary,
-    clearCache,
-    clearData,
   }
 })

@@ -1,53 +1,58 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
+import AlbumDetailView from '@/views/AlbumDetailView.vue'
+import AlbumsView from '@/views/AlbumsView.vue'
+import ArtistDetailView from '@/views/ArtistDetailView.vue'
+import ArtistsView from '@/views/ArtistsView.vue'
 import HomeView from '@/views/HomeView.vue'
 import MusicLibraryView from '@/views/MusicLibraryView.vue'
-import ArtistsView from '@/views/ArtistsView.vue'
-import AlbumsView from '@/views/AlbumsView.vue'
 import SettingsView from '@/views/SettingsView.vue'
-import ArtistDetailView from '@/views/ArtistDetailView.vue'
-import AlbumDetailView from '@/views/AlbumDetailView.vue'
 
 const routes = [
   {
-    path:      '/',
-    name:      'home',
     component: HomeView,
+    name:      'home',
+    path:      '/',
   },
   {
-    path:      '/songs',
-    name:      'songs',
     component: MusicLibraryView,
+    name:      'songs',
+    path:      '/songs',
   },
   {
-    path:      '/songs/artist/:artistId',
-    name:      'artist-detail',
     component: ArtistDetailView,
+    name:      'artist-detail',
+    path:      '/songs/artist/:artistId',
   },
   {
-    path:      '/songs/album/:albumName',
-    name:      'album-detail',
     component: AlbumDetailView,
+    name:      'album-detail',
+    path:      '/songs/album/:albumName',
   },
   {
-    path:      '/artists',
-    name:      'artists',
     component: ArtistsView,
+    name:      'artists',
+    path:      '/artists',
   },
   {
-    path:      '/albums',
-    name:      'albums',
     component: AlbumsView,
+    name:      'albums',
+    path:      '/albums',
   },
   {
-    path:      '/settings',
-    name:      'settings',
     component: SettingsView,
+    name:      'settings',
+    path:      '/settings',
   },
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes,
+  history:        createWebHistory(),
+  routes:         routes,
+  scrollBehavior: () =>
+    // Always scroll to top when navigating to a new route
+    ({ top: 0 })
+  ,
 })
 
 export default router

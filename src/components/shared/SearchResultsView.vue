@@ -1,40 +1,41 @@
 <script setup lang="ts">
-  import { computed, ref, onMounted, onUnmounted } from 'vue'
   import Fuse, { FuseResult } from 'fuse.js'
-  import { Album, Artist, Song } from '@/bindings'
+  import { computed, onMounted, onUnmounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
+
+  import { Album, Artist, Song } from '@/bindings'
   import { ScrollArea } from '@/components/ui/scroll-area'
+
   import ImageLoader from './ImageLoader.vue'
 
   const props = defineProps<{
-    query:      string
-    songs:      Song[]
     albums:     Album[]
     artists:    Artist[]
     isVisible:  boolean
+    query:      string
     serverUrl?: string
+    songs:      Song[]
     token?:     string
   }>()
 
   const emit = defineEmits<{
     'close':          []
-    'select-album':   [album: Album]
-    'select-artist':  [artist: Artist]
     'play-song':      [song: Song]
     'result-clicked': []
+    'select-album':   [album: Album]
+    'select-artist':  [artist: Artist]
   }>()
 
   const router = useRouter()
   const searchResultsRef = ref<HTMLElement | null>(null)
 
-  const handleClickOutside = (event: Event) => {
+  const handleClickOutside = (event: Event): void => {
     const target = event.target as HTMLElement
     if (searchResultsRef.value && !searchResultsRef.value.contains(target)) {
       // Check if we're not clicking on the search input
       const searchInput = document.querySelector('input[placeholder="Search music..."]')
-      if (searchInput && !searchInput.contains(target)) {
+      if (searchInput && !searchInput.contains(target))
         emit('close')
-      }
     }
   }
 
@@ -48,16 +49,15 @@
 
   const fuseOptions = {
     includeScore:       true,
-    threshold:          0.2,
     minMatchCharLength: 2,
+    threshold:          0.2,
   }
 
-  const combinedData = computed(() => {
-    const songs = props.songs.map(item => ({ type: 'song' as const, item }))
-    const albums = props.albums.map(item => ({ type: 'album' as const, item }))
-    const artists = props.artists.map(item => ({ type: 'artist' as const, item }))
-    return [...songs, ...albums, ...artists]
-  })
+  const combinedData = computed(() => [
+    ...props.songs.map(item => ({ item, type: 'song' as const })),
+    ...props.albums.map(item => ({ item, type: 'album' as const })),
+    ...props.artists.map(item => ({ item, type: 'artist' as const })),
+  ])
 
   const fuse = computed(() => new Fuse(combinedData.value, {
     ...fuseOptions,
@@ -76,19 +76,19 @@
   })
 
   type SearchResultItem =
-    | { type: 'song', item: Song }
-    | { type: 'album', item: Album }
-    | { type: 'artist', item: Artist }
+    | { item: Album; type: 'album', }
+    | { item: Artist; type: 'artist', }
+    | { item: Song; type: 'song', }
 
   const categorizedResults = computed(() => {
     const results: {
-      songs:   FuseResult<SearchResultItem>[]
       albums:  FuseResult<SearchResultItem>[]
       artists: FuseResult<SearchResultItem>[]
+      songs:   FuseResult<SearchResultItem>[]
     } = {
-      songs:   [],
       albums:  [],
       artists: [],
+      songs:   [],
     }
 
     for (const result of searchResults.value) {
@@ -108,39 +108,29 @@
 
   const resultOrder = computed(() => {
     const topScores: { [key: string]: number | undefined } = {
-      songs:   categorizedResults.value.songs[0]?.score,
       albums:  categorizedResults.value.albums[0]?.score,
       artists: categorizedResults.value.artists[0]?.score,
+      songs:   categorizedResults.value.songs[0]?.score,
     }
 
-    const sections: Array<'songs' | 'albums' | 'artists'> = ['songs', 'albums', 'artists']
-
-    sections.sort((a, b) => {
-      const scoreA = topScores[a] ?? 1
-      const scoreB = topScores[b] ?? 1
-      return scoreA - scoreB
-    })
-
-    return sections
+    return ['songs', 'albums', 'artists'].sort((a, b) => (topScores[a] ?? 1) - (topScores[b] ?? 1))
   })
 
-  const hasResults = computed(() => {
-    return searchResults.value.length > 0
-  })
+  const hasResults = computed(() => searchResults.value.length > 0)
 
-  const selectSong = (song: Song) => {
+  const selectSong = (song: Song): void => {
     emit('play-song', song)
     emit('close')
     emit('result-clicked')
   }
 
-  const selectAlbum = (album: Album) => {
+  const selectAlbum = (album: Album): void => {
     router.push(`/songs/album/${encodeURIComponent(album.name)}`)
     emit('close')
     emit('result-clicked')
   }
 
-  const selectArtist = (artist: Artist) => {
+  const selectArtist = (artist: Artist): void => {
     router.push(`/songs/artist/${artist.id}`)
     emit('close')
     emit('result-clicked')

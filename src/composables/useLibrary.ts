@@ -1,107 +1,118 @@
-import { ref, readonly } from 'vue'
-import type { Song, Album, Artist, Credentials } from '@/bindings'
+import { readonly, ref, type Ref } from 'vue'
+
+import type { Album, Artist, Credentials, Song } from '@/bindings'
+
 import { commands } from '@/bindings'
 import { appLogger } from '@/lib/logger'
+import { withCustomState, withMultipleResults } from '@/lib/result'
 
-export const useLibrary = () => {
-  const albumArtistsWithSongs = ref<Artist[]>([])
-  const allAlbums = ref<Album[]>([])
-  const allArtistsWithSongs = ref<Artist[]>([])
-  const allSongs = ref<Song[]>([])
-  const libraryError = ref<string | null>(null)
-  const libraryLoading = ref(false)
+const albumArtistsWithSongs = ref<Artist[]>([])
+const allAlbums = ref<Album[]>([])
+const allArtistsWithSongs = ref<Artist[]>([])
+const allSongs = ref<Song[]>([])
+const libraryError = ref<null | string>(null)
+const libraryLoading = ref(false)
 
-  const loadLibrary = async (credentials: Credentials) => {
-    libraryLoading.value = true
-    libraryError.value = null
+const loadLibrary = async (credentials: Credentials): Promise<void> => {
+  // Load songs first
+  await withCustomState(
+    () => commands.getSongs(credentials.serverUrl, credentials.token, null, null, null, null),
+    {
+      onError: error => {
+        libraryError.value = `Failed to load songs: ${error}`
+        libraryLoading.value = false
+      },
+      onStart: () => {
+        libraryLoading.value = true
+        libraryError.value = null
+      },
+      onSuccess: songs => {
+        allSongs.value = songs
+      },
+    },
+  )
 
-    try {
-      const songsResult = await commands.getSongs(
-        credentials.serverUrl,
-        credentials.token,
-        null, null, null, null,
-      )
-
-      if (songsResult.status === 'error') {
-        throw new Error(`Failed to load songs: ${songsResult.error}`)
-      }
-
-      allSongs.value = songsResult.data
-
-      const [artistsWithSongsResult, albumArtistsResult, albumsResult] = await Promise.all([
-        commands.getArtists(credentials.serverUrl, credentials.token, true, false, null, null),
-        commands.getArtists(credentials.serverUrl, credentials.token, true, true, null, null),
-        commands.getAlbums(credentials.serverUrl, credentials.token, true, null, null), // includeSongs: true
-      ])
-
-      if (artistsWithSongsResult.status === 'error') {
-        throw new Error(`Failed to load artists: ${artistsWithSongsResult.error}`)
-      }
-      if (albumArtistsResult.status === 'error') {
-        throw new Error(`Failed to load album artists: ${albumArtistsResult.error}`)
-      }
-      if (albumsResult.status === 'error') {
-        throw new Error(`Failed to load albums: ${albumsResult.error}`)
-      }
-
-      allArtistsWithSongs.value = artistsWithSongsResult.data
-      albumArtistsWithSongs.value = albumArtistsResult.data
-      allAlbums.value = albumsResult.data
-
-      libraryError.value = null
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load music library'
-      libraryError.value = errorMessage
-      throw new Error(errorMessage)
-    } finally {
-      libraryLoading.value = false
-    }
-  }
-
-  const syncLibrary = async (credentials: Credentials) => {
-    try {
-      appLogger.info('Starting library sync...')
-      const syncResult = await commands.syncLibrary(credentials.serverUrl, credentials.token)
-      if (syncResult.status === 'error')
-        throw new Error(`Failed to sync library: ${syncResult.error}`)
-
-      await loadLibrary(credentials)
-      appLogger.info('Library sync completed successfully.')
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to sync music library'
-      libraryError.value = errorMessage
-      appLogger.error('Failed to sync library:', err)
-      throw new Error(errorMessage)
-    }
-  }
-
-  const clearCache = async (credentials: Credentials) => {
-    try {
-      appLogger.info('Starting cache clear...')
-      const clearResult = await commands.clearCache(credentials.serverUrl, credentials.token)
-      if (clearResult.status === 'error')
-        throw new Error(`Failed to clear cache: ${clearResult.error}`)
-
-      await loadLibrary(credentials)
-      appLogger.info('Cache clear completed successfully.')
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to clear music cache'
-      libraryError.value = errorMessage
-      appLogger.error('Failed to clear cache:', err)
-      throw new Error(errorMessage)
-    }
-  }
-
-  return {
-    allSongs,
-    allArtistsWithSongs,
-    albumArtistsWithSongs,
-    allAlbums,
-    libraryLoading: readonly(libraryLoading),
-    libraryError:   readonly(libraryError),
-
-    loadLibrary,
-    syncLibrary,
-    clearCache,
-  }
+  // Then load artists and albums in parallel
+  await withMultipleResults(
+    [
+      () => commands.getArtists(credentials.serverUrl, credentials.token, true, false, null, null),
+      () => commands.getArtists(credentials.serverUrl, credentials.token, true, true, null, null),
+      () => commands.getAlbums(credentials.serverUrl, credentials.token, true, null, null),
+    ] as const,
+    {
+      onError: errors => {
+        libraryError.value = `Failed to load library data: ${errors.join(', ')}`
+        libraryLoading.value = false
+      },
+      onSuccess: ([artistsWithSongs, albumArtists, albums]) => {
+        allArtistsWithSongs.value = artistsWithSongs
+        albumArtistsWithSongs.value = albumArtists
+        allAlbums.value = albums
+        libraryError.value = null
+        libraryLoading.value = false
+      },
+    },
+  )
 }
+
+const syncLibrary = async (credentials: Credentials): Promise<void> => {
+  appLogger.info('Starting library sync...')
+
+  await withCustomState(
+    () => commands.syncLibrary(credentials.serverUrl, credentials.token),
+    {
+      onError: error => {
+        const errorMessage = `Failed to sync library: ${error}`
+        libraryError.value = errorMessage
+        appLogger.error('Failed to sync library:', error)
+      },
+      onSuccess: async () => {
+        await loadLibrary(credentials)
+        appLogger.info('Library sync completed successfully.')
+      },
+    },
+  )
+}
+
+const clearCache = async (credentials: Credentials): Promise<void> => {
+  appLogger.info('Starting cache clear...')
+
+  await withCustomState(
+    () => commands.clearCache(credentials.serverUrl, credentials.token),
+    {
+      onError: error => {
+        const errorMessage = `Failed to clear cache: ${error}`
+        libraryError.value = errorMessage
+        appLogger.error('Failed to clear cache:', error)
+      },
+      onSuccess: async () => {
+        await loadLibrary(credentials)
+        appLogger.info('Cache cleared and library reloaded successfully.')
+      },
+    },
+  )
+}
+
+export interface Library {
+  albumArtistsWithSongs: Ref<Artist[]>
+  allAlbums:             Ref<Album[]>
+  allArtistsWithSongs:   Ref<Artist[]>
+  allSongs:              Ref<Song[]>
+  clearCache:            (credentials: Credentials) => Promise<void>
+  libraryError:          Readonly<Ref<null | string>>
+  libraryLoading:        Readonly<Ref<boolean>>
+  loadLibrary:           (credentials: Credentials) => Promise<void>
+  syncLibrary:           (credentials: Credentials) => Promise<void>
+}
+
+export const useLibrary = (): Library => ({
+  albumArtistsWithSongs,
+  allAlbums,
+  allArtistsWithSongs,
+  allSongs,
+  clearCache,
+  libraryError:   readonly(libraryError),
+  libraryLoading: readonly(libraryLoading),
+  loadLibrary,
+  syncLibrary,
+})

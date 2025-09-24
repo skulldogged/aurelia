@@ -1,3 +1,44 @@
+<script setup lang="ts">
+  import {
+    Palette,
+    Sun,
+  } from 'lucide-vue-next'
+  import { storeToRefs } from 'pinia'
+  import { computed, ref } from 'vue'
+
+  import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+  } from '@/components/ui/select'
+  import { useAccentColorStore, useThemeStore } from '@/stores'
+
+  const accentColorStore = useAccentColorStore()
+  const themeStore = useThemeStore()
+
+  const { accentColor: accentColorRef, accentColors: accentColorsRef } = storeToRefs(accentColorStore)
+  const { colorSchemes: colorSchemesRef, selectedScheme: selectedSchemeRef } = storeToRefs(themeStore)
+
+  const { setAccentColor } = accentColorStore
+  const { setColorScheme } = themeStore
+
+  const accentColor = computed(() => accentColorRef.value)
+  const accentColors = computed(() => accentColorsRef.value)
+  const selectedScheme = computed(() => selectedSchemeRef.value)
+  const colorSchemes = computed(() => colorSchemesRef.value)
+
+  const selectedColorScheme = ref(selectedScheme.value.name)
+
+  const handleColorSchemeChange = (value: unknown): void => {
+    if (value && typeof value === 'string')
+      setColorScheme(value)
+  }
+</script>
+
 <template>
   <!-- Appearance Section -->
   <section class='space-y-6'>
@@ -83,43 +124,3 @@
     </div>
   </section>
 </template>
-
-<script setup lang="ts">
-  import { ref, computed } from 'vue'
-  import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectLabel,
-    SelectTrigger,
-    SelectValue,
-  } from '@/components/ui/select'
-  import { useAccentColorStore, useThemeStore } from '@/stores'
-  import { storeToRefs } from 'pinia'
-  import {
-    Palette,
-    Sun,
-  } from 'lucide-vue-next'
-
-  const accentColorStore = useAccentColorStore()
-  const themeStore = useThemeStore()
-
-  const { accentColor: accentColorRef, accentColors: accentColorsRef } = storeToRefs(accentColorStore)
-  const { selectedScheme: selectedSchemeRef, colorSchemes: colorSchemesRef } = storeToRefs(themeStore)
-
-  const { setAccentColor } = accentColorStore
-  const { setColorScheme } = themeStore
-
-  const accentColor = computed(() => accentColorRef.value)
-  const accentColors = computed(() => accentColorsRef.value)
-  const selectedScheme = computed(() => selectedSchemeRef.value)
-  const colorSchemes = computed(() => colorSchemesRef.value)
-
-  const selectedColorScheme = ref(selectedScheme.value.name)
-
-  const handleColorSchemeChange = (value: unknown) => {
-    if (value && typeof value === 'string')
-      setColorScheme(value)
-  }
-</script>

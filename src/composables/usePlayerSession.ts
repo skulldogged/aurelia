@@ -1,65 +1,70 @@
-import { watch, onMounted, onUnmounted } from 'vue'
-import { usePlayerStore, useAuthStore } from '@/stores'
-import { useSession } from './useSession'
+import { onUnmounted, watch } from 'vue'
+
 import { logger } from '@/lib/logger'
+import { useAuthStore, usePlayerStore } from '@/stores'
 
-export const usePlayerSession = () => {
-  const playerStore = usePlayerStore()
-  const authStore = useAuthStore()
-  const sessionManager = useSession()
+import { useSession } from './useSession'
 
-  // Track current playback state to avoid duplicate reports
-  const lastReportedState = {
-    isPlaying:     false,
-    currentSongId: '',
-    position:      0,
+// Track current playback state to avoid duplicate reports
+const lastReportedState = {
+  currentSongId: '',
+  isPlaying:     false,
+  position:      0,
+}
+
+// Track which song has already been marked as played to avoid duplicates
+let lastMarkedPlayedSongId = ''
+
+let progressReportTimer: null | ReturnType<typeof setInterval> = null
+let isInitialized = false
+
+const initialize = async (sessionManager: ReturnType<typeof useSession>): Promise<void> => {
+  if (isInitialized) return
+
+  await sessionManager.initializeSession()
+  await sessionManager.registerCapabilities()
+  isInitialized = true
+
+  logger.info('Player session integration initialized')
+}
+
+const startProgressReporting = (
+  playerStore: ReturnType<typeof usePlayerStore>,
+  sessionManager: ReturnType<typeof useSession>,
+): void => {
+  if (progressReportTimer) return
+
+  progressReportTimer = setInterval(async () => {
+    if (!playerStore.currentSong || !playerStore.isPlaying) return
+
+    // Only report progress if position has changed significantly (>5 seconds)
+    const currentPosition = playerStore.currentTime
+    if (Math.abs(currentPosition - lastReportedState.position) < 5) return
+
+    lastReportedState.position = currentPosition
+
+    await sessionManager.reportPlaybackProgress(
+      playerStore.currentSong.id,
+      currentPosition,
+      'TimeUpdate',
+      false,
+    )
+  }, 30000) // Report every 30 seconds
+}
+
+const stopProgressReporting = (): void => {
+  if (progressReportTimer) {
+    clearInterval(progressReportTimer)
+    progressReportTimer = null
   }
+}
 
-  // Track which song has already been marked as played to avoid duplicates
-  let lastMarkedPlayedSongId = ''
-
-  let progressReportTimer: ReturnType<typeof setInterval> | null = null
-  let isInitialized = false
-
-  const initialize = async () => {
-    if (isInitialized) return
-
-    await sessionManager.initializeSession()
-    await sessionManager.registerCapabilities()
-    isInitialized = true
-
-    logger.info('Player session integration initialized')
-  }
-
-  const startProgressReporting = () => {
-    if (progressReportTimer) return
-
-    progressReportTimer = setInterval(async () => {
-      if (!playerStore.currentSong || !playerStore.isPlaying) return
-
-      // Only report progress if position has changed significantly (>5 seconds)
-      const currentPosition = playerStore.currentTime
-      if (Math.abs(currentPosition - lastReportedState.position) < 5) return
-
-      lastReportedState.position = currentPosition
-
-      await sessionManager.reportPlaybackProgress(
-        playerStore.currentSong.id,
-        currentPosition,
-        'TimeUpdate',
-        false,
-      )
-    }, 30000) // Report every 30 seconds
-  }
-
-  const stopProgressReporting = () => {
-    if (progressReportTimer) {
-      clearInterval(progressReportTimer)
-      progressReportTimer = null
-    }
-  }
-
-  watch(
+const setupWatchers = (
+  playerStore: ReturnType<typeof usePlayerStore>,
+  authStore: ReturnType<typeof useAuthStore>,
+  sessionManager: ReturnType<typeof useSession>,
+): (() => void) => {
+  const unwatchCurrentSong = watch(
     () => playerStore.currentSong,
     async (newSong, oldSong) => {
       if (oldSong && playerStore.isPlaying)
@@ -73,13 +78,13 @@ export const usePlayerSession = () => {
 
         lastReportedState.currentSongId = newSong.id
         lastMarkedPlayedSongId = ''
-        startProgressReporting()
+        startProgressReporting(playerStore, sessionManager)
       }
     },
     { immediate: true },
   )
 
-  watch(
+  const unwatchIsPlaying = watch(
     () => playerStore.isPlaying,
     async (isPlaying, wasPlaying) => {
       if (!playerStore.currentSong)
@@ -95,7 +100,7 @@ export const usePlayerSession = () => {
           playerStore.currentSong.id,
           playerStore.currentTime,
         )
-        startProgressReporting()
+        startProgressReporting(playerStore, sessionManager)
       } else if (!isPlaying && wasPlaying) {
         await sessionManager.reportPlaybackStop(
           playerStore.currentSong.id,
@@ -107,7 +112,7 @@ export const usePlayerSession = () => {
     { immediate: true },
   )
 
-  watch(
+  const unwatchTimeAndDuration = watch(
     [() => playerStore.currentTime, () => playerStore.duration],
     async ([currentTime, duration]) => {
       if (!playerStore.currentSong || !playerStore.isPlaying) return
@@ -121,6 +126,43 @@ export const usePlayerSession = () => {
     },
   )
 
+  const unwatchAuth = watch(
+    () => authStore.isAuthenticated(),
+    async isAuthenticated => {
+      if (isAuthenticated)
+        await initialize(sessionManager)
+    },
+    { immediate: true },
+  )
+
+  // Return cleanup function
+  return () => {
+    unwatchCurrentSong()
+    unwatchIsPlaying()
+    unwatchTimeAndDuration()
+    unwatchAuth()
+  }
+}
+
+export interface PlayerSession {
+  initialize:     () => Promise<void>
+  sessionManager: ReturnType<typeof useSession>
+}
+
+export const usePlayerSession = (): PlayerSession => {
+  const playerStore = usePlayerStore()
+  const authStore = useAuthStore()
+  const sessionManager = useSession()
+
+  // Initialize auth check
+  if (authStore.isAuthenticated()) {
+    initialize(sessionManager)
+  }
+
+  // Set up watchers
+  const cleanupWatchers = setupWatchers(playerStore, authStore, sessionManager)
+
+  // Set up cleanup on unmount
   onUnmounted(async () => {
     stopProgressReporting()
 
@@ -129,24 +171,12 @@ export const usePlayerSession = () => {
         playerStore.currentSong.id,
         playerStore.currentTime,
       )
-  })
 
-  watch(
-    () => authStore.isAuthenticated(),
-    async isAuthenticated => {
-      if (isAuthenticated)
-        await initialize()
-    },
-    { immediate: true },
-  )
-
-  onMounted(async () => {
-    if (authStore.isAuthenticated())
-      await initialize()
+    cleanupWatchers()
   })
 
   return {
+    initialize: () => initialize(sessionManager),
     sessionManager,
-    initialize,
   }
 }

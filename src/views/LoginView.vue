@@ -1,3 +1,117 @@
+<script setup lang="ts">
+  import { Loader2 } from 'lucide-vue-next'
+  import { onMounted, ref } from 'vue'
+
+  import { commands } from '@/bindings'
+  import { Button } from '@/components/ui/button'
+  import { Checkbox } from '@/components/ui/checkbox'
+  import { Input } from '@/components/ui/input'
+  import { Label } from '@/components/ui/label'
+  import { withCustomState } from '@/lib/result'
+
+  const { getSavedCredentials, loginToJellyfin, saveCredentials } = commands
+
+  interface LoginForm {
+    password:  string
+    remember:  boolean
+    serverUrl: string
+    username:  string
+  }
+
+  const form = ref<LoginForm>({
+    password:  '',
+    remember:  true,
+    serverUrl: '',
+    username:  '',
+  })
+
+  const loading = ref(false)
+  const error = ref('')
+
+  const emit = defineEmits<{
+    login: [credentials: { serverUrl: string; token: string; userId: string; username: string; }]
+  }>()
+
+  const handleLogin = async (): Promise<void> => {
+    error.value = ''
+    loading.value = true
+
+    // First, attempt login
+    await withCustomState(
+      () => loginToJellyfin(
+        form.value.serverUrl,
+        form.value.username,
+        form.value.password,
+      ),
+      {
+        onError: loginError => {
+          error.value = `Login failed: ${loginError}`
+          loading.value = false
+        },
+        onStart: () => {
+          error.value = ''
+          loading.value = true
+        },
+        onSuccess: async loginData => {
+          // If login successful and remember is checked, save credentials
+          if (form.value.remember) {
+            await withCustomState(
+              () => saveCredentials(
+                form.value.serverUrl,
+                form.value.username,
+                loginData.token,
+                loginData.userId,
+              ),
+              {
+                onError: saveError => {
+                  error.value = `Login successful but failed to save credentials: ${saveError}`
+                  loading.value = false
+                },
+                onSuccess: () => {
+                  // Credentials saved successfully
+                  emit('login', {
+                    serverUrl: form.value.serverUrl,
+                    token:     loginData.token,
+                    userId:    loginData.userId,
+                    username:  form.value.username,
+                  })
+                  loading.value = false
+                },
+              },
+            )
+          } else {
+            // Login successful, no need to save credentials
+            emit('login', {
+              serverUrl: form.value.serverUrl,
+              token:     loginData.token,
+              userId:    loginData.userId,
+              username:  form.value.username,
+            })
+            loading.value = false
+          }
+        },
+      },
+    )
+  }
+
+  onMounted(async () => {
+    await withCustomState(
+      () => getSavedCredentials(),
+      {
+        onError: error => {
+          console.error('Failed to get saved credentials:', error)
+        },
+        onSuccess: savedCredentials => {
+          if (savedCredentials) {
+            form.value.serverUrl = savedCredentials.serverUrl
+            form.value.username = savedCredentials.username
+          }
+        },
+      },
+    )
+  })
+</script>
+
 <template>
   <div class='h-full bg-background flex items-center justify-center p-4'>
     <div class='max-w-md w-full p-8'>
@@ -63,88 +177,3 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-  import { ref, onMounted } from 'vue'
-  import { Loader2 } from 'lucide-vue-next'
-  import { Button } from '@/components/ui/button'
-  import { Input } from '@/components/ui/input'
-  import { Label } from '@/components/ui/label'
-  import { Checkbox } from '@/components/ui/checkbox'
-  import { commands } from '@/bindings'
-
-  const { loginToJellyfin, saveCredentials, getSavedCredentials } = commands
-
-  interface LoginForm {
-    serverUrl: string
-    username:  string
-    password:  string
-    remember:  boolean
-  }
-
-  const form = ref<LoginForm>({
-    serverUrl: '',
-    username:  '',
-    password:  '',
-    remember:  true,
-  })
-
-  const loading = ref(false)
-  const error = ref('')
-
-  const emit = defineEmits<{
-    login: [credentials: { serverUrl: string; username: string; token: string; userId: string }]
-  }>()
-
-  const handleLogin = async () => {
-    error.value = ''
-    loading.value = true
-
-    try {
-      const loginResult = await loginToJellyfin(
-        form.value.serverUrl,
-        form.value.username,
-        form.value.password,
-      )
-
-      if (loginResult.status === 'error') {
-        throw new Error(loginResult.error)
-      }
-
-      const result = loginResult.data
-
-      if (form.value.remember) {
-        await saveCredentials(
-          form.value.serverUrl,
-          form.value.username,
-          result.token,
-          result.userId,
-        )
-      }
-
-      emit('login', {
-        serverUrl: form.value.serverUrl,
-        username:  form.value.username,
-        token:     result.token,
-        userId:    result.userId,
-      })
-    } catch (err) {
-      error.value = `Login failed: ${err}`
-    } finally {
-      loading.value = false
-    }
-  }
-
-  onMounted(async () => {
-    try {
-      const savedResult = await getSavedCredentials()
-      if (savedResult.status === 'ok' && savedResult.data) {
-        const saved = savedResult.data
-        form.value.serverUrl = saved.serverUrl
-        form.value.username = saved.username
-      }
-    } catch {
-      console.error('Failed to get saved credentials')
-    }
-  })
-</script>

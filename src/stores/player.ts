@@ -1,33 +1,37 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
+
 import type { Song } from '@/bindings'
+
 import { playerLogger } from '@/lib/logger'
 
 export interface EQBand {
   frequency: number
   gain:      number
-  type:      BiquadFilterType
   Q:         number
+  type:      BiquadFilterType
 }
 
 export interface PlayerState {
-  isPlaying:   boolean
   currentTime: number
   duration:    number
-  isShuffled:  boolean
-  repeatMode:  'none' | 'all' | 'one'
-  hasPrevious: boolean
   hasNext:     boolean
+  hasPrevious: boolean
+  isPlaying:   boolean
+  isShuffled:  boolean
+  repeatMode:  RepeatMode
 }
 
+export type RepeatMode = 'all' | 'none' | 'one'
+
 const STORAGE_KEYS = {
-  VOLUME:       'player-volume',
-  MUTED_VOLUME: 'player-muted-volume',
-  IS_MUTED:     'player-muted',
-  REPEAT_MODE:  'player-repeat-mode',
-  IS_SHUFFLED:  'player-shuffled',
-  EQ_ENABLED:   'player-eq-enabled',
   EQ_BANDS:     'player-eq-bands',
+  EQ_ENABLED:   'player-eq-enabled',
+  IS_MUTED:     'player-muted',
+  IS_SHUFFLED:  'player-shuffled',
+  MUTED_VOLUME: 'player-muted-volume',
+  REPEAT_MODE:  'player-repeat-mode',
+  VOLUME:       'player-volume',
 }
 
 const getStoredValue = <T>(key: string, defaultValue: T): T => {
@@ -73,11 +77,11 @@ const setStoredValue = <T>(key: string, value: T): void => {
 }
 
 const DEFAULT_EQ_BANDS: EQBand[] = [
-  { frequency: 60, gain: 0, type: 'lowshelf', Q: 0.707 },
-  { frequency: 250, gain: 0, type: 'peaking', Q: 1.414 },
-  { frequency: 1000, gain: 0, type: 'peaking', Q: 1.414 },
-  { frequency: 4000, gain: 0, type: 'peaking', Q: 1.414 },
-  { frequency: 16000, gain: 0, type: 'highshelf', Q: 0.707 },
+  { frequency: 60, gain: 0, Q: 0.707, type: 'lowshelf' },
+  { frequency: 250, gain: 0, Q: 1.414, type: 'peaking' },
+  { frequency: 1000, gain: 0, Q: 1.414, type: 'peaking' },
+  { frequency: 4000, gain: 0, Q: 1.414, type: 'peaking' },
+  { frequency: 16000, gain: 0, Q: 0.707, type: 'highshelf' },
 ]
 
 const getStoredEQBands = (): EQBand[] => {
@@ -102,14 +106,14 @@ export const usePlayerStore = defineStore('player', () => {
   const mutedVolume = ref(getStoredValue(STORAGE_KEYS.MUTED_VOLUME, 0.5)) // Store volume before muting
   const isMuted = ref(getStoredValue(STORAGE_KEYS.IS_MUTED, false))
   const isShuffled = ref(getStoredValue(STORAGE_KEYS.IS_SHUFFLED, false))
-  const repeatMode = ref<'none' | 'one' | 'all'>(getStoredValue(STORAGE_KEYS.REPEAT_MODE, 'none'))
+  const repeatMode = ref<'all' | 'none' | 'one'>(getStoredValue(STORAGE_KEYS.REPEAT_MODE, 'none'))
 
   const eqEnabled = ref(getStoredValue(STORAGE_KEYS.EQ_ENABLED, false))
   const eqBands = ref(getStoredEQBands())
   const hasPrevious = ref(false)
   const hasNext = ref(false)
 
-  const currentSong = ref<Song | null>(null)
+  const currentSong = ref<null | Song>(null)
   const playlist = ref<Song[]>([])
   const currentIndex = ref(-1)
   const audioReady = ref(false)
@@ -121,33 +125,33 @@ export const usePlayerStore = defineStore('player', () => {
 
   const formattedDuration = computed(() => formatTime(duration.value))
 
-  const play = () => {
+  const play = (): void => {
     isPlaying.value = true
   }
 
-  const pause = () => {
+  const pause = (): void => {
     isPlaying.value = false
   }
 
-  const togglePlay = () => {
+  const togglePlay = (): void => {
     isPlaying.value = !isPlaying.value
   }
 
-  const setCurrentTime = (time: number) => {
+  const setCurrentTime = (time: number): void => {
     currentTime.value = time
   }
 
-  const setDuration = (time: number) => {
+  const setDuration = (time: number): void => {
     duration.value = time
   }
 
-  const setVolume = (vol: number) => {
+  const setVolume = (vol: number): void => {
     const clampedVolume = Math.max(0, Math.min(1, vol))
     volume.value = clampedVolume
     setStoredValue(STORAGE_KEYS.VOLUME, clampedVolume)
   }
 
-  const toggleMute = () => {
+  const toggleMute = (): void => {
     if (isMuted.value) {
       // Unmuting - restore the previous volume
       volume.value = mutedVolume.value
@@ -163,46 +167,46 @@ export const usePlayerStore = defineStore('player', () => {
     setStoredValue(STORAGE_KEYS.IS_MUTED, isMuted.value)
   }
 
-  const toggleShuffle = () => {
+  const toggleShuffle = (): void => {
     isShuffled.value = !isShuffled.value
     setStoredValue(STORAGE_KEYS.IS_SHUFFLED, isShuffled.value)
   }
 
-  const setRepeatMode = (mode: 'none' | 'all' | 'one') => {
+  const setRepeatMode = (mode: 'all' | 'none' | 'one'): void => {
     repeatMode.value = mode
     setStoredValue(STORAGE_KEYS.REPEAT_MODE, mode)
   }
 
-  const cycleRepeatMode = () => {
-    const modes: Array<'none' | 'one' | 'all'> = ['none', 'one', 'all']
+  const cycleRepeatMode = (): void => {
+    const modes: Array<'all' | 'none' | 'one'> = ['none', 'one', 'all']
     const currentModeIndex = modes.indexOf(repeatMode.value)
     repeatMode.value = modes[(currentModeIndex + 1) % modes.length]
     setStoredValue(STORAGE_KEYS.REPEAT_MODE, repeatMode.value)
   }
 
-  const setEQEnabled = (enabled: boolean) => {
+  const setEQEnabled = (enabled: boolean): void => {
     eqEnabled.value = enabled
     setStoredValue(STORAGE_KEYS.EQ_ENABLED, enabled)
   }
 
-  const setEQBands = (bands: EQBand[]) => {
+  const setEQBands = (bands: EQBand[]): void => {
     eqBands.value = bands
     localStorage.setItem(STORAGE_KEYS.EQ_BANDS, JSON.stringify(bands))
   }
 
-  const setEQBandGain = (bandIndex: number, gain: number) => {
+  const setEQBandGain = (bandIndex: number, gain: number): void => {
     if (bandIndex >= 0 && bandIndex < eqBands.value.length) {
       eqBands.value[bandIndex].gain = gain
       setEQBands(eqBands.value)
     }
   }
 
-  const resetEQ = () => {
+  const resetEQ = (): void => {
     eqBands.value = [...DEFAULT_EQ_BANDS]
     setEQBands(eqBands.value)
   }
 
-  const setCurrentSong = (song: Song | null) => {
+  const setCurrentSong = (song: null | Song): void => {
     currentSong.value = song
     // Reset time values when song changes to prevent stale seekbar data
     if (song) {
@@ -214,11 +218,11 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
-  const setPlaylist = (songs: Song[]) => {
+  const setPlaylist = (songs: Song[]): void => {
     playlist.value = songs
   }
 
-  const setCurrentIndex = (index: number) => {
+  const setCurrentIndex = (index: number): void => {
     currentIndex.value = index
     if (index >= 0 && index < playlist.value.length)
       currentSong.value = playlist.value[index]
@@ -226,15 +230,15 @@ export const usePlayerStore = defineStore('player', () => {
       currentSong.value = null
   }
 
-  const setAudioReady = (ready: boolean) => {
+  const setAudioReady = (ready: boolean): void => {
     audioReady.value = ready
   }
 
-  const setBuffering = (buffering: boolean) => {
+  const setBuffering = (buffering: boolean): void => {
     isBuffering.value = buffering
   }
 
-  const nextSong = () => {
+  const nextSong = (): void => {
     if (playlist.value.length === 0) return
 
     let nextIndex: number
@@ -250,7 +254,7 @@ export const usePlayerStore = defineStore('player', () => {
     setCurrentIndex(nextIndex)
   }
 
-  const previousSong = () => {
+  const previousSong = (): void => {
     if (playlist.value.length === 0) return
 
     let prevIndex: number
@@ -266,22 +270,22 @@ export const usePlayerStore = defineStore('player', () => {
     setCurrentIndex(prevIndex)
   }
 
-  const playSongAtIndex = (index: number) => {
+  const playSongAtIndex = (index: number): void => {
     if (index >= 0 && index < playlist.value.length) {
       setCurrentIndex(index)
       play()
     }
   }
 
-  const setHasPrevious = (value: boolean) => {
+  const setHasPrevious = (value: boolean): void => {
     hasPrevious.value = value
   }
 
-  const setHasNext = (value: boolean) => {
+  const setHasNext = (value: boolean): void => {
     hasNext.value = value
   }
 
-  const reset = () => {
+  const reset = (): void => {
     isPlaying.value = false
     currentTime.value = 0
     duration.value = 0
@@ -295,50 +299,50 @@ export const usePlayerStore = defineStore('player', () => {
     `${Math.floor(seconds / 60)}:${(Math.floor(seconds % 60)).toString().padStart(2, '0')}`
 
   return {
-    isPlaying,
-    currentTime,
-    duration,
-    volume,
-    mutedVolume,
-    isMuted,
-    isShuffled,
-    repeatMode,
-    hasPrevious,
-    hasNext,
-    currentSong,
-    playlist,
-    currentIndex,
     audioReady,
-    isBuffering,
-    eqEnabled,
+    currentIndex,
+    currentSong,
+    currentTime,
+    cycleRepeatMode,
+    duration,
     eqBands,
-    progress,
+    eqEnabled,
     formattedCurrentTime,
     formattedDuration,
-    play,
+    hasNext,
+    hasPrevious,
+    isBuffering,
+    isMuted,
+    isPlaying,
+    isShuffled,
+    mutedVolume,
+    nextSong,
     pause,
-    togglePlay,
-    setCurrentTime,
-    setDuration,
-    setVolume,
-    toggleMute,
-    toggleShuffle,
-    setRepeatMode,
-    cycleRepeatMode,
-    setHasPrevious,
-    setHasNext,
+    play,
+    playlist,
+    playSongAtIndex,
+    previousSong,
+    progress,
+    repeatMode,
     reset,
-    setCurrentSong,
-    setPlaylist,
-    setCurrentIndex,
+    resetEQ,
     setAudioReady,
     setBuffering,
-    nextSong,
-    previousSong,
-    playSongAtIndex,
-    setEQEnabled,
-    setEQBands,
+    setCurrentIndex,
+    setCurrentSong,
+    setCurrentTime,
+    setDuration,
     setEQBandGain,
-    resetEQ,
+    setEQBands,
+    setEQEnabled,
+    setHasNext,
+    setHasPrevious,
+    setPlaylist,
+    setRepeatMode,
+    setVolume,
+    toggleMute,
+    togglePlay,
+    toggleShuffle,
+    volume,
   }
 })

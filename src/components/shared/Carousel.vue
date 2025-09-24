@@ -1,31 +1,32 @@
 <script setup lang="ts">
-  import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-  import { Button } from '@/components/ui/button'
   import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
+  import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+
+  import { Button } from '@/components/ui/button'
 
   const props = defineProps<{
-    title:     string
     disabled?: boolean
+    title:     string
   }>()
 
   const scrollContainer = ref<HTMLElement | null>(null)
   const canScrollLeft = ref(false)
   const canScrollRight = ref(false)
 
-  const updateScrollButtons = () => {
+  const updateScrollButtons = (): void => {
     if (scrollContainer.value) {
-      const { scrollLeft, scrollWidth, clientWidth } = scrollContainer.value
+      const { clientWidth, scrollLeft, scrollWidth } = scrollContainer.value
       canScrollLeft.value = scrollLeft > 0
       canScrollRight.value = scrollLeft < scrollWidth - clientWidth - 1
     }
   }
 
-  const scrollLeft = () => {
-    scrollContainer.value?.scrollBy({ left: -248, behavior: 'smooth' })
+  const scrollLeft = (): void => {
+    scrollContainer.value?.scrollBy({ behavior: 'smooth', left: -248 })
   }
 
-  const scrollRight = () => {
-    scrollContainer.value?.scrollBy({ left: 248, behavior: 'smooth' })
+  const scrollRight = (): void => {
+    scrollContainer.value?.scrollBy({ behavior: 'smooth', left: 248 })
   }
 
   onMounted(async () => {
@@ -69,10 +70,10 @@
       </div>
     </div>
     <div
-      :style="{
-        '--left-fade-opacity': canScrollLeft ? 1 : 0,
-        '--right-fade-opacity': canScrollRight ? 1 : 0,
-      }"
+      :style='{
+        "--left-fade-opacity": canScrollLeft ? 1 : 0,
+        "--right-fade-opacity": canScrollRight ? 1 : 0,
+      }'
       class='relative carousel-container'
     >
       <div @scroll='updateScrollButtons' ref='scrollContainer' class='overflow-x-auto scrollbar-hide'>

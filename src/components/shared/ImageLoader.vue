@@ -1,32 +1,33 @@
 <script setup lang="ts">
   import { ref, watch } from 'vue'
+
   import { useImageLoader } from '@/composables/useImageLoader'
 
   interface Props {
+    alt?:       string
+    className?: string
+    imageType?: string
     itemId?:    string
     serverUrl?: string
     token?:     string
-    imageType?: string
-    alt?:       string
-    className?: string
   }
 
   const props = withDefaults(defineProps<Props>(), {
+    alt:       'Image',
+    className: undefined,
+    imageType: 'Primary',
     itemId:    undefined,
     serverUrl: undefined,
     token:     undefined,
-    imageType: 'Primary',
-    alt:       'Image',
-    className: undefined,
   })
 
   const { getImageUrl } = useImageLoader()
-  const imageUrl = ref<string | null>(null)
+  const imageUrl = ref<null | string>(null)
   const hasError = ref(false)
   const isLoaded = ref(false)
   const isLoading = ref(false)
 
-  const updateImageUrl = async () => {
+  const updateImageUrl = async (): Promise<void> => {
     if (props.itemId && props.serverUrl && props.token) {
       isLoading.value = true
       hasError.value = false
@@ -50,11 +51,11 @@
     }
   }
 
-  const handleError = () => {
+  const handleError = (): void => {
     hasError.value = true
   }
 
-  const handleLoad = () => {
+  const handleLoad = (): void => {
     isLoaded.value = true
   }
 

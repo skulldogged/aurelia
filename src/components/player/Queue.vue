@@ -1,38 +1,40 @@
 <script setup lang="ts">
-  import { ref } from 'vue'
-  import { Sortable } from 'sortablejs-vue3'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-  import QueueItem from './QueueItem.vue'
+  import { Sortable } from 'sortablejs-vue3'
+  import { ref } from 'vue'
+
   import { Song } from '@/bindings'
 
+  import QueueItem from './QueueItem.vue'
+
   const props = defineProps<{
+    currentSong: null | Song
     playlist:    Song[]
-    currentSong: Song | null
   }>()
 
   const emit = defineEmits<{
-    'update:playlist': [playlist: Song[]]
-    'remove-song':     [song: Song]
     'play-song':       [song: Song]
+    'remove-song':     [song: Song]
+    'update:playlist': [playlist: Song[]]
   }>()
 
   const isDragging = ref(false)
 
-  const handleRemove = (song: Song) => {
+  const handleRemove = (song: Song): void => {
     emit('remove-song', song)
   }
 
-  const handlePlay = (song: Song) => {
+  const handlePlay = (song: Song): void => {
     emit('play-song', song)
   }
 
-  const handleDragStart = () => {
+  const handleDragStart = (): void => {
     isDragging.value = true
   }
 
-  const handleDragEnd = (event: { oldIndex: number | undefined, newIndex: number | undefined }) => {
+  const handleDragEnd = (event: { newIndex: number | undefined; oldIndex: number | undefined, }): void => {
     isDragging.value = false
-    const { oldIndex, newIndex } = event
+    const { newIndex, oldIndex } = event
     if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex)
       return
 

@@ -4,13 +4,39 @@ import { usePlayerStore } from '@/stores/player'
 export interface EQBand {
   frequency: number,
   gain:      number,
-  type:      BiquadFilterType,
   Q:         number,
+  type:      BiquadFilterType,
 }
 
 export interface EQPreset {
-  name:  string,
   bands: EQBand[],
+  name:  string,
+}
+
+export interface WebAudioPlayer {
+  applyEQPreset:       (presetName: string) => boolean
+  cleanup:             () => void
+  getCurrentTime:      () => number
+  getDuration:         () => number
+  getEQBandGain:       (bandIndex: number) => number
+  getEQBands:          () => EQBand[]
+  getEQEnabled:        () => boolean
+  getEQPresets:        () => EQPreset[]
+  getIsPlaying:        () => boolean
+  getIsReady:          () => boolean
+  initializeWebAudio:  () => Promise<boolean>
+  isWebAudioAvailable: () => boolean
+  loadAudio:           (url: string) => Promise<boolean>
+  loadStoredEQBands:   () => boolean
+  pause:               () => boolean
+  play:                () => Promise<boolean>
+  resetEQ:             () => boolean
+  seek:                (time: number) => Promise<boolean>
+  setEQBandGain:       (bandIndex: number, gain: number) => boolean
+  setEQEnabled:        (enabled: boolean) => boolean
+  setOnDurationChange: (callback: (duration: number) => void) => void
+  setVolume:           (volume: number) => boolean
+  stop:                () => boolean
 }
 
 let audioContext: AudioContext | null = null
@@ -26,88 +52,88 @@ let onDurationChange: ((duration: number) => void) | null = null
 
 // Standard EQ bands (5-band EQ)
 const DEFAULT_EQ_BANDS: EQBand[] = [
-  { frequency: 60, gain: 0, type: 'lowshelf', Q: 1.414 },     // Bass
-  { frequency: 250, gain: 0, type: 'peaking', Q: 1.414 },    // Low Mids
-  { frequency: 1000, gain: 0, type: 'peaking', Q: 1.414 },   // Mids
-  { frequency: 4000, gain: 0, type: 'peaking', Q: 1.414 },   // High Mids
-  { frequency: 16000, gain: 0, type: 'highshelf', Q: 1.414 },  // Treble
+  { frequency: 60, gain: 0, Q: 1.414, type: 'lowshelf' },
+  { frequency: 250, gain: 0, Q: 1.414, type: 'peaking' },
+  { frequency: 1000, gain: 0, Q: 1.414, type: 'peaking' },
+  { frequency: 4000, gain: 0, Q: 1.414, type: 'peaking' },
+  { frequency: 16000, gain: 0, Q: 1.414, type: 'highshelf' },
 ]
 
 // EQ Presets
 const EQ_PRESETS : EQPreset[] = [
   {
-    name:  'Flat',
     bands: DEFAULT_EQ_BANDS.map(band => ({ ...band, gain: 0 })),
+    name:  'Flat',
   },
   {
-    name:  'Rock',
     bands: [
-      { frequency: 60, gain: 3, type: 'lowshelf', Q: 1.414 },
-      { frequency: 250, gain: 2, type: 'peaking', Q: 1.414 },
-      { frequency: 1000, gain: -1, type: 'peaking', Q: 1.414 },
-      { frequency: 4000, gain: 1, type: 'peaking', Q: 1.414 },
-      { frequency: 16000, gain: 2, type: 'highshelf', Q: 1.414 },
+      { frequency: 60, gain: 3, Q: 1.414, type: 'lowshelf' },
+      { frequency: 250, gain: 2, Q: 1.414, type: 'peaking' },
+      { frequency: 1000, gain: -1, Q: 1.414, type: 'peaking' },
+      { frequency: 4000, gain: 1, Q: 1.414, type: 'peaking' },
+      { frequency: 16000, gain: 2, Q: 1.414, type: 'highshelf' },
     ],
+    name: 'Rock',
   },
   {
-    name:  'Pop',
     bands: [
-      { frequency: 60, gain: -2, type: 'lowshelf', Q: 1.414 },
-      { frequency: 250, gain: 1, type: 'peaking', Q: 1.414 },
-      { frequency: 1000, gain: 3, type: 'peaking', Q: 1.414 },
-      { frequency: 4000, gain: 2, type: 'peaking', Q: 1.414 },
-      { frequency: 16000, gain: 1, type: 'highshelf', Q: 1.414 },
+      { frequency: 60, gain: -2, Q: 1.414, type: 'lowshelf' },
+      { frequency: 250, gain: 1, Q: 1.414, type: 'peaking' },
+      { frequency: 1000, gain: 3, Q: 1.414, type: 'peaking' },
+      { frequency: 4000, gain: 2, Q: 1.414, type: 'peaking' },
+      { frequency: 16000, gain: 1, Q: 1.414, type: 'highshelf' },
     ],
+    name: 'Pop',
   },
   {
-    name:  'Jazz',
     bands: [
-      { frequency: 60, gain: 2, type: 'lowshelf', Q: 1.414 },
-      { frequency: 250, gain: -1, type: 'peaking', Q: 1.414 },
-      { frequency: 1000, gain: 2, type: 'peaking', Q: 1.414 },
-      { frequency: 4000, gain: 3, type: 'peaking', Q: 1.414 },
-      { frequency: 16000, gain: 0, type: 'highshelf', Q: 1.414 },
+      { frequency: 60, gain: 2, Q: 1.414, type: 'lowshelf' },
+      { frequency: 250, gain: -1, Q: 1.414, type: 'peaking' },
+      { frequency: 1000, gain: 2, Q: 1.414, type: 'peaking' },
+      { frequency: 4000, gain: 3, Q: 1.414, type: 'peaking' },
+      { frequency: 16000, gain: 0, Q: 1.414, type: 'highshelf' },
     ],
+    name: 'Jazz',
   },
   {
-    name:  'Classical',
     bands: [
-      { frequency: 60, gain: 1, type: 'lowshelf', Q: 1.414 },
-      { frequency: 250, gain: -1, type: 'peaking', Q: 1.414 },
-      { frequency: 1000, gain: 1, type: 'peaking', Q: 1.414 },
-      { frequency: 4000, gain: 2, type: 'peaking', Q: 1.414 },
-      { frequency: 16000, gain: 3, type: 'highshelf', Q: 1.414 },
+      { frequency: 60, gain: 1, Q: 1.414, type: 'lowshelf' },
+      { frequency: 250, gain: -1, Q: 1.414, type: 'peaking' },
+      { frequency: 1000, gain: 1, Q: 1.414, type: 'peaking' },
+      { frequency: 4000, gain: 2, Q: 1.414, type: 'peaking' },
+      { frequency: 16000, gain: 3, Q: 1.414, type: 'highshelf' },
     ],
+    name: 'Classical',
   },
   {
-    name:  'Hip Hop',
     bands: [
-      { frequency: 60, gain: 4, type: 'lowshelf', Q: 1.414 },
-      { frequency: 250, gain: 3, type: 'peaking', Q: 1.414 },
-      { frequency: 1000, gain: -2, type: 'peaking', Q: 1.414 },
-      { frequency: 4000, gain: 0, type: 'peaking', Q: 1.414 },
-      { frequency: 16000, gain: -1, type: 'highshelf', Q: 1.414 },
+      { frequency: 60, gain: 4, Q: 1.414, type: 'lowshelf' },
+      { frequency: 250, gain: 3, Q: 1.414, type: 'peaking' },
+      { frequency: 1000, gain: -2, Q: 1.414, type: 'peaking' },
+      { frequency: 4000, gain: 0, Q: 1.414, type: 'peaking' },
+      { frequency: 16000, gain: -1, Q: 1.414, type: 'highshelf' },
     ],
+    name: 'Hip Hop',
   },
   {
-    name:  'Electronic',
     bands: [
-      { frequency: 60, gain: 2, type: 'lowshelf', Q: 1.414 },
-      { frequency: 250, gain: -3, type: 'peaking', Q: 1.414 },
-      { frequency: 1000, gain: 4, type: 'peaking', Q: 1.414 },
-      { frequency: 4000, gain: 2, type: 'peaking', Q: 1.414 },
-      { frequency: 16000, gain: 3, type: 'highshelf', Q: 1.414 },
+      { frequency: 60, gain: 2, Q: 1.414, type: 'lowshelf' },
+      { frequency: 250, gain: -3, Q: 1.414, type: 'peaking' },
+      { frequency: 1000, gain: 4, Q: 1.414, type: 'peaking' },
+      { frequency: 4000, gain: 2, Q: 1.414, type: 'peaking' },
+      { frequency: 16000, gain: 3, Q: 1.414, type: 'highshelf' },
     ],
+    name: 'Electronic',
   },
   {
-    name:  'Vocal',
     bands: [
-      { frequency: 60, gain: -2, type: 'lowshelf', Q: 1.414 },
-      { frequency: 250, gain: -1, type: 'peaking', Q: 1.414 },
-      { frequency: 1000, gain: 4, type: 'peaking', Q: 1.414 },
-      { frequency: 4000, gain: 1, type: 'peaking', Q: 1.414 },
-      { frequency: 16000, gain: 2, type: 'highshelf', Q: 1.414 },
+      { frequency: 60, gain: -2, Q: 1.414, type: 'lowshelf' },
+      { frequency: 250, gain: -1, Q: 1.414, type: 'peaking' },
+      { frequency: 1000, gain: 4, Q: 1.414, type: 'peaking' },
+      { frequency: 4000, gain: 1, Q: 1.414, type: 'peaking' },
+      { frequency: 16000, gain: 2, Q: 1.414, type: 'highshelf' },
     ],
+    name: 'Vocal',
   },
 ]
 
@@ -287,14 +313,14 @@ const loadAudio = async (url: string): Promise<boolean> => {
     }
 
     return new Promise(resolve => {
-      const onMetadataLoaded = () => {
+      const onMetadataLoaded = (): void => {
         mediaElement?.removeEventListener('loadedmetadata', onMetadataLoaded)
         mediaElement?.removeEventListener('error', onError)
         playerLogger.debug(`Streaming audio metadata loaded, duration: ${mediaElement?.duration || 0}s`)
         resolve(true)
       }
 
-      const onError = (e: Event) => {
+      const onError = (e: Event): void => {
         mediaElement?.removeEventListener('loadedmetadata', onMetadataLoaded)
         mediaElement?.removeEventListener('error', onError)
         playerLogger.error('Failed to load streaming audio metadata:', e)
@@ -423,7 +449,7 @@ const getIsReady = (): boolean =>
     ? mediaElement.readyState >= 2
     : false
 
-const setupEventListeners = () => {
+const setupEventListeners = (): void => {
   if (!mediaElement) return
 
   mediaElement.addEventListener('ended', () => {
@@ -570,11 +596,11 @@ const resetEQ = (): boolean => {
   }
 }
 
-const setOnDurationChange = (callback: (duration: number) => void) => {
+const setOnDurationChange = (callback: (duration: number) => void): void => {
   onDurationChange = callback
 }
 
-const cleanup = () => {
+const cleanup = (): void => {
   try {
     stop()
 
@@ -616,34 +642,34 @@ const cleanup = () => {
   }
 }
 
-export const useWebAudioPlayer = () => ({
-  initializeWebAudio,
-  isWebAudioAvailable,
+export const useWebAudioPlayer = (): WebAudioPlayer => ({
+  applyEQPreset,
   cleanup,
-
-  loadAudio,
-  play,
-  pause,
-  stop,
-  seek: seek as (time: number) => Promise<boolean>,
-  setVolume,
-
   getCurrentTime,
-  getDuration,
-  getIsPlaying,
-  getIsReady,
 
-  setEQEnabled,
-  getEQEnabled,
-  setEQBandGain,
+  getDuration,
   getEQBandGain,
   getEQBands,
-  applyEQPreset,
+  getEQEnabled,
   getEQPresets,
-  resetEQ,
+  getIsPlaying,
+
+  getIsReady,
+  initializeWebAudio,
+  isWebAudioAvailable,
+  loadAudio,
 
   loadStoredEQBands,
-
+  pause,
+  play,
+  resetEQ,
+  seek: seek as (time: number) => Promise<boolean>,
+  setEQBandGain,
+  setEQEnabled,
   setOnDurationChange,
+
+  setVolume,
+
+  stop,
 })
 

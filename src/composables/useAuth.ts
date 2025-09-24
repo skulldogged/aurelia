@@ -1,19 +1,22 @@
-import { ref, onMounted, readonly } from 'vue'
+import { readonly, ref, type Ref } from 'vue'
+
 import type { Credentials } from '@/bindings'
+
 import { commands } from '@/bindings'
-import { useAuthStore } from '@/stores'
 import { authLogger } from '@/lib/logger'
-
-export type AuthStatus = 'pending' | 'loggedIn' | 'loggedOut' | 'error'
-
-export type AuthErrorType = 'network' | 'auth' | 'config' | 'unknown'
+import { withCustomState } from '@/lib/result'
+import { useAuthStore } from '@/stores'
 
 export interface AuthError {
-  message:      string
-  type:         AuthErrorType
   code?:        string
   isRetryable?: boolean
+  message:      string
+  type:         AuthErrorType
 }
+
+export type AuthErrorType = 'auth' | 'config' | 'network' | 'unknown'
+
+export type AuthStatus = 'error' | 'loggedIn' | 'loggedOut' | 'pending'
 
 /// Categorize error messages from backend into structured error types
 const categorizeAuthError = (errorMessage: string): AuthError => {
@@ -25,10 +28,10 @@ const categorizeAuthError = (errorMessage: string): AuthError => {
       lowerMessage.includes('timeout') ||
       lowerMessage.includes('unreachable')) {
     return {
-      message:     'Unable to connect to the server. Please check your internet connection and server URL.',
-      type:        'network',
       code:        'NETWORK_ERROR',
       isRetryable: true,
+      message:     'Unable to connect to the server. Please check your internet connection and server URL.',
+      type:        'network',
     }
   }
 
@@ -39,10 +42,10 @@ const categorizeAuthError = (errorMessage: string): AuthError => {
       lowerMessage.includes('password') ||
       lowerMessage.includes('unauthorized')) {
     return {
-      message:     'Invalid username or password. Please check your credentials.',
-      type:        'auth',
       code:        'AUTH_FAILED',
       isRetryable: false,
+      message:     'Invalid username or password. Please check your credentials.',
+      type:        'auth',
     }
   }
 
@@ -53,92 +56,107 @@ const categorizeAuthError = (errorMessage: string): AuthError => {
       lowerMessage.includes('directory') ||
       lowerMessage.includes('file')) {
     return {
-      message:     'Application configuration issue. Please try restarting the application.',
-      type:        'config',
       code:        'CONFIG_ERROR',
       isRetryable: false,
+      message:     'Application configuration issue. Please try restarting the application.',
+      type:        'config',
     }
   }
 
   // Default unknown error
   return {
-    message:     errorMessage,
-    type:        'unknown',
     code:        'UNKNOWN_ERROR',
     isRetryable: true,
+    message:     errorMessage,
+    type:        'unknown',
   }
 }
 
-export const useAuth = () => {
-  const authStore = useAuthStore()
-  const authStatus = ref<AuthStatus>('pending')
-  const credentials = ref<Credentials | null>(null)
-  const error = ref<AuthError | null>(null)
+const authStatus = ref<AuthStatus>('pending')
+const credentials = ref<Credentials | null>(null)
+const error = ref<AuthError | null>(null)
 
-  onMounted(async () => {
-    authLogger.debug('Checking for saved credentials...')
-    try {
-      const savedCredentialsResult = await commands.getSavedCredentials()
-      authLogger.debug('Got saved credentials result:', savedCredentialsResult)
+const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promise<void> => {
+  authLogger.debug('Checking for saved credentials...')
 
-      if (savedCredentialsResult.status === 'error') {
-        authLogger.error('Failed to load saved credentials:', savedCredentialsResult.error)
-        error.value = categorizeAuthError(savedCredentialsResult.error)
+  await withCustomState(
+    () => commands.getSavedCredentials(),
+    {
+      onError: errorString => {
+        authLogger.error('Failed to load saved credentials:', errorString)
+        error.value = categorizeAuthError(errorString)
         authStatus.value = 'error'
-        return
-      }
+      },
+      onStart: () => {
+        authStatus.value = 'pending'
+      },
+      onSuccess: savedCredentials => {
+        authLogger.debug('Got saved credentials:', savedCredentials)
 
-      if (savedCredentialsResult.data && savedCredentialsResult.data.token) {
-        authLogger.debug('Found saved credentials:', savedCredentialsResult.data)
-        credentials.value = savedCredentialsResult.data
-        authStore.setCredentials(savedCredentialsResult.data)
-        authStatus.value = 'loggedIn'
-        error.value = null
-        authLogger.debug('Auth store populated:', {
-          serverUrl: authStore.serverUrl,
-          hasToken:  !!authStore.token,
-          userId:    authStore.userId,
-          username:  authStore.username,
-        })
-      } else {
-        authLogger.debug('No saved credentials found')
-        authStatus.value = 'loggedOut'
-        error.value = null
-      }
-    } catch (err) {
-      authLogger.error('Error loading credentials:', err)
-      const errorMessage = err instanceof Error ? err.message : 'Unknown authentication error'
-      error.value = categorizeAuthError(errorMessage)
-      authStatus.value = 'error'
-    }
-  })
+        if (savedCredentials && savedCredentials.token) {
+          authLogger.debug('Found saved credentials:', savedCredentials)
+          credentials.value = savedCredentials
+          authStore.setCredentials(savedCredentials)
+          authStatus.value = 'loggedIn'
+          error.value = null
+          authLogger.debug('Auth store populated:', {
+            hasToken:  !!authStore.token,
+            serverUrl: authStore.serverUrl,
+            userId:    authStore.userId,
+            username:  authStore.username,
+          })
+        } else {
+          authLogger.debug('No saved credentials found')
+          authStatus.value = 'loggedOut'
+          error.value = null
+        }
+      },
+    },
+  )
+}
 
-  const login = (loginCredentials: Credentials) => {
-    credentials.value = loginCredentials
-    authStore.setCredentials(loginCredentials)
-    authStatus.value = 'loggedIn'
-    error.value = null
-  }
+const login = (authStore: ReturnType<typeof useAuthStore>, loginCredentials: Credentials): void => {
+  credentials.value = loginCredentials
+  authStore.setCredentials(loginCredentials)
+  authStatus.value = 'loggedIn'
+  error.value = null
+}
 
-  const logout = () => {
-    credentials.value = null
-    authStore.clearCredentials()
+const logout = (authStore: ReturnType<typeof useAuthStore>): void => {
+  credentials.value = null
+  authStore.clearCredentials()
+  authStatus.value = 'loggedOut'
+  error.value = null
+}
+
+const clearError = (): void => {
+  error.value = null
+  if (authStatus.value === 'error')
     authStatus.value = 'loggedOut'
-    error.value = null
-  }
+}
 
-  const clearError = () => {
-    error.value = null
-    if (authStatus.value === 'error')
-      authStatus.value = 'loggedOut'
-  }
+export interface Auth {
+  authStatus:  Readonly<Ref<AuthStatus>>
+  clearError:  () => void
+  credentials: Readonly<Ref<Credentials | null>>
+  error:       Readonly<Ref<AuthError | null>>
+  login:       (loginCredentials: Credentials) => void
+  logout:      () => void
+}
+
+export const useAuth = (): Auth => {
+  const authStore = useAuthStore()
+
+  // Initialize auth on first use
+  if (authStatus.value === 'pending')
+    initializeAuth(authStore)
 
   return {
     authStatus:  readonly(authStatus),
+    clearError,
     credentials: readonly(credentials),
     error:       readonly(error),
-    login,
-    logout,
-    clearError,
+    login:       loginCredentials => login(authStore, loginCredentials),
+    logout:      () => logout(authStore),
   }
 }

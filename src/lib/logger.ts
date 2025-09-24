@@ -3,16 +3,16 @@ import { createConsola } from 'consola'
 // Redacts sensitive keys from objects before logging
 const sensitiveKeys = ['token', 'password', 'pass', 'apiKey', 'credentials']
 
-const replacer = (key: string, value: unknown) =>
+const replacer = (key: string, value: unknown): unknown =>
   typeof key === 'string' && sensitiveKeys.includes(key.toLowerCase()) ?
     '******' : value
 
 const levelColors: Record<string, string> = {
   debug: '#89b4fa',
-  info:  '#a6e3a1',
-  warn:  '#f9e2af',
   error: '#f38ba8',
+  info:  '#a6e3a1',
   log:   '#cdd6f4',
+  warn:  '#f9e2af',
 }
 
 export const logger = createConsola({
@@ -25,15 +25,13 @@ export const logger = createConsola({
             logObj.type === 'error' ? '[ERROR]' :
               logObj.type === 'debug' ? '[DEBUG]' : '[LOG]'
 
-        const args = logObj.args?.map((arg: unknown) => {
-          if (arg instanceof Error) {
-            return arg.stack || arg.message
-          }
-          if (typeof arg === 'object' && arg !== null) {
-            return JSON.stringify(arg, replacer, 2)
-          }
-          return arg
-        }) || []
+        const args = logObj.args?.map((arg: unknown) =>
+          arg instanceof Error
+            ?  arg.stack || arg.message
+            : typeof arg === 'object' && arg !== null
+              ?  JSON.stringify(arg, replacer, 2)
+              : arg,
+        ) || []
 
         const color = levelColors[logObj.type] || levelColors.log
         const style = `color: ${color}; font-weight: bold;`
@@ -43,14 +41,14 @@ export const logger = createConsola({
           case 'debug':
             console.debug(`%c${prefix}`, style, tag, ...args)
             break
+          case 'error':
+            console.error(`%c${prefix}`, style, tag, ...args)
+            break
           case 'info':
             console.info(`%c${prefix}`, style, tag, ...args)
             break
           case 'warn':
             console.warn(`%c${prefix}`, style, tag, ...args)
-            break
-          case 'error':
-            console.error(`%c${prefix}`, style, tag, ...args)
             break
           default:
             console.log(`%c${prefix}`, style, tag, ...args)
@@ -61,11 +59,16 @@ export const logger = createConsola({
 })
 
 // Convenience methods with context
-export const createLogger = (tag: string) => ({
+export const createLogger = (tag: string): {
+  debug: (...args: unknown[]) => void
+  error: (...args: unknown[]) => void
+  info:  (...args: unknown[]) => void
+  warn:  (...args: unknown[]) => void
+} => ({
   debug: (logger.withTag(tag)).debug.bind(logger.withTag(tag)),
+  error: (logger.withTag(tag)).error.bind(logger.withTag(tag)),
   info:  (logger.withTag(tag)).info.bind(logger.withTag(tag)),
   warn:  (logger.withTag(tag)).warn.bind(logger.withTag(tag)),
-  error: (logger.withTag(tag)).error.bind(logger.withTag(tag)),
 })
 
 // Pre-configured loggers for different modules

@@ -1,15 +1,11 @@
 <script setup lang="ts">
-  import { ref, onMounted } from 'vue'
   import { Window } from '@tauri-apps/api/window'
+  import { onMounted, ref } from 'vue'
 
   const isMaximized = ref(false)
   const appWindow = Window.getCurrent()
 
-  const minimizeWindow = () => appWindow.minimize()
-  const toggleMaximizeWindow = () => appWindow.toggleMaximize()
-  const closeWindow = () => appWindow.close()
-
-  const checkMaximized = async () => {
+  const checkMaximized = async (): Promise<void> => {
     isMaximized.value = await appWindow.isMaximized()
   }
 
@@ -26,7 +22,7 @@
   <div class='flex items-center h-12'>
     <!-- eslint-disable @stylistic/max-len -->
     <div
-      @click='minimizeWindow'
+      @click='appWindow.minimize()'
       class='
         cursor-default rounded-none bg-transparent text-foreground
         hover:bg-black/[.05] active:bg-black/[.03]
@@ -49,7 +45,7 @@
       </svg>
     </div>
     <div
-      @click='toggleMaximizeWindow'
+      @click='appWindow.toggleMaximize()'
       class='
         cursor-default rounded-none bg-transparent text-foreground
         hover:bg-black/[.05] active:bg-black/[.03]
@@ -87,7 +83,7 @@
       </svg>
     </div>
     <div
-      @click='closeWindow'
+      @click='appWindow.close()'
       class='
         cursor-default rounded-none bg-transparent text-foreground
         hover:bg-accent hover:text-accent-foreground

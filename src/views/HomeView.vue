@@ -1,25 +1,27 @@
 <script setup lang="ts">
-  import { computed, ref, watch, onMounted } from 'vue'
-  import { useRouter } from 'vue-router'
-  import { Song, Album } from '@/bindings'
-  import Carousel from '@/components/shared/Carousel.vue'
-  import { Button } from '@/components/ui/button'
-  import { Skeleton } from '@/components/ui/skeleton'
   import { ChevronLeft, ChevronRight, Play } from 'lucide-vue-next'
+  import { computed, onMounted, ref, watch } from 'vue'
+  import { useRouter } from 'vue-router'
+
+  import { Album, Song } from '@/bindings'
   import { commands } from '@/bindings'
+  import Carousel from '@/components/shared/Carousel.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
+  import { Button } from '@/components/ui/button'
+  import { Skeleton } from '@/components/ui/skeleton'
   import { uiLogger } from '@/lib/logger'
+  import { withCustomState } from '@/lib/result'
 
   const router = useRouter()
   const { getRecentlyPlayed } = commands
 
   const props = defineProps<{
-    serverUrl:      string,
-    token:          string,
+    allAlbums:      Album[],
     libraryLoaded:  boolean,
     libraryLoading: boolean,
-    allAlbums:      Album[],
+    serverUrl:      string,
+    token:          string,
   }>()
 
   const emit = defineEmits<{
@@ -30,24 +32,23 @@
   const recentlyPlayedSongs = ref<Song[]>([])
   const showSkeleton = ref(false) // Dev toggle for skeleton adjustment
 
-  const fetchRecentlyPlayed = async () => {
+  const fetchRecentlyPlayed = async (): Promise<void> => {
     if (!props.serverUrl || !props.token) {
       uiLogger.error('Missing serverUrl or token props')
       return
     }
 
-    try {
-      const recentlyPlayedResult = await getRecentlyPlayed(props.serverUrl, props.token)
-
-      if (recentlyPlayedResult.status === 'error') {
-        uiLogger.error('Failed to fetch recently played:', recentlyPlayedResult.error)
-        throw new Error(recentlyPlayedResult.error)
-      }
-
-      recentlyPlayedSongs.value = recentlyPlayedResult.data
-    } catch (error) {
-      uiLogger.error('Error fetching recently played:', error)
-    }
+    await withCustomState(
+      () => getRecentlyPlayed(props.serverUrl, props.token),
+      {
+        onError: error => {
+          uiLogger.error('Failed to fetch recently played:', error)
+        },
+        onSuccess: songs => {
+          recentlyPlayedSongs.value = songs
+        },
+      },
+    )
   }
 
   onMounted(fetchRecentlyPlayed)
@@ -90,19 +91,19 @@
     featuredAlbums.value[currentFeaturedIndex.value] || null,
   )
 
-  const isValidAlbumName = (name: string | undefined | null): boolean =>
+  const isValidAlbumName = (name: null | string | undefined): boolean =>
     !!(name && name.trim().length > 0)
 
-  const initializeFeaturedAlbums = () => {
+  const initializeFeaturedAlbums = (): void => {
     featuredAlbums.value = [...props.allAlbums].sort(() => 0.5 - Math.random())
   }
 
-  const nextFeaturedAlbum = () => {
+  const nextFeaturedAlbum = (): void => {
     if (featuredAlbums.value.length > 1)
       currentFeaturedIndex.value = (currentFeaturedIndex.value + 1) % featuredAlbums.value.length
   }
 
-  const prevFeaturedAlbum = () => {
+  const prevFeaturedAlbum = (): void => {
     if (featuredAlbums.value.length > 1)
       currentFeaturedIndex.value = currentFeaturedIndex.value === 0
         ? featuredAlbums.value.length - 1
@@ -113,13 +114,14 @@
     initializeFeaturedAlbums()
   }, { immediate: true })
 
-  const playSongs = (songs: Song[], startWith?: Song) => {
+  const playSongs = (songs: Song[], startWith?: Song): void => {
     if (songs.length === 0) {
       uiLogger.warn('No songs to play')
       return
     }
 
     const invalidSongs = songs.filter(song => !song || !song.id)
+
     if (invalidSongs.length > 0)
       uiLogger.error('Found songs with invalid IDs:', invalidSongs)
 
@@ -136,7 +138,7 @@
     }
   }
 
-  const playFeaturedAlbum = () => {
+  const playFeaturedAlbum = (): void => {
     if (!featuredAlbum.value) {
       uiLogger.warn('No featured album available')
       return
@@ -153,7 +155,7 @@
     }
   }
 
-  const playAlbumSongs = (album: Album) => {
+  const playAlbumSongs = (album: Album): void => {
     // Use the album's songs array if available (more efficient)
     if (album.songs && album.songs.length > 0) {
       const albumSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))

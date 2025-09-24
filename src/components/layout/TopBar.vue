@@ -1,13 +1,14 @@
 <script setup lang="ts">
-  import { ref } from 'vue'
   import {
     ArrowLeft,
     ArrowRight,
     PanelLeft,
     Search,
   } from 'lucide-vue-next'
-  import { Input } from '@/components/ui/input'
+  import { ref } from 'vue'
+
   import { Button } from '@/components/ui/button'
+  import { Input } from '@/components/ui/input'
 
   defineProps<{
     canGoBack:    boolean
@@ -18,31 +19,27 @@
 
   const emit = defineEmits<{
     'global-search':    [query: string]
+    'logout':           []
     'navigate-back':    []
     'navigate-forward': []
-    'logout':           []
     'toggle-sidebar':   []
   }>()
 
-  const handleGlobalSearch = () => {
+  const handleGlobalSearch = (): void => {
     emit('global-search', globalSearchQuery.value)
   }
 
-  const handleSearchFocus = () => {
-    // If there's already a query and we're focusing back on the input, show results
-    if (globalSearchQuery.value.trim()) {
+  const handleSearchFocus = (): void => {
+    if (globalSearchQuery.value.trim())
       emit('global-search', globalSearchQuery.value)
-    }
   }
 
-  const clearSearch = () => {
+  const clearSearch = (): void => {
     globalSearchQuery.value = ''
     emit('global-search', '')
   }
 
-  defineExpose({
-    clearSearch,
-  })
+  defineExpose({ clearSearch })
 </script>
 
 <template>

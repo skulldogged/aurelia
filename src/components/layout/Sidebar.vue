@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Home, Music, Users, Disc, Settings } from 'lucide-vue-next'
+  import { Disc, Home, Music, Settings, Users } from 'lucide-vue-next'
 
   defineProps<{
     currentView: string

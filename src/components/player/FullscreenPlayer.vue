@@ -1,3 +1,155 @@
+<script setup lang="ts">
+  import {
+    Album,
+    ChevronDown,
+    Mic2,
+    Music2,
+    Pause,
+    Play,
+    Repeat,
+    Repeat1,
+    Shuffle,
+    SkipBack,
+    SkipForward,
+  } from 'lucide-vue-next'
+  import { computed, ref, watch } from 'vue'
+  import { PropType } from 'vue'
+
+  import { Song } from '@/bindings'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import LyricsView from '@/components/shared/LyricsView.vue'
+  import { Button } from '@/components/ui/button'
+  import { Slider } from '@/components/ui/slider'
+  import { useImageLoader } from '@/composables/useImageLoader'
+  import { playerLogger } from '@/lib/logger'
+
+  const props = defineProps({
+    currentTime: {
+      required: true,
+      type:     Number,
+    },
+    duration: {
+      required: true,
+      type:     Number,
+    },
+    hasNext: {
+      required: true,
+      type:     Boolean,
+    },
+    hasPrevious: {
+      required: true,
+      type:     Boolean,
+    },
+    isPlaying: {
+      required: true,
+      type:     Boolean,
+    },
+    isShuffled: {
+      required: true,
+      type:     Boolean,
+    },
+    progress: {
+      required: true,
+      type:     Number,
+    },
+    repeatMode: {
+      required: true,
+      type:     String as PropType<'all' | 'none' | 'one'>,
+    },
+    serverUrl: {
+      default: '',
+      type:    String,
+    },
+    show: {
+      required: true,
+      type:     Boolean,
+    },
+    song: {
+      default: null,
+      type:    Object as PropType<null | Song>,
+    },
+    startWithLyrics: {
+      default: false,
+      type:    Boolean,
+    },
+    token: {
+      default: '',
+      type:    String,
+    },
+  })
+
+  const emit = defineEmits<{
+    (e: 'close'): void
+    (e: 'toggle-play-pause'): void
+    (e: 'previous-song'): void
+    (e: 'next-song'): void
+    (e: 'toggle-shuffle'): void
+    (e: 'toggle-repeat'): void
+    (e: 'seek', value: number): void
+  }>()
+
+  const showLyrics = ref(false)
+  const hasLyrics = ref(false)
+  const { getImageUrl } = useImageLoader()
+
+  const backgroundImageData = ref<null | string>(null)
+
+  const onLyricsLoaded = (lyricsFound: boolean): void => {
+    hasLyrics.value = lyricsFound
+  }
+
+  watch(() => props.song, async newSong => {
+    if (newSong && props.serverUrl && props.token) {
+      try {
+        const imageId = newSong.albumId || newSong.id
+        const imageData = await getImageUrl(imageId, props.serverUrl, props.token, 'Primary')
+        backgroundImageData.value = imageData
+      } catch (error) {
+        playerLogger.error('Failed to load background image:', error)
+        backgroundImageData.value = null
+      }
+    } else {
+      backgroundImageData.value = null
+    }
+  }, { immediate: true })
+
+  watch(() => props.song, newSong => {
+    if (newSong)
+      hasLyrics.value = false
+  })
+
+  watch(() => props.show, newVal => {
+    if (newVal) {
+      if (props.startWithLyrics)
+        showLyrics.value = true
+    } else {
+      showLyrics.value = false
+    }
+  })
+
+  const handleLyricsSeek = (time: number): void => {
+    if (props.duration > 0) {
+      const percentage = (time / props.duration) * 100
+      emit('seek', percentage)
+    }
+  }
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const songFormatInfo = computed(() => {
+    if (!props.song) return ''
+    const parts: string[] = []
+    if (props.song.codec) parts.push(props.song.codec.toUpperCase())
+    if (props.song.sampleRate) parts.push(`${props.song.sampleRate / 1000} kHz`)
+    if (props.song.bitRate) parts.push(`${Math.round(props.song.bitRate / 1000)} kbps`)
+    return parts.join(' / ')
+  })
+</script>
+
 <template>
   <div
     v-if='show'
@@ -170,157 +322,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-  import { ref, watch, computed } from 'vue'
-  import {
-    ChevronDown,
-    Music2,
-    Mic2,
-    Shuffle,
-    SkipBack,
-    Play,
-    Pause,
-    SkipForward,
-    Repeat,
-    Repeat1,
-    Album,
-  } from 'lucide-vue-next'
-  import { Button } from '@/components/ui/button'
-  import { Slider } from '@/components/ui/slider'
-  import LyricsView from '@/components/shared/LyricsView.vue'
-  import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { Song } from '@/bindings'
-  import { PropType } from 'vue'
-  import { useImageLoader } from '@/composables/useImageLoader'
-  import { playerLogger } from '@/lib/logger'
-
-  const props = defineProps({
-    show: {
-      type:     Boolean,
-      required: true,
-    },
-    song: {
-      type:    Object as PropType<Song | null>,
-      default: null,
-    },
-    isPlaying: {
-      type:     Boolean,
-      required: true,
-    },
-    progress: {
-      type:     Number,
-      required: true,
-    },
-    currentTime: {
-      type:     Number,
-      required: true,
-    },
-    duration: {
-      type:     Number,
-      required: true,
-    },
-    isShuffled: {
-      type:     Boolean,
-      required: true,
-    },
-    repeatMode: {
-      type:     String as PropType<'none' | 'all' | 'one'>,
-      required: true,
-    },
-    hasPrevious: {
-      type:     Boolean,
-      required: true,
-    },
-    hasNext: {
-      type:     Boolean,
-      required: true,
-    },
-    startWithLyrics: {
-      type:    Boolean,
-      default: false,
-    },
-    serverUrl: {
-      type:    String,
-      default: '',
-    },
-    token: {
-      type:    String,
-      default: '',
-    },
-  })
-
-  const emit = defineEmits<{
-    (e: 'close'): void
-    (e: 'toggle-play-pause'): void
-    (e: 'previous-song'): void
-    (e: 'next-song'): void
-    (e: 'toggle-shuffle'): void
-    (e: 'toggle-repeat'): void
-    (e: 'seek', value: number): void
-  }>()
-
-  const showLyrics = ref(false)
-  const hasLyrics = ref(false)
-  const { getImageUrl } = useImageLoader()
-
-  const backgroundImageData = ref<string | null>(null)
-
-  const onLyricsLoaded = (lyricsFound: boolean) => {
-    hasLyrics.value = lyricsFound
-  }
-
-  watch(() => props.song, async newSong => {
-    if (newSong && props.serverUrl && props.token) {
-      try {
-        const imageId = newSong.albumId || newSong.id
-        const imageData = await getImageUrl(imageId, props.serverUrl, props.token, 'Primary')
-        backgroundImageData.value = imageData
-      } catch (error) {
-        playerLogger.error('Failed to load background image:', error)
-        backgroundImageData.value = null
-      }
-    } else {
-      backgroundImageData.value = null
-    }
-  }, { immediate: true })
-
-  watch(() => props.song, newSong => {
-    if (newSong)
-      hasLyrics.value = false
-  })
-
-  watch(() => props.show, newVal => {
-    if (newVal) {
-      if (props.startWithLyrics)
-        showLyrics.value = true
-    } else {
-      showLyrics.value = false
-    }
-  })
-
-  const handleLyricsSeek = (time: number) => {
-    if (props.duration > 0) {
-      const percentage = (time / props.duration) * 100
-      emit('seek', percentage)
-    }
-  }
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const songFormatInfo = computed(() => {
-    if (!props.song) return ''
-    const parts: string[] = []
-    if (props.song.codec) parts.push(props.song.codec.toUpperCase())
-    if (props.song.sampleRate) parts.push(`${props.song.sampleRate / 1000} kHz`)
-    if (props.song.bitRate) parts.push(`${Math.round(props.song.bitRate / 1000)} kbps`)
-    return parts.join(' / ')
-  })
-</script>
 
 <style scoped>
 .album-art-container {

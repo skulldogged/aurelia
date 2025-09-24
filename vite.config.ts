@@ -1,67 +1,58 @@
-import { defineConfig } from 'vite'
-import path from 'path'
-import vue from '@vitejs/plugin-vue'
 import tailwindcss from '@tailwindcss/vite'
+import vue from '@vitejs/plugin-vue'
+import path from 'path'
+import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST
 
-// https://vitejs.dev/config/
 export default defineConfig(async () => ({
-  plugins: [
+  clearScreen: false,
+  plugins:     [
     vue(),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       workbox:      {
-        // You can keep globPatterns to pre-cache your app's shell (JS, CSS, etc.)
         globPatterns:   ['**/*.{js,css,html,ico,png,svg}'],
-        // This is where the magic happens for dynamic URLs
         runtimeCaching: [
           {
-            urlPattern: /\/Items\/[a-f0-9]+\/Images\/(Primary|Backdrop|Logo)/,
-            handler:    'StaleWhileRevalidate',
-            options:    {
-              cacheName:  'jellyfin-image-cache',
-              // END ADDITION
-              expiration: {
-                maxEntries:    2000,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-              },
+            handler: 'StaleWhileRevalidate',
+            options: {
               cacheableResponse: {
                 statuses: [0, 200],
               },
+              cacheName:  'jellyfin-image-cache',
+              expiration: {
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+                maxEntries:    2000,
+              },
             },
+            urlPattern: /\/Items\/[a-f0-9]+\/Images\/(Primary|Backdrop|Logo)/,
           },
         ],
       },
     }),
   ],
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
   },
-
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent Vite from obscuring rust errors
-  clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
-  server:      {
-    port:       3000,
-    strictPort: true,
-    host:       host || false,
-    hmr:        host
+  server: {
+    hmr: host
       ? {
-        protocol: 'ws',
         host,
         port:     3001,
+        protocol: 'ws',
       }
       : undefined,
-    watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
+    host:       host || false,
+    port:       3000,
+    strictPort: true,
+    watch:      {
       ignored: ['**/src-tauri/**'],
     },
   },

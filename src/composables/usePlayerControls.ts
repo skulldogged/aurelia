@@ -1,39 +1,77 @@
-import { ref, readonly } from 'vue'
+import { readonly, ref, type Ref } from 'vue'
+
 import { usePlayerStore } from '@/stores'
 
 interface MusicPlayerRef {
-  togglePlayPause: () => void
-  previousSong:    () => void
   nextSong:        () => void
-  toggleShuffle:   () => void
-  toggleRepeat:    () => void
   onSeek:          (value: number[]) => void
+  previousSong:    () => void
+  togglePlayPause: () => void
+  toggleRepeat:    () => void
+  toggleShuffle:   () => void
 }
 
-export const usePlayerControls = () => {
+const isQueueOpen = ref(false)
+const isEqualizerOpen = ref(false)
+const isFullScreenPlayerOpen = ref(false)
+const searchQuery = ref('')
+const isSearchVisible = ref(false)
+
+const musicPlayerRef = ref<MusicPlayerRef | null>(null)
+
+const handleGlobalSearch = (query: string): void => {
+  searchQuery.value = query
+  isSearchVisible.value = true
+}
+
+const toggleQueue = (): void => {
+  if (isEqualizerOpen.value)
+    isEqualizerOpen.value = false
+
+  isQueueOpen.value = !isQueueOpen.value
+}
+
+const toggleFullScreenPlayer = (): void => {
+  isFullScreenPlayerOpen.value = !isFullScreenPlayerOpen.value
+}
+
+const handleTogglePlayPause = (): void => {
+  musicPlayerRef.value?.togglePlayPause()
+}
+
+const handleSeek = (value: number): void => {
+  musicPlayerRef.value?.onSeek([value])
+}
+
+const toggleSearchVisibility = (visible: boolean): void => {
+  isSearchVisible.value = visible
+}
+
+export interface PlayerControls {
+  handleGlobalSearch:     (query: string) => void
+  handleNextSong:         () => void
+  handlePreviousSong:     () => void
+  handleSeek:             (value: number) => void
+  handleTogglePlayPause:  () => void
+  handleToggleRepeat:     () => void
+  handleToggleShuffle:    () => void
+  isEqualizerOpen:        Readonly<Ref<boolean>>
+  isFullScreenPlayerOpen: Readonly<Ref<boolean>>
+  isQueueOpen:            Readonly<Ref<boolean>>
+  isSearchVisible:        Readonly<Ref<boolean>>
+  musicPlayerRef:         Ref<MusicPlayerRef | null>
+  playerStore:            ReturnType<typeof usePlayerStore>
+  searchQuery:            Readonly<Ref<string>>
+  toggleEqualizer:        () => void
+  toggleFullScreenPlayer: () => void
+  toggleQueue:            () => void
+  toggleSearchVisibility: (visible: boolean) => void
+}
+
+export const usePlayerControls = (): PlayerControls => {
   const playerStore = usePlayerStore()
 
-  const isQueueOpen = ref(false)
-  const isEqualizerOpen = ref(false)
-  const isFullScreenPlayerOpen = ref(false)
-  const searchQuery = ref('')
-  const isSearchVisible = ref(false)
-
-  const musicPlayerRef = ref<MusicPlayerRef | null>(null)
-
-  const handleGlobalSearch = (query: string) => {
-    searchQuery.value = query
-    isSearchVisible.value = true
-  }
-
-  const toggleQueue = () => {
-    if (isEqualizerOpen.value)
-      isEqualizerOpen.value = false
-
-    isQueueOpen.value = !isQueueOpen.value
-  }
-
-  const toggleEqualizer = () => {
+  const toggleEqualizer = (): void => {
     if (isQueueOpen.value)
       isQueueOpen.value = false
 
@@ -42,52 +80,36 @@ export const usePlayerControls = () => {
     playerStore.setEQEnabled(newState)
   }
 
-  const toggleFullScreenPlayer = () => {
-    isFullScreenPlayerOpen.value = !isFullScreenPlayerOpen.value
-  }
-
-  const handleTogglePlayPause = () => {
-    musicPlayerRef.value?.togglePlayPause()
-  }
-
-  const handlePreviousSong = () => {
+  const handlePreviousSong = (): void => {
     playerStore.previousSong()
     musicPlayerRef.value?.previousSong()
   }
 
-  const handleNextSong = () => {
+  const handleNextSong = (): void => {
     playerStore.nextSong()
     musicPlayerRef.value?.nextSong()
   }
 
-  const handleSeek = (value: number) => {
-    musicPlayerRef.value?.onSeek([value])
-  }
-
-  const toggleSearchVisibility = (visible: boolean) => {
-    isSearchVisible.value = visible
-  }
-
   return {
-    isQueueOpen:            readonly(isQueueOpen),
+    handleGlobalSearch,
+    handleNextSong,
+    handlePreviousSong,
+    handleSeek,
+    handleTogglePlayPause,
+    handleToggleRepeat: playerStore.cycleRepeatMode,
+
+    handleToggleShuffle:    playerStore.toggleShuffle,
     isEqualizerOpen:        readonly(isEqualizerOpen),
     isFullScreenPlayerOpen: readonly(isFullScreenPlayerOpen),
-    searchQuery:            readonly(searchQuery),
+    isQueueOpen:            readonly(isQueueOpen),
     isSearchVisible:        readonly(isSearchVisible),
     musicPlayerRef,
-
-    handleGlobalSearch,
-    toggleQueue,
+    playerStore,
+    searchQuery:            readonly(searchQuery),
     toggleEqualizer,
     toggleFullScreenPlayer,
-    toggleSearchVisibility,
-    handleTogglePlayPause,
-    handlePreviousSong,
-    handleNextSong,
-    handleToggleShuffle: playerStore.toggleShuffle,
-    handleToggleRepeat:  playerStore.cycleRepeatMode,
-    handleSeek,
+    toggleQueue,
 
-    playerStore,
+    toggleSearchVisibility,
   }
 }

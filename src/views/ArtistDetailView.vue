@@ -1,3 +1,384 @@
+<script setup lang="ts">
+  import type { SimpleIcon } from 'simple-icons'
+
+  import { useBreakpoints } from '@vueuse/core'
+  import { Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
+  import {
+    siApplemusic,
+    siBandcamp,
+    siDiscogs,
+    siLastdotfm,
+    siMusicbrainz,
+    siSoundcloud,
+    siSpotify,
+    siWikipedia,
+    siYoutube,
+  } from 'simple-icons'
+  import { computed, ref } from 'vue'
+  import { useRoute } from 'vue-router'
+
+  import { Album, Artist, Song } from '@/bindings'
+  import Carousel from '@/components/shared/Carousel.vue'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
+  import ShareDialog from '@/components/shared/ShareDialog.vue'
+  import { Button } from '@/components/ui/button'
+  import { Skeleton } from '@/components/ui/skeleton'
+  import { uiLogger } from '@/lib/logger'
+
+  const breakpoints = useBreakpoints({
+    tablet: 768,
+  })
+
+  const isTabletOrLarger = breakpoints.greaterOrEqual('tablet')
+
+  const topSongsCount = computed(() => isTabletOrLarger.value ? 10 : 5)
+
+  const props = defineProps<{
+    allArtists:     Artist[],
+    allSongs:       Song[],
+    currentSong:    null | Song,
+    isPlaying:      boolean,
+    libraryLoaded:  boolean,
+    libraryLoading: boolean,
+    serverUrl:      string,
+    token:          string,
+    userId:         string,
+  }>()
+
+  const emit = defineEmits<{
+    'play-song':     [song: Song],
+    'play-songs':    [songs: Song[]],
+    'select-album':  [album: Album],
+    'select-artist': [artist: Artist],
+  }>()
+
+  const route = useRoute()
+  const artistId = computed(() => route.params.artistId as string)
+  const showSkeleton = ref(false)
+  const showFullOverview = ref(false)
+  const showShareDialog = ref(false)
+
+  const artist = computed(() => {
+    if (!props.libraryLoaded || !props.allArtists.length) return null
+    return props.allArtists.find(a => a.id === artistId.value) || null
+  })
+
+  const artistSongs = computed(() =>
+    artist.value
+      ? props.allSongs.filter(song =>
+        song.artists
+        && song.artists.includes(artist.value!.name)).sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
+      : [])
+
+  const artistAlbums = computed(() => {
+    if (!artist.value) return []
+    const albumsMap = new Map<string, Album>()
+
+    artistSongs.value.forEach(song => {
+      if (song.album && song.albumId) {
+        if (!albumsMap.has(song.albumId)) {
+          albumsMap.set(song.albumId, {
+            albumArtUrl: song.albumArtUrl,
+            artist:      song.artists?.[0] || 'Unknown Artist',
+            artistId:    song.artistIds?.[0] || null,
+            id:          song.albumId,
+            imageTags:   song.imageTags,
+            name:        song.album,
+            providerIds: null,
+            songCount:   BigInt(0),
+            songs:       [],
+          })
+        }
+        const album = albumsMap.get(song.albumId)!
+        album.songs!.push(song)
+        album.songCount = BigInt(album.songs!.length)
+      }
+    })
+
+    return Array.from(albumsMap.values())
+  })
+
+  const relatedArtists = computed(() => {
+    if (!artist.value) return []
+    // Configurable weights for scoring
+    const COLLABORATION_SCORE = 10
+    const SHARED_GENRE_SCORE = 5
+    const SHARED_ALBUM_SCORE = 2 // For artists on the same compilation/album
+
+    // 1. Get all data for the current artist
+    const currentArtistName = artist.value.name
+    const currentArtistSongs = props.allSongs.filter(s => s.artists?.includes(currentArtistName))
+    const currentArtistGenres = new Set(currentArtistSongs.flatMap(s => s.genres || []))
+    const currentArtistAlbums = new Set(currentArtistSongs.map(s => s.album).filter(Boolean))
+
+    const artistScores = new Map<string, number>()
+
+    // 2. Iterate over every *other* artist to calculate a similarity score
+    props.allArtists.forEach(otherArtist => {
+      if (otherArtist.name === currentArtistName) return
+
+      let score = 0
+      const otherArtistSongs = props.allSongs.filter(s => s.artists?.includes(otherArtist.name))
+      if (otherArtistSongs.length === 0) return
+
+      // 3. Calculate score based on collaborations, genres, and albums
+      // Score for direct collaborations
+      const collaborations = currentArtistSongs.filter(s => s.artists?.includes(otherArtist.name))
+      score += collaborations.length * COLLABORATION_SCORE
+
+      // Score for shared genres
+      const otherArtistGenres = new Set(otherArtistSongs.flatMap(s => s.genres || []))
+      for (const genre of otherArtistGenres)
+        if (currentArtistGenres.has(genre))
+          score += SHARED_GENRE_SCORE
+
+      // Score for shared albums (compilations)
+      const otherArtistAlbums = new Set(otherArtistSongs.map(s => s.album).filter(Boolean))
+      for (const album of otherArtistAlbums) {
+        if (currentArtistAlbums.has(album!) && collaborations.length === 0) {
+          // Only score shared albums if it's not a direct collaboration album
+          const songsOnAlbumByOther = otherArtistSongs.filter(s => s.album === album)
+          const songsOnAlbumByCurrent = currentArtistSongs.filter(s => s.album === album)
+          if (songsOnAlbumByOther.length > 0 && songsOnAlbumByCurrent.length > 0)
+            score += SHARED_ALBUM_SCORE
+        }
+      }
+
+      if (score > 0)
+        artistScores.set(otherArtist.name, score)
+    })
+
+    // 4. Sort artists by score and return the top 6
+    const sortedArtists = [...artistScores.entries()].sort((a, b) => b[1] - a[1])
+
+    const allArtistsMap = new Map(props.allArtists.map(a => [a.name, a]))
+
+    return sortedArtists.slice(0, 6).map(([name]) => {
+      const artistInfo = allArtistsMap.get(name)
+      return {
+        communityRating: null,
+        id:              artistInfo?.id || '',
+        imageTags:       null,
+        imageUrl:        artistInfo?.imageUrl,
+        name,
+        overview:        null,
+        providerIds:     null,
+        songCount:       artistInfo?.songCount || 0,
+        songs:           null,
+      } as Artist
+    })
+  })
+
+  const primarySongs = computed(() => artistSongs.value.filter(song => song.artists?.[0] === artist.value?.name))
+
+  const featuredSongs = computed(() => artistSongs.value.filter(song => song.artists?.[0] !== artist.value?.name))
+
+  const isFeaturedOnlyArtist = computed(() => primarySongs.value.length === 0 && featuredSongs.value.length > 0)
+
+  const playArtistShuffle = (): void => {
+    if (artistSongs.value.length > 0) {
+      const shuffledSongs = [...artistSongs.value].sort(() => 0.5 - Math.random())
+      emit('play-songs', shuffledSongs)
+    }
+  }
+
+  const artistGenres = computed(() => {
+    if (!artistSongs.value.length)
+      return []
+
+    const genreCounts = new Map<string, number>()
+    artistSongs.value.forEach(song => {
+      song.genres?.forEach(genre => {
+        genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1)
+      })
+    })
+
+    if (!genreCounts.size)
+      return []
+
+    const sortedGenres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1])
+
+    return sortedGenres.slice(0, 5).map(([genre]) => genre)
+  })
+
+  const isFeaturedOnSong = (song: Song): boolean =>
+    song.artists?.[0] !== artist.value?.name && !!song.artists?.includes(artist.value?.name || '')
+
+  type SimpleArtist = { id: null | string, name: string }
+
+  const collaboratorsFor = (song: Song): SimpleArtist[] => {
+    const current = artist.value?.name
+    const artists = song.artists || []
+    const ids = song.artistIds || []
+
+    // Build pairs for as many mapped entries as possible
+    const pairs: SimpleArtist[] = []
+    for (let i = 0; i < artists.length; i++) {
+      const name = artists[i]
+      const id = ids[i] || null
+      if (name && name !== current)
+        pairs.push({ id, name })
+    }
+    return pairs
+  }
+
+  const albumTrackCountsById = computed(() => {
+    const counts = new Map<string, number>()
+
+    for (const s of props.allSongs)
+      if (s.albumId)
+        counts.set(s.albumId, (counts.get(s.albumId) || 0) + 1)
+
+    return counts
+  })
+
+  const isSingle = (song: Song): boolean => {
+    const sameName = (song.album || '').trim().toLowerCase() === (song.name || '').trim().toLowerCase()
+    const trackCount = song.albumId ? (albumTrackCountsById.value.get(song.albumId) || 0) : 0
+    return !!song.album && sameName && trackCount <= 1
+  }
+
+  const isAlbumSingle = (album: Album): boolean => {
+    if (!album) return false
+
+    const tracks = album.songs || []
+
+    if (tracks.length === 1) {
+      const only = tracks[0]
+      const sameName = (album.name || '').trim().toLowerCase() === (only.name || '').trim().toLowerCase()
+      return sameName
+    }
+
+    if (album.id) {
+      const count = albumTrackCountsById.value.get(album.id) || 0
+      if (count === 1) return true
+    }
+
+    return false
+  }
+
+  type NameId = { id: null | string, name: string }
+
+  const albumArtistPairsFor = (album: Album): NameId[] => {
+    const pairs = new Map<string, string>()
+    const tracks = album.songs || []
+
+    for (const s of tracks)
+      if (s.albumArtists)
+        for (const p of s.albumArtists)
+          if (p.id && p.name) pairs.set(p.id, p.name)
+
+    if (pairs.size === 0 && tracks.length) {
+      const first = tracks[0]
+      if (first.artistIds && first.artists && first.artistIds.length === first.artists.length) {
+        first.artistIds.forEach((id, i) => {
+          const name = first.artists![i]
+          if (id && name) pairs.set(id, name)
+        })
+      } else if (album.artistId && album.artist) {
+        pairs.set(album.artistId, album.artist)
+      }
+    }
+
+    return Array.from(pairs, ([id, name]) => ({ id, name }))
+  }
+
+  // Album carousel: collaborators excluding the current artist only
+  const albumCollaboratorsFor = (album: Album): NameId[] =>
+    albumArtistPairsFor(album).filter(p => p.name !== artist.value?.name)
+
+  const getIconForProvider = (provider: string): null | SimpleIcon => {
+    const key = provider.toLowerCase().replace('artist', '')
+    const iconMap: Record<string, SimpleIcon> = {
+      applemusic:  siApplemusic,
+      bandcamp:    siBandcamp,
+      discogs:     siDiscogs,
+      lastfm:      siLastdotfm,
+      musicbrainz: siMusicbrainz,
+      soundcloud:  siSoundcloud,
+      spotify:     siSpotify,
+      wikipedia:   siWikipedia,
+      youtube:     siYoutube,
+    }
+    return iconMap[key] || null
+  }
+
+  const getProviderUrl = (provider: string, providerId: string): null | string => {
+    const providerUrls: Record<string, (id: string) => string> = {
+      'AppleMusicArtist':  id => `https://music.apple.com/artist/${id}`,
+      'AudioDbArtist':     id => `https://www.theaudiodb.com/artist/${id}`,
+      'BandcampArtist':    id => `https://bandcamp.com/artist/${id}`,
+      'DiscogsArtist':     id => `https://www.discogs.com/artist/${id}`,
+      'LastFmArtist':      id => `https://www.last.fm/music/${encodeURIComponent(id)}`,
+      'MusicBrainzArtist': id => `https://musicbrainz.org/artist/${id}`,
+      'SoundCloudArtist':  id => `https://soundcloud.com/${id}`,
+      'SpotifyArtist':     id => `https://open.spotify.com/artist/${id}`,
+      'WikipediaArtist':   id => `https://en.wikipedia.org/wiki/${encodeURIComponent(id)}`,
+      'YouTubeArtist':     id => `https://www.youtube.com/channel/${id}`,
+    }
+
+    const urlGenerator = providerUrls[provider]
+
+    if (urlGenerator) {
+      return urlGenerator(providerId)
+    } else {
+      uiLogger.warn(`No URL generator found for provider: ${provider}`)
+      return null
+    }
+  }
+
+  const validProviderLinks = computed(() => {
+    if (!artist.value?.providerIds) return []
+
+    return Object.entries(artist.value.providerIds)
+      .map(([provider, providerId]) => {
+        if (!providerId) return null
+
+        const url = getProviderUrl(provider, providerId)
+        const iconData = getIconForProvider(provider)
+
+        if (url && iconData) {
+          // Inject the brand color directly into the SVG for consistent display
+          const coloredSvg = iconData.svg.replace('<svg', `<svg style="fill: #${iconData.hex};"`)
+          return {
+            icon: { ...iconData, svg: coloredSvg },
+            provider,
+            url,
+          }
+        }
+        return null
+      })
+      .filter(Boolean) as { icon: SimpleIcon; provider: string, url: string, }[]
+  })
+
+  const getSongImageUrl = (song: Song): string | undefined => {
+    // First check if the song has its own album art
+    if (song.albumArtUrl) {
+      return song.albumArtUrl
+    }
+
+    // If not, check if the song belongs to an album and use the album's art
+    if (song.albumId) {
+      const album = artistAlbums.value.find(album => album.id === song.albumId)
+      if (album?.albumArtUrl) {
+        return album.albumArtUrl
+      }
+    }
+
+    return undefined
+  }
+
+  const playSong = (song: Song): void => {
+    emit('play-song', song)
+  }
+
+  const playAlbum = (album: Album): void => {
+    if (album.songs && album.songs.length > 0)
+      emit('play-songs', [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)))
+  }
+</script>
+
 <template>
   <div class='p-8 max-w-7xl mx-auto space-y-8'>
     <div class='flex justify-end'>
@@ -316,7 +697,11 @@
       </Carousel>
 
       <!-- Related Artists -->
-      <Carousel v-if='relatedArtists.length > 0' :disabled='libraryLoading || !libraryLoaded || !artist' title='Related Artists'>
+      <Carousel
+        v-if='relatedArtists.length > 0'
+        :disabled='libraryLoading || !libraryLoaded || !artist'
+        title='Related Artists'
+      >
         <div
           v-for='relatedArtist in relatedArtists'
           @click="$emit('select-artist', relatedArtist)"
@@ -366,393 +751,6 @@
     />
   </div>
 </template>
-
-<script setup lang="ts">
-  import { computed, ref, watch } from 'vue'
-  import { useRoute } from 'vue-router'
-  import { useBreakpoints } from '@vueuse/core'
-  import { Button } from '@/components/ui/button'
-  import { Music, Play, Pause, Shuffle, Star, Share2 } from 'lucide-vue-next'
-  import { Song, Album, Artist, commands } from '@/bindings'
-  import type { SimpleIcon } from 'simple-icons'
-  import {
-    siMusicbrainz,
-    siSpotify,
-    siApplemusic,
-    siYoutube,
-    siSoundcloud,
-    siBandcamp,
-    siDiscogs,
-    siLastdotfm,
-    siWikipedia,
-  } from 'simple-icons'
-  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import Carousel from '@/components/shared/Carousel.vue'
-  import ShareDialog from '@/components/shared/ShareDialog.vue'
-  import { uiLogger } from '@/lib/logger'
-  import { Skeleton } from '@/components/ui/skeleton'
-
-  const breakpoints = useBreakpoints({
-    tablet: 768,
-  })
-
-  const isTabletOrLarger = breakpoints.greaterOrEqual('tablet')
-
-  const topSongsCount = computed(() => isTabletOrLarger.value ? 10 : 5)
-
-  const props = defineProps<{
-    currentSong: Song | null,
-    isPlaying:   boolean,
-    serverUrl:   string,
-    token:       string,
-    userId:      string,
-    libraryLoaded: boolean,
-    libraryLoading: boolean,
-    allArtists: Artist[],
-    allSongs: Song[],
-  }>()
-
-  const emit = defineEmits<{
-    'play-song':     [song: Song],
-    'select-album':  [album: Album],
-    'play-songs':    [songs: Song[]],
-    'select-artist': [artist: Artist],
-  }>()
-
-  const route = useRoute()
-  const artistId = computed(() => route.params.artistId as string)
-  const showSkeleton = ref(false)
-  const showFullOverview = ref(false)
-  const showShareDialog = ref(false)
-
-  const artist = computed(() => {
-    if (!props.libraryLoaded || !props.allArtists.length) return null
-    return props.allArtists.find(a => a.id === artistId.value) || null
-  })
-
-  const artistSongs = computed(() =>
-    artist.value
-      ? props.allSongs.filter(song =>
-        song.artists
-        && song.artists.includes(artist.value!.name)).sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
-      : [])
-
-  const artistAlbums = computed(() => {
-    if (!artist.value) return []
-    const albumsMap = new Map<string, Album>()
-
-    artistSongs.value.forEach(song => {
-      if (song.album && song.albumId) {
-        if (!albumsMap.has(song.albumId)) {
-          albumsMap.set(song.albumId, {
-            id:          song.albumId,
-            name:        song.album,
-            artist:      song.artists?.[0] || 'Unknown Artist',
-            artistId:    song.artistIds?.[0] || null,
-            albumArtUrl: song.albumArtUrl,
-            songCount:   BigInt(0),
-            songs:       [],
-            imageTags:   song.imageTags,
-            providerIds: null,
-          })
-        }
-        const album = albumsMap.get(song.albumId)!
-        album.songs!.push(song)
-        album.songCount = BigInt(album.songs!.length)
-      }
-    })
-
-    return Array.from(albumsMap.values())
-  })
-
-  const relatedArtists = computed(() => {
-    if (!artist.value) return []
-    // Configurable weights for scoring
-    const COLLABORATION_SCORE = 10
-    const SHARED_GENRE_SCORE = 5
-    const SHARED_ALBUM_SCORE = 2 // For artists on the same compilation/album
-
-    // 1. Get all data for the current artist
-    const currentArtistName = artist.value.name
-    const currentArtistSongs = props.allSongs.filter(s => s.artists?.includes(currentArtistName))
-    const currentArtistGenres = new Set(currentArtistSongs.flatMap(s => s.genres || []))
-    const currentArtistAlbums = new Set(currentArtistSongs.map(s => s.album).filter(Boolean))
-
-    const artistScores = new Map<string, number>()
-
-    // 2. Iterate over every *other* artist to calculate a similarity score
-    props.allArtists.forEach(otherArtist => {
-      if (otherArtist.name === currentArtistName) return
-
-      let score = 0
-      const otherArtistSongs = props.allSongs.filter(s => s.artists?.includes(otherArtist.name))
-      if (otherArtistSongs.length === 0) return
-
-      // 3. Calculate score based on collaborations, genres, and albums
-      // Score for direct collaborations
-      const collaborations = currentArtistSongs.filter(s => s.artists?.includes(otherArtist.name))
-      score += collaborations.length * COLLABORATION_SCORE
-
-      // Score for shared genres
-      const otherArtistGenres = new Set(otherArtistSongs.flatMap(s => s.genres || []))
-      for (const genre of otherArtistGenres)
-        if (currentArtistGenres.has(genre))
-          score += SHARED_GENRE_SCORE
-
-      // Score for shared albums (compilations)
-      const otherArtistAlbums = new Set(otherArtistSongs.map(s => s.album).filter(Boolean))
-      for (const album of otherArtistAlbums) {
-        if (currentArtistAlbums.has(album!) && collaborations.length === 0) {
-          // Only score shared albums if it's not a direct collaboration album
-          const songsOnAlbumByOther = otherArtistSongs.filter(s => s.album === album)
-          const songsOnAlbumByCurrent = currentArtistSongs.filter(s => s.album === album)
-          if (songsOnAlbumByOther.length > 0 && songsOnAlbumByCurrent.length > 0)
-            score += SHARED_ALBUM_SCORE
-        }
-      }
-
-      if (score > 0)
-        artistScores.set(otherArtist.name, score)
-    })
-
-    // 4. Sort artists by score and return the top 6
-    const sortedArtists = [...artistScores.entries()].sort((a, b) => b[1] - a[1])
-
-    const allArtistsMap = new Map(props.allArtists.map(a => [a.name, a]))
-
-    return sortedArtists.slice(0, 6).map(([name]) => {
-      const artistInfo = allArtistsMap.get(name)
-      return {
-        id:              artistInfo?.id || '',
-        name,
-        imageUrl:        artistInfo?.imageUrl,
-        songCount:       artistInfo?.songCount || 0,
-        imageTags:       null,
-        overview:        null,
-        providerIds:     null,
-        communityRating: null,
-        songs:           null,
-      } as Artist
-    })
-  })
-
-  const primarySongs = computed(() => {
-    return artistSongs.value.filter(song => song.artists?.[0] === artist.value?.name)
-  })
-
-  const featuredSongs = computed(() => {
-    return artistSongs.value.filter(song => song.artists?.[0] !== artist.value?.name)
-  })
-
-  const isFeaturedOnlyArtist = computed(() => {
-    return primarySongs.value.length === 0 && featuredSongs.value.length > 0
-  })
-
-
-  const playArtistShuffle = () => {
-    if (artistSongs.value.length > 0) {
-      const shuffledSongs = [...artistSongs.value].sort(() => 0.5 - Math.random())
-      emit('play-songs', shuffledSongs)
-    }
-  }
-
-  const artistGenres = computed(() => {
-    if (!artistSongs.value.length)
-      return []
-
-    const genreCounts = new Map<string, number>()
-    artistSongs.value.forEach(song => {
-      song.genres?.forEach(genre => {
-        genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1)
-      })
-    })
-
-    if (!genreCounts.size)
-      return []
-
-    const sortedGenres = [...genreCounts.entries()].sort((a, b) => b[1] - a[1])
-
-    return sortedGenres.slice(0, 5).map(([genre]) => genre)
-  })
-
-  const isFeaturedOnSong = (song: Song) =>
-    song.artists?.[0] !== artist.value?.name && !!song.artists?.includes(artist.value?.name || '')
-
-  type SimpleArtist = { id: string | null, name: string }
-
-  const collaboratorsFor = (song: Song): SimpleArtist[] => {
-    const current = artist.value?.name
-    const artists = song.artists || []
-    const ids = song.artistIds || []
-
-    // Build pairs for as many mapped entries as possible
-    const pairs: SimpleArtist[] = []
-    for (let i = 0; i < artists.length; i++) {
-      const name = artists[i]
-      const id = ids[i] || null
-      if (name && name !== current)
-        pairs.push({ id, name })
-    }
-    return pairs
-  }
-
-  const albumTrackCountsById = computed(() => {
-    const counts = new Map<string, number>()
-
-    for (const s of props.allSongs)
-      if (s.albumId)
-        counts.set(s.albumId, (counts.get(s.albumId) || 0) + 1)
-
-    return counts
-  })
-
-  const isSingle = (song: Song): boolean => {
-    const sameName = (song.album || '').trim().toLowerCase() === (song.name || '').trim().toLowerCase()
-    const trackCount = song.albumId ? (albumTrackCountsById.value.get(song.albumId) || 0) : 0
-    return !!song.album && sameName && trackCount <= 1
-  }
-
-  const isAlbumSingle = (album: Album): boolean => {
-    if (!album) return false
-
-    const tracks = album.songs || []
-
-    if (tracks.length === 1) {
-      const only = tracks[0]
-      const sameName = (album.name || '').trim().toLowerCase() === (only.name || '').trim().toLowerCase()
-      return sameName
-    }
-
-    if (album.id) {
-      const count = albumTrackCountsById.value.get(album.id) || 0
-      if (count === 1) return true
-    }
-
-    return false
-  }
-
-  type NameId = { id: string | null, name: string }
-
-  const albumArtistPairsFor = (album: Album): NameId[] => {
-    const pairs = new Map<string, string>()
-    const tracks = album.songs || []
-
-    for (const s of tracks)
-      if (s.albumArtists)
-        for (const p of s.albumArtists)
-          if (p.id && p.name) pairs.set(p.id, p.name)
-
-    if (pairs.size === 0 && tracks.length) {
-      const first = tracks[0]
-      if (first.artistIds && first.artists && first.artistIds.length === first.artists.length) {
-        first.artistIds.forEach((id, i) => {
-          const name = first.artists![i]
-          if (id && name) pairs.set(id, name)
-        })
-      } else if (album.artistId && album.artist) {
-        pairs.set(album.artistId, album.artist)
-      }
-    }
-
-    return Array.from(pairs, ([id, name]) => ({ id, name }))
-  }
-
-  // Album carousel: collaborators excluding the current artist only
-  const albumCollaboratorsFor = (album: Album): NameId[] =>
-    albumArtistPairsFor(album).filter(p => p.name !== artist.value?.name)
-
-
-  const getIconForProvider = (provider: string): SimpleIcon | null => {
-    const key = provider.toLowerCase().replace('artist', '')
-    const iconMap: Record<string, SimpleIcon> = {
-      musicbrainz: siMusicbrainz,
-      spotify:     siSpotify,
-      applemusic:  siApplemusic,
-      youtube:     siYoutube,
-      soundcloud:  siSoundcloud,
-      bandcamp:    siBandcamp,
-      discogs:     siDiscogs,
-      lastfm:      siLastdotfm,
-      wikipedia:   siWikipedia,
-    }
-    return iconMap[key] || null
-  }
-
-  const getProviderUrl = (provider: string, providerId: string): string | null => {
-    const providerUrls: Record<string, (id: string) => string> = {
-      'MusicBrainzArtist': id => `https://musicbrainz.org/artist/${id}`,
-      'SpotifyArtist':     id => `https://open.spotify.com/artist/${id}`,
-      'AppleMusicArtist':  id => `https://music.apple.com/artist/${id}`,
-      'YouTubeArtist':     id => `https://www.youtube.com/channel/${id}`,
-      'SoundCloudArtist':  id => `https://soundcloud.com/${id}`,
-      'BandcampArtist':    id => `https://bandcamp.com/artist/${id}`,
-      'DiscogsArtist':     id => `https://www.discogs.com/artist/${id}`,
-      'LastFmArtist':      id => `https://www.last.fm/music/${encodeURIComponent(id)}`,
-      'WikipediaArtist':   id => `https://en.wikipedia.org/wiki/${encodeURIComponent(id)}`,
-      'AudioDbArtist':     id => `https://www.theaudiodb.com/artist/${id}`,
-    }
-
-    const urlGenerator = providerUrls[provider]
-
-    if (urlGenerator) {
-      return urlGenerator(providerId)
-    } else {
-      uiLogger.warn(`No URL generator found for provider: ${provider}`)
-      return null
-    }
-  }
-
-  const validProviderLinks = computed(() => {
-    if (!artist.value?.providerIds) return []
-
-    return Object.entries(artist.value.providerIds)
-      .map(([provider, providerId]) => {
-        if (!providerId) return null
-
-        const url = getProviderUrl(provider, providerId)
-        const iconData = getIconForProvider(provider)
-
-        if (url && iconData) {
-          // Inject the brand color directly into the SVG for consistent display
-          const coloredSvg = iconData.svg.replace('<svg', `<svg style="fill: #${iconData.hex};"`)
-          return {
-            provider,
-            url,
-            icon: { ...iconData, svg: coloredSvg },
-          }
-        }
-        return null
-      })
-      .filter(Boolean) as { provider: string, url: string, icon: SimpleIcon }[]
-  })
-
-  const getSongImageUrl = (song: Song): string | undefined => {
-    // First check if the song has its own album art
-    if (song.albumArtUrl) {
-      return song.albumArtUrl
-    }
-
-    // If not, check if the song belongs to an album and use the album's art
-    if (song.albumId) {
-      const album = artistAlbums.value.find(album => album.id === song.albumId)
-      if (album?.albumArtUrl) {
-        return album.albumArtUrl
-      }
-    }
-
-    return undefined
-  }
-
-  const playSong = (song: Song) => {
-    emit('play-song', song)
-  }
-
-  const playAlbum = (album: Album) => {
-    if (album.songs && album.songs.length > 0)
-      emit('play-songs', [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)))
-  }
-</script>
 
 <style scoped>
 .scrollbar-hide::-webkit-scrollbar {

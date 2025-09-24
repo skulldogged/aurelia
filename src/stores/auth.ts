@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref, readonly } from 'vue'
+import { readonly, ref } from 'vue'
+
 import type { Credentials } from '@/bindings'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -8,32 +9,27 @@ export const useAuthStore = defineStore('auth', () => {
   const userId = ref<string>('')
   const username = ref<string>('')
 
-  const setCredentials = (credentials: Credentials) => {
-    serverUrl.value = credentials.serverUrl
-    token.value = credentials.token
-    userId.value = credentials.userId
-    username.value = credentials.username
-  }
-
-  const clearCredentials = () => {
-    serverUrl.value = ''
-    token.value = ''
-    userId.value = ''
-    username.value = ''
-  }
-
-  const isAuthenticated = () => {
-    return !!token.value && !!serverUrl.value && !!userId.value
-  }
-
   return {
+    clearCredentials: (): void => {
+      serverUrl.value = ''
+      token.value = ''
+      userId.value = ''
+      username.value = ''
+    },
+
+    isAuthenticated: (): boolean => !!token.value && !!serverUrl.value && !!userId.value,
+
+    setCredentials: (credentials: Credentials): void => {
+      serverUrl.value = credentials.serverUrl
+      token.value = credentials.token
+      userId.value = credentials.userId
+      username.value = credentials.username
+    },
+
+    // eslint-disable-next-line perfectionist/sort-objects
     serverUrl: readonly(serverUrl),
     token:     readonly(token),
     userId:    readonly(userId),
     username:  readonly(username),
-
-    setCredentials,
-    clearCredentials,
-    isAuthenticated,
   }
 })

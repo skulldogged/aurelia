@@ -1,63 +1,20 @@
-<template>
-  <div class='h-full w-full flex flex-col overflow-hidden'>
-    <div
-      v-if='isLoading'
-      class='flex-grow flex items-center justify-center'
-    >
-      <Loader2 class='w-8 h-8 animate-spin' />
-    </div>
-    <div
-      v-else-if='error'
-      class='flex-grow flex items-center justify-center text-red-500'
-    >
-      {{ error }}
-    </div>
-    <div
-      v-else-if='lyrics && areLyricsSynced'
-      ref='lyricsContainerRef'
-      class='lyrics-container flex-grow overflow-y-auto'
-    >
-      <div class='lyrics-content'>
-        <p
-          v-for='(line, index) in parsedLyrics'
-          @click='handleLineClick(line.time)'
-          :key='line.time + line.text'
-          :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
-          :class="['lyric-line', { 'active': index === currentLineIndex }]"
-        >
-          {{ line.text }}
-        </p>
-      </div>
-    </div>
-    <div
-      v-else-if='lyrics'
-      class='prose prose-invert max-w-none flex-grow overflow-y-auto'
-      v-html='formattedLyrics'
-    />
-    <div
-      v-else
-      class='flex-grow flex items-center justify-center text-muted-foreground'
-    >
-      No lyrics found for this song.
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-  import { ref, watch, computed, nextTick } from 'vue'
   import { Loader2 } from 'lucide-vue-next'
-  import { Song, commands } from '@/bindings'
+  import { computed, nextTick, ref, watch } from 'vue'
+
+  import { commands, Song } from '@/bindings'
   import { apiLogger } from '@/lib/logger'
+  import { withCustomState } from '@/lib/result'
 
   interface LyricLine {
-    time: number
     text: string
+    time: number
   }
 
   const props = defineProps<{
-    song:        Song | null
     currentTime: number
     duration:    number
+    song:        null | Song
     visible:     boolean
   }>()
 
@@ -67,20 +24,18 @@
   }>()
 
   const isLoading = ref(false)
-  const lyrics = ref<string | null>(null)
-  const error = ref<string | null>(null)
+  const lyrics = ref<null | string>(null)
+  const error = ref<null | string>(null)
   const parsedLyrics = ref<LyricLine[]>([])
   const activeLineRef = ref<HTMLParagraphElement | null>(null)
 
   const { getLyrics } = commands
 
-  const areLyricsSynced = computed(() => {
-    return lyrics.value ? /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyrics.value) : false
-  })
-  const handleLineClick = (time: number) => {
-    if (props.duration > 0) {
+  const areLyricsSynced = computed(() => lyrics.value ? /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyrics.value) : false)
+
+  const handleLineClick = (time: number): void => {
+    if (props.duration > 0)
       emit('seek', time)
-    }
   }
 
   const parseLrc = (lrc: string): LyricLine[] => {
@@ -96,11 +51,11 @@
         const milliseconds = parseInt(match[3].padEnd(3, '0'), 10)
         const time = minutes * 60 + seconds + milliseconds / 1000
         const text = line.replace(timeRegex, '').trim()
-        if (text) {
-          result.push({ time, text })
-        }
+        if (text)
+          result.push({ text, time })
       }
     }
+
     return result
   }
 
@@ -108,37 +63,40 @@
     if (newSong) {
       lyrics.value = null
       error.value = null
-      isLoading.value = true
-      try {
-        if (newSong.artists && newSong.artists.length > 0) {
-          const lyricsResult = await getLyrics(
+
+      if (newSong.artists && newSong.artists.length > 0) {
+        await withCustomState(
+          () => getLyrics(
             newSong.id,
-            newSong.artists[0],
+            newSong.artists![0],
             newSong.name,
             null,
-          )
-          if (lyricsResult.status === 'error') {
-            apiLogger.error('Failed to fetch lyrics:', lyricsResult.error)
-            throw new Error(lyricsResult.error)
-          }
-          lyrics.value = lyricsResult.data
-          if (areLyricsSynced.value && lyricsResult.data) {
-            parsedLyrics.value = parseLrc(lyricsResult.data)
-          }
-        } else {
-          throw new Error('Artist not available')
-        }
-      } catch (err) {
-        if (typeof err === 'string') {
-          error.value = err
-        } else if (err instanceof Error) {
-          error.value = err.message
-        } else {
-          error.value = 'An unknown error occurred'
-        }
-      } finally {
+          ),
+          {
+            onError: errorString => {
+              error.value = errorString
+              apiLogger.error('Failed to fetch lyrics:', errorString)
+              isLoading.value = false
+              emit('lyrics-loaded', false)
+            },
+            onStart: () => {
+              isLoading.value = true
+            },
+            onSuccess: lyricsData => {
+              lyrics.value = lyricsData
+              if (areLyricsSynced.value && lyricsData) {
+                parsedLyrics.value = parseLrc(lyricsData)
+              }
+              isLoading.value = false
+              emit('lyrics-loaded', !!lyricsData)
+            },
+          },
+        )
+      } else {
+        error.value = 'Artist not available'
+        apiLogger.error('Lyrics loading error: Artist not available')
         isLoading.value = false
-        emit('lyrics-loaded', !!lyrics.value)
+        emit('lyrics-loaded', false)
       }
     }
   }, { immediate: true })
@@ -203,6 +161,51 @@
     return null
   }
 </script>
+
+<template>
+  <div class='h-full w-full flex flex-col overflow-hidden'>
+    <div
+      v-if='isLoading'
+      class='flex-grow flex items-center justify-center'
+    >
+      <Loader2 class='w-8 h-8 animate-spin' />
+    </div>
+    <div
+      v-else-if='error'
+      class='flex-grow flex items-center justify-center text-red-500'
+    >
+      {{ error }}
+    </div>
+    <div
+      v-else-if='lyrics && areLyricsSynced'
+      ref='lyricsContainerRef'
+      class='lyrics-container flex-grow overflow-y-auto'
+    >
+      <div class='lyrics-content'>
+        <p
+          v-for='(line, index) in parsedLyrics'
+          @click='handleLineClick(line.time)'
+          :key='line.time + line.text'
+          :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
+          :class="['lyric-line', { 'active': index === currentLineIndex }]"
+        >
+          {{ line.text }}
+        </p>
+      </div>
+    </div>
+    <div
+      v-else-if='lyrics'
+      class='prose prose-invert max-w-none flex-grow overflow-y-auto'
+      v-html='formattedLyrics'
+    />
+    <div
+      v-else
+      class='flex-grow flex items-center justify-center text-muted-foreground'
+    >
+      No lyrics found for this song.
+    </div>
+  </div>
+</template>
 
 <style scoped>
 .lyrics-container {

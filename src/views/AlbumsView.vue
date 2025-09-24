@@ -1,15 +1,15 @@
 <script setup lang="ts">
+  import Fuse from 'fuse.js'
+  import { Play } from 'lucide-vue-next'
+  import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
   import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Song, Album } from '@/bindings'
+
+  import { Album, Song } from '@/bindings'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
-  import { Skeleton } from '@/components/ui/skeleton'
-  import { Play } from 'lucide-vue-next'
-  import Fuse from 'fuse.js'
-  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { usePagination } from '@/composables/useLayoutPreference'
   import {
     Select,
     SelectContent,
@@ -18,16 +18,17 @@
     SelectTrigger,
     SelectValue,
   } from '@/components/ui/select'
-  import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+  import { Skeleton } from '@/components/ui/skeleton'
+  import { usePagination } from '@/composables/useLayoutPreference'
 
   const router = useRouter()
 
   const props = defineProps<{
-    serverUrl:      string,
-    token:          string,
+    allAlbums:      Album[],
     libraryLoaded:  boolean,
     libraryLoading: boolean,
-    allAlbums:      Album[],
+    serverUrl:      string,
+    token:          string,
   }>()
 
   const emit = defineEmits<{
@@ -39,53 +40,50 @@
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
   const albumsFuse = ref(new Fuse(props.allAlbums, {
-    keys: [
+    includeScore: true,
+    keys:         [
       { name: 'name', weight: 0.6 },
       { name: 'artist', weight: 0.4 },
     ],
-    includeScore:       true,
-    threshold:          0.2,
     minMatchCharLength: 2,
+    threshold:          0.2,
   }))
 
   watch(() => props.allAlbums, newAlbums => {
     albumsFuse.value.setCollection(newAlbums)
   })
 
-  const filteredAlbums = computed(() => {
-    if (!searchQuery.value || searchQuery.value.length < 2)
-      return [...props.allAlbums].sort((a, b) =>
-        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-      )
-
-    return albumsFuse.value.search(searchQuery.value).map(result => result.item)
-  })
+  const filteredAlbums = computed(() =>
+    searchQuery.value && searchQuery.value.length >= 2
+      ? albumsFuse.value.search(searchQuery.value).map(result => result.item)
+      : [...props.allAlbums].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())),
+  )
 
   // Pagination
   const {
+    canNextPage,
+    canPreviousPage,
+    goToFirstPage,
+    goToLastPage,
+    goToNextPage,
+    goToPreviousPage,
+    pageCount,
     pagedItems: pagedAlbums,
     pageIndex,
     pageSize,
-    total,
-    pageCount,
-    canPreviousPage,
-    canNextPage,
-    goToPreviousPage,
-    goToNextPage,
-    goToFirstPage,
-    goToLastPage,
-    setPageSize,
     pageSizeOptions,
+    setPageSize,
+    total,
   } = usePagination(filteredAlbums, 'albums-pagesize', 20)
 
-  const playAlbum = (album: Album) => {
+  const playAlbum = (album: Album): void => {
     if (album.songs && album.songs.length > 0) {
       const sortedSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
       emit('play-songs', sortedSongs)
     }
   }
 
-  const selectAlbum = (album: Album) => {
+  const selectAlbum = (album: Album): void => {
     router.push(`/songs/album/${encodeURIComponent(album.name)}`)
   }
 </script>

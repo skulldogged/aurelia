@@ -1,38 +1,40 @@
 <script setup lang="ts">
+  import type { SimpleIcon } from 'simple-icons'
+
+  import { invoke } from '@tauri-apps/api/core'
+  import { writeText } from '@tauri-apps/plugin-clipboard-manager'
+  import { openUrl } from '@tauri-apps/plugin-opener'
+  import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, Link, Share2 } from 'lucide-vue-next'
+  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
+  import {
+    siApplemusic,
+    siBandcamp,
+    siDiscogs,
+    siInstagram,
+    siLastdotfm,
+    siMusicbrainz,
+    siSoundcloud,
+    siSpotify,
+    siTidal,
+    siX,
+    siYoutube,
+    siYoutubemusic,
+  } from 'simple-icons'
+  import { computed, ref, watch } from 'vue'
+
+  import { Button } from '@/components/ui/button'
   import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
   } from '@/components/ui/dialog'
-  import { Button } from '@/components/ui/button'
-  import { Share2, Copy, ExternalLink, Check, ChevronDown, ChevronUp, Link } from 'lucide-vue-next'
-  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-  import { invoke } from '@tauri-apps/api/core'
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-  import { openUrl } from '@tauri-apps/plugin-opener'
-  import { ref, computed, watch } from 'vue'
-  import type { SimpleIcon } from 'simple-icons'
-  import {
-    siMusicbrainz,
-    siSpotify,
-    siApplemusic,
-    siYoutube,
-    siYoutubemusic,
-    siTidal,
-    siSoundcloud,
-    siBandcamp,
-    siInstagram,
-    siX,
-    siLastdotfm,
-    siDiscogs,
-  } from 'simple-icons'
 
   interface Props {
-    open:     boolean
     itemId:   string
-    itemType: 'song' | 'album' | 'artist'
     itemName: string
+    itemType: 'album' | 'artist' | 'song'
+    open:     boolean
   }
 
   const props = defineProps<Props>()
@@ -43,7 +45,7 @@
 
   const shareUrls = ref<Record<string, string>>({})
   const isLoading = ref(false)
-  const copiedUrl = ref<string | null>(null)
+  const copiedUrl = ref<null | string>(null)
   const showAllLinks = ref(false)
 
   const dialogOpen = computed({
@@ -70,7 +72,7 @@
   // Known platforms get nice display, everything else goes to dropdown with raw links
 
   // Function to extract platform name from URL
-  const extractPlatformFromUrl = (url: string): string | null => {
+  const extractPlatformFromUrl = (url: string): null | string => {
     if (url.includes('bandcamp.com')) return 'Bandcamp'
     if (url.includes('deezer.com')) return 'Deezer'
     if (url.includes('discogs.com')) return 'Discogs'
@@ -130,38 +132,38 @@
   const hasSecondaryLinks = computed(() => Object.keys(secondaryLinks.value).length > 0)
 
   // Function to get the appropriate icon for a platform
-  const getPlatformIcon = (platform: string): SimpleIcon | null => {
+  const getPlatformIcon = (platform: string): null | SimpleIcon => {
     switch (platform) {
-      case 'MusicBrainz':
-        return siMusicbrainz
-      case 'Spotify':
-        return siSpotify
       case 'Apple Music':
         return siApplemusic
-      case 'YouTube Music':
-        return siYoutubemusic
-      case 'YouTube':
-        return siYoutube
-      case 'Tidal':
-        return siTidal
-      case 'SoundCloud':
-        return siSoundcloud
       case 'Bandcamp':
         return siBandcamp
-      case 'Instagram':
-        return siInstagram
-      case 'Twitter':
-        return siX
-      case 'Last.fm':
-        return siLastdotfm
       case 'Discogs':
         return siDiscogs
+      case 'Instagram':
+        return siInstagram
+      case 'Last.fm':
+        return siLastdotfm
+      case 'MusicBrainz':
+        return siMusicbrainz
+      case 'SoundCloud':
+        return siSoundcloud
+      case 'Spotify':
+        return siSpotify
+      case 'Tidal':
+        return siTidal
+      case 'Twitter':
+        return siX
+      case 'YouTube':
+        return siYoutube
+      case 'YouTube Music':
+        return siYoutubemusic
       default:
         return null
     }
   }
 
-  const loadShareUrls = async () => {
+  const loadShareUrls = async (): Promise<void> => {
     if (!props.itemId) return
 
     isLoading.value = true
@@ -169,14 +171,14 @@
       let urls: Record<string, string> = {}
 
       switch (props.itemType) {
-        case 'song':
-          urls = await invoke('get_song_share_urls', { songId: props.itemId })
-          break
         case 'album':
           urls = await invoke('get_album_share_urls', { albumId: props.itemId })
           break
         case 'artist':
           urls = await invoke('get_artist_share_urls', { artistId: props.itemId })
+          break
+        case 'song':
+          urls = await invoke('get_song_share_urls', { songId: props.itemId })
           break
       }
 
@@ -188,7 +190,7 @@
     }
   }
 
-  const copyToClipboard = async (url: string, platform: string) => {
+  const copyToClipboard = async (url: string, platform: string): Promise<void> => {
     try {
       await writeText(url)
       copiedUrl.value = platform
@@ -200,7 +202,7 @@
     }
   }
 
-  const openInBrowser = async (url: string) => {
+  const openInBrowser = async (url: string): Promise<void> => {
     try {
       await openUrl(url)
     } catch (error) {

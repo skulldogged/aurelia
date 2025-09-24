@@ -1,7 +1,8 @@
+import { useLocalStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, watch } from 'vue'
-import { useLocalStorage } from '@vueuse/core'
-import { COLOR_SCHEMES } from '@/lib/color-schemes'
+
+import { COLOR_SCHEMES } from '@/lib/colorSchemes'
 
 export const useThemeStore = defineStore('theme', () => {
   const selectedSchemeName = useLocalStorage('color-scheme', 'default-light')
@@ -16,7 +17,7 @@ export const useThemeStore = defineStore('theme', () => {
     selectedScheme.value?.name.includes('dark') || false,
   )
 
-  const setColorScheme = (schemeName: string) => {
+  const setColorScheme = (schemeName: string): void => {
     selectedSchemeName.value = schemeName
   }
 
@@ -52,10 +53,10 @@ export const useThemeStore = defineStore('theme', () => {
   }, { immediate: true })
 
   return {
-    selectedSchemeName,
-    selectedScheme,
     colorSchemes,
     isDarkMode,
+    selectedScheme,
+    selectedSchemeName,
     setColorScheme,
   }
 })

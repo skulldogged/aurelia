@@ -1,84 +1,86 @@
 <script setup lang="ts">
-  import { onMounted, watch } from 'vue'
   import { useColorMode } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
-  import type { Credentials } from '@/bindings'
-  import { Button } from '@/components/ui/button'
-  import Login from './views/LoginView.vue'
-  import MusicPlayer from './components/player/MusicPlayer.vue'
-  import Queue from './components/player/Queue.vue'
-  import Equalizer from './components/player/Equalizer.vue'
-  import MainLayout from './components/layout/MainLayout.vue'
-  import SearchResults from '@/components/shared/SearchResultsView.vue'
-  import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
-  import WindowControls from '@/components/shared/WindowControls.vue'
+  import { onMounted, watch } from 'vue'
+  import { ref } from 'vue'
 
+  import type { Credentials } from '@/bindings'
+
+  import SearchResults from '@/components/shared/SearchResultsView.vue'
+  import WindowControls from '@/components/shared/WindowControls.vue'
+  import { Button } from '@/components/ui/button'
   import { useAuth } from '@/composables/useAuth'
-  import { useLibraryStore } from '@/stores'
+  import { useImageLoader } from '@/composables/useImageLoader'
   import { useNavigation } from '@/composables/useNavigation'
   import { usePlayerControls } from '@/composables/usePlayerControls'
-  import { useSongInteractions } from '@/composables/useSongInteractions'
   import { usePlayerSession } from '@/composables/usePlayerSession'
-  import { useImageLoader } from '@/composables/useImageLoader'
+  import { useSongInteractions } from '@/composables/useSongInteractions'
   import { appLogger } from '@/lib/logger'
-  import { ref } from 'vue'
+  import { useLibraryStore } from '@/stores'
+
+  import MainLayout from './components/layout/MainLayout.vue'
+  import Equalizer from './components/player/Equalizer.vue'
+  import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
+  import MusicPlayer from './components/player/MusicPlayer.vue'
+  import Queue from './components/player/Queue.vue'
+  import Login from './views/LoginView.vue'
 
   useColorMode()
 
-  const { authStatus, credentials, error: authError, login, logout, clearError: clearAuthError } = useAuth()
+  const { authStatus, clearError: clearAuthError, credentials, error: authError, login, logout } = useAuth()
   const libraryStore = useLibraryStore()
   const { preloadRecentImages } = useImageLoader()
   const {
-    currentView,
     canGoBack,
     canGoForward,
+    currentView,
+    handleNavigation,
     navigateBack,
     navigateForward,
-    handleNavigation,
-    navigateToArtist,
     navigateToAlbum,
+    navigateToArtist,
   } = useNavigation()
   const {
-    isQueueOpen,
+    handleGlobalSearch,
+    handleNextSong,
+    handlePreviousSong,
+    handleSeek,
+    handleTogglePlayPause,
+    handleToggleRepeat,
+    handleToggleShuffle,
     isEqualizerOpen,
     isFullScreenPlayerOpen,
-    searchQuery,
+    isQueueOpen,
     isSearchVisible,
     musicPlayerRef,
-    handleGlobalSearch,
-    toggleQueue,
+    playerStore,
+    searchQuery,
     toggleEqualizer,
     toggleFullScreenPlayer,
+    toggleQueue,
     toggleSearchVisibility,
-    handleTogglePlayPause,
-    handlePreviousSong,
-    handleNextSong,
-    handleToggleShuffle,
-    handleToggleRepeat,
-    handleSeek,
-    playerStore,
   } = usePlayerControls()
   const {
-    playSong,
-    playSongs,
-    updatePlaylist,
-    removeSongFromPlaylist,
     handleSongChanged,
     handleUpdateCurrentSong,
+    playSong,
+    playSongs,
+    removeSongFromPlaylist,
     toggleFavorite,
+    updatePlaylist,
   } = useSongInteractions(credentials)
 
   const {
     currentSong,
-    playlist,
-    isPlaying,
     currentTime,
     duration,
-    isShuffled,
-    repeatMode,
-    progress,
     hasNext,
     hasPrevious,
+    isPlaying,
+    isShuffled,
+    playlist,
+    progress,
+    repeatMode,
   } = storeToRefs(playerStore)
 
   const isSyncing = ref(false)
@@ -91,7 +93,7 @@
   })
 
   // Load library data when user becomes logged in
-  watch(authStatus, async (newStatus) => {
+  watch(authStatus, async newStatus => {
     if (newStatus === 'loggedIn' && credentials.value) {
       try {
         await libraryStore.loadLibrary(credentials.value)
@@ -110,28 +112,28 @@
   })
 
   // Clear library data on logout
-  watch(authStatus, (newStatus) => {
+  watch(authStatus, newStatus => {
     if (newStatus === 'loggedOut') {
       libraryStore.clearData()
     }
   })
 
-  const handleLogin = async (loginCredentials: Credentials) => {
+  const handleLogin = async (loginCredentials: Credentials): Promise<void> => {
     login(loginCredentials)
   }
 
-  const handleLogout = () => {
+  const handleLogout = (): void => {
     logout()
     playerStore.setCurrentSong(null)
     playerStore.setPlaylist([])
     playerStore.setCurrentIndex(-1)
   }
 
-  const handleVolumeChange = (newVolume: number) => {
+  const handleVolumeChange = (newVolume: number): void => {
     playerStore.setVolume(newVolume)
   }
 
-  const handleSyncLibrary = async () => {
+  const handleSyncLibrary = async (): Promise<void> => {
     if (!credentials.value) return
     isSyncing.value = true
     try {
@@ -143,7 +145,7 @@
     }
   }
 
-  const handleClearCache = async () => {
+  const handleClearCache = async (): Promise<void> => {
     if (!credentials.value) return
     isClearing.value = true
     try {
@@ -211,20 +213,20 @@
             @sync-library='handleSyncLibrary'
             @toggle-favorite='toggleFavorite'
             :key='$route.path'
+            :album-artists='libraryStore.albumArtistsWithSongs'
+            :all-albums='libraryStore.allAlbums'
+            :all-artists='libraryStore.allArtistsWithSongs'
+            :all-songs='libraryStore.allSongs'
             :credentials='credentials'
             :current-song='currentSong'
             :is-clearing='isClearing'
             :is-playing='!!currentSong'
             :is-syncing='isSyncing'
+            :library-loaded='libraryStore.isLoaded'
+            :library-loading='libraryStore.isLoading'
             :server-url='credentials?.serverUrl'
             :token='credentials?.token'
             :user-id='credentials?.userId'
-            :library-loaded='libraryStore.isLoaded'
-            :library-loading='libraryStore.isLoading'
-            :all-songs='libraryStore.allSongs'
-            :all-artists='libraryStore.allArtistsWithSongs'
-            :all-albums='libraryStore.allAlbums'
-            :album-artists='libraryStore.albumArtistsWithSongs'
           />
         </transition>
       </router-view>

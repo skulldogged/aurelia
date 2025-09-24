@@ -1,3 +1,24 @@
+<script setup lang="ts">
+  import {
+    AlertTriangle,
+    HardDrive,
+    RefreshCw,
+    Trash2,
+  } from 'lucide-vue-next'
+
+  import { Button } from '@/components/ui/button'
+
+  defineEmits<{
+    (e: 'sync-library'): void
+    (e: 'clear-cache'): void
+  }>()
+
+  defineProps<{
+    isClearing: boolean
+    isSyncing:  boolean
+  }>()
+</script>
+
 <template>
   <!-- Library Management Section -->
   <section class='space-y-6'>
@@ -65,23 +86,3 @@
     </div>
   </section>
 </template>
-
-<script setup lang="ts">
-  import { Button } from '@/components/ui/button'
-  import {
-    HardDrive,
-    AlertTriangle,
-    Trash2,
-    RefreshCw,
-  } from 'lucide-vue-next'
-
-  defineEmits<{
-    (e: 'sync-library'): void
-    (e: 'clear-cache'): void
-  }>()
-
-  defineProps<{
-    isSyncing:  boolean
-    isClearing: boolean
-  }>()
-</script>

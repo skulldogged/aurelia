@@ -1,22 +1,30 @@
-import { ref, watch, computed, type Ref, type ComputedRef } from 'vue'
+import { computed, type ComputedRef, ref, type Ref, watch } from 'vue'
 
 export type LayoutMode = 'comfy' | 'compact'
 
-export const useLayoutPreference = (storageKey = 'songlist-layout', defaultLayout: LayoutMode = 'comfy') => {
-  const getInitialLayout = (): LayoutMode => {
-    try {
-      const stored = localStorage.getItem(storageKey)
+const getInitialLayout = (storageKey: string, defaultLayout: LayoutMode): LayoutMode => {
+  try {
+    const stored = localStorage.getItem(storageKey)
 
-      if (stored && ['comfy', 'compact'].includes(stored))
-        return stored as LayoutMode
-    } catch (error) {
-      // localStorage might not be available (SSR, etc.)
-      console.warn('Failed to read layout preference from localStorage:', error)
-    }
-    return defaultLayout
+    if (stored && ['comfy', 'compact'].includes(stored))
+      return stored as LayoutMode
+  } catch (error) {
+    // localStorage might not be available (SSR, etc.)
+    console.warn('Failed to read layout preference from localStorage:', error)
   }
 
-  const layout = ref<LayoutMode>(getInitialLayout())
+  return defaultLayout
+}
+
+export interface LayoutPreference {
+  layout: Ref<LayoutMode>
+}
+
+export const useLayoutPreference = (
+  storageKey = 'songlist-layout',
+  defaultLayout: LayoutMode = 'comfy',
+): LayoutPreference => {
+  const layout = ref<LayoutMode>(getInitialLayout(storageKey, defaultLayout))
 
   watch(layout, newLayout => {
     try {
@@ -26,27 +34,32 @@ export const useLayoutPreference = (storageKey = 'songlist-layout', defaultLayou
     }
   })
 
-  return {
-    layout,
-  }
+  return { layout }
 }
 
-export const usePageSizePreference = (storageKey = 'songlist-pagesize', defaultPageSize: number = 20) => {
-  const getInitialPageSize = (): number => {
-    try {
-      const stored = localStorage.getItem(storageKey)
-      if (stored) {
-        const parsed = parseInt(stored, 10)
-        if (!isNaN(parsed) && parsed > 0 && parsed <= 100)
-          return parsed
-      }
-    } catch (error) {
-      console.warn('Failed to read page size preference from localStorage:', error)
+const getInitialPageSize = (storageKey: string, defaultPageSize: number): number => {
+  try {
+    const stored = localStorage.getItem(storageKey)
+    if (stored) {
+      const parsed = parseInt(stored, 10)
+      if (!isNaN(parsed) && parsed > 0 && parsed <= 100)
+        return parsed
     }
-    return defaultPageSize
+  } catch (error) {
+    console.warn('Failed to read page size preference from localStorage:', error)
   }
+  return defaultPageSize
+}
 
-  const pageSize = ref<number>(getInitialPageSize())
+export interface PageSizePreference {
+  pageSize: Ref<number>
+}
+
+export const usePageSizePreference = (
+  storageKey = 'songlist-pagesize',
+  defaultPageSize: number = 20,
+): PageSizePreference => {
+  const pageSize = ref<number>(getInitialPageSize(storageKey, defaultPageSize))
 
   watch(pageSize, newPageSize => {
     try {
@@ -59,19 +72,26 @@ export const usePageSizePreference = (storageKey = 'songlist-pagesize', defaultP
   return { pageSize }
 }
 
-export const useSortPreference = (storageKey = 'songlist-sort', defaultSort: string = 'title') => {
-  const getInitialSort = (): string => {
-    try {
-      const stored = localStorage.getItem(storageKey)
-      if (stored)
-        return stored
-    } catch (error) {
-      console.warn('Failed to read sort preference from localStorage:', error)
-    }
-    return defaultSort
+const getInitialSort = (storageKey: string, defaultSort: string): string => {
+  try {
+    const stored = localStorage.getItem(storageKey)
+    if (stored)
+      return stored
+  } catch (error) {
+    console.warn('Failed to read sort preference from localStorage:', error)
   }
+  return defaultSort
+}
 
-  const sort = ref<string>(getInitialSort())
+export interface SortPreference {
+  sort: Ref<string>
+}
+
+export const useSortPreference = (
+  storageKey = 'songlist-sort',
+  defaultSort: string = 'title',
+): SortPreference => {
+  const sort = ref<string>(getInitialSort(storageKey, defaultSort))
 
   watch(sort, newSort => {
     try {
@@ -84,11 +104,27 @@ export const useSortPreference = (storageKey = 'songlist-sort', defaultSort: str
   return { sort }
 }
 
+export interface Pagination<T> {
+  canNextPage:      ComputedRef<boolean>
+  canPreviousPage:  ComputedRef<boolean>
+  goToFirstPage:    () => void
+  goToLastPage:     () => void
+  goToNextPage:     () => void
+  goToPreviousPage: () => void
+  pageCount:        ComputedRef<number>
+  pagedItems:       ComputedRef<T[]>
+  pageIndex:        Ref<number>
+  pageSize:         Ref<number>
+  pageSizeOptions:  number[]
+  setPageSize:      (value: number) => void
+  total:            ComputedRef<number>
+}
+
 export const usePagination = <T>(
-  items: Ref<T[]> | ComputedRef<T[]>,
+  items: ComputedRef<T[]> | Ref<T[]>,
   pageSizeKey = 'page-size',
   defaultPageSize = 20,
-) => {
+): Pagination<T> => {
   const pageIndex = ref(0)
   const { pageSize } = usePageSizePreference(pageSizeKey, defaultPageSize)
 
@@ -113,23 +149,23 @@ export const usePagination = <T>(
     return items.value.slice(start, end)
   })
 
-  const goToPreviousPage = () => {
+  const goToPreviousPage = (): void => {
     if (canPreviousPage.value) pageIndex.value -= 1
   }
 
-  const goToNextPage = () => {
+  const goToNextPage = (): void => {
     if (canNextPage.value) pageIndex.value += 1
   }
 
-  const goToFirstPage = () => {
+  const goToFirstPage = (): void => {
     pageIndex.value = 0
   }
 
-  const goToLastPage = () => {
+  const goToLastPage = (): void => {
     pageIndex.value = pageCount.value - 1
   }
 
-  const setPageSize = (value: number) => {
+  const setPageSize = (value: number): void => {
     const oldStart = pageIndex.value * pageSize.value
     pageSize.value = value
     pageIndex.value = Math.floor(oldStart / pageSize.value)
@@ -138,18 +174,18 @@ export const usePagination = <T>(
   const pageSizeOptions = [10, 20, 30, 50]
 
   return {
-    pageIndex,
-    pageSize,
-    total,
-    pageCount,
-    canPreviousPage,
     canNextPage,
-    pagedItems,
-    goToPreviousPage,
-    goToNextPage,
+    canPreviousPage,
     goToFirstPage,
     goToLastPage,
-    setPageSize,
+    goToNextPage,
+    goToPreviousPage,
+    pageCount,
+    pagedItems,
+    pageIndex,
+    pageSize,
     pageSizeOptions,
+    setPageSize,
+    total,
   }
 }

@@ -1,23 +1,23 @@
 <script setup lang="ts">
-  import { computed, ref, onMounted } from 'vue'
+  import { Music, Play, Share2, Shuffle } from 'lucide-vue-next'
+  import { computed, ref } from 'vue'
   import { useRoute } from 'vue-router'
-  import SongList from '@/components/shared/SongList.vue'
+
+  import { Album, NameIdPair, Song } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
-  import { Skeleton } from '@/components/ui/skeleton'
+  import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
-  import { Play, Shuffle, Music, Share2 } from 'lucide-vue-next'
-  import { Song, Album, NameIdPair, commands } from '@/bindings'
-  import { uiLogger } from '@/lib/logger'
+  import { Skeleton } from '@/components/ui/skeleton'
 
   const props = defineProps<{
-    currentSong: Song | null
-    isPlaying:   boolean
-    serverUrl:   string
-    token:       string
-    libraryLoaded: boolean
+    allAlbums:      Album[]
+    currentSong:    null | Song
+    isPlaying:      boolean
+    libraryLoaded:  boolean
     libraryLoading: boolean
-    allAlbums: Album[]
+    serverUrl:      string
+    token:          string
   }>()
 
   const emit = defineEmits<{
@@ -93,11 +93,11 @@
     return Array.from(set)
   })
 
-  const playAll = () => {
+  const playAll = (): void => {
     if (albumSongs.value.length > 0) emit('play-songs', albumSongs.value)
   }
 
-  const shuffleAll = () => {
+  const shuffleAll = (): void => {
     const songs = [...albumSongs.value]
     for (let i = songs.length - 1; i > 0; i -= 1) {
       const j = Math.floor(Math.random() * (i + 1))
@@ -235,8 +235,8 @@
           Songs
         </h2>
         <SongList
-          @play-song="(song) => $emit('play-song', song)"
-          @toggle-favorite="(song) => $emit('toggle-favorite', song)"
+          @play-song='(song) => $emit("play-song", song)'
+          @toggle-favorite='(song) => $emit("toggle-favorite", song)'
           :current-song='props.currentSong'
           :is-playing='props.isPlaying'
           :loading='libraryLoading || !libraryLoaded || !album || showSkeleton'
