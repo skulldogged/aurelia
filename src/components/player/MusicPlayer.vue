@@ -4,6 +4,7 @@
     Heart,
     ListMusic,
     Loader2,
+    MoreHorizontal,
     Music2,
     Pause,
     Play,
@@ -23,6 +24,12 @@
   import { Song } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import { Button } from '@/components/ui/button'
+  import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+  } from '@/components/ui/dropdown-menu'
   import { Slider } from '@/components/ui/slider'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { playerLogger } from '@/lib/logger'
@@ -54,6 +61,10 @@
 
   const audioPlayer1 = ref<HTMLAudioElement | null>(null)
   const audioPlayer2 = ref<HTMLAudioElement | null>(null)
+  const containerRef = ref<HTMLDivElement | null>(null)
+  const resizeObserver = ref<null | ResizeObserver>(null)
+  const volumePopupRef = ref<HTMLDivElement | null>(null)
+  const isVolumePopupVisible = ref(false)
   const activePlayerIndex = ref(0)
   const players = [audioPlayer1, audioPlayer2]
   const activePlayer = computed(() => players[activePlayerIndex.value].value)
@@ -79,11 +90,20 @@
     let nextIndex
     if (playerStore.isShuffled)
       nextIndex = Math.floor(Math.random() * playerStore.playlist.length)
-     else 
+    else
       nextIndex = playerStore.currentIndex + 1
 
     return playerStore.playlist[nextIndex]
   })
+
+  // Responsive logic for compact layout
+  const isCompact = ref(false)
+
+  const updateCompactMode = (): void => {
+    if (containerRef.value) {
+      isCompact.value = containerRef.value.offsetWidth < 800 // Show compact layout below 800px
+    }
+  }
 
   const songFormatInfo = computed(() => {
     if (!playerStore.currentSong) return ''
@@ -92,6 +112,45 @@
     if (playerStore.currentSong.sampleRate) parts.push(`${playerStore.currentSong.sampleRate / 1000} kHz`)
     if (playerStore.currentSong.bitRate) parts.push(`${Math.round(playerStore.currentSong.bitRate / 1000)} kbps`)
     return parts.join(' / ')
+  })
+
+  // Volume popup controls
+  const toggleVolumePopup = (): void => {
+    isVolumePopupVisible.value = !isVolumePopupVisible.value
+  }
+
+  const closeVolumePopup = (): void => {
+    isVolumePopupVisible.value = false
+  }
+
+  const handleVolumeClick = (): void => {
+    toggleVolumePopup()
+  }
+
+  // Handle click outside to close volume popup
+  const handleClickOutside = (event: Event): void => {
+    // Don't close if clicking on the volume button itself or inside the popup
+    const target = event.target as Element
+    const volumeButton = target.closest('[data-volume-button]')
+    const insidePopup = volumePopupRef.value && volumePopupRef.value.contains(target)
+
+    if (volumeButton || insidePopup) return
+
+    if (isVolumePopupVisible.value)
+      closeVolumePopup()
+  }
+
+  // Watch for popup visibility changes to add/remove click listener
+  watch(isVolumePopupVisible, visible => {
+    if (visible)
+      document.addEventListener('click', handleClickOutside)
+    else
+      document.removeEventListener('click', handleClickOutside)
+  })
+
+  // Cleanup on unmount
+  onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside)
   })
 
   const titleContainerRef = ref<HTMLDivElement | null>(null)
@@ -134,7 +193,7 @@
   const handleMarqueeIteration = (): void => {
     if (!shouldMarquee.value) return
     if (marqueePauseTimeoutId) clearTimeout(marqueePauseTimeoutId)
-    
+
     isMarqueePaused.value = true
 
     marqueePauseTimeoutId = window.setTimeout(() => {
@@ -591,6 +650,13 @@
 
     measureMarquee()
     window.addEventListener('resize', measureMarquee)
+
+    // Setup responsive layout
+    updateCompactMode()
+    resizeObserver.value = new ResizeObserver(updateCompactMode)
+    if (containerRef.value) {
+      resizeObserver.value.observe(containerRef.value)
+    }
   })
 
   watch(() => playerStore.volume, newVolume => {
@@ -617,6 +683,11 @@
 
     window.removeEventListener('resize', measureMarquee)
     if (marqueePauseTimeoutId) clearTimeout(marqueePauseTimeoutId)
+
+    // Cleanup resize observer
+    if (resizeObserver.value) {
+      resizeObserver.value.disconnect()
+    }
   })
 
   watch(() => playerStore.currentSong?.name, async () => {
@@ -637,7 +708,7 @@
 
 <template>
   <div v-if='playerStore.currentSong' class='bg-sidebar px-2 py-3'>
-    <div class='mx-auto'>
+    <div ref='containerRef' class='mx-auto'>
       <div class='grid grid-cols-3 items-center px-2'>
         <div
           @mouseenter='onTitleMouseEnter'
@@ -809,59 +880,136 @@
 
         <div class='flex justify-end'>
           <div class='flex items-center space-x-2'>
-            <Button
-              @click="$emit('toggle-favorite', playerStore.currentSong)"
-              size='icon'
-              variant='ghost'
-            >
-              <Heart
-                :class="[
-                  'w-5 h-5',
-                  playerStore.currentSong.isFavorite
-                    ? 'fill-current'
-                    : '',
-                ]"
-              />
-            </Button>
-
-            <Button @click="$emit('toggle-fullscreen')" size='icon' variant='ghost'>
-              <Expand class='w-5 h-5' />
-            </Button>
-
-            <Button
-              @click="$emit('toggle-equalizer')"
-              v-if='useWebAudio'
-              size='icon'
-              variant='ghost'
-            >
-              <Sliders
-                :class="[
-                  'w-5 h-5',
-                ]"
-              />
-            </Button>
-
-            <div class='flex items-center space-x-2'>
-              <button
-                @click='playerStore.toggleMute'
-                class='text-muted-foreground hover:text-foreground'
-              >
-                <Volume2 v-if='playerStore.volume > 50' class='h-4 w-4' />
-                <Volume1 v-else-if='playerStore.volume > 0' class='h-4 w-4' />
-                <VolumeX v-else class='h-4 w-4' />
-              </button>
-              <Slider
-                @update:model-value='onVolumeInput'
-                :max='100'
-                :model-value='[playerStore.volume * 100]'
-                :step='1'
-                class='w-20'
-              />
-            </div>
-
+            <!-- Always visible: queue button -->
             <Button @click="$emit('toggle-queue')" size='icon' variant='ghost'>
               <ListMusic class='w-5 h-5' />
             </Button>
+
+            <!-- Compact mode: show dropdown menu for additional controls -->
+            <DropdownMenu v-if='isCompact'>
+              <DropdownMenuTrigger as-child>
+                <Button size='icon' variant='ghost'>
+                  <MoreHorizontal class='w-5 h-5' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem @click="$emit('toggle-favorite', playerStore.currentSong)">
+                  <Heart
+                    :class="[
+                      'w-4 h-4 mr-2',
+                      playerStore.currentSong.isFavorite
+                        ? 'fill-current'
+                        : '',
+                    ]"
+                  />
+                  Favorite
+                </DropdownMenuItem>
+                <DropdownMenuItem @click="$emit('toggle-fullscreen')">
+                  <Expand class='w-4 h-4 mr-2' />
+                  Fullscreen
+                </DropdownMenuItem>
+                <DropdownMenuItem @click="$emit('toggle-equalizer')" v-if='useWebAudio'>
+                  <Sliders class='w-4 h-4 mr-2' />
+                  Equalizer
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <div class='flex items-center space-x-2 w-full'>
+                    <button
+                      @click='playerStore.toggleMute'
+                      class='text-muted-foreground hover:text-foreground'
+                    >
+                      <Volume2 v-if='playerStore.volume > 50' class='h-4 w-4' />
+                      <Volume1 v-else-if='playerStore.volume > 0' class='h-4 w-4' />
+                      <VolumeX v-else class='h-4 w-4' />
+                    </button>
+                    <Slider
+                      @update:model-value='onVolumeInput'
+                      :max='100'
+                      :model-value='[playerStore.volume * 100]'
+                      :step='1'
+                      class='w-24 flex-1'
+                    />
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <!-- Full mode: show all controls inline -->
+            <template v-else>
+              <Button
+                @click="$emit('toggle-favorite', playerStore.currentSong)"
+                size='icon'
+                variant='ghost'
+              >
+                <Heart
+                  :class="[
+                    'w-5 h-5',
+                    playerStore.currentSong.isFavorite
+                      ? 'fill-current'
+                      : '',
+                  ]"
+                />
+              </Button>
+
+              <Button @click="$emit('toggle-fullscreen')" size='icon' variant='ghost'>
+                <Expand class='w-5 h-5' />
+              </Button>
+
+              <Button
+                @click="$emit('toggle-equalizer')"
+                v-if='useWebAudio'
+                size='icon'
+                variant='ghost'
+              >
+                <Sliders
+                  :class="[
+                    'w-5 h-5',
+                  ]"
+                />
+              </Button>
+
+              <div class='relative'>
+                <Button
+                  @click='handleVolumeClick'
+                  :class='isVolumePopupVisible ? "bg-accent/20" : ""'
+                  size='icon'
+                  variant='ghost'
+                  data-volume-button
+                >
+                  <Volume2 v-if='playerStore.volume > 50' class='w-4 h-4' />
+                  <Volume1 v-else-if='playerStore.volume > 0' class='w-4 h-4' />
+                  <VolumeX v-else class='w-4 h-4' />
+                </Button>
+                <div
+                  v-if='isVolumePopupVisible'
+                  ref='volumePopupRef'
+                  class='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 p-3
+                         bg-card border border-border rounded-md shadow-lg z-50'
+                >
+                  <div class='flex flex-col items-center gap-2'>
+                    <span class='text-xs text-muted-foreground font-medium'>
+                      {{ Math.round(playerStore.volume * 100) }}%
+                    </span>
+                    <Slider
+                      @update:model-value='onVolumeInput'
+                      :max='100'
+                      :model-value='[playerStore.volume * 100]'
+                      :step='1'
+                      class='h-16 w-1.5'
+                      orientation='vertical'
+                    />
+                    <button
+                      @click.stop='playerStore.toggleMute'
+                      class='text-muted-foreground hover:text-foreground transition-colors p-1 rounded'
+                    >
+                      <Volume2 v-if='playerStore.volume > 50' class='w-4 h-4' />
+                      <Volume1 v-else-if='playerStore.volume > 0' class='w-4 h-4' />
+                      <VolumeX v-else class='w-4 h-4' />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
         </div>
       </div>

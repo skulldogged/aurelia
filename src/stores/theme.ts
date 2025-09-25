@@ -27,6 +27,7 @@ export const useThemeStore = defineStore('theme', () => {
       const colors = newScheme.colors
 
       root.style.setProperty('--background', colors.background)
+      root.style.setProperty('--background-dark', colors.backgroundDark)
       root.style.setProperty('--foreground', colors.foreground)
       root.style.setProperty('--card', colors.card)
       root.style.setProperty('--card-foreground', colors.cardForeground)

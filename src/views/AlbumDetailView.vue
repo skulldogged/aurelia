@@ -110,7 +110,7 @@
 </script>
 
 <template>
-  <div class='p-8 max-w-7xl mx-auto space-y-8'>
+  <div class='p-4 max-w-7xl mx-auto space-y-8'>
     <div class='flex justify-end'>
       <Button
         @click='showSkeleton = !showSkeleton'

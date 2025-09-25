@@ -114,7 +114,7 @@
 </script>
 
 <template>
-  <div class='p-8 max-w-7xl mx-auto'>
+  <div class='p-4 max-w-7xl mx-auto'>
     <div class='mb-8'>
       <div class='flex justify-between items-start mb-4'>
         <h1 class='text-4xl font-bold'>

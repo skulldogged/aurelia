@@ -11,6 +11,7 @@ export interface ColorScheme {
     accent:                string
     accentForeground:      string
     background:            string
+    backgroundDark:        string
     border:                string
     card:                  string
     cardForeground:        string
@@ -53,6 +54,7 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       accent:                '#64748b',
       accentForeground:      'oklch(0.985 0 0)',
       background:            'oklch(1 0 0)',
+      backgroundDark:        'oklch(0.98 0 0)',
       border:                'oklch(0.92 0.004 286.32)',
       card:                  'oklch(1 0 0)',
       cardForeground:        'oklch(0.141 0.005 285.823)',
@@ -93,6 +95,7 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       accent:                '#64748b',
       accentForeground:      'oklch(0.985 0 0)',
       background:            'oklch(0.141 0.005 285.823)',
+      backgroundDark:        'oklch(0.1 0.005 285.823)',
       border:                'oklch(0.274 0.006 286.033)',
       card:                  'oklch(0.141 0.005 285.823)',
       cardForeground:        'oklch(0.985 0 0)',
@@ -133,6 +136,7 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       accent:                '#dc8a78',
       accentForeground:      '#eff1f5',
       background:            '#eff1f5',
+      backgroundDark:        '#e6e9ef',
       border:                '#9ca0b0',
       card:                  '#eff1f5',
       cardForeground:        '#4c4f69',
@@ -173,6 +177,7 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       accent:                '#f2d5cf',
       accentForeground:      '#303446',
       background:            '#303446',
+      backgroundDark:        '#1a1a2e',
       border:                '#626880',
       card:                  '#303446',
       cardForeground:        '#c6d0f5',
@@ -213,6 +218,7 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       accent:                '#f4dbd6',
       accentForeground:      '#24273a',
       background:            '#24273a',
+      backgroundDark:        '#1a1a2e',
       border:                '#5b6078',
       card:                  '#24273a',
       cardForeground:        '#cad3f5',
@@ -253,6 +259,7 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       accent:                '#f5e0dc',
       accentForeground:      '#1e1e2e',
       background:            '#1e1e2e',
+      backgroundDark:        '#11111b',
       border:                '#585b70',
       card:                  '#1e1e2e',
       cardForeground:        '#cdd6f4',
@@ -293,6 +300,7 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       accent:                '#d79921',
       accentForeground:      '#fbf1c7',
       background:            '#fbf1c7',
+      backgroundDark:        '#f2e6b6',
       border:                '#bdae93',
       card:                  '#fbf1c7',
       cardForeground:        '#3c3836',
@@ -333,6 +341,7 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       accent:                '#fabd2f',
       accentForeground:      '#282828',
       background:            '#282828',
+      backgroundDark:        '#1a1a1a',
       border:                '#504945',
       card:                  '#282828',
       cardForeground:        '#ebdbb2',

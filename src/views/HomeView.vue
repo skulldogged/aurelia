@@ -167,7 +167,7 @@
 </script>
 
 <template>
-  <div class='p-8 max-w-7xl mx-auto'>
+  <div class='p-4 max-w-7xl mx-auto'>
     <div class='mb-8'>
       <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center'>
         <h1 class='text-4xl font-bold'>

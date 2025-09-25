@@ -1,23 +1,56 @@
 <script setup lang="ts">
-  import { Disc, Home, Music, Settings, Users } from 'lucide-vue-next'
+  import { Disc, Home, Music, Search, Settings, Users } from 'lucide-vue-next'
+  import { ref } from 'vue'
+
+  import { Input } from '@/components/ui/input'
 
   defineProps<{
     currentView: string
     isCollapsed: boolean
   }>()
 
-  defineEmits<{
-    navigate: [view: string]
+  const emit = defineEmits<{
+    'global-search': [query: string]
+    navigate:        [view: string]
   }>()
+
+  const globalSearchQuery = ref('')
+
+  const handleGlobalSearch = (): void => {
+    emit('global-search', globalSearchQuery.value)
+  }
+
+  const handleSearchFocus = (): void => {
+    if (globalSearchQuery.value.trim())
+      emit('global-search', globalSearchQuery.value)
+  }
 </script>
 
 <template>
   <div
     :class="[
-      'bg-sidebar flex flex-col flex-shrink-0 ease-in-out',
+      'bg-background-dark flex flex-col flex-shrink-0 ease-in-out',
       isCollapsed ? 'w-16' : 'w-48',
     ]"
   >
+    <!-- Search bar at the top -->
+    <div class='p-2'>
+      <div class='relative flex items-center h-10 rounded-md'>
+        <Search class='absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-foreground/60' />
+        <Input
+          @focus='handleSearchFocus'
+          @input='handleGlobalSearch'
+          v-model='globalSearchQuery'
+          :class="[
+            'w-full pl-12 bg-transparent border-0 text-foreground text-sm font-medium',
+            'placeholder:text-muted-foreground focus-visible:ring-0',
+            isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100'
+          ]"
+          :placeholder="isCollapsed ? '' : 'Search music...'"
+        />
+      </div>
+    </div>
+
     <nav class='flex flex-col flex-grow mx-2 mb-2'>
       <div class='flex-grow space-y-2'>
         <router-link

@@ -94,7 +94,7 @@
 
 <template>
   <div class='h-full flex flex-col'>
-    <div class='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full'>
+    <div class='max-w-7xl mx-auto p-4 w-full'>
       <div class='w-full'>
         <div class='mb-8'>
           <h1 class='text-4xl font-bold mb-4'>
@@ -116,6 +116,7 @@
               >
                 {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
               </Button>
+
               <!-- Sort Controls -->
               <Select v-model='sortOption'>
                 <SelectTrigger class='w-[180px]'>
