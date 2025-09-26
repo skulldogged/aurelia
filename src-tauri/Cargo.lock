@@ -2061,6 +2061,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "urlencoding",
+ "window-vibrancy",
 ]
 
 [[package]]

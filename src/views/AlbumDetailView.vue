@@ -32,8 +32,7 @@
 
   const album = computed(() => {
     if (!props.libraryLoaded || !props.allAlbums.length) return null
-    const albumName = decodeURIComponent(route.params.albumName as string)
-    return props.allAlbums.find(a => a.name === albumName) || null
+    return props.allAlbums.find(a => a.name === decodeURIComponent(route.params.albumName as string)) || null
   })
 
   const albumSongs = computed(() => {

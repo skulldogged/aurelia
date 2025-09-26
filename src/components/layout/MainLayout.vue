@@ -15,6 +15,7 @@
     currentView:     string
     hasPlayer:       boolean
     isEqualizerOpen: boolean
+    isLyricsOpen:    boolean
     isQueueOpen:     boolean
   }>()
 
@@ -62,16 +63,19 @@
       class='absolute left-0 top-0 h-full z-30 border-r border-border/50'
     />
 
-    <div class='flex flex-grow min-h-0 bg-background-dark'>
+    <!-- Search results overlay -->
+    <slot :is-sidebar-collapsed='isSidebarCollapsed' :on-result-click='() => {}' name='search-results' />
+
+    <div class='flex flex-grow min-h-0 bg-sidebar/60' :class="{ 'pb-[88px]': hasPlayer }">
       <div
         :class="[
           'flex flex-1 min-w-0',
           {
-            'ml-[64px]': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen,
-            'ml-[192px]': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen,
-            'ml-[64px] mr-[256px] lg:mr-[288px] xl:mr-[320px]': isSidebarCollapsed && (isQueueOpen || isEqualizerOpen),
-            'ml-[192px] mr-[256px] lg:mr-[288px] xl:mr-[320px]':
-              !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen),
+            'ml-[64px]': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+            'ml-[192px]': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+            'ml-[64px] mr-[256px] lg:mr-[320px] xl:mr-[384px] 2xl:mr-[448px]': isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+            'ml-[192px] mr-[256px] lg:mr-[320px] xl:mr-[384px] 2xl:mr-[448px]':
+              !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
           }
         ]"
       >
@@ -126,24 +130,26 @@
       </div>
     </div>
 
-    <!-- Queue/Equalizer positioned absolutely on the right -->
+    <!-- Queue/Equalizer/Lyrics positioned absolutely on the right -->
     <div
       :class="[
         'absolute right-0 top-0 h-full z-20',
-        (isQueueOpen || isEqualizerOpen) ? 'border-l border-border/50' : ''
+        (isQueueOpen || isEqualizerOpen || isLyricsOpen) ? 'border-l border-border/50' : ''
       ]"
     >
       <slot name='queue' />
     </div>
+
+    <!-- Player positioned absolutely at bottom -->
     <div
+      v-if='hasPlayer'
       :class="[
-        'flex-shrink-0',
+        'absolute bottom-0 z-30 bg-sidebar/95 backdrop-blur-sm border-t border-border/50',
         {
-          'ml-[64px]': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen,
-          'ml-[192px]': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen,
-          'ml-[64px] mr-[256px] lg:mr-[288px] xl:mr-[320px]': isSidebarCollapsed && (isQueueOpen || isEqualizerOpen),
-          'ml-[192px] mr-[256px] lg:mr-[288px] xl:mr-[320px]':
-            !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen),
+          'left-[64px] right-0': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+          'left-[192px] right-0': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+          'left-[64px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px]': isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+          'left-[192px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px]': !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
         }
       ]"
     >

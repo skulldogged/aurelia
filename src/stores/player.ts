@@ -224,10 +224,19 @@ export const usePlayerStore = defineStore('player', () => {
 
   const setCurrentIndex = (index: number): void => {
     currentIndex.value = index
-    if (index >= 0 && index < playlist.value.length)
-      currentSong.value = playlist.value[index]
-    else
+    if (index >= 0 && index < playlist.value.length) {
+      const newSong = playlist.value[index]
+      currentSong.value = newSong
+      // Also update duration when song changes via index
+      if (newSong) {
+        currentTime.value = 0
+        duration.value = newSong.duration || 0
+      }
+    } else {
       currentSong.value = null
+      currentTime.value = 0
+      duration.value = 0
+    }
   }
 
   const setAudioReady = (ready: boolean): void => {

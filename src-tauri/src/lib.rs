@@ -11,9 +11,11 @@ pub use anyhow::Result;
 use specta_typescript::BigIntExportBehavior;
 use specta_typescript::Typescript;
 use std::process::Command;
+use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use window_vibrancy::apply_acrylic;
 
 fn init_logging() {
     tracing_subscriber::registry()
@@ -101,6 +103,14 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+
+            // Apply Acrylic effect on Windows
+            #[cfg(target_os = "windows")]
+            {
+                let window = app.get_webview_window("main").unwrap();
+                apply_acrylic(&window, None).expect("Failed to apply Acrylic effect");
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

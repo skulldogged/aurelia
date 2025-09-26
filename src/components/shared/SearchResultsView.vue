@@ -8,14 +8,15 @@
 
   import ImageLoader from './ImageLoader.vue'
 
-  const props = defineProps<{
-    albums:     Album[]
-    artists:    Artist[]
-    isVisible:  boolean
-    query:      string
-    serverUrl?: string
-    songs:      Song[]
-    token?:     string
+  const props =   defineProps<{
+    albums:             Album[]
+    artists:            Artist[]
+    isSidebarCollapsed: boolean
+    isVisible:          boolean
+    query:              string
+    serverUrl?:         string
+    songs:              Song[]
+    token?:             string
   }>()
 
   const emit = defineEmits<{
@@ -99,6 +100,7 @@
       else if (result.item.type === 'artist')
         results.artists.push(result)
     }
+
     return results
   })
 
@@ -141,7 +143,10 @@
   <div
     v-if='isVisible && query'
     ref='searchResultsRef'
-    class='absolute top-14 left-1/2 -translate-x-1/2 w-96 bg-background border border-border rounded-md shadow-lg z-50'
+    :class="[
+      'absolute top-12 bg-background border border-border rounded-md shadow-lg z-50 w-96',
+      isSidebarCollapsed ? 'left-2' : 'left-2'
+    ]"
   >
     <ScrollArea class='h-[400px]'>
       <div v-if='hasResults' class='p-2'>
@@ -155,7 +160,7 @@
                 v-for='song in filteredSongs'
                 @click='selectSong(song)'
                 :key='song.id'
-                class='flex items-center p-2 rounded-md hover:bg-accent cursor-pointer'
+                class='flex items-center p-2 rounded-md hover:bg-accent/20 cursor-pointer'
               >
                 <ImageLoader
                   v-if='serverUrl && token'
@@ -184,7 +189,7 @@
                 v-for='album in filteredAlbums'
                 @click='selectAlbum(album)'
                 :key='album.name'
-                class='flex items-center p-2 rounded-md hover:bg-accent cursor-pointer'
+                class='flex items-center p-2 rounded-md hover:bg-accent/20 cursor-pointer'
               >
                 <ImageLoader
                   v-if='serverUrl && token'
@@ -213,7 +218,7 @@
                 v-for='artist in filteredArtists'
                 @click='selectArtist(artist)'
                 :key='artist.id'
-                class='flex items-center p-2 rounded-md hover:bg-accent cursor-pointer'
+                class='flex items-center p-2 rounded-md hover:bg-accent/20 cursor-pointer'
               >
                 <div class='w-10 h-10 rounded-full bg-muted flex items-center justify-center mr-3'>
                   <span class='text-lg font-bold'>{{ artist.name.charAt(0) }}</span>

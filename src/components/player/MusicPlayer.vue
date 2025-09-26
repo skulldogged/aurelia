@@ -4,6 +4,7 @@
     Heart,
     ListMusic,
     Loader2,
+    Mic2,
     MoreHorizontal,
     Music2,
     Pause,
@@ -44,6 +45,7 @@
     'toggle-equalizer':  []
     'toggle-favorite':   [song: Song]
     'toggle-fullscreen': []
+    'toggle-lyrics':     []
     'toggle-queue':      []
   }>()
 
@@ -53,9 +55,9 @@
   const webAudioPlayer = useWebAudioPlayer()
 
   webAudioPlayer.setOnDurationChange((duration: number) => {
-    if (duration > 0) {
+    // For WebAudio streaming, we might get 0 initially, then Infinity, then actual duration
+    if (isFinite(duration) && duration > 0 && duration !== Infinity && duration !== playerStore.duration) {
       playerStore.setDuration(duration)
-      playerLogger.debug(`Updated duration in store: ${duration}s`)
     }
   })
 
@@ -444,9 +446,11 @@
         if (loaded) {
           playerStore.setAudioReady(true)
           playerStore.setBuffering(false)
-          const duration = webAudioPlayer.getDuration()
-          if (duration > 0) {
-            playerStore.setDuration(duration)
+          const webAudioDuration = webAudioPlayer.getDuration()
+          // For streaming, WebAudio initially reports Infinity, so keep the song duration
+          // Only update if we get a finite duration
+          if (isFinite(webAudioDuration) && webAudioDuration > 0) {
+            playerStore.setDuration(webAudioDuration)
           }
           playerStore.setCurrentTime(0)
         } else {
@@ -509,15 +513,12 @@
     execute()
   }
 
-  watch(() => playerStore.currentSong, (newSong, oldSong) => {
-    playerLogger.debug(`Current song changed: ${oldSong?.name} → ${newSong?.name}`)
-
-    if (newSong && newSong.id !== oldSong?.id) {
-      const newIndex = playerStore.playlist.findIndex(s => s.id === newSong.id)
+  watch(() => playerStore.currentSong?.id, (newSongId, oldSongId) => {
+    if (newSongId !== oldSongId) {
+      const newSong = playerStore.currentSong!
+      const newIndex = playerStore.playlist.findIndex(s => s.id === newSongId)
       if (newIndex !== -1)
         playerStore.setCurrentIndex(newIndex)
-
-      playerLogger.debug(`Next song in queue: ${nextSongInQueue.value?.name || 'none'}`)
 
       if (isGaplessTransition.value) {
         isGaplessTransition.value = false
@@ -558,7 +559,7 @@
       } else {
         playManuallyChangedSong(newSong)
       }
-    } else if (!newSong) {
+    } else if (!playerStore.currentSong) {
       stopWebAudioTimeUpdates()
       webAudioPlayer.stop()
 
@@ -580,7 +581,6 @@
         playerStore.setCurrentIndex(-1)
       }
     },
-    { deep: true },
   )
 
   const advanceToNextSong = (): void => {
@@ -707,8 +707,8 @@
 </script>
 
 <template>
-  <div v-if='playerStore.currentSong' class='bg-sidebar px-2 py-3'>
-    <div ref='containerRef' class='mx-auto'>
+  <div v-if='playerStore.currentSong' class='px-2 py-3'>
+    <div ref='containerRef' class='mx-auto max-w-full'>
       <div class='grid grid-cols-3 items-center px-2'>
         <div
           @mouseenter='onTitleMouseEnter'
@@ -883,6 +883,11 @@
             <!-- Always visible: queue button -->
             <Button @click="$emit('toggle-queue')" size='icon' variant='ghost'>
               <ListMusic class='w-5 h-5' />
+            </Button>
+
+            <!-- Always visible: lyrics button -->
+            <Button @click="$emit('toggle-lyrics')" size='icon' variant='ghost'>
+              <Mic2 class='w-5 h-5' />
             </Button>
 
             <!-- Compact mode: show dropdown menu for additional controls -->

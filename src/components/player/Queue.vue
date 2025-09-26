@@ -47,7 +47,7 @@
 </script>
 
 <template>
-  <div class='w-64 lg:w-72 xl:w-80 flex flex-col bg-background-dark h-full pt-12'>
+  <div class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] flex flex-col bg-background-dark h-full pt-12'>
     <div class='p-4'>
       <h2 class='text-lg font-semibold'>
         Up Next

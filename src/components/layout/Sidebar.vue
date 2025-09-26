@@ -29,29 +29,26 @@
 <template>
   <div
     :class="[
-      'bg-background-dark flex flex-col flex-shrink-0 ease-in-out',
+      'bg-transparent flex flex-col flex-shrink-0 ease-in-out',
       isCollapsed ? 'w-16' : 'w-48',
     ]"
   >
-    <!-- Search bar at the top -->
-    <div class='p-2'>
-      <div class='relative flex items-center h-10 rounded-md'>
-        <Search class='absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-foreground/60' />
-        <Input
-          @focus='handleSearchFocus'
-          @input='handleGlobalSearch'
-          v-model='globalSearchQuery'
-          :class="[
-            'w-full pl-12 bg-transparent border-0 text-foreground text-sm font-medium',
-            'placeholder:text-muted-foreground focus-visible:ring-0',
-            isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100'
-          ]"
-          :placeholder="isCollapsed ? '' : 'Search music...'"
-        />
-      </div>
+    <!-- Search input -->
+    <div class='m-2 mb-2 relative'>
+      <Input
+        @focus='handleSearchFocus'
+        @input='handleGlobalSearch'
+        v-model='globalSearchQuery'
+        :class="[
+          'h-10 pl-10 transition-all duration-150 ease-in-out',
+          isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        ]"
+        placeholder='Search music...'
+        type='text'
+      />
+      <Search class='absolute left-3.5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground' />
     </div>
-
-    <nav class='flex flex-col flex-grow mx-2 mb-2'>
+    <nav class='flex flex-col flex-grow m-2 mt-0'>
       <div class='flex-grow space-y-2'>
         <router-link
           :class="[

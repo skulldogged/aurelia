@@ -86,12 +86,14 @@ const toggleFavorite = async (
         playerLogger.error('Failed to toggle favorite status:', error)
       },
       onSuccess: newStatus => {
-        if (playerStore.currentSong && playerStore.currentSong.id === song.id)
+        if (playerStore.currentSong && playerStore.currentSong.id === song.id) {
           playerStore.currentSong.isFavorite = newStatus
+        }
 
         const playlistSong = playerStore.playlist.find((s: Song) => s.id === song.id)
-        if (playlistSong)
+        if (playlistSong) {
           playlistSong.isFavorite = newStatus
+        }
       },
     },
   )

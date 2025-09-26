@@ -4,7 +4,7 @@
   import { onMounted, watch } from 'vue'
   import { ref } from 'vue'
 
-  import type { Credentials } from '@/bindings'
+  import type { Credentials, Song } from '@/bindings'
 
   import SearchResults from '@/components/shared/SearchResultsView.vue'
   import WindowControls from '@/components/shared/WindowControls.vue'
@@ -21,6 +21,7 @@
   import MainLayout from './components/layout/MainLayout.vue'
   import Equalizer from './components/player/Equalizer.vue'
   import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
+  import LyricsSidebar from './components/player/LyricsSidebar.vue'
   import MusicPlayer from './components/player/MusicPlayer.vue'
   import Queue from './components/player/Queue.vue'
   import Login from './views/LoginView.vue'
@@ -44,12 +45,13 @@
     handleGlobalSearch,
     handleNextSong,
     handlePreviousSong,
-    handleSeek,
+    handleSeek: handleSeek,
     handleTogglePlayPause,
     handleToggleRepeat,
     handleToggleShuffle,
     isEqualizerOpen,
     isFullScreenPlayerOpen,
+    isLyricsOpen,
     isQueueOpen,
     isSearchVisible,
     musicPlayerRef,
@@ -57,6 +59,7 @@
     searchQuery,
     toggleEqualizer,
     toggleFullScreenPlayer,
+    toggleLyrics,
     toggleQueue,
     toggleSearchVisibility,
   } = usePlayerControls()
@@ -129,6 +132,10 @@
     playerStore.setCurrentIndex(-1)
   }
 
+  const handleToggleFavorite = (song: Song): void => {
+    toggleFavorite(song)
+  }
+
   const handleVolumeChange = (newVolume: number): void => {
     playerStore.setVolume(newVolume)
   }
@@ -159,7 +166,7 @@
 </script>
 
 <template>
-  <div id='app' class='h-screen bg-background text-foreground'>
+  <div id='app' class='h-screen text-foreground'>
     <div v-if="authStatus === 'pending'" class='h-full w-full flex items-center justify-center'>
       <div class='text-center'>
         <div class='animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4' />
@@ -197,6 +204,7 @@
       :current-view='currentView'
       :has-player='!!currentSong'
       :is-equalizer-open='isEqualizerOpen'
+      :is-lyrics-open='isLyricsOpen'
       :is-queue-open='isQueueOpen'
     >
       <router-view v-slot='{ Component }'>
@@ -231,13 +239,14 @@
         </transition>
       </router-view>
 
-      <template #search-results='{ onResultClick }'>
+      <template #search-results='{ isSidebarCollapsed, onResultClick }'>
         <SearchResults
           @close='toggleSearchVisibility(false)'
           @play-song='playSong'
           @result-clicked='onResultClick'
           :albums='libraryStore.allAlbums as any'
           :artists='libraryStore.allArtistsWithSongs as any'
+          :is-sidebar-collapsed='isSidebarCollapsed'
           :is-visible='isSearchVisible'
           :query='searchQuery'
           :server-url='credentials?.serverUrl'
@@ -256,14 +265,22 @@
           :playlist='playlist as any'
         />
         <Equalizer v-if='isEqualizerOpen' />
+        <LyricsSidebar
+          @seek='handleSeek'
+          v-if='isLyricsOpen'
+          :current-song='currentSong as any'
+          :current-time='currentTime'
+          :duration='duration'
+        />
       </template>
 
       <template #player>
         <MusicPlayer
           @song-changed='handleSongChanged'
           @toggle-equalizer='toggleEqualizer'
-          @toggle-favorite='toggleFavorite'
+          @toggle-favorite='handleToggleFavorite'
           @toggle-fullscreen='toggleFullScreenPlayer'
+          @toggle-lyrics='toggleLyrics'
           @toggle-queue='toggleQueue'
           @update-current-song='handleUpdateCurrentSong'
           @volume-changed='handleVolumeChange'

@@ -121,7 +121,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
     font-family: "Rubik", sans-serif;
     user-select: none;
   }

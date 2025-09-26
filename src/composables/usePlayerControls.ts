@@ -14,6 +14,7 @@ interface MusicPlayerRef {
 const isQueueOpen = ref(false)
 const isEqualizerOpen = ref(false)
 const isFullScreenPlayerOpen = ref(false)
+const isLyricsOpen = ref(false)
 const searchQuery = ref('')
 const isSearchVisible = ref(false)
 
@@ -27,6 +28,8 @@ const handleGlobalSearch = (query: string): void => {
 const toggleQueue = (): void => {
   if (isEqualizerOpen.value)
     isEqualizerOpen.value = false
+  if (isLyricsOpen.value)
+    isLyricsOpen.value = false
 
   isQueueOpen.value = !isQueueOpen.value
 }
@@ -57,6 +60,7 @@ export interface PlayerControls {
   handleToggleShuffle:    () => void
   isEqualizerOpen:        Readonly<Ref<boolean>>
   isFullScreenPlayerOpen: Readonly<Ref<boolean>>
+  isLyricsOpen:           Readonly<Ref<boolean>>
   isQueueOpen:            Readonly<Ref<boolean>>
   isSearchVisible:        Readonly<Ref<boolean>>
   musicPlayerRef:         Ref<MusicPlayerRef | null>
@@ -64,6 +68,7 @@ export interface PlayerControls {
   searchQuery:            Readonly<Ref<string>>
   toggleEqualizer:        () => void
   toggleFullScreenPlayer: () => void
+  toggleLyrics:           () => void
   toggleQueue:            () => void
   toggleSearchVisibility: (visible: boolean) => void
 }
@@ -74,10 +79,21 @@ export const usePlayerControls = (): PlayerControls => {
   const toggleEqualizer = (): void => {
     if (isQueueOpen.value)
       isQueueOpen.value = false
+    if (isLyricsOpen.value)
+      isLyricsOpen.value = false
 
     const newState = !isEqualizerOpen.value
     isEqualizerOpen.value = newState
     playerStore.setEQEnabled(newState)
+  }
+
+  const toggleLyrics = (): void => {
+    if (isQueueOpen.value)
+      isQueueOpen.value = false
+    if (isEqualizerOpen.value)
+      isEqualizerOpen.value = false
+
+    isLyricsOpen.value = !isLyricsOpen.value
   }
 
   const handlePreviousSong = (): void => {
@@ -101,6 +117,7 @@ export const usePlayerControls = (): PlayerControls => {
     handleToggleShuffle:    playerStore.toggleShuffle,
     isEqualizerOpen:        readonly(isEqualizerOpen),
     isFullScreenPlayerOpen: readonly(isFullScreenPlayerOpen),
+    isLyricsOpen:           readonly(isLyricsOpen),
     isQueueOpen:            readonly(isQueueOpen),
     isSearchVisible:        readonly(isSearchVisible),
     musicPlayerRef,
@@ -108,6 +125,7 @@ export const usePlayerControls = (): PlayerControls => {
     searchQuery:            readonly(searchQuery),
     toggleEqualizer,
     toggleFullScreenPlayer,
+    toggleLyrics,
     toggleQueue,
 
     toggleSearchVisibility,
