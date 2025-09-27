@@ -2,6 +2,7 @@
   import AppearanceSettings from '@/components/settings/AppearanceSettings.vue'
   import LibrarySettings from '@/components/settings/LibrarySettings.vue'
   import ServerSettings from '@/components/settings/ServerSettings.vue'
+  import SystemTraySettings from '@/components/settings/SystemTraySettings.vue'
 
   interface Credentials {
     serverUrl: string
@@ -32,6 +33,7 @@
     </div>
 
     <AppearanceSettings />
+    <SystemTraySettings />
     <ServerSettings @logout='$emit("logout")' :credentials='credentials' />
     <LibrarySettings
       @clear-cache='$emit("clear-cache")'

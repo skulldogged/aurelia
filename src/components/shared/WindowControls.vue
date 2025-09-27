@@ -1,12 +1,38 @@
 <script setup lang="ts">
   import { Window } from '@tauri-apps/api/window'
+  import { storeToRefs } from 'pinia'
   import { onMounted, ref } from 'vue'
+
+  import { useSystemTray } from '@/composables/useSystemTray'
+  import { useSystemTrayStore } from '@/stores'
 
   const isMaximized = ref(false)
   const appWindow = Window.getCurrent()
+  const systemTrayStore = useSystemTrayStore()
+  const { closeToTray, minimizeToTray } = storeToRefs(systemTrayStore)
+  const { hideMainWindow } = useSystemTray()
 
   const checkMaximized = async (): Promise<void> => {
     isMaximized.value = await appWindow.isMaximized()
+  }
+
+  const handleMinimize = async (): Promise<void> => {
+    console.log('handleMinimize: minimizeToTray.value =', minimizeToTray.value)
+    if (minimizeToTray.value) {
+      console.log('Hiding to system tray')
+      await hideMainWindow()
+    } else {
+      console.log('Minimizing window normally')
+      await appWindow.minimize()
+    }
+  }
+
+  const handleClose = async (): Promise<void> => {
+    if (closeToTray.value) {
+      await hideMainWindow()
+    } else {
+      await appWindow.close()
+    }
   }
 
   appWindow.onResized(() => {
@@ -22,7 +48,7 @@
   <div class='flex items-center h-12'>
     <!-- eslint-disable @stylistic/max-len -->
     <div
-      @click='appWindow.minimize()'
+      @click='handleMinimize'
       class='
         cursor-default rounded-none bg-transparent text-foreground
         hover:bg-black/[.05] active:bg-black/[.03]
@@ -83,7 +109,7 @@
       </svg>
     </div>
     <div
-      @click='appWindow.close()'
+      @click='handleClose'
       class='
         cursor-default rounded-none bg-transparent text-foreground
         hover:bg-accent hover:text-accent-foreground

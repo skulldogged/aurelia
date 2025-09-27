@@ -16,6 +16,7 @@
   import { usePlayerControls } from '@/composables/usePlayerControls'
   import { usePlayerSession } from '@/composables/usePlayerSession'
   import { useSongInteractions } from '@/composables/useSongInteractions'
+  import { useSystemTray } from '@/composables/useSystemTray'
   import { appLogger } from '@/lib/logger'
   import { useBlurStore, useLibraryStore } from '@/stores'
 
@@ -33,6 +34,7 @@
   const libraryStore = useLibraryStore()
   const blurStore = useBlurStore()
   const { preloadRecentImages } = useImageLoader()
+  useSystemTray() // Initialize system tray functionality
 
   const {
     canGoBack,

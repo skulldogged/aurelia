@@ -205,6 +205,9 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
+  hideMainWindow: async (): Promise<void> => {
+    await TAURI_INVOKE('hide_main_window')
+  },
   /**
  * Login to Jellyfin server
  */
@@ -226,6 +229,9 @@ export const commands = {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
     }
+  },
+  quitApplication: async (): Promise<void> => {
+    await TAURI_INVOKE('quit_application')
   },
   /**
  * Register client capabilities with Jellyfin server
@@ -303,6 +309,15 @@ export const commands = {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
     }
+  },
+  setCloseToTray: async (closeToTray: boolean): Promise<void> => {
+    await TAURI_INVOKE('set_close_to_tray', { closeToTray })
+  },
+  setMinimizeToTray: async (minimizeToTray: boolean): Promise<void> => {
+    await TAURI_INVOKE('set_minimize_to_tray', { minimizeToTray })
+  },
+  showMainWindow: async (): Promise<void> => {
+    await TAURI_INVOKE('show_main_window')
   },
   /**
  * Sync music library - update existing data without clearing cache

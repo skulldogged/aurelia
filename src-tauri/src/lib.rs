@@ -3,6 +3,7 @@ pub mod error;
 pub mod handlers;
 pub mod models;
 pub mod services;
+pub mod system_tray;
 pub mod utils;
 
 pub use anyhow::Result;
@@ -84,6 +85,11 @@ pub fn run() {
         handlers::images::cache_image_from_url,
         handlers::images::clear_image_cache,
         handlers::images::get_image_cache_stats,
+        system_tray::show_main_window,
+        system_tray::hide_main_window,
+        system_tray::quit_application,
+        system_tray::set_minimize_to_tray,
+        system_tray::set_close_to_tray,
     ]);
 
     #[cfg(debug_assertions)]
@@ -104,8 +110,11 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
 
-            // Blur mode will be applied from frontend after settings are loaded
-            // This allows users to choose their preferred blur mode
+            if let Err(e) = system_tray::setup_system_tray(app.handle()) {
+                error!("Failed to setup system tray: {}", e);
+            }
+
+            system_tray::setup_window_behavior(app.handle());
 
             Ok(())
         })

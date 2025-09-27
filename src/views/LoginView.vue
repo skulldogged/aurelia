@@ -4,7 +4,6 @@
 
   import { commands } from '@/bindings'
   import { Button } from '@/components/ui/button'
-  import { Checkbox } from '@/components/ui/checkbox'
   import { Input } from '@/components/ui/input'
   import { Label } from '@/components/ui/label'
   import { withCustomState } from '@/lib/result'
@@ -13,14 +12,12 @@
 
   interface LoginForm {
     password:  string
-    remember:  boolean
     serverUrl: string
     username:  string
   }
 
   const form = ref<LoginForm>({
     password:  '',
-    remember:  true,
     serverUrl: '',
     username:  '',
   })
@@ -53,42 +50,30 @@
           loading.value = true
         },
         onSuccess: async loginData => {
-          // If login successful and remember is checked, save credentials
-          if (form.value.remember) {
-            await withCustomState(
-              () => saveCredentials(
-                form.value.serverUrl,
-                form.value.username,
-                loginData.token,
-                loginData.userId,
-              ),
-              {
-                onError: saveError => {
-                  error.value = `Login successful but failed to save credentials: ${saveError}`
-                  loading.value = false
-                },
-                onSuccess: () => {
-                  // Credentials saved successfully
-                  emit('login', {
-                    serverUrl: form.value.serverUrl,
-                    token:     loginData.token,
-                    userId:    loginData.userId,
-                    username:  form.value.username,
-                  })
-                  loading.value = false
-                },
+          await withCustomState(
+            () => saveCredentials(
+              form.value.serverUrl,
+              form.value.username,
+              loginData.token,
+              loginData.userId,
+            ),
+            {
+              onError: saveError => {
+                error.value = `Login successful but failed to save credentials: ${saveError}`
+                loading.value = false
               },
-            )
-          } else {
-            // Login successful, no need to save credentials
-            emit('login', {
-              serverUrl: form.value.serverUrl,
-              token:     loginData.token,
-              userId:    loginData.userId,
-              username:  form.value.username,
-            })
-            loading.value = false
-          }
+              onSuccess: () => {
+                // Credentials saved successfully
+                emit('login', {
+                  serverUrl: form.value.serverUrl,
+                  token:     loginData.token,
+                  userId:    loginData.userId,
+                  username:  form.value.username,
+                })
+                loading.value = false
+              },
+            },
+          )
         },
       },
     )
@@ -156,11 +141,6 @@
             type='password'
             required
           />
-        </div>
-
-        <div class='flex items-center space-x-2'>
-          <Checkbox id='remember' v-model:checked='form.remember' />
-          <Label for='remember'>Remember me</Label>
         </div>
 
         <Button :disabled='loading' class='w-full' type='submit'>

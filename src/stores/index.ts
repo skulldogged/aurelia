@@ -5,6 +5,6 @@ export { useBlurStore } from './blur'
 export type { BlurMode } from './blur'
 export { useLibraryStore } from './library'
 export { usePlayerStore } from './player'
-
 export type { PlayerState } from './player'
+export { useSystemTrayStore } from './systemTray'
 export { useThemeStore } from './theme'
