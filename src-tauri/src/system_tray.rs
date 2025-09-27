@@ -112,14 +112,12 @@ pub fn setup_window_behavior(app: &AppHandle) {
     // Set up window event handler for close events
     if let Some(window) = app.get_webview_window("main") {
         let window_clone = window.clone();
-        let _close_handler = window.on_window_event(move |event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if CLOSE_TO_TRAY.load(Ordering::Relaxed) {
-                    // Prevent default close behavior and hide to tray instead
-                    let _ = window_clone.hide();
-                    api.prevent_close();
-                }
-                // If close to tray is disabled, let the default close behavior happen
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event
+                && CLOSE_TO_TRAY.load(Ordering::Relaxed)
+            {
+                let _ = window_clone.hide();
+                api.prevent_close();
             }
         });
     }
