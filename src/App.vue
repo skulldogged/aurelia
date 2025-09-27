@@ -6,6 +6,7 @@
 
   import type { Credentials, Song } from '@/bindings'
 
+  import { commands } from '@/bindings'
   import SearchResults from '@/components/shared/SearchResultsView.vue'
   import WindowControls from '@/components/shared/WindowControls.vue'
   import { Button } from '@/components/ui/button'
@@ -16,7 +17,7 @@
   import { usePlayerSession } from '@/composables/usePlayerSession'
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { appLogger } from '@/lib/logger'
-  import { useLibraryStore } from '@/stores'
+  import { useBlurStore, useLibraryStore } from '@/stores'
 
   import MainLayout from './components/layout/MainLayout.vue'
   import Equalizer from './components/player/Equalizer.vue'
@@ -30,7 +31,9 @@
 
   const { authStatus, clearError: clearAuthError, credentials, error: authError, login, logout } = useAuth()
   const libraryStore = useLibraryStore()
+  const blurStore = useBlurStore()
   const { preloadRecentImages } = useImageLoader()
+
   const {
     canGoBack,
     canGoForward,
@@ -41,6 +44,7 @@
     navigateToAlbum,
     navigateToArtist,
   } = useNavigation()
+
   const {
     handleGlobalSearch,
     handleNextSong,
@@ -63,6 +67,7 @@
     toggleQueue,
     toggleSearchVisibility,
   } = usePlayerControls()
+
   const {
     handleSongChanged,
     handleUpdateCurrentSong,
@@ -91,8 +96,17 @@
 
   usePlayerSession()
 
-  onMounted(() => {
+  onMounted(async () => {
     playerStore.setVolume(playerStore.volume)
+
+    // Apply saved blur mode when app loads
+    try {
+      // Small delay to ensure Tauri window is fully initialized
+      await new Promise(resolve => setTimeout(resolve, 100))
+      await commands.setBlurMode(blurStore.selectedBlurMode.name)
+    } catch (error) {
+      console.error('Failed to apply initial blur mode:', error)
+    }
   })
 
   // Load library data when user becomes logged in
@@ -116,9 +130,8 @@
 
   // Clear library data on logout
   watch(authStatus, newStatus => {
-    if (newStatus === 'loggedOut') {
+    if (newStatus === 'loggedOut')
       libraryStore.clearData()
-    }
   })
 
   const handleLogin = async (loginCredentials: Credentials): Promise<void> => {

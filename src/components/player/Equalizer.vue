@@ -87,31 +87,30 @@
 </script>
 
 <template>
-  <div class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] flex flex-col bg-background-dark h-full pt-12'>
+  <div class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] flex flex-col bg-background-dark h-full'>
     <!-- Header -->
-    <div class='p-4 border-b border-border/50 flex-shrink-0'>
-      <div class='flex items-center justify-between'>
-        <h2 class='text-lg font-semibold flex items-center gap-2'>
-          <Sliders class='w-5 h-5' />
+    <div
+      class='h-12 flex items-center justify-between pl-4 pr-[142px] flex-shrink-0'
+      data-tauri-drag-region
+    >
+      <div class='flex items-center gap-3'>
+        <h2 class='text-base font-semibold tracking-tight leading-tight text-muted-foreground'>
           Equalizer
         </h2>
-        <Button
-          @click='setEQEnabled(!eqEnabled)'
-          :variant='eqEnabled ? "default" : "outline"'
-          size='sm'
-        >
-          {{ eqEnabled ? 'On' : 'Off' }}
-        </Button>
       </div>
-      <p class='text-xs text-muted-foreground mt-1'>
-        Adjust frequency bands to customize your listening experience. Changes apply in real-time.
-      </p>
+      <Button
+        @click='setEQEnabled(!eqEnabled)'
+        :variant='eqEnabled ? "default" : "outline"'
+        size='sm'
+      >
+        {{ eqEnabled ? 'On' : 'Off' }}
+      </Button>
     </div>
 
     <!-- Controls (only show when EQ is enabled) -->
     <div v-if='eqEnabled' class='flex-1 min-h-0'>
       <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='h-full' defer>
-        <div class='p-4 space-y-6'>
+        <div class='px-4 pb-4 pt-6 space-y-6'>
           <!-- Presets Section -->
           <div class='space-y-3'>
             <h3 class='text-sm font-medium text-foreground'>

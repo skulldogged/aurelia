@@ -1,6 +1,8 @@
 export { useAccentColorStore } from './accentColor'
 export type { AccentColor } from './accentColor'
 export { useAuthStore } from './auth'
+export { useBlurStore } from './blur'
+export type { BlurMode } from './blur'
 export { useLibraryStore } from './library'
 export { usePlayerStore } from './player'
 

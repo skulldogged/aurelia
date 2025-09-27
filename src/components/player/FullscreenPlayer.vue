@@ -230,15 +230,16 @@
                 showLyrics ? 'opacity-100' : 'opacity-0 pointer-events-none'
               ]"
             >
-              <div class='w-full h-full'>
+              <div class='w-full h-full flex justify-center'>
                 <LyricsView
                   @lyrics-loaded='onLyricsLoaded'
                   @seek='handleLyricsSeek'
                   :current-time='currentTime'
                   :duration='duration'
+                  :is-in-sidebar='false'
                   :song='song'
                   :visible='showLyrics'
-                  class='w-full h-full'
+                  class='w-full max-w-3xl h-full'
                 />
               </div>
             </div>

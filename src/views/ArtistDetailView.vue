@@ -59,17 +59,19 @@
   const showFullOverview = ref(false)
   const showShareDialog = ref(false)
 
-  const artist = computed(() => {
-    if (!props.libraryLoaded || !props.allArtists.length) return null
-    return props.allArtists.find(a => a.id === artistId.value) || null
-  })
+  const artist = computed(() =>
+    props.libraryLoaded && props.allArtists.length
+      ? props.allArtists.find(a => a.id === artistId.value) || null
+      : null,
+  )
 
   const artistSongs = computed(() =>
     artist.value
       ? props.allSongs.filter(song =>
         song.artists
         && song.artists.includes(artist.value!.name)).sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
-      : [])
+      : [],
+  )
 
   const artistAlbums = computed(() => {
     if (!artist.value) return []

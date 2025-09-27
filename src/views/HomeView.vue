@@ -55,9 +55,8 @@
 
   // Refetch recently played songs when navigating back to this view
   watch(() => props.libraryLoaded, loaded => {
-    if (loaded && props.serverUrl && props.token && recentlyPlayedSongs.value.length === 0) {
+    if (loaded && props.serverUrl && props.token && recentlyPlayedSongs.value.length === 0)
       fetchRecentlyPlayed()
-    }
   })
 
   const mostPlayed = computed(() =>
@@ -97,6 +96,14 @@
   const initializeFeaturedAlbums = (): void => {
     featuredAlbums.value = [...props.allAlbums].sort(() => 0.5 - Math.random())
   }
+
+  const sortSongsByTrackOrder = (songs: Song[]): Song[] =>
+    [...songs].sort((a, b) => {
+      const trackA = a.trackNumber ?? Number.MAX_SAFE_INTEGER
+      const trackB = b.trackNumber ?? Number.MAX_SAFE_INTEGER
+      if (trackA !== trackB) return trackA - trackB
+      return a.name.localeCompare(b.name)
+    })
 
   const nextFeaturedAlbum = (): void => {
     if (featuredAlbums.value.length > 1)
@@ -146,7 +153,7 @@
 
     const albumSongs = featuredAlbum.value.songs || []
     if (albumSongs.length > 0) {
-      emit('play-songs', albumSongs)
+      emit('play-songs', sortSongsByTrackOrder(albumSongs))
       if (isValidAlbumName(featuredAlbum.value.name)) {
         router.push(`/songs/album/${encodeURIComponent(featuredAlbum.value.name)}`)
       }
@@ -158,8 +165,7 @@
   const playAlbumSongs = (album: Album): void => {
     // Use the album's songs array if available (more efficient)
     if (album.songs && album.songs.length > 0) {
-      const albumSongs = [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
-      emit('play-songs', albumSongs)
+      emit('play-songs', sortSongsByTrackOrder(album.songs))
     } else {
       uiLogger.warn('No songs found for album', album.name)
     }

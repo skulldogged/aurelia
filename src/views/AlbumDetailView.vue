@@ -30,19 +30,22 @@
   const showSkeleton = ref(false) // Dev toggle for skeleton adjustment
   const showShareDialog = ref(false)
 
-  const album = computed(() => {
-    if (!props.libraryLoaded || !props.allAlbums.length) return null
-    return props.allAlbums.find(a => a.name === decodeURIComponent(route.params.albumName as string)) || null
-  })
+  const album = computed(() =>
+    props.libraryLoaded && props.allAlbums.length > 0
+      ? props.allAlbums.find(a => a.name === decodeURIComponent(route.params.albumName as string)) || null
+      : null,
+  )
 
-  const albumSongs = computed(() => {
-    if (!album.value) return []
-    return [...album.value.songs || []].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
-  })
+  const albumSongs = computed(() =>
+    album.value
+      ? [...album.value.songs || []].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
+      : [],
+  )
 
   // Unique album artists aggregated from tracks
   const albumArtistPairs = computed<NameIdPair[]>(() => {
     const idToName = new Map<string, string>()
+
     for (const song of albumSongs.value)
       if (song.albumArtists)
         for (const pair of song.albumArtists)
@@ -65,14 +68,13 @@
   })
 
   // Determine if any song in the album has multiple artists
-  const hasMultipleArtists =
-    computed(() =>
-      albumSongs.value.length > 1 &&
-      albumSongs.value.some(song =>
-        song.artists?.length &&
-        song.artists.length > 1,
-      ),
-    )
+  const hasMultipleArtists = computed(() =>
+    albumSongs.value.length > 1 &&
+    albumSongs.value.some(song =>
+      song.artists?.length &&
+      song.artists.length > 1,
+    ),
+  )
 
   // Aggregated album metadata
   const albumYear = computed(() => albumSongs.value.find(s => s.year)?.year || null)
@@ -84,16 +86,21 @@
     if (hours > 0) return `${hours} hr ${minutes} min`
     return `${minutes} min`
   })
+
   const albumGenres = computed(() => {
     const set = new Set<string>()
-    for (const song of albumSongs.value) {
-      if (song.genres) for (const g of song.genres) set.add(g)
-    }
+
+    for (const song of albumSongs.value)
+      if (song.genres)
+        for (const g of song.genres)
+          set.add(g)
+
     return Array.from(set)
   })
 
   const playAll = (): void => {
-    if (albumSongs.value.length > 0) emit('play-songs', albumSongs.value)
+    if (albumSongs.value.length > 0)
+      emit('play-songs', albumSongs.value)
   }
 
   const shuffleAll = (): void => {

@@ -72,10 +72,11 @@
     artistsFuse.value.setCollection(newArtists)
   })
 
-  const filteredArtists = computed(() => {
-    if (!searchQuery.value || searchQuery.value.length < 2) return artistsWithSongs.value
-    return artistsFuse.value.search(searchQuery.value).map(result => result.item)
-  })
+  const filteredArtists = computed(() =>
+    searchQuery.value && searchQuery.value.length >= 2
+      ? artistsFuse.value.search(searchQuery.value).map(result => result.item)
+      : artistsWithSongs.value,
+  )
 
   // Pagination
   const {

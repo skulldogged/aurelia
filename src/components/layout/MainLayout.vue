@@ -1,10 +1,11 @@
-<script setup lang="ts">
+<script setup lang='ts'>
   import { ArrowLeft, ArrowRight, PanelLeft } from 'lucide-vue-next'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-  import { nextTick, ref, watch } from 'vue'
+  import { computed, nextTick, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
   import { Button } from '@/components/ui/button'
+  import { useBlurStore } from '@/stores'
 
   import Sidebar from './Sidebar.vue'
   import 'overlayscrollbars/overlayscrollbars.css'
@@ -21,6 +22,11 @@
 
   const route = useRoute()
   const scrollbarsRef = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
+  const blurStore = useBlurStore()
+
+  const mainContentBgClass = computed(() => blurStore.selectedBlurMode.name === 'acrylic'
+    ? 'bg-sidebar/60'
+    : '')
 
   const emit = defineEmits<{
     'global-search':    [query: string]
@@ -66,14 +72,15 @@
     <!-- Search results overlay -->
     <slot :is-sidebar-collapsed='isSidebarCollapsed' :on-result-click='() => {}' name='search-results' />
 
-    <div class='flex flex-grow min-h-0 bg-sidebar/60' :class="{ 'pb-[88px]': hasPlayer }">
+    <div :class="[mainContentBgClass, { 'pb-[88px]': hasPlayer }]" class='flex flex-grow min-h-0'>
       <div
         :class="[
           'flex flex-1 min-w-0',
           {
             'ml-[64px]': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
             'ml-[192px]': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
-            'ml-[64px] mr-[256px] lg:mr-[320px] xl:mr-[384px] 2xl:mr-[448px]': isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+            'ml-[64px] mr-[256px] lg:mr-[320px] xl:mr-[384px] 2xl:mr-[448px]':
+              isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
             'ml-[192px] mr-[256px] lg:mr-[320px] xl:mr-[384px] 2xl:mr-[448px]':
               !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
           }
@@ -144,12 +151,14 @@
     <div
       v-if='hasPlayer'
       :class="[
-        'absolute bottom-0 z-30 bg-sidebar/95 backdrop-blur-sm border-t border-border/50',
+        'absolute bottom-0 z-30 border-t border-border/50 bg-background',
         {
           'left-[64px] right-0': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
           'left-[192px] right-0': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
-          'left-[64px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px]': isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
-          'left-[192px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px]': !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+          'left-[64px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px]':
+            isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+          'left-[192px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px]':
+            !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
         }
       ]"
     >

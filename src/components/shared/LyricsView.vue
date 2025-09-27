@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Loader2 } from 'lucide-vue-next'
+  import { AlertTriangle, Loader2 } from 'lucide-vue-next'
   import { computed, nextTick, ref, watch } from 'vue'
 
   import { commands, Song } from '@/bindings'
@@ -12,10 +12,11 @@
   }
 
   const props = defineProps<{
-    currentTime: number
-    duration:    number
-    song:        null | Song
-    visible:     boolean
+    currentTime:  number
+    duration:     number
+    isInSidebar?: boolean
+    song:         null | Song
+    visible:      boolean
   }>()
 
   const emit = defineEmits<{
@@ -28,6 +29,7 @@
   const error = ref<null | string>(null)
   const parsedLyrics = ref<LyricLine[]>([])
   const activeLineRef = ref<HTMLParagraphElement | null>(null)
+  const currentLyricsRequestToken = ref<null | symbol>(null)
 
   const { getLyrics } = commands
 
@@ -63,8 +65,12 @@
     if (newSong) {
       lyrics.value = null
       error.value = null
+      parsedLyrics.value = []
 
       if (newSong.artists && newSong.artists.length > 0) {
+        const requestToken = Symbol('lyrics-request')
+        currentLyricsRequestToken.value = requestToken
+
         await withCustomState(
           () => getLyrics(
             newSong.id,
@@ -74,15 +80,18 @@
           ),
           {
             onError: errorString => {
+              if (currentLyricsRequestToken.value !== requestToken) return
               error.value = errorString
               apiLogger.error('Failed to fetch lyrics:', errorString)
               isLoading.value = false
               emit('lyrics-loaded', false)
             },
             onStart: () => {
+              if (currentLyricsRequestToken.value !== requestToken) return
               isLoading.value = true
             },
             onSuccess: lyricsData => {
+              if (currentLyricsRequestToken.value !== requestToken) return
               lyrics.value = lyricsData
               if (areLyricsSynced.value && lyricsData) {
                 parsedLyrics.value = parseLrc(lyricsData)
@@ -101,22 +110,23 @@
     }
   }, { immediate: true })
 
-  const formattedLyrics = computed(() => {
-    if (!lyrics.value) return ''
-    return lyrics.value.replace(/\[.*?\]/g, '').replace(/\n/g, '<br />')
+  const plainLyrics = computed(() => {
+    if (!lyrics.value) return []
+    return lyrics.value
+      .replace(/\[.*?\]/g, '')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
   })
 
   const currentLineIndex = computed(() => {
-    if (!areLyricsSynced.value || parsedLyrics.value.length === 0) {
+    if (!areLyricsSynced.value || parsedLyrics.value.length === 0)
       return -1
-    }
 
     const tolerance = 0.01 // 10ms tolerance for floating point precision
-    for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
-      if (parsedLyrics.value[i].time <= props.currentTime + tolerance) {
+    for (let i = parsedLyrics.value.length - 1; i >= 0; i--)
+      if (parsedLyrics.value[i].time <= props.currentTime + tolerance)
         return i
-      }
-    }
 
     return -1
   })
@@ -165,6 +175,15 @@
 <template>
   <div class='h-full w-full flex flex-col overflow-hidden'>
     <div
+      v-if='isInSidebar'
+      class='h-12 flex items-center justify-between px-4 flex-shrink-0'
+      data-tauri-drag-region
+    >
+      <h2 class='text-base font-semibold tracking-tight text-muted-foreground'>
+        Lyrics
+      </h2>
+    </div>
+    <div
       v-if='isLoading'
       class='flex-grow flex items-center justify-center'
     >
@@ -172,14 +191,28 @@
     </div>
     <div
       v-else-if='error'
-      class='flex-grow flex items-center justify-center text-red-500'
+      class='flex-grow flex items-center justify-center px-6'
     >
-      {{ error }}
+      <div class='w-full max-w-md bg-card/60 border border-destructive/30 rounded-2xl shadow-lg backdrop-blur-sm p-6'>
+        <div class='flex items-start space-x-4'>
+          <div class='p-3 rounded-xl bg-destructive/10 text-destructive'>
+            <AlertTriangle class='w-6 h-6' />
+          </div>
+          <div class='space-y-2 text-left'>
+            <h3 class='text-lg font-semibold'>
+              Unable to load lyrics
+            </h3>
+            <p class='lyrics-error-message text-sm text-muted-foreground'>
+              {{ error }}
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
     <div
       v-else-if='lyrics && areLyricsSynced'
       ref='lyricsContainerRef'
-      class='lyrics-container flex-grow overflow-y-auto'
+      :class="['lyrics-container flex-grow overflow-y-auto', { 'sidebar': isInSidebar }]"
     >
       <div class='lyrics-content'>
         <p
@@ -187,7 +220,7 @@
           @click='handleLineClick(line.time)'
           :key='line.time + line.text'
           :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
-          :class="['lyric-line', { 'active': index === currentLineIndex }]"
+          :class="['lyric-line', { 'active': index === currentLineIndex, 'sidebar': isInSidebar }]"
         >
           {{ line.text }}
         </p>
@@ -195,9 +228,18 @@
     </div>
     <div
       v-else-if='lyrics'
-      class='prose prose-invert max-w-none flex-grow overflow-y-auto'
-      v-html='formattedLyrics'
-    />
+      :class="['lyrics-container flex-grow overflow-y-auto', { 'sidebar': isInSidebar }]"
+    >
+      <div class='lyrics-content lyrics-content--static'>
+        <p
+          v-for='(line, index) in plainLyrics'
+          :key='`${index}-${line}`'
+          :class="['lyric-line lyric-line--static', { 'sidebar': isInSidebar }]"
+        >
+          {{ line }}
+        </p>
+      </div>
+    </div>
     <div
       v-else
       class='flex-grow flex items-center justify-center text-muted-foreground'
@@ -220,12 +262,20 @@
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
 }
 
+.lyrics-container.sidebar {
+  padding: 0 16px;
+}
+
 .lyrics-content {
-  padding: 20vh 0;
+  padding: 20vh 16px;
   min-height: 60vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
+}
+
+.lyrics-content.sidebar {
+  padding: 15vh 0;
 }
 
 /* For Chrome, Safari, and Opera */
@@ -242,6 +292,15 @@
   cursor: pointer;
 }
 
+.lyric-line.sidebar {
+  font-size: 1.5rem;
+  padding: 6px 0;
+}
+
+.lyric-line.sidebar.active {
+  transform: scale(1.1);
+}
+
 .lyric-line.active {
   opacity: 1;
   font-weight: bold;
@@ -250,7 +309,22 @@
   filter: blur(0);
 }
 
-.prose {
-  text-align: center;
+.lyrics-content--static {
+  padding: 16vh 0;
+}
+
+.lyrics-content--static.sidebar {
+  padding: 12vh 0;
+}
+
+.lyric-line--static {
+  opacity: 0.85;
+  filter: blur(0);
+  cursor: default;
+}
+
+.lyrics-error-message {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 </style>

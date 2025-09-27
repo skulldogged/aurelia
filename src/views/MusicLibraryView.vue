@@ -56,28 +56,26 @@
     }
   }, { immediate: true })
 
-  const filteredSongs = computed(() => {
-    if (!searchQuery.value || searchQuery.value.length < 2 || !songFuse.value) {
-      return props.allSongs
-    }
-    return songFuse.value.search(searchQuery.value).map(result => result.item)
-  })
+  const filteredSongs = computed(() =>
+    searchQuery.value && searchQuery.value.length >= 2 && songFuse.value
+      ? songFuse.value.search(searchQuery.value).map(result => result.item)
+      : props.allSongs,
+  )
 
   const sortedSongs = computed(() => {
-    const songsToSort = [...filteredSongs.value]
     switch (sortOption.value) {
       case 'Album':
-        return songsToSort.sort((a, b) => (a.album || '').localeCompare(b.album || ''))
+        return [...filteredSongs.value].sort((a, b) => (a.album || '').localeCompare(b.album || ''))
       case 'Artist':
-        return songsToSort.sort((a, b) => (a.artists?.[0] || '').localeCompare(b.artists?.[0] || ''))
+        return [...filteredSongs.value].sort((a, b) => (a.artists?.[0] || '').localeCompare(b.artists?.[0] || ''))
       case 'Date Added':
-        return songsToSort.sort((a, b) => (b.dateCreated || '').localeCompare(a.dateCreated || ''))
+        return [...filteredSongs.value].sort((a, b) => (b.dateCreated || '').localeCompare(a.dateCreated || ''))
       case 'Play Count':
-        return songsToSort.sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+        return [...filteredSongs.value].sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
       case 'Title':
-        return songsToSort.sort((a, b) => a.name.localeCompare(b.name))
+        return [...filteredSongs.value].sort((a, b) => a.name.localeCompare(b.name))
       default:
-        return songsToSort
+        return [...filteredSongs.value]
     }
   })
 

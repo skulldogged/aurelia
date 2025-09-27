@@ -47,13 +47,13 @@
 </script>
 
 <template>
-  <div class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] flex flex-col bg-background-dark h-full pt-12'>
-    <div class='p-4'>
-      <h2 class='text-lg font-semibold'>
+  <div class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] flex flex-col bg-background-dark h-full'>
+    <div class='h-12 flex items-center px-4 flex-shrink-0' data-tauri-drag-region>
+      <h2 class='text-base font-semibold tracking-tight text-muted-foreground'>
         Up Next
       </h2>
     </div>
-    <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='flex-grow px-2' defer>
+    <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='flex-grow px-2 py-3' defer>
       <Sortable
         @end='handleDragEnd'
         @start='handleDragStart'

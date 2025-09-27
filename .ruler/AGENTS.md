@@ -11,7 +11,7 @@ This is a Tauri application built with Vue 3, TypeScript, and Tailwind CSS. The 
 - **Build Tool**: Vite
 - **Desktop Framework**: Tauri v2
 - **Package Manager**: Bun
-- **State Management**: Pinia
+- **State Management**: Pinia stores with Vue composables (stores live in `src/stores`, shared logic via `src/composables`)
 - **Routing**: Vue Router 4
 
 ## Code Style Guidelines
@@ -64,11 +64,17 @@ This is a Tauri application built with Vue 3, TypeScript, and Tailwind CSS. The 
 - Follow Vue 3 best practices and conventions
 - Ensure accessibility (a11y) compliance
 - Optimize for performance where necessary
-- DO NOT RUN BUILDS/DEV SERVERS UNLESS EXPLICITLY ASKED, EVER.
+
+## IMPORTANT
+
+- DO NOT run dev servers or builds unless explicitly asked or instructed to do so.
+- Resolve linting errors by running `bunx eslint --fix` instead of attempting manual fixes.
 
 ## Dependencies Management
 
 - Use Bun for package management
+- Sync dependencies with `bun install`; add new packages with `bun add <package>` (do not use npm, pnpm, or yarn)
+- Run package scripts with `bun run <script>` and one-off tooling through `bunx`
 - Keep dependencies up to date
 - Prefer well-maintained packages
 - Document any custom configurations

@@ -1,8 +1,9 @@
 <script setup lang="ts">
   import { Disc, Home, Music, Search, Settings, Users } from 'lucide-vue-next'
-  import { ref } from 'vue'
+  import { computed, ref } from 'vue'
 
   import { Input } from '@/components/ui/input'
+  import { useBlurStore } from '@/stores'
 
   defineProps<{
     currentView: string
@@ -14,7 +15,14 @@
     navigate:        [view: string]
   }>()
 
+  const blurStore = useBlurStore()
   const globalSearchQuery = ref('')
+
+  const sidebarBgClass = computed(
+    () => blurStore.selectedBlurMode.name !== 'none'
+      ? 'bg-transparent'
+      : 'bg-background-dark',
+  )
 
   const handleGlobalSearch = (): void => {
     emit('global-search', globalSearchQuery.value)
@@ -29,7 +37,8 @@
 <template>
   <div
     :class="[
-      'bg-transparent flex flex-col flex-shrink-0 ease-in-out',
+      sidebarBgClass,
+      'flex flex-col flex-shrink-0 ease-in-out',
       isCollapsed ? 'w-16' : 'w-48',
     ]"
   >

@@ -11,11 +11,9 @@ pub use anyhow::Result;
 use specta_typescript::BigIntExportBehavior;
 use specta_typescript::Typescript;
 use std::process::Command;
-use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use window_vibrancy::apply_acrylic;
 
 fn init_logging() {
     tracing_subscriber::registry()
@@ -55,6 +53,8 @@ pub fn run() {
     });
 
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
+        handlers::appearance::get_blur_mode,
+        handlers::appearance::set_blur_mode,
         handlers::auth::login_to_jellyfin,
         handlers::auth::save_credentials,
         handlers::auth::get_saved_credentials,
@@ -104,12 +104,8 @@ pub fn run() {
         .setup(move |app| {
             builder.mount_events(app);
 
-            // Apply Acrylic effect on Windows
-            #[cfg(target_os = "windows")]
-            {
-                let window = app.get_webview_window("main").unwrap();
-                apply_acrylic(&window, None).expect("Failed to apply Acrylic effect");
-            }
+            // Blur mode will be applied from frontend after settings are loaded
+            // This allows users to choose their preferred blur mode
 
             Ok(())
         })
