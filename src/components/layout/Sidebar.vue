@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Disc, Home, Music, Search, Settings, Users } from 'lucide-vue-next'
+  import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
   import { computed, ref } from 'vue'
 
   import { Input } from '@/components/ui/input'
@@ -141,6 +141,27 @@
             ]"
           >
             <span class='whitespace-nowrap'>Albums</span>
+          </div>
+        </router-link>
+        <router-link
+          :class="[
+            'flex items-center h-10 rounded-md text-sm font-medium',
+            currentView === 'playlists'
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-accent/20',
+          ]"
+          to='/playlists'
+        >
+          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+            <ListMusic class='w-5 h-5' />
+          </div>
+          <div
+            :class="[
+              'overflow-hidden transition-all duration-150 ease-in-out',
+              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+            ]"
+          >
+            <span class='whitespace-nowrap'>Playlists</span>
           </div>
         </router-link>
       </div>

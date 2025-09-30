@@ -4,6 +4,17 @@
 /** user-defined commands **/
 
 export const commands = {
+/**
+ * Add items to a playlist
+ */
+  addPlaylistItems: async (playlistId: string, itemIds: string[]): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('add_playlist_items', { itemIds, playlistId }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
   cacheImageFromUrl: async (itemId: string, imageType: string, imageUrl: string, serverUrl: string, token: string): Promise<Result<string, string>> => {
     try {
       return { data: await TAURI_INVOKE('cache_image_from_url', { imageType, imageUrl, itemId, serverUrl, token }), status: 'ok' }
@@ -26,6 +37,28 @@ export const commands = {
   clearImageCache: async (): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('clear_image_cache'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Create a new playlist on Jellyfin server
+ */
+  createPlaylist: async (data: PlaylistCreateData): Promise<Result<Playlist, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('create_playlist', { data }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Delete a playlist from Jellyfin server
+ */
+  deletePlaylist: async (playlistId: string): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('delete_playlist', { playlistId }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -140,6 +173,28 @@ export const commands = {
     }
   },
   /**
+ * Get items in a playlist
+ */
+  getPlaylistItems: async (playlistId: string): Promise<Result<Song[], string>> => {
+    try {
+      return { data: await TAURI_INVOKE('get_playlist_items', { playlistId }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Get all playlists from Jellyfin server
+ */
+  getPlaylists: async (): Promise<Result<Playlist[], string>> => {
+    try {
+      return { data: await TAURI_INVOKE('get_playlists'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
  * Get recently played songs
  */
   getRecentlyPlayed: async (serverUrl: string, token: string): Promise<Result<Song[], string>> => {
@@ -245,6 +300,17 @@ export const commands = {
     }
   },
   /**
+ * Remove items from a playlist
+ */
+  removePlaylistItems: async (playlistId: string, itemIds: string[]): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('remove_playlist_items', { itemIds, playlistId }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
  * Report playback progress to Jellyfin server
  */
   reportPlaybackProgress: async (serverUrl: string, token: string, itemId: string, positionTicks: null | number, eventName: null | string, isPaused: boolean | null): Promise<Result<null, string>> => {
@@ -336,6 +402,17 @@ export const commands = {
   toggleFavoriteStatus: async (serverUrl: string, token: string, userId: string, itemId: string, isFavorite: boolean): Promise<Result<boolean, string>> => {
     try {
       return { data: await TAURI_INVOKE('toggle_favorite_status', { isFavorite, itemId, serverUrl, token, userId }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Update an existing playlist on Jellyfin server
+ */
+  updatePlaylist: async (playlistId: string, updates: PlaylistUpdateData): Promise<Result<Playlist, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('update_playlist', { playlistId, updates }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -473,19 +550,141 @@ export type NameIdPair = {
  * Display name
  */
   name: string; }
+/**
+ * Playlist representing a collection of items
+ */
+export type Playlist = {
+/**
+ * Backdrop image tags
+ */
+  backdropImageTags: null | string[];
+  /**
+ * Whether playlist can be deleted
+ */
+  canDelete:         boolean | null;
+  /**
+ * Child count (number of items in playlist)
+ */
+  childCount:        null | number;
+  /**
+ * Date created
+ */
+  dateCreated:       null | string;
+  /**
+ * Date last modified
+ */
+  dateLastSaved:     null | string;
+  /**
+ * Playlist description
+ */
+  description:       null | string;
+  /**
+ * Playlist ID
+ */
+  id:                string;
+  /**
+ * Image blur hashes
+ */
+  imageBlurHashes:   null | Partial<{ [key in string]: Partial<{ [key in string]: string }> }>;
+  /**
+ * Image tags
+ */
+  imageTags:         null | Partial<{ [key in string]: string }>;
+  /**
+ * Whether playlist is favorited
+ */
+  isFavorite:        boolean | null;
+  /**
+ * Whether this is a folder (playlists are folders containing items)
+ */
+  isFolder:          boolean;
+  /**
+ * Item type (should be "Playlist")
+ */
+  itemType:          string;
+  /**
+ * Location type
+ */
+  locationType:      string;
+  /**
+ * Media type
+ */
+  mediaType:         null | string;
+  /**
+ * Playlist name
+ */
+  name:              string;
+  /**
+ * Runtime ticks (total duration)
+ */
+  runTimeTicks:      bigint | null;
+  /**
+ * Server ID
+ */
+  serverId:          string;
+  /**
+ * Songs in the playlist
+ */
+  songs:             null | Song[]
+  /**
+ * Sort name
+ */
+  sortName:          null | string;
+  /**
+ * User data
+ */
+  userData:          null | UserData; }
+/**
+ * Data for creating a new playlist
+ */
+export type PlaylistCreateData = {
+/**
+ * Item IDs to include in the playlist
+ */
+  ids:      null | string[];
+  /**
+ * Whether playlist is public
+ */
+  isPublic: boolean | null
+  /**
+ * Playlist name
+ */
+  name:     string;
+  /**
+ * User ID creating the playlist
+ */
+  userId:   string; }
+/**
+ * Data for updating a playlist
+ */
+export type PlaylistUpdateData = {
+/**
+ * Item IDs to set for the playlist
+ */
+  ids:        null | string[];
+  /**
+ * Whether playlist is favorited
+ */
+  isFavorite: boolean | null
+  /**
+ * Whether playlist is public
+ */
+  isPublic:   boolean | null;
+  /**
+ * New playlist name
+ */
+  name:       null | string;
+  /**
+ * Songs to set for the playlist
+ */
+  songs:      null | Song[];
+  /**
+ * User ID updating the playlist
+ */
+  userId:     null | string; }
 export type Result<T, E> =
 	| { data: T; status: 'ok'; }
 	| { error: E; status: 'error'; }
-
-/** tauri-specta globals **/
-
-import {
-  Channel as TAURI_CHANNEL,
-  invoke as TAURI_INVOKE,
-} from '@tauri-apps/api/core'
-import * as TAURI_API_EVENT from '@tauri-apps/api/event'
-import { type WebviewWindow as __WebviewWindow__ } from '@tauri-apps/api/webviewWindow'
-
 /**
  * Song representing a music track or audio file
  */
@@ -590,6 +789,20 @@ export type Song = {
  * Release year
  */
   year:         null | number; }
+
+/** tauri-specta globals **/
+
+import {
+  Channel as TAURI_CHANNEL,
+  invoke as TAURI_INVOKE,
+} from '@tauri-apps/api/core'
+import * as TAURI_API_EVENT from '@tauri-apps/api/event'
+import { type WebviewWindow as __WebviewWindow__ } from '@tauri-apps/api/webviewWindow'
+
+/**
+ * User data for items (play count, favorites, etc.)
+ */
+export type UserData = { isFavorite: boolean; lastPlayedDate: null | string; playbackPositionTicks: bigint; playCount: number; played: boolean; }
 
 type __EventObj__<T> = {
   emit: null extends T

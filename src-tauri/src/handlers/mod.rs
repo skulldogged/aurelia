@@ -9,6 +9,7 @@ pub mod auth;
 pub mod images;
 pub mod lyrics;
 pub mod music;
+pub mod playlists;
 
 pub use appearance::*;
 pub use auth::*;

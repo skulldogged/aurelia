@@ -5,3 +5,13 @@ declare module '*.vue' {
   const component: DefineComponent<{}, {}, any> // eslint-disable-line
   export default component
 }
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
+
+interface ImportMetaEnv {
+  readonly VITE_DISCORD_APP_ID?:         string
+  readonly VITE_DISCORD_APPLICATION_ID?: string
+  readonly VITE_DISCORD_RPC_APP_ID?:     string
+}

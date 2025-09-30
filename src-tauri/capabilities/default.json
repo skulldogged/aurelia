@@ -27,6 +27,8 @@
     "fs:allow-read-dir",
     "fs:allow-remove",
     "clipboard-manager:allow-write-text",
-    "opener:default"
+    "drpc:allow-is-running",
+    "drpc:allow-clear-activity",
+    "drpc:default"
   ]
 }

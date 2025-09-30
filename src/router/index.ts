@@ -6,6 +6,9 @@ import ArtistDetailView from '@/views/ArtistDetailView.vue'
 import ArtistsView from '@/views/ArtistsView.vue'
 import HomeView from '@/views/HomeView.vue'
 import MusicLibraryView from '@/views/MusicLibraryView.vue'
+import PlaylistCreateEditView from '@/views/PlaylistCreateEditView.vue'
+import PlaylistDetailView from '@/views/PlaylistDetailView.vue'
+import PlaylistsView from '@/views/PlaylistsView.vue'
 import SettingsView from '@/views/SettingsView.vue'
 
 const routes = [
@@ -38,6 +41,26 @@ const routes = [
     component: AlbumsView,
     name:      'albums',
     path:      '/albums',
+  },
+  {
+    component: PlaylistsView,
+    name:      'playlists',
+    path:      '/playlists',
+  },
+  {
+    component: PlaylistDetailView,
+    name:      'playlist-detail',
+    path:      '/playlists/:playlistId',
+  },
+  {
+    component: PlaylistCreateEditView,
+    name:      'playlist-create',
+    path:      '/playlists/create',
+  },
+  {
+    component: PlaylistCreateEditView,
+    name:      'playlist-edit',
+    path:      '/playlists/:playlistId/edit',
   },
   {
     component: SettingsView,

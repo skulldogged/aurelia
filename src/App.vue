@@ -11,6 +11,7 @@
   import WindowControls from '@/components/shared/WindowControls.vue'
   import { Button } from '@/components/ui/button'
   import { useAuth } from '@/composables/useAuth'
+  import { useDiscordPresence } from '@/composables/useDiscordPresence'
   import { useImageLoader } from '@/composables/useImageLoader'
   import { useNavigation } from '@/composables/useNavigation'
   import { usePlayerControls } from '@/composables/usePlayerControls'
@@ -35,6 +36,7 @@
   const blurStore = useBlurStore()
   const { preloadRecentImages } = useImageLoader()
   useSystemTray() // Initialize system tray functionality
+  useDiscordPresence()
 
   const {
     canGoBack,

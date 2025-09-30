@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { readonly, ref } from 'vue'
+import { computed, readonly, ref } from 'vue'
 
 import type { Album, Artist, Credentials, Song } from '@/bindings'
 
@@ -10,6 +10,7 @@ import { withCustomState, withMultipleResults } from '@/lib/result'
 export const useLibraryStore = defineStore('library', () => {
   // State
   const allSongs = ref<Song[]>([])
+  const allSongsView = computed(() => allSongs.value)
   const allArtistsWithSongs = ref<Artist[]>([])
   const albumArtistsWithSongs = ref<Artist[]>([])
   const allAlbums = ref<Album[]>([])
@@ -123,7 +124,7 @@ export const useLibraryStore = defineStore('library', () => {
     allAlbums:             readonly(allAlbums),
     allArtistsWithSongs:   readonly(allArtistsWithSongs),
     // State
-    allSongs:              readonly(allSongs),
+    allSongs:              allSongsView,
     clearCache,
     clearData,
     error:                 readonly(error),

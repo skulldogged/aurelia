@@ -1,0 +1,115 @@
+//! Playlist-related command handlers
+
+use crate::models::music::{Playlist, PlaylistCreateData, PlaylistUpdateData};
+use crate::services::JellyfinClient;
+
+/// Get all playlists from Jellyfin server
+#[tauri::command]
+#[specta::specta]
+pub async fn get_playlists() -> Result<Vec<Playlist>, String> {
+    let client = get_jellyfin_client()?;
+    let user_id = get_current_user_id()?;
+
+    client
+        .get_playlists(&user_id)
+        .await
+        .map_err(|e| format!("Failed to get playlists: {}", e))
+}
+
+/// Create a new playlist on Jellyfin server
+#[tauri::command]
+#[specta::specta]
+pub async fn create_playlist(data: PlaylistCreateData) -> Result<Playlist, String> {
+    let client = get_jellyfin_client()?;
+
+    client
+        .create_playlist(&data)
+        .await
+        .map_err(|e| format!("Failed to create playlist: {}", e))
+}
+
+/// Update an existing playlist on Jellyfin server
+#[tauri::command]
+#[specta::specta]
+pub async fn update_playlist(
+    playlist_id: String,
+    updates: PlaylistUpdateData,
+) -> Result<Playlist, String> {
+    let client = get_jellyfin_client()?;
+
+    client
+        .update_playlist(&playlist_id, &updates)
+        .await
+        .map_err(|e| format!("Failed to update playlist: {}", e))
+}
+
+/// Delete a playlist from Jellyfin server
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_playlist(playlist_id: String) -> Result<(), String> {
+    let client = get_jellyfin_client()?;
+
+    client
+        .delete_playlist(&playlist_id)
+        .await
+        .map_err(|e| format!("Failed to delete playlist: {}", e))
+}
+
+/// Add items to a playlist
+#[tauri::command]
+#[specta::specta]
+pub async fn add_playlist_items(playlist_id: String, item_ids: Vec<String>) -> Result<(), String> {
+    let client = get_jellyfin_client()?;
+
+    client
+        .add_playlist_items(&playlist_id, &item_ids)
+        .await
+        .map_err(|e| format!("Failed to add items to playlist: {}", e))
+}
+
+/// Remove items from a playlist
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_playlist_items(
+    playlist_id: String,
+    item_ids: Vec<String>,
+) -> Result<(), String> {
+    let client = get_jellyfin_client()?;
+
+    client
+        .remove_playlist_items(&playlist_id, &item_ids)
+        .await
+        .map_err(|e| format!("Failed to remove items from playlist: {}", e))
+}
+
+/// Get items in a playlist
+#[tauri::command]
+#[specta::specta]
+pub async fn get_playlist_items(
+    playlist_id: String,
+) -> Result<Vec<crate::models::music::Song>, String> {
+    let client = get_jellyfin_client()?;
+
+    client
+        .get_playlist_items(&playlist_id)
+        .await
+        .map_err(|e| format!("Failed to get playlist items: {}", e))
+}
+
+/// Helper function to get authenticated Jellyfin client
+fn get_jellyfin_client() -> Result<JellyfinClient, String> {
+    let creds = crate::handlers::auth::get_saved_credentials()
+        .map_err(|e| format!("No saved credentials found: {}", e))?
+        .ok_or("No saved credentials found")?;
+
+    Ok(JellyfinClient::with_auth(creds.server_url, creds.token))
+}
+
+/// Helper function to get current user ID
+fn get_current_user_id() -> Result<String, String> {
+    let creds = crate::handlers::auth::get_saved_credentials()
+        .map_err(|e| format!("No saved credentials found: {}", e))?
+        .ok_or("No saved credentials found")?;
+
+    Ok(creds.user_id)
+}

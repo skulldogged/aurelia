@@ -4,7 +4,7 @@
 
   interface Props {
     size?: 'large' | 'medium' | 'small'
-    type:  'album' | 'album-art' | 'artist'
+    type:  'album' | 'album-art' | 'artist' | 'playlist'
   }
 
   const props = withDefaults(defineProps<Props>(), {
@@ -42,6 +42,10 @@
     },
     artist: {
       icon:      User,
+      iconColor: 'rgb(107 114 128)',
+    },
+    playlist: {
+      icon:      Music,
       iconColor: 'rgb(107 114 128)',
     },
   }[props.type] ?? {

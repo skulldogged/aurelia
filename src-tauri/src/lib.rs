@@ -85,6 +85,13 @@ pub fn run() {
         handlers::images::cache_image_from_url,
         handlers::images::clear_image_cache,
         handlers::images::get_image_cache_stats,
+        handlers::playlists::get_playlists,
+        handlers::playlists::create_playlist,
+        handlers::playlists::update_playlist,
+        handlers::playlists::delete_playlist,
+        handlers::playlists::add_playlist_items,
+        handlers::playlists::remove_playlist_items,
+        handlers::playlists::get_playlist_items,
         system_tray::show_main_window,
         system_tray::hide_main_window,
         system_tray::quit_application,
@@ -103,9 +110,10 @@ pub fn run() {
         .expect("Failed to export typescript bindings");
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_drpc::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);

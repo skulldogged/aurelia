@@ -15,6 +15,23 @@ pub struct NameIdPair {
     pub id: String,
 }
 
+/// User data for items (play count, favorites, etc.)
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[specta(rename_all = "camelCase")]
+pub struct UserData {
+    #[serde(alias = "PlaybackPositionTicks")]
+    pub playback_position_ticks: i64,
+    #[serde(alias = "PlayCount")]
+    pub play_count: i32,
+    #[serde(alias = "IsFavorite")]
+    pub is_favorite: bool,
+    #[serde(alias = "Played")]
+    pub played: bool,
+    #[serde(alias = "LastPlayedDate")]
+    pub last_played_date: Option<String>,
+}
+
 /// Wrapper for API responses that contain an Items array
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ItemsResponse<T> {
@@ -25,6 +42,7 @@ pub struct ItemsResponse<T> {
 /// Song representing a music track or audio file
 #[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
 #[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct Song {
     /// Unique identifier
     pub id: String,
@@ -178,4 +196,123 @@ impl Hash for Album {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state);
     }
+}
+
+/// Playlist item representing a Jellyfin item in a playlist
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+#[serde(rename_all = "camelCase")]
+#[specta(rename_all = "camelCase")]
+pub struct PlaylistItem {
+    /// Item ID
+    #[serde(alias = "Id")]
+    pub id: String,
+    /// Item name
+    #[serde(alias = "Name")]
+    pub name: String,
+    /// Item type (Audio, etc.)
+    #[serde(alias = "Type")]
+    pub item_type: String,
+}
+
+/// Playlist representing a collection of items
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[specta(rename_all = "camelCase")]
+pub struct Playlist {
+    /// Playlist name
+    #[serde(alias = "Name")]
+    pub name: String,
+    /// Server ID
+    #[serde(alias = "ServerId")]
+    pub server_id: String,
+    /// Playlist ID
+    #[serde(alias = "Id")]
+    pub id: String,
+    /// Whether playlist can be deleted
+    #[serde(alias = "CanDelete")]
+    pub can_delete: Option<bool>,
+    /// Sort name
+    #[serde(alias = "SortName")]
+    pub sort_name: Option<String>,
+    /// Whether this is a folder (playlists are folders containing items)
+    #[serde(alias = "IsFolder")]
+    pub is_folder: bool,
+    /// Item type (should be "Playlist")
+    #[serde(alias = "Type")]
+    pub item_type: String,
+    /// User data
+    #[serde(alias = "UserData")]
+    pub user_data: Option<UserData>,
+    /// Runtime ticks (total duration)
+    #[serde(alias = "RunTimeTicks")]
+    pub run_time_ticks: Option<i64>,
+    /// Child count (number of items in playlist)
+    #[serde(alias = "ChildCount")]
+    pub child_count: Option<i32>,
+    /// Image tags
+    #[serde(alias = "ImageTags")]
+    pub image_tags: Option<HashMap<String, String>>,
+    /// Backdrop image tags
+    #[serde(alias = "BackdropImageTags")]
+    pub backdrop_image_tags: Option<Vec<String>>,
+    /// Image blur hashes
+    #[serde(alias = "ImageBlurHashes")]
+    pub image_blur_hashes: Option<HashMap<String, HashMap<String, String>>>,
+    /// Location type
+    #[serde(alias = "LocationType")]
+    pub location_type: String,
+    /// Media type
+    #[serde(alias = "MediaType")]
+    pub media_type: Option<String>,
+    /// Date created
+    #[serde(alias = "DateCreated")]
+    pub date_created: Option<String>,
+    /// Date last modified
+    #[serde(alias = "DateLastSaved")]
+    pub date_last_saved: Option<String>,
+    /// Whether playlist is favorited
+    #[serde(alias = "IsFavorite")]
+    pub is_favorite: Option<bool>,
+    /// Playlist description
+    #[serde(alias = "Description")]
+    pub description: Option<String>,
+    /// Songs in the playlist
+    #[serde(alias = "Songs")]
+    pub songs: Option<Vec<Song>>,
+}
+
+/// Data for creating a new playlist
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+#[serde(rename_all = "camelCase")]
+#[specta(rename_all = "camelCase")]
+pub struct PlaylistCreateData {
+    /// Playlist name
+    pub name: String,
+    /// Item IDs to include in the playlist
+    pub ids: Option<Vec<String>>,
+    /// User ID creating the playlist
+    pub user_id: String,
+    /// Whether playlist is public
+    #[serde(alias = "IsPublic")]
+    pub is_public: Option<bool>,
+}
+
+/// Data for updating a playlist
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+#[serde(rename_all = "camelCase")]
+#[specta(rename_all = "camelCase")]
+pub struct PlaylistUpdateData {
+    /// New playlist name
+    pub name: Option<String>,
+    /// Item IDs to set for the playlist
+    pub ids: Option<Vec<String>>,
+    /// User ID updating the playlist
+    pub user_id: Option<String>,
+    /// Whether playlist is public
+    #[serde(alias = "IsPublic")]
+    pub is_public: Option<bool>,
+    /// Songs to set for the playlist
+    pub songs: Option<Vec<Song>>,
+    /// Whether playlist is favorited
+    pub is_favorite: Option<bool>,
 }

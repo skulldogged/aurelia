@@ -11,7 +11,7 @@ use crate::utils::error_handling;
 use reqwest::Client;
 use serde_json;
 use std::collections::HashMap;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 /// Jellyfin API client
 pub struct JellyfinClient {
@@ -313,7 +313,6 @@ impl JellyfinClient {
                     .as_str()
                     .map(std::string::ToString::to_string)
             });
-        let path = item["Path"].as_str().map(std::string::ToString::to_string);
 
         #[allow(clippy::cast_precision_loss)]
         let duration = item["RunTimeTicks"]
@@ -338,7 +337,7 @@ impl JellyfinClient {
             .as_str()
             .map(std::string::ToString::to_string);
 
-        let (bit_rate, sample_rate, codec) =
+        let (bit_rate, sample_rate, codec): (Option<i32>, Option<i32>, Option<String>) =
             item["MediaStreams"]
                 .as_array()
                 .map_or((None, None, None), |streams| {
@@ -363,8 +362,8 @@ impl JellyfinClient {
         let (album_art_url, image_tags) = self.extract_image_info(item, Some(&id));
         let artists = Self::extract_artists(item);
         let artist_ids = Self::extract_artist_ids(item);
-        let genres = Self::extract_genres(item);
         let album_artists = Self::extract_album_artists(item);
+        let genres = Self::extract_genres(item);
 
         let container = item["Container"]
             .as_str()
@@ -386,7 +385,7 @@ impl JellyfinClient {
             album_id,
             artists,
             artist_ids,
-            path,
+            path: None,
             duration,
             album_art_url,
             year,
@@ -440,6 +439,120 @@ impl JellyfinClient {
                 None
             };
             (url, Some(image_tags))
+        })
+    }
+
+    /// Parse a single playlist item from JSON
+    fn parse_single_playlist_item(
+        &self,
+        item: &serde_json::Value,
+    ) -> AppResult<crate::models::music::Playlist> {
+        let id = item["Id"]
+            .as_str()
+            .ok_or_else(|| AppError::ApiParse("Missing playlist ID".to_string()))?
+            .to_string();
+
+        let name = item["Name"]
+            .as_str()
+            .unwrap_or("Untitled Playlist")
+            .to_string();
+
+        let server_id = item["ServerId"].as_str().unwrap_or("").to_string();
+
+        let can_delete = item["CanDelete"].as_bool();
+        let sort_name = item["SortName"].as_str().map(String::from);
+        let is_folder = item["IsFolder"].as_bool().unwrap_or(true);
+        let item_type = item["Type"].as_str().unwrap_or("Playlist").to_string();
+
+        let user_data_json = item["UserData"].as_object();
+        let is_favorite = user_data_json
+            .and_then(|ud| ud.get("IsFavorite").and_then(|v| v.as_bool()))
+            .unwrap_or(false);
+
+        let user_data = user_data_json.map(|ud| crate::models::music::UserData {
+            playback_position_ticks: ud
+                .get("PlaybackPositionTicks")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(0),
+            play_count: ud.get("PlayCount").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+            is_favorite,
+            played: ud.get("Played").and_then(|v| v.as_bool()).unwrap_or(false),
+            last_played_date: ud
+                .get("LastPlayedDate")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+        });
+
+        let run_time_ticks = item["RunTimeTicks"].as_i64();
+        let child_count = item["ChildCount"].as_i64().map(|n| n as i32);
+        let date_created = item["DateCreated"].as_str().map(String::from);
+        let date_last_saved = item["DateLastSaved"].as_str().map(String::from);
+
+        // Extract image info
+        let (image_tags, backdrop_image_tags, image_blur_hashes) =
+            if let Some(image_tags_obj) = item["ImageTags"].as_object() {
+                let image_tags = image_tags_obj
+                    .iter()
+                    .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                    .collect::<HashMap<String, String>>();
+
+                let backdrop_tags = item["BackdropImageTags"].as_array().map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                });
+
+                let blur_hashes = item["ImageBlurHashes"].as_object().map(|blur_obj| {
+                    blur_obj
+                        .iter()
+                        .filter_map(|(k, v)| {
+                            v.as_object().map(|inner| {
+                                (
+                                    k.clone(),
+                                    inner
+                                        .iter()
+                                        .filter_map(|(ik, iv)| {
+                                            iv.as_str().map(|s| (ik.clone(), s.to_string()))
+                                        })
+                                        .collect(),
+                                )
+                            })
+                        })
+                        .collect()
+                });
+
+                (Some(image_tags), backdrop_tags, blur_hashes)
+            } else {
+                (None, None, None)
+            };
+
+        let location_type = item["LocationType"]
+            .as_str()
+            .unwrap_or("Virtual")
+            .to_string();
+        let media_type = item["MediaType"].as_str().map(String::from);
+
+        Ok(crate::models::music::Playlist {
+            name,
+            server_id,
+            id,
+            can_delete,
+            sort_name,
+            is_folder,
+            item_type,
+            user_data,
+            run_time_ticks,
+            child_count,
+            image_tags,
+            backdrop_image_tags,
+            image_blur_hashes,
+            location_type,
+            media_type,
+            date_created,
+            date_last_saved,
+            is_favorite: Some(is_favorite),
+            description: None, // Playlists don't seem to have descriptions in the basic response
+            songs: None,       // Songs would need a separate API call
         })
     }
 
@@ -1042,5 +1155,468 @@ impl JellyfinClient {
             item_id, user_id
         );
         Ok(())
+    }
+}
+
+impl JellyfinClient {
+    /// Get all playlists for a user
+    pub async fn get_playlists(
+        &self,
+        user_id: &str,
+    ) -> AppResult<Vec<crate::models::music::Playlist>> {
+        let url = utils::build_jellyfin_url(&self.server_url, &format!("Users/{}/Items", user_id));
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", self.get_auth_header())
+            .query(&[("IncludeItemTypes", "Playlist"), ("Recursive", "true")])
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let message = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error");
+            return Err(error_handling::network_error_with_context(
+                format!("HTTP {}: {}", status, message),
+                "Failed to get playlists from server",
+            ));
+        }
+
+        let response_json: serde_json::Value = response.json().await.map_err(|e| {
+            error_handling::network_error_with_context(
+                e,
+                "Failed to parse playlists response from server",
+            )
+        })?;
+
+        let items = response_json["Items"]
+            .as_array()
+            .ok_or_else(|| AppError::ApiParse("Invalid response format".to_string()))?;
+
+        let mut playlists = Vec::new();
+
+        for item in items {
+            let playlist = self.parse_single_playlist_item(item)?;
+            playlists.push(playlist);
+        }
+
+        debug!(
+            "Retrieved {} playlists for user {}",
+            playlists.len(),
+            user_id
+        );
+        for playlist in &playlists {
+            debug!(
+                "Playlist: {} (ID: {}, Type: {}, ChildCount: {:?})",
+                playlist.name, playlist.id, playlist.item_type, playlist.child_count
+            );
+        }
+        Ok(playlists)
+    }
+
+    /// Create a new playlist
+    pub async fn create_playlist(
+        &self,
+        data: &crate::models::music::PlaylistCreateData,
+    ) -> AppResult<crate::models::music::Playlist> {
+        let url = utils::build_jellyfin_url(&self.server_url, "Playlists");
+
+        // Construct the request JSON with PascalCase field names as expected by Jellyfin
+        let request_body = serde_json::json!({
+            "Name": data.name,
+            "Ids": data.ids,
+            "UserId": data.user_id,
+            "IsPublic": data.is_public.unwrap_or(false)
+        });
+
+        debug!("Creating playlist with JSON: {}", request_body);
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", self.get_auth_header())
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let message = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error");
+            return Err(error_handling::network_error_with_context(
+                format!("HTTP {}: {}", status, message),
+                "Failed to create playlist on server",
+            ));
+        }
+
+        // Debug: log the raw response
+        let response_text = response.text().await.map_err(|e| {
+            error_handling::network_error_with_context(
+                e,
+                "Failed to read playlist creation response",
+            )
+        })?;
+
+        debug!("Playlist creation response: {}", response_text);
+
+        // Try to parse as full Playlist first
+        let playlist = match serde_json::from_str::<crate::models::music::Playlist>(&response_text)
+        {
+            Ok(p) => p,
+            Err(_) => {
+                // If that fails, try to parse as a simple object with just Id and Name
+                let simple_response: serde_json::Value = serde_json::from_str(&response_text)
+                    .map_err(|e| {
+                        error!("Failed to parse any playlist JSON: {}", e);
+                        error_handling::api_parse_error_with_context(
+                            format!("JSON parse error: {}", e),
+                            "Failed to parse created playlist response from server",
+                        )
+                    })?;
+
+                // Create a minimal playlist from the response
+                crate::models::music::Playlist {
+                    name: simple_response["Name"]
+                        .as_str()
+                        .unwrap_or("Untitled Playlist")
+                        .to_string(),
+                    server_id: self.server_url.clone(),
+                    id: simple_response["Id"]
+                        .as_str()
+                        .ok_or_else(|| {
+                            error_handling::api_parse_error_with_context(
+                                "Missing playlist ID in response".to_string(),
+                                "Failed to parse created playlist response from server",
+                            )
+                        })?
+                        .to_string(),
+                    can_delete: Some(true),
+                    sort_name: None,
+                    is_folder: true,
+                    item_type: "Playlist".to_string(),
+                    user_data: None,
+                    run_time_ticks: None,
+                    child_count: Some(data.ids.as_ref().map_or(0, |ids| ids.len() as i32)),
+                    image_tags: None,
+                    backdrop_image_tags: None,
+                    image_blur_hashes: None,
+                    location_type: "Virtual".to_string(),
+                    media_type: None,
+                    date_created: None,
+                    date_last_saved: None,
+                    is_favorite: None,
+                    description: None,
+                    songs: None,
+                }
+            }
+        };
+
+        info!("Successfully created playlist: {}", playlist.name);
+        Ok(playlist)
+    }
+
+    /// Update an existing playlist
+    pub async fn update_playlist(
+        &self,
+        playlist_id: &str,
+        updates: &crate::models::music::PlaylistUpdateData,
+    ) -> AppResult<crate::models::music::Playlist> {
+        let url =
+            utils::build_jellyfin_url(&self.server_url, &format!("Playlists/{}", playlist_id));
+
+        // Construct the request JSON with PascalCase field names as expected by Jellyfin
+        let request_body = serde_json::json!({
+            "Name": updates.name,
+            "Ids": updates.ids,
+            "UserId": updates.user_id,
+            "IsPublic": updates.is_public
+        });
+
+        debug!("Updating playlist with JSON: {}", request_body);
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", self.get_auth_header())
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let message = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error");
+            return Err(error_handling::network_error_with_context(
+                format!("HTTP {}: {}", status, message),
+                &format!("Failed to update playlist {}", playlist_id),
+            ));
+        }
+
+        // Debug: log the raw response
+        let response_text = response.text().await.map_err(|e| {
+            error_handling::network_error_with_context(e, "Failed to read playlist update response")
+        })?;
+
+        debug!(
+            "Playlist update response: '{}' (length: {})",
+            response_text,
+            response_text.len()
+        );
+
+        // For updates, Jellyfin may return empty response or just success status
+        let playlist = if response_text.trim().is_empty() {
+            debug!("Empty response from playlist update, constructing playlist from input");
+            // If response is empty, construct a playlist from the input data
+            crate::models::music::Playlist {
+                name: updates
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| "Untitled Playlist".to_string()),
+                server_id: self.server_url.clone(),
+                id: playlist_id.to_string(),
+                can_delete: Some(true),
+                sort_name: None,
+                is_folder: true,
+                item_type: "Playlist".to_string(),
+                user_data: None,
+                run_time_ticks: None,
+                child_count: Some(updates.ids.as_ref().map_or(0, |ids| ids.len() as i32)),
+                image_tags: None,
+                backdrop_image_tags: None,
+                image_blur_hashes: None,
+                location_type: "Virtual".to_string(),
+                media_type: None,
+                date_created: None,
+                date_last_saved: None,
+                is_favorite: None,
+                description: None,
+                songs: None,
+            }
+        } else {
+            // Try to parse as full Playlist first
+            match serde_json::from_str::<crate::models::music::Playlist>(&response_text) {
+                Ok(p) => p,
+                Err(_) => {
+                    // If that fails, try to parse as a simple object with just Id and Name
+                    let simple_response: serde_json::Value = serde_json::from_str(&response_text)
+                        .map_err(|e| {
+                        error!("Failed to parse any updated playlist JSON: {}", e);
+                        error_handling::api_parse_error_with_context(
+                            format!("JSON parse error: {}", e),
+                            "Failed to parse updated playlist response from server",
+                        )
+                    })?;
+
+                    // Create a minimal playlist from the response
+                    crate::models::music::Playlist {
+                        name: simple_response["Name"]
+                            .as_str()
+                            .unwrap_or("Untitled Playlist")
+                            .to_string(),
+                        server_id: self.server_url.clone(),
+                        id: simple_response["Id"]
+                            .as_str()
+                            .unwrap_or(playlist_id)
+                            .to_string(),
+                        can_delete: Some(true),
+                        sort_name: None,
+                        is_folder: true,
+                        item_type: "Playlist".to_string(),
+                        user_data: None,
+                        run_time_ticks: None,
+                        child_count: Some(updates.ids.as_ref().map_or(0, |ids| ids.len() as i32)),
+                        image_tags: None,
+                        backdrop_image_tags: None,
+                        image_blur_hashes: None,
+                        location_type: "Virtual".to_string(),
+                        media_type: None,
+                        date_created: None,
+                        date_last_saved: None,
+                        is_favorite: None,
+                        description: None,
+                        songs: None,
+                    }
+                }
+            }
+        };
+
+        info!("Successfully updated playlist: {}", playlist.name);
+        Ok(playlist)
+    }
+
+    /// Delete a playlist
+    pub async fn delete_playlist(&self, playlist_id: &str) -> AppResult<()> {
+        let url = utils::build_jellyfin_url(&self.server_url, &format!("Items/{}", playlist_id));
+
+        let response = self
+            .client
+            .delete(&url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let message = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error");
+            return Err(error_handling::network_error_with_context(
+                format!("HTTP {}: {}", status, message),
+                &format!("Failed to delete playlist {}", playlist_id),
+            ));
+        }
+
+        info!("Successfully deleted playlist {}", playlist_id);
+        Ok(())
+    }
+
+    /// Add items to a playlist
+    pub async fn add_playlist_items(
+        &self,
+        playlist_id: &str,
+        item_ids: &[String],
+    ) -> AppResult<()> {
+        let url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!("Playlists/{}/Items", playlist_id),
+        );
+
+        let ids_param = item_ids.join(",");
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", self.get_auth_header())
+            .query(&[("Ids", &ids_param)])
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let message = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error");
+            return Err(error_handling::network_error_with_context(
+                format!("HTTP {}: {}", status, message),
+                &format!("Failed to add items to playlist {}", playlist_id),
+            ));
+        }
+
+        info!(
+            "Successfully added {} items to playlist {}",
+            item_ids.len(),
+            playlist_id
+        );
+        Ok(())
+    }
+
+    /// Remove items from a playlist
+    pub async fn remove_playlist_items(
+        &self,
+        playlist_id: &str,
+        item_ids: &[String],
+    ) -> AppResult<()> {
+        let url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!("Playlists/{}/Items", playlist_id),
+        );
+
+        let ids_param = item_ids.join(",");
+
+        let response = self
+            .client
+            .delete(&url)
+            .header("Authorization", self.get_auth_header())
+            .query(&[("EntryIds", &ids_param)])
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let message = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error");
+            return Err(error_handling::network_error_with_context(
+                format!("HTTP {}: {}", status, message),
+                &format!("Failed to remove items from playlist {}", playlist_id),
+            ));
+        }
+
+        info!(
+            "Successfully removed {} items from playlist {}",
+            item_ids.len(),
+            playlist_id
+        );
+        Ok(())
+    }
+
+    /// Get items in a playlist
+    pub async fn get_playlist_items(
+        &self,
+        playlist_id: &str,
+    ) -> AppResult<Vec<crate::models::music::Song>> {
+        // Use Items endpoint with ParentId to get playlist contents
+        let url = utils::build_jellyfin_url(&self.server_url, "Items");
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", self.get_auth_header())
+            .query(&[
+                ("ParentId", playlist_id),
+                ("IncludeItemTypes", "Audio"),
+                ("Recursive", "false"),
+            ])
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status().as_u16();
+            let message = response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error");
+            return Err(error_handling::network_error_with_context(
+                format!("HTTP {}: {}", status, message),
+                &format!("Failed to get playlist items for {}", playlist_id),
+            ));
+        }
+
+        // Debug: log the raw response first
+        let response_text = response.text().await.map_err(|e| {
+            error_handling::network_error_with_context(e, "Failed to read playlist items response")
+        })?;
+
+        debug!("Playlist items raw response: {}", response_text);
+
+        // Parse using the same method as library items
+        let json_value: serde_json::Value = serde_json::from_str(&response_text).map_err(|e| {
+            error_handling::network_error_with_context(
+                format!("Failed to parse JSON: {}", e),
+                "Failed to parse playlist items response from server",
+            )
+        })?;
+
+        let songs = self.parse_music_items(&json_value)?;
+
+        debug!(
+            "Retrieved {} items from playlist {}",
+            songs.len(),
+            playlist_id
+        );
+        Ok(songs)
     }
 }
