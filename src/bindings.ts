@@ -54,6 +54,17 @@ export const commands = {
     }
   },
   /**
+ * Delete a specific cached image by item ID and type
+ */
+  deleteCachedImage: async (itemId: string, imageType: string): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('delete_cached_image', { imageType, itemId }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
  * Delete a playlist from Jellyfin server
  */
   deletePlaylist: async (playlistId: string): Promise<Result<null, string>> => {
@@ -443,6 +454,10 @@ export type Album = {
  */
   artistId:    null | string;
   /**
+ * Date created (when added to server)
+ */
+  dateCreated: null | string
+  /**
  * Album ID from Jellyfin
  */
   id:          null | string;
@@ -457,7 +472,7 @@ export type Album = {
   /**
  * External provider IDs (`MusicBrainz`, etc.)
  */
-  providerIds: null | Partial<{ [key in string]: string }>
+  providerIds: null | Partial<{ [key in string]: string }>;
   /**
  * Number of songs in album
  */

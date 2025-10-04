@@ -6,9 +6,16 @@
   import { useRouter } from 'vue-router'
 
   import { Album, Song } from '@/bindings'
+  import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import { Button } from '@/components/ui/button'
+  import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuTrigger,
+  } from '@/components/ui/context-menu'
   import { Input } from '@/components/ui/input'
   import {
     Select,
@@ -129,64 +136,76 @@
       </div>
     </div>
     <div v-else class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
-      <div
-        v-for='album in pagedAlbums'
-        @click='selectAlbum(album)'
-        :key='album.name'
-        class='cursor-pointer group'
-      >
-        <div class='relative mb-4'>
-          <ImageLoader
-            :alt='`${album.name} album art`'
-            :item-id='album.id || album.name'
-            :server-url='serverUrl'
-            :token='token'
-            class='
-              w-full aspect-square rounded-lg object-cover shadow-lg
-              group-hover:opacity-75 transition-opacity
-            '
-          >
-            <template #fallback>
-              <ImagePlaceholder
-                class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-                size='large'
-                type='album'
-              />
-            </template>
-          </ImageLoader>
-
+      <ContextMenu v-for='album in pagedAlbums' :key='album.name'>
+        <ContextMenuTrigger as-child>
           <div
-            class='
-              absolute inset-0 bg-black/50 rounded-lg opacity-0
-              group-hover:opacity-100 transition-opacity flex items-center
-              justify-center
-            '
+            @click='selectAlbum(album)'
+            class='cursor-pointer group'
           >
-            <Button
-              @click.stop='playAlbum(album)'
-              class='
-                bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
-                border-white/20
-              '
-              size='icon'
-            >
-              <Play class='h-4 w-4' />
-            </Button>
-          </div>
-        </div>
+            <div class='relative mb-4'>
+              <ImageLoader
+                :alt='`${album.name} album art`'
+                :item-id='album.id || album.name'
+                :server-url='serverUrl'
+                :token='token'
+                class='
+                  w-full aspect-square rounded-lg object-cover shadow-lg
+                  group-hover:opacity-75 transition-opacity
+                '
+              >
+                <template #fallback>
+                  <ImagePlaceholder
+                    class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+                    size='large'
+                    type='album'
+                  />
+                </template>
+              </ImageLoader>
 
-        <div>
-          <p class='font-semibold truncate'>
-            {{ album.name }}
-          </p>
-          <p class='text-sm text-muted-foreground truncate'>
-            {{ album.artist }}
-          </p>
-          <p v-if='album.songs' class='text-sm text-muted-foreground truncate'>
-            {{ album.songs.length }} songs
-          </p>
-        </div>
-      </div>
+              <div
+                class='
+                  absolute inset-0 bg-black/50 rounded-lg opacity-0
+                  group-hover:opacity-100 transition-opacity flex items-center
+                  justify-center
+                '
+              >
+                <Button
+                  @click.stop='playAlbum(album)'
+                  class='
+                    bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
+                    border-white/20
+                  '
+                  size='icon'
+                >
+                  <Play class='h-4 w-4' />
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <p class='font-semibold truncate'>
+                {{ album.name }}
+              </p>
+              <p class='text-sm text-muted-foreground truncate'>
+                {{ album.artist }}
+              </p>
+              <p v-if='album.songs' class='text-sm text-muted-foreground truncate'>
+                {{ album.songs.length }} songs
+              </p>
+            </div>
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem @click='playAlbum(album)'>
+            <Play class='w-4 h-4 mr-2' />
+            Play Album
+          </ContextMenuItem>
+          <AddToPlaylistMenu
+            :songs='album.songs ? [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
+            type='context'
+          />
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
 
     <div v-if='!libraryLoading && !showSkeleton && filteredAlbums.length === 0' class='text-center py-12'>

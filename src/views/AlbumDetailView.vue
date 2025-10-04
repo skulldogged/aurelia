@@ -1,13 +1,19 @@
 <script setup lang="ts">
-  import { Music, Play, Share2, Shuffle } from 'lucide-vue-next'
+  import { ListPlus, Music, Play, Share2, Shuffle } from 'lucide-vue-next'
   import { computed, ref } from 'vue'
   import { useRoute } from 'vue-router'
 
   import { Album, NameIdPair, Song } from '@/bindings'
+  import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
   import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
+  import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+  } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
 
   const props = defineProps<{
@@ -227,6 +233,17 @@
               <Shuffle class='w-4 h-4 mr-2' />
               Shuffle
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger as-child>
+                <Button variant='outline'>
+                  <ListPlus class='w-4 h-4 mr-2' />
+                  Add to Playlist
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <AddToPlaylistMenu :songs='albumSongs' type='flat' />
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button @click='showShareDialog = true' variant='outline'>
               <Share2 class='w-4 h-4 mr-2' />
               Share

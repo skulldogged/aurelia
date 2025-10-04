@@ -85,6 +85,7 @@ pub fn run() {
         handlers::images::cache_image_from_url,
         handlers::images::clear_image_cache,
         handlers::images::get_image_cache_stats,
+        handlers::images::delete_cached_image,
         handlers::playlists::get_playlists,
         handlers::playlists::create_playlist,
         handlers::playlists::update_playlist,

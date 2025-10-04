@@ -300,17 +300,19 @@ const loadAudio = async (url: string): Promise<boolean> => {
 
       initializeEQ()
 
-      loadStoredEQBands()
-
       const playerStore = usePlayerStore()
       eqEnabled = playerStore.eqEnabled
 
       gainNode.gain.value = pendingVolume
 
-      updateAudioGraph()
-
       setupEventListeners()
     }
+
+    // Always sync EQ state, load stored bands, and update audio graph when loading new audio
+    const playerStore = usePlayerStore()
+    eqEnabled = playerStore.eqEnabled
+    loadStoredEQBands()
+    updateAudioGraph()
 
     return new Promise(resolve => {
       const onMetadataLoaded = (): void => {

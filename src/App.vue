@@ -303,6 +303,9 @@
           @volume-changed='handleVolumeChange'
           v-if='currentSong'
           ref='musicPlayerRef'
+          :is-equalizer-open='isEqualizerOpen'
+          :is-lyrics-open='isLyricsOpen'
+          :is-queue-open='isQueueOpen'
           :server-url='credentials!.serverUrl'
           :token='credentials!.token'
         />

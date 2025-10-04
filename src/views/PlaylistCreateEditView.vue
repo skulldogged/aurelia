@@ -1,5 +1,5 @@
   <script setup lang="ts">
-  import { ArrowLeft, Plus, Save } from 'lucide-vue-next'
+  import { ArrowLeft, Check, Plus, Save } from 'lucide-vue-next'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
@@ -7,11 +7,15 @@
   import type { PlaylistWithMeta } from '@/stores'
 
   import { PlaylistCreateData, PlaylistUpdateData, Song } from '@/bindings'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
   import {
     Dialog,
     DialogContent,
+    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -34,6 +38,10 @@
   const selectedSongs = ref<Song[]>([])
   const isSaving = ref(false)
 
+  // Error dialogs
+  const showNameErrorDialog = ref(false)
+  const showSaveErrorDialog = ref(false)
+
   // Add songs dialog
   const showAddSongsDialog = ref(false)
   const songSearchQuery = ref('')
@@ -46,11 +54,35 @@
     ).slice(0, 50)
   })
 
+  // Helper function to load songs from query params
+  const loadSongsFromQuery = (): void => {
+    if (!isCreate.value || !libraryStore.isLoaded) return
+
+    const songIdsParam = route.query.songs as string | undefined
+    if (!songIdsParam) return
+
+    const songIds = songIdsParam.split(',').filter(id => id.length > 0)
+    const newSongs = libraryStore.allSongs.filter(song => songIds.includes(song.id))
+
+    // Avoid duplicates when accumulating songs
+    const existingIds = new Set(selectedSongs.value.map(s => s.id))
+    const songsToAdd = newSongs.filter(song => !existingIds.has(song.id))
+
+    if (songsToAdd.length > 0) {
+      selectedSongs.value = [...selectedSongs.value, ...songsToAdd]
+      console.log('Added', songsToAdd.length, 'songs. Total:', selectedSongs.value.length)
+    }
+  }
+
   const loadPlaylist = async (): Promise<void> => {
     if (isCreate.value) {
       // Initialize empty playlist for creation
       name.value = ''
       selectedSongs.value = []
+
+      // Pre-select songs if provided via query params
+      loadSongsFromQuery()
+
       return
     }
 
@@ -84,7 +116,7 @@
 
   const savePlaylist = async (): Promise<void> => {
     if (!name.value.trim()) {
-      alert('Please enter a playlist name')
+      showNameErrorDialog.value = true
       return
     }
 
@@ -101,7 +133,10 @@
 
         const newPlaylist = await playlistStore.createPlaylist(createData)
         if (newPlaylist) {
-          router.push(`/playlists/${newPlaylist.id}`)
+          // Reload playlists to ensure the new one is fully available
+          await playlistStore.loadPlaylists()
+          // Navigate to the new playlist detail page
+          router.push({ name: 'playlist-detail', params: { playlistId: newPlaylist.id } })
         }
       } else if (playlist.value) {
         const updateData: PlaylistUpdateData = {
@@ -115,12 +150,14 @@
 
         const success = await playlistStore.updatePlaylist(playlist.value.id, updateData)
         if (success) {
-          router.push(`/playlists/${playlist.value.id}`)
+          // Reload playlists to get updated data
+          await playlistStore.loadPlaylists()
+          router.push({ name: 'playlist-detail', params: { playlistId: playlist.value.id } })
         }
       }
     } catch (error) {
       console.error('Failed to save playlist:', error)
-      alert('Failed to save playlist. Please try again.')
+      showSaveErrorDialog.value = true
     } finally {
       isSaving.value = false
     }
@@ -146,6 +183,20 @@
       router.push(`/playlists/${playlistId.value}`)
     }
   }
+
+  // Watch for library to load and then apply pre-selected songs
+  watch(() => libraryStore.isLoaded, loaded => {
+    if (loaded && isCreate.value) {
+      loadSongsFromQuery()
+    }
+  })
+
+  // Watch for query param changes to add more songs
+  watch(() => route.query.songs, () => {
+    if (isCreate.value && libraryStore.isLoaded) {
+      loadSongsFromQuery()
+    }
+  })
 
   onMounted(() => {
     loadPlaylist()
@@ -211,47 +262,38 @@
 
                 <div class='max-h-96'>
                   <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='h-96' defer>
-                    <div class='px-2 py-1 space-y-2'>
+                    <div class='px-2 py-1 space-y-1'>
                       <div
                         v-for='song in filteredLibrarySongs'
                         @click='toggleSongSelection(song)'
                         :key='song.id'
-                        class='flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50
-                               cursor-pointer transition-colors'
+                        :class="[
+                          'flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all',
+                          selectedSongs.some(s => s.id === song.id)
+                            ? 'bg-accent/30 border border-accent/50'
+                            : 'hover:bg-accent/20 border border-transparent'
+                        ]"
                       >
-                        <div class='relative flex items-center justify-center'>
-                          <input
-                            @change.stop='toggleSongSelection(song)'
-                            @click.stop
-                            :checked='selectedSongs.some(s => s.id === song.id)'
-                            class='peer h-5 w-5 shrink-0 appearance-none rounded-sm border border-input
-                                   ring-offset-background focus-visible:outline-none focus-visible:ring-2
-                                   focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed
-                                   disabled:opacity-50 checked:bg-accent checked:text-accent-foreground
-                                   checked:border-accent'
-                            type='checkbox'
+                        <!-- Album Art -->
+                        <div class='w-12 h-12 flex-shrink-0 rounded overflow-hidden'>
+                          <ImageLoader
+                            :alt='`${song.album || song.name} album art`'
+                            :item-id='song.albumId || song.id'
+                            :server-url='authStore.serverUrl'
+                            :token='authStore.token'
+                            class='w-full h-full object-cover'
                           >
-                          <div
-                            class='absolute inset-0 flex items-center justify-center text-accent-foreground
-                                     opacity-0 peer-checked:opacity-100 pointer-events-none'
-                          >
-                            <svg
-                              class='h-3.5 w-3.5'
-                              fill='none'
-                              viewBox='0 0 12 12'
-                              xmlns='http://www.w3.org/2000/svg'
-                            >
-                              <path
-                                d='M10.5 3L4.5 9L2 6.5'
-                                stroke='currentColor'
-                                stroke-linecap='round'
-                                stroke-linejoin='round'
-                                stroke-width='1.5'
+                            <template #fallback>
+                              <ImagePlaceholder
+                                class='w-full h-full'
+                                size='small'
+                                type='album'
                               />
-                            </svg>
-                          </div>
+                            </template>
+                          </ImageLoader>
                         </div>
 
+                        <!-- Song Info -->
                         <div class='flex-1 min-w-0'>
                           <div class='font-medium truncate'>
                             {{ song.name }}
@@ -259,6 +301,21 @@
                           <div class='text-sm text-muted-foreground truncate'>
                             {{ song.artists?.join(', ') }} • {{ song.album }}
                           </div>
+                        </div>
+
+                        <!-- Selection Indicator -->
+                        <div
+                          :class="[
+                            'flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all',
+                            selectedSongs.some(s => s.id === song.id)
+                              ? 'bg-accent text-accent-foreground'
+                              : 'border-2 border-muted-foreground/30'
+                          ]"
+                        >
+                          <Check
+                            v-if='selectedSongs.some(s => s.id === song.id)'
+                            class='w-4 h-4'
+                          />
                         </div>
                       </div>
 
@@ -302,5 +359,38 @@
         Cancel
       </Button>
     </div>
+
+    <!-- Error Dialogs -->
+    <Dialog v-model:open='showNameErrorDialog'>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Playlist Name Required</DialogTitle>
+          <DialogDescription>
+            Please enter a name for your playlist before saving.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button @click='showNameErrorDialog = false'>
+            OK
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog v-model:open='showSaveErrorDialog'>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Save Failed</DialogTitle>
+          <DialogDescription>
+            Failed to save playlist. Please try again.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button @click='showSaveErrorDialog = false'>
+            OK
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

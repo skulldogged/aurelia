@@ -50,6 +50,7 @@
         v-model='globalSearchQuery'
         :class="[
           'h-10 pl-10 transition-all duration-150 ease-in-out',
+          'focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent',
           isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
         ]"
         placeholder='Search music...'

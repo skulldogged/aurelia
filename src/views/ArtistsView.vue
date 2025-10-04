@@ -2,7 +2,7 @@
   import Fuse from 'fuse.js'
   import { Shuffle } from 'lucide-vue-next'
   import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
-  import { computed, ref, watch } from 'vue'
+  import { computed, ref } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Artist, Song } from '@/bindings'
@@ -53,24 +53,34 @@
     showAllArtists.value ? props.allArtists : (albumArtists.value?.length ? albumArtists.value : props.allArtists),
   )
 
-  // Use artists directly from props, sorted alphabetically (case-insensitive)
-  const artistsWithSongs = computed(() =>
-    [...artistsToDisplay.value].sort((a, b) =>
+  // Deduplicate artists by name (not ID) to handle Jellyfin duplicate artist entries
+  // For duplicates, keep the entry with the most songs
+  const artistsWithSongs = computed(() => {
+    const uniqueArtistsByName = new Map<string, Artist>()
+
+    for (const artist of artistsToDisplay.value) {
+      const normalizedName = artist.name.toLowerCase()
+      const existing = uniqueArtistsByName.get(normalizedName)
+
+      // Keep the artist with more songs, or the first one if equal
+      if (!existing || (artist.songs?.length || 0) > (existing.songs?.length || 0)) {
+        uniqueArtistsByName.set(normalizedName, artist)
+      }
+    }
+
+    return Array.from(uniqueArtistsByName.values()).sort((a, b) =>
       a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
-    ),
-  )
+    )
+  })
 
   // Fuzzy search setup (Fuse.js)
-  const artistsFuse = ref(new Fuse(artistsWithSongs.value, {
+  // Recreate the Fuse instance when artists change to avoid duplication issues
+  const artistsFuse = computed(() => new Fuse(artistsWithSongs.value, {
     includeScore:       true,
     keys:               ['name'],
     minMatchCharLength: 2,
     threshold:          0.2,
   }))
-
-  watch(artistsWithSongs, newArtists => {
-    artistsFuse.value.setCollection(newArtists)
-  })
 
   const filteredArtists = computed(() =>
     searchQuery.value && searchQuery.value.length >= 2
@@ -101,11 +111,9 @@
 
   const playArtistShuffle = (artist: Artist): void => {
     const artistSongs = artist.songs
-    if (artistSongs && artistSongs.length > 0) {
-      // Shuffle the songs
-      const shuffledSongs = [...artistSongs].sort(() => 0.5 - Math.random())
-      emit('play-songs', shuffledSongs)
-    }
+
+    if (artistSongs && artistSongs.length > 0)
+      emit('play-songs', [...artistSongs].sort(() => 0.5 - Math.random()))
   }
 
   const selectArtist = (artist: Artist): void => {
@@ -168,7 +176,7 @@
       <div
         v-for='artist in pagedArtists'
         @click='selectArtist(artist)'
-        :key='artist.name'
+        :key='artist.id'
         class='cursor-pointer group'
       >
         <div class='relative mb-4'>

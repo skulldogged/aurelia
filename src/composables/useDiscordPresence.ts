@@ -63,21 +63,42 @@ export const useDiscordPresence = (): {
   let lastProgressPosition = -POSITION_UPDATE_THRESHOLD
   let isUpdating = false
   let pendingUpdate = false
+  let lastSuccessfulUpdate = Date.now() // Initialize to now to avoid false reconnection on startup
+
+  const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
   const ensureThread = async (): Promise<boolean> => {
-    if (hasStartedThread)
-      return true
+    if (hasStartedThread) {
+      // Check if it's been a while since last successful update - might need reconnection
+      const timeSinceLastSuccess = Date.now() - lastSuccessfulUpdate
+      if (timeSinceLastSuccess > 60000) { // 1 minute
+        const seconds = Math.round(timeSinceLastSuccess / 1000)
+        presenceLogger.warn(`No successful updates in ${seconds}s, attempting reconnection`)
+        hasStartedThread = false
+      } else {
+        return true
+      }
+    }
 
     try {
-      if (!(await isRunning())) {
+      const running = await isRunning()
+      presenceLogger.debug('Discord RPC thread status before start:', { running })
+
+      if (!running) {
+        presenceLogger.info('Starting Discord RPC thread with app ID:', DISCORD_APP_ID)
         await start(DISCORD_APP_ID)
-        presenceLogger.debug('Started Discord RPC thread')
+        presenceLogger.info('Discord RPC thread started successfully')
+        // Give Discord a moment to establish the connection
+        await sleep(500)
+      } else {
+        presenceLogger.debug('Discord RPC thread already running')
       }
 
       hasStartedThread = true
       return true
     } catch (error) {
       presenceLogger.error('Failed to start Discord RPC thread', error)
+      hasStartedThread = false
       return false
     }
   }
@@ -116,8 +137,14 @@ export const useDiscordPresence = (): {
       if (!await ensureThread())
         return
 
-      await clearActivity()
-      presenceLogger.debug('Cleared Discord activity (no active song)')
+      try {
+        await clearActivity()
+        lastSuccessfulUpdate = Date.now()
+        presenceLogger.debug('Cleared Discord activity (no active song)')
+      } catch (error) {
+        presenceLogger.error('Failed to clear Discord activity', error)
+        hasStartedThread = false
+      }
       return
     }
 
@@ -175,7 +202,26 @@ export const useDiscordPresence = (): {
       title:           song.name,
     })
 
-    await setActivity(activity)
+    // Log the actual activity payload being sent to Discord
+    presenceLogger.debug('Activity payload details', {
+      details:       song.name,
+      hasLargeImage: !!song.albumArtUrl,
+      hasSmallImage: !!artistImageUrl,
+      largeImageUrl: song.albumArtUrl?.substring(0, 100), // Truncate for readability
+      smallImageUrl: artistImageUrl?.substring(0, 100),
+      state:         isPlaying ? artists : `Paused — ${artists}`,
+    })
+
+    try {
+      await setActivity(activity)
+      lastSuccessfulUpdate = Date.now()
+      presenceLogger.debug('Discord activity set successfully')
+    } catch (error) {
+      presenceLogger.error('Failed to set Discord activity', error)
+      // Reset the thread state so it will retry on next update
+      hasStartedThread = false
+      throw error
+    }
   }
 
   const updatePresence = async (): Promise<void> => {

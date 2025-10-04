@@ -3,7 +3,7 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
-  import { Album, Song } from '@/bindings'
+  import { Album, NameIdPair, Song } from '@/bindings'
   import { commands } from '@/bindings'
   import Carousel from '@/components/shared/Carousel.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
@@ -70,16 +70,21 @@
   const recentlyPlayed = computed(() => recentlyPlayedSongs.value)
 
   const recentlyAdded = computed(() =>
-    props.allAlbums
+    [...props.allAlbums]
       .filter(album => album.name && album.name.trim().length > 0)
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort((a, b) => {
+        // Sort by date created descending (most recent first)
+        const dateA = a.dateCreated ? new Date(a.dateCreated).getTime() : 0
+        const dateB = b.dateCreated ? new Date(b.dateCreated).getTime() : 0
+        return dateB - dateA
+      })
       .slice(0, 10),
   )
 
   const randomAlbums = computed(() =>
     [...props.allAlbums]
       .filter(album => album.name && album.name.trim().length > 0)
-      .sort((a, b) => a.name.localeCompare(b.name))
+      .sort(() => Math.random() - 0.5)
       .slice(0, 10),
   )
 
@@ -89,6 +94,35 @@
   const featuredAlbum = computed(() =>
     featuredAlbums.value[currentFeaturedIndex.value] || null,
   )
+
+  // Extract all unique album artists from the featured album's songs
+  const featuredAlbumArtistPairs = computed<NameIdPair[]>(() => {
+    const album = featuredAlbum.value
+    if (!album) return []
+
+    const idToName = new Map<string, string>()
+    const albumSongs = album.songs || []
+
+    for (const song of albumSongs)
+      if (song.albumArtists)
+        for (const pair of song.albumArtists)
+          if (pair.id && pair.name) idToName.set(pair.id, pair.name)
+
+    // Fallbacks if albumArtists are not provided by backend
+    if (idToName.size === 0) {
+      const first = albumSongs[0]
+      if (first?.artistIds && first.artists && first.artistIds.length === first.artists.length) {
+        first.artistIds.forEach((id, idx) => {
+          const name = first.artists![idx]
+          if (id && name) idToName.set(id, name)
+        })
+      } else if (album.artist && album.artistId) {
+        idToName.set(album.artistId, album.artist)
+      }
+    }
+
+    return Array.from(idToName, ([id, name]) => ({ id, name }))
+  })
 
   const isValidAlbumName = (name: null | string | undefined): boolean =>
     !!(name && name.trim().length > 0)
@@ -258,13 +292,27 @@
               <span v-else>{{ featuredAlbum.name }}</span>
             </h1>
             <p class='text-xl text-white/90 mb-4 drop-shadow-md'>
-              <router-link
-                v-if='featuredAlbum.artistId'
-                :to="{ name: 'artist-detail', params: { artistId: featuredAlbum.artistId } }"
-              >
-                {{ featuredAlbum.artist }}
-              </router-link>
-              <span v-else>{{ featuredAlbum.artist }}</span>
+              <template v-if='featuredAlbumArtistPairs.length'>
+                <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
+                  <router-link
+                    :to="{ name: 'artist-detail', params: { artistId: pair.id } }"
+                    class='hover:underline'
+                  >
+                    {{ pair.name }}
+                  </router-link>
+                  <span v-if='index < featuredAlbumArtistPairs.length - 1'>, </span>
+                </template>
+              </template>
+              <template v-else>
+                <router-link
+                  v-if='featuredAlbum.artistId'
+                  :to="{ name: 'artist-detail', params: { artistId: featuredAlbum.artistId } }"
+                  class='hover:underline'
+                >
+                  {{ featuredAlbum.artist }}
+                </router-link>
+                <span v-else>{{ featuredAlbum.artist }}</span>
+              </template>
             </p>
             <p class='text-sm text-white/80 mb-6 drop-shadow-md'>
               {{ featuredAlbum.songs?.length || 0 }} songs

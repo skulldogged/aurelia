@@ -198,7 +198,7 @@
                       :class="band.gain === 0
                         ? 'text-muted-foreground'
                         : band.gain > 0
-                          ? 'text-chart-3'
+                          ? 'text-success'
                           : 'text-destructive'"
                     >
                       {{ band.gain > 0 ? '+' : '' }}{{ band.gain.toFixed(1) }}

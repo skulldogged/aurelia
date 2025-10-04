@@ -44,11 +44,7 @@ export const useThemeStore = defineStore('theme', () => {
       root.style.setProperty('--border', colors.border)
       root.style.setProperty('--input', colors.input)
       root.style.setProperty('--ring', colors.ring)
-      root.style.setProperty('--chart-1', colors.chart1)
-      root.style.setProperty('--chart-2', colors.chart2)
-      root.style.setProperty('--chart-3', colors.chart3)
-      root.style.setProperty('--chart-4', colors.chart4)
-      root.style.setProperty('--chart-5', colors.chart5)
+      root.style.setProperty('--success', colors.success)
       root.style.setProperty('--sidebar', colors.sidebar)
     }
   }, { immediate: true })

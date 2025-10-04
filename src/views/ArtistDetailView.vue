@@ -2,7 +2,7 @@
   import type { SimpleIcon } from 'simple-icons'
 
   import { useBreakpoints } from '@vueuse/core'
-  import { Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
+  import { ListPlus, Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
   import {
     siApplemusic,
     siBandcamp,
@@ -18,11 +18,17 @@
   import { useRoute } from 'vue-router'
 
   import { Album, Artist, Song } from '@/bindings'
+  import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import Carousel from '@/components/shared/Carousel.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
   import { Button } from '@/components/ui/button'
+  import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+  } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
   import { uiLogger } from '@/lib/logger'
 
@@ -84,6 +90,7 @@
             albumArtUrl: song.albumArtUrl,
             artist:      song.artists?.[0] || 'Unknown Artist',
             artistId:    song.artistIds?.[0] || null,
+            dateCreated: song.dateCreated,
             id:          song.albumId,
             imageTags:   song.imageTags,
             name:        song.album,
@@ -354,23 +361,6 @@
       .filter(Boolean) as { icon: SimpleIcon; provider: string, url: string, }[]
   })
 
-  const getSongImageUrl = (song: Song): string | undefined => {
-    // First check if the song has its own album art
-    if (song.albumArtUrl) {
-      return song.albumArtUrl
-    }
-
-    // If not, check if the song belongs to an album and use the album's art
-    if (song.albumId) {
-      const album = artistAlbums.value.find(album => album.id === song.albumId)
-      if (album?.albumArtUrl) {
-        return album.albumArtUrl
-      }
-    }
-
-    return undefined
-  }
-
   const playSong = (song: Song): void => {
     emit('play-song', song)
   }
@@ -523,6 +513,17 @@
                   <Shuffle class='w-4 h-4 mr-2' />
                   Shuffle All
                 </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger as-child>
+                    <Button variant='outline'>
+                      <ListPlus class='w-4 h-4 mr-2' />
+                      Add to Playlist
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <AddToPlaylistMenu :songs='artistSongs' type='flat' />
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button @click='showShareDialog = true' variant='outline'>
                   <Share2 class='w-4 h-4 mr-2' />
                   Share
@@ -560,14 +561,22 @@
             :key='song.id'
             class='flex items-center p-2 hover:bg-muted/50 rounded-md cursor-pointer transition-colors group'
           >
-            <div class='relative mr-4'>
-              <img
-                v-if='getSongImageUrl(song)'
-                :src='getSongImageUrl(song)'
+            <div class='relative mr-4 flex-shrink-0'>
+              <ImageLoader
+                :item-id='song.albumId || song.id'
+                :server-url='serverUrl'
+                :token='token'
                 alt='Album art'
-                class='w-10 h-10 rounded-md'
+                class='w-10 h-10 rounded-md object-cover'
               >
-              <div v-else class='w-10 h-10 rounded-md bg-muted flex-shrink-0' />
+                <template #fallback>
+                  <ImagePlaceholder
+                    class='w-10 h-10 rounded-md'
+                    size='small'
+                    type='album'
+                  />
+                </template>
+              </ImageLoader>
               <div
                 :class="[
                   'absolute inset-0 w-10 h-10 flex items-center justify-center transition-opacity',

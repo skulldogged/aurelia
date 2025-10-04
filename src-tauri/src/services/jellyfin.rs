@@ -142,7 +142,7 @@ impl JellyfinClient {
         let albums_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items?userId={user_id}&IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,Artists,ProviderIds",
+                "/Items?userId={user_id}&IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,Artists,ProviderIds,DateCreated",
             ),
         );
 
@@ -209,6 +209,10 @@ impl JellyfinClient {
                 .collect::<HashMap<String, String>>()
         });
 
+        let date_created = item["DateCreated"]
+            .as_str()
+            .map(std::string::ToString::to_string);
+
         crate::models::Album {
             id,
             name,
@@ -219,6 +223,7 @@ impl JellyfinClient {
             songs: None,
             image_tags,
             provider_ids,
+            date_created,
         }
     }
 
@@ -419,27 +424,35 @@ impl JellyfinClient {
             .or(item_id)
             .unwrap_or_else(|| item["Id"].as_str().unwrap_or(""));
 
-        item["ImageTags"].as_object().map_or((None, None), |tags| {
-            let image_tags = tags
-                .iter()
+        // Build image tags map if available
+        let image_tags = item["ImageTags"].as_object().map(|tags| {
+            tags.iter()
                 .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
-                .collect::<HashMap<String, String>>();
+                .collect::<HashMap<String, String>>()
+        });
 
-            let url = if tags.contains_key("Primary") {
-                let base_url = utils::build_jellyfin_url(
-                    &self.server_url,
-                    &format!("/Items/{}/Images/Primary", image_id),
-                );
-                if let Some(token) = &self.token {
-                    Some(format!("{base_url}?api_key={token}"))
-                } else {
-                    Some(base_url)
-                }
+        // For songs, always try to build the album art URL using AlbumId (if present)
+        // For albums/artists, only build URL if they have a Primary image tag
+        let has_album_id = item["AlbumId"].as_str().is_some();
+        let has_primary_tag = image_tags
+            .as_ref()
+            .is_some_and(|tags| tags.contains_key("Primary"));
+
+        let url = if has_album_id || has_primary_tag {
+            let base_url = utils::build_jellyfin_url(
+                &self.server_url,
+                &format!("/Items/{}/Images/Primary", image_id),
+            );
+            if let Some(token) = &self.token {
+                Some(format!("{base_url}?api_key={token}"))
             } else {
-                None
-            };
-            (url, Some(image_tags))
-        })
+                Some(base_url)
+            }
+        } else {
+            None
+        };
+
+        (url, image_tags)
     }
 
     /// Parse a single playlist item from JSON

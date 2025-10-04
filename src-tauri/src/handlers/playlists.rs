@@ -46,13 +46,27 @@ pub async fn update_playlist(
 /// Delete a playlist from Jellyfin server
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_playlist(playlist_id: String) -> Result<(), String> {
+pub async fn delete_playlist(app: tauri::AppHandle, playlist_id: String) -> Result<(), String> {
     let client = get_jellyfin_client()?;
 
+    // Delete the playlist from the server
     client
         .delete_playlist(&playlist_id)
         .await
-        .map_err(|e| format!("Failed to delete playlist: {}", e))
+        .map_err(|e| format!("Failed to delete playlist: {}", e))?;
+
+    // Clear the cached image for this playlist
+    if let Err(e) = crate::handlers::images::delete_cached_image(
+        app,
+        playlist_id.clone(),
+        "Primary".to_string(),
+    )
+    .await
+    {
+        tracing::warn!("Failed to delete cached playlist image: {}", e);
+    }
+
+    Ok(())
 }
 
 /// Add items to a playlist

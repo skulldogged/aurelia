@@ -4,6 +4,7 @@ import { computed, readonly, ref } from 'vue'
 import type { Playlist, PlaylistCreateData, PlaylistUpdateData, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
+import { useImageLoader } from '@/composables/useImageLoader'
 import { appLogger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
 
@@ -182,7 +183,14 @@ export const usePlaylistStore = defineStore('playlists', () => {
               setCurrentPlaylist(null)
             }
             appLogger.info('Playlist deleted successfully:', deletedName)
+            appLogger.info('Clearing image cache for playlist ID:', id)
           }
+
+          // Clear the image from frontend cache
+          const imageLoader = useImageLoader()
+          imageLoader.clearImageFromCache(id, 'Primary')
+          appLogger.info('Frontend image cache cleared for:', id)
+
           success = true
         },
       },
@@ -206,8 +214,9 @@ export const usePlaylistStore = defineStore('playlists', () => {
       return true // No new songs to add
     }
 
-    const updatedSongs = [...playlist.songs, ...newSongs]
-    return await updatePlaylist(playlistId, { songs: updatedSongs })
+    // Combine existing song IDs with new song IDs
+    const updatedIds = [...playlist.songs.map(s => s.id), ...newSongs.map(s => s.id)]
+    return await updatePlaylist(playlistId, { ids: updatedIds })
   }
 
   const removeSongsFromPlaylist = async (playlistId: string, songIds: string[]): Promise<boolean> => {

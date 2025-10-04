@@ -10,6 +10,14 @@
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import { Button } from '@/components/ui/button'
   import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+  } from '@/components/ui/dialog'
+  import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -34,6 +42,8 @@
 
   const searchQuery = ref('')
   const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
+  const showDeleteDialog = ref(false)
+  const playlistToDelete = ref<null | Playlist>(null)
 
   const playlistsFuse = ref(new Fuse(playlistStore.playlists, {
     includeScore: true,
@@ -93,10 +103,21 @@
     router.push('/playlists/create')
   }
 
-  const deletePlaylist = async (playlist: Playlist): Promise<void> => {
-    if (confirm(`Are you sure you want to delete "${playlist.name}"?`)) {
-      await playlistStore.deletePlaylist(playlist.id)
-    }
+  const deletePlaylist = (playlist: Playlist): void => {
+    playlistToDelete.value = playlist
+    showDeleteDialog.value = true
+  }
+
+  const confirmDelete = async (): Promise<void> => {
+    if (!playlistToDelete.value) return
+    await playlistStore.deletePlaylist(playlistToDelete.value.id)
+    showDeleteDialog.value = false
+    playlistToDelete.value = null
+  }
+
+  const cancelDelete = (): void => {
+    showDeleteDialog.value = false
+    playlistToDelete.value = null
   }
 </script>
 
@@ -304,5 +325,25 @@
         </Button>
       </div>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <Dialog v-model:open='showDeleteDialog'>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete Playlist</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete "{{ playlistToDelete?.name }}"? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button @click='cancelDelete' variant='outline'>
+            Cancel
+          </Button>
+          <Button @click='confirmDelete' variant='destructive'>
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

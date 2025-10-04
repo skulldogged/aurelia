@@ -175,6 +175,8 @@ pub struct Album {
     pub image_tags: Option<HashMap<String, String>>,
     /// External provider IDs (`MusicBrainz`, etc.)
     pub provider_ids: Option<HashMap<String, String>>,
+    /// Date created (when added to server)
+    pub date_created: Option<String>,
 }
 
 impl PartialEq for Album {
@@ -187,6 +189,7 @@ impl PartialEq for Album {
             && self.song_count == other.song_count
             && self.songs == other.songs
             && self.image_tags == other.image_tags
+            && self.date_created == other.date_created
     }
 }
 

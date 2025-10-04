@@ -73,7 +73,13 @@ pub async fn cache_image_from_url(
     let cache_path = cache_dir.join(format!("{cache_key}.jpg"));
 
     if cache_path.exists() {
-        return Ok(cache_path.to_string_lossy().to_string());
+        let image_data = match fs::read(&cache_path).await {
+            Ok(data) => data,
+            Err(e) => return Err(format!("Failed to read cached image: {e}")),
+        };
+        let base64_data = base64::engine::general_purpose::STANDARD.encode(&image_data);
+        let data_url = format!("data:image/jpeg;base64,{base64_data}");
+        return Ok(data_url);
     }
 
     let client = reqwest::Client::new();
@@ -176,4 +182,33 @@ pub async fn get_image_cache_stats(app: AppHandle) -> Result<String, String> {
     });
 
     serde_json::to_string(&stats).map_err(|e| format!("Failed to serialize cache stats: {e}"))
+}
+
+/// Delete a specific cached image by item ID and type
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_cached_image(
+    app: AppHandle,
+    item_id: String,
+    image_type: String,
+) -> Result<(), String> {
+    let cache_dir = match get_image_cache_dir(&app) {
+        Ok(dir) => dir,
+        Err(e) => return Err(e.to_string()),
+    };
+    let cache_key = generate_cache_key(&item_id, &image_type);
+    let cache_path = cache_dir.join(format!("{cache_key}.jpg"));
+
+    tracing::info!("Attempting to delete cached image: {:?}", cache_path);
+
+    if cache_path.exists() {
+        fs::remove_file(&cache_path)
+            .await
+            .map_err(|e| format!("Failed to delete cached image: {e}"))?;
+        tracing::info!("Successfully deleted cached image: {:?}", cache_path);
+    } else {
+        tracing::info!("Cached image does not exist: {:?}", cache_path);
+    }
+
+    Ok(())
 }

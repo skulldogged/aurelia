@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Heart, ListPlus, Pause, Play, Share2 } from 'lucide-vue-next'
+  import { Heart, Pause, Play, Share2 } from 'lucide-vue-next'
   import { computed, ref, watch } from 'vue'
 
   import { Song } from '@/bindings'
@@ -20,8 +20,8 @@
   } from '@/components/ui/select'
   import { Skeleton } from '@/components/ui/skeleton'
   import { usePageSizePreference } from '@/composables/useLayoutPreference'
-  import { usePlaylistStore } from '@/stores'
 
+  import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
   import ImageLoader from './ImageLoader.vue'
   import ImagePlaceholder from './ImagePlaceholder.vue'
   import ShareDialog from './ShareDialog.vue'
@@ -103,13 +103,8 @@
   const pageSizeOptions = [10, 20, 30, 50]
 
   // Playlist functionality
-  const playlistStore = usePlaylistStore()
   const showShareDialog = ref(false)
   const shareDialogItem = ref<null | { id: string; name: string; type: 'album' | 'artist' | 'song' }>(null)
-
-  const addSongToPlaylist = async (song: Song, playlistId: string): Promise<void> => {
-    await playlistStore.addSongsToPlaylist(playlistId, [song])
-  }
 
   const removeSongFromPlaylist = (song: Song): void => {
     emit('remove-song', song)
@@ -347,13 +342,7 @@
               <Play class='w-4 h-4 mr-2' />
               Play
             </ContextMenuItem>
-            <ContextMenuItem
-              @click='addSongToPlaylist(song, playlistStore.playlists[0].id)'
-              v-if='playlistStore.playlists.length > 0'
-            >
-              <ListPlus class='w-4 h-4 mr-2' />
-              Add to {{ playlistStore.playlists[0].name }}
-            </ContextMenuItem>
+            <AddToPlaylistMenu :songs='[song]' type='context' />
             <ContextMenuItem @click='openShareDialog(song)'>
               <Share2 class='w-4 h-4 mr-2' />
               Share

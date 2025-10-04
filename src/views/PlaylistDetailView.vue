@@ -10,6 +10,14 @@
   import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
   import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+  } from '@/components/ui/dialog'
+  import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -30,6 +38,7 @@
   const songs = ref<Song[]>([])
   const isLoading = ref(false)
   const searchQuery = ref('')
+  const showDeleteDialog = ref(false)
 
   const createDefaultUserData = (): UserData => ({
     isFavorite:            false,
@@ -124,13 +133,19 @@
     router.push(`/playlists/${playlistId.value}/edit`)
   }
 
-  const deletePlaylist = async (): Promise<void> => {
-    if (!playlist.value) return
+  const deletePlaylist = (): void => {
+    showDeleteDialog.value = true
+  }
 
-    if (confirm(`Are you sure you want to delete "${playlist.value.name}"?`)) {
-      await playlistStore.deletePlaylist(playlist.value.id)
-      router.push('/playlists')
-    }
+  const confirmDelete = async (): Promise<void> => {
+    if (!playlist.value) return
+    await playlistStore.deletePlaylist(playlist.value.id)
+    showDeleteDialog.value = false
+    router.push('/playlists')
+  }
+
+  const cancelDelete = (): void => {
+    showDeleteDialog.value = false
   }
 
   const goBack = (): void => {
@@ -265,5 +280,25 @@
         {{ songs.length === 0 ? 'This playlist is empty' : 'No songs match your search' }}
       </p>
     </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <Dialog v-model:open='showDeleteDialog'>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Delete Playlist</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete "{{ playlist?.name }}"? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button @click='cancelDelete' variant='outline'>
+            Cancel
+          </Button>
+          <Button @click='confirmDelete' variant='destructive'>
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

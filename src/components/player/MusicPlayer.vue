@@ -37,8 +37,11 @@
   import { usePlayerStore } from '@/stores'
 
   const props = defineProps<{
-    serverUrl: string
-    token:     string
+    isEqualizerOpen?: boolean
+    isLyricsOpen?:    boolean
+    isQueueOpen?:     boolean
+    serverUrl:        string
+    token:            string
   }>()
 
   defineEmits<{
@@ -55,10 +58,13 @@
   const webAudioPlayer = useWebAudioPlayer()
 
   webAudioPlayer.setOnDurationChange((duration: number) => {
-    // For WebAudio streaming, we might get 0 initially, then Infinity, then actual duration
-    if (isFinite(duration) && duration > 0 && duration !== Infinity && duration !== playerStore.duration) {
+    if (
+      isFinite(duration)
+      && duration > 0
+      && duration !== Infinity
+      && duration !== playerStore.duration
+    )
       playerStore.setDuration(duration)
-    }
   })
 
   const audioPlayer1 = ref<HTMLAudioElement | null>(null)
@@ -84,6 +90,10 @@
     playerStore.playlist.length > 1
     && playerStore.currentIndex > -1
     && playerStore.currentIndex < playerStore.playlist.length - 1,
+  )
+
+  const hasLyrics = computed(() =>
+    playerStore.currentSong?.lyrics != null && playerStore.currentSong.lyrics.trim() !== '',
   )
 
   const nextSongInQueue = computed(() => {
@@ -113,9 +123,20 @@
     favorite:   44,
     fullscreen: 44,
     lyrics:     44,
-    queue:      44,      // Button width + margin
+    queue:      44,
     volume:     44,
   }
+
+  // Compute which view is currently active
+  const activeView = computed(() =>
+    props.isQueueOpen
+      ? 'queue'
+      : props.isEqualizerOpen
+        ? 'equalizer'
+        : props.isLyricsOpen
+          ? 'lyrics'
+          : null,
+  )
 
   const updateVisibleIcons = (): void => {
     if (!containerRef.value) return
@@ -131,20 +152,46 @@
     // Define all icons in priority order (right to left - volume hides first)
     const allIcons = ['volume', 'equalizer', 'fullscreen', 'favorite', 'lyrics', 'queue']
 
-    // Add icons one by one in priority order until they don't fit
+    // First pass: add icons that fit naturally
     for (const icon of allIcons) {
-      if (usedWidth + iconWidths[icon as keyof typeof iconWidths] <= availableWidth) {
+      const iconWidth = iconWidths[icon as keyof typeof iconWidths]
+
+      if (usedWidth + iconWidth <= availableWidth) {
         newVisibleIcons.push(icon)
-        usedWidth += iconWidths[icon as keyof typeof iconWidths]
+        usedWidth += iconWidth
       }
+    }
+
+    // Second pass: if there's an active view and it's not visible,
+    // force it to be visible (it would be in the menu otherwise)
+    if (activeView.value && !newVisibleIcons.includes(activeView.value)) {
+      newVisibleIcons.push(activeView.value)
     }
 
     visibleIcons.value = newVisibleIcons
   }
 
   const hasHiddenIcons = computed(() => {
-    const allIcons = ['favorite', 'fullscreen', 'equalizer', 'volume', 'lyrics', 'queue']
-    return allIcons.some(icon => !visibleIcons.value.includes(icon))
+    const allPossibleIcons = [
+      'favorite',
+      'fullscreen',
+      'volume',
+    ]
+
+    // Add equalizer only if WebAudio is enabled
+    if (useWebAudio.value) {
+      allPossibleIcons.push('equalizer')
+    }
+
+    // Add lyrics only if current song has lyrics
+    if (hasLyrics.value) {
+      allPossibleIcons.push('lyrics')
+    }
+
+    // Always check queue
+    allPossibleIcons.push('queue')
+
+    return allPossibleIcons.some(icon => !visibleIcons.value.includes(icon))
   })
 
   const songFormatInfo = computed(() => {
@@ -710,6 +757,11 @@
     }
   })
 
+  // Watch active view changes to update visible icons
+  watch(activeView, () => {
+    updateVisibleIcons()
+  })
+
   onUnmounted(() => {
     stopWebAudioTimeUpdates()
 
@@ -923,25 +975,27 @@
 
         <div class='flex justify-end'>
           <div class='flex items-center space-x-2'>
-            <!-- Show visible icons -->
+            <!-- Queue button -->
             <Button
               @click="$emit('toggle-queue')"
               v-if="visibleIcons.includes('queue')"
+              :variant="activeView === 'queue' ? 'default' : 'ghost'"
               size='icon'
-              variant='ghost'
             >
               <ListMusic class='w-5 h-5' />
             </Button>
 
+            <!-- Lyrics button -->
             <Button
               @click="$emit('toggle-lyrics')"
-              v-if="visibleIcons.includes('lyrics')"
+              v-if="hasLyrics && visibleIcons.includes('lyrics')"
+              :variant="activeView === 'lyrics' ? 'default' : 'ghost'"
               size='icon'
-              variant='ghost'
             >
               <Mic2 class='w-5 h-5' />
             </Button>
 
+            <!-- Favorite button -->
             <Button
               @click="$emit('toggle-favorite', playerStore.currentSong)"
               v-if="visibleIcons.includes('favorite')"
@@ -958,6 +1012,7 @@
               />
             </Button>
 
+            <!-- Fullscreen button -->
             <Button
               @click="$emit('toggle-fullscreen')"
               v-if="visibleIcons.includes('fullscreen')"
@@ -967,15 +1022,17 @@
               <Expand class='w-5 h-5' />
             </Button>
 
+            <!-- Equalizer button -->
             <Button
               @click="$emit('toggle-equalizer')"
               v-if="visibleIcons.includes('equalizer') && useWebAudio"
+              :variant="activeView === 'equalizer' ? 'default' : 'ghost'"
               size='icon'
-              variant='ghost'
             >
               <Sliders class='w-5 h-5' />
             </Button>
 
+            <!-- Volume button -->
             <div v-if="visibleIcons.includes('volume')" class='relative'>
               <Button
                 @click='handleVolumeClick'
@@ -1075,7 +1132,7 @@
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   @click="$emit('toggle-lyrics')"
-                  v-if="!visibleIcons.includes('lyrics')"
+                  v-if="hasLyrics && !visibleIcons.includes('lyrics')"
                 >
                   <Mic2 class='w-4 h-4 mr-2' />
                   Lyrics

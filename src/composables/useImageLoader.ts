@@ -115,6 +115,15 @@ loadFailureCache()
 const generateCacheKey = (itemId: string, imageType: string = 'Primary'): string =>
   `${itemId}_${imageType}`
 
+const clearImageFromCache = (itemId: string, imageType: string = 'Primary'): void => {
+  const cacheKey = generateCacheKey(itemId, imageType)
+  dataUrlCache.delete(cacheKey)
+  cacheMetadata.delete(cacheKey)
+  failureCache.delete(cacheKey)
+  savePersistentCache()
+  saveFailureCache()
+}
+
 const getImageUrl = async (
   itemId: string,
   serverUrl: string,
@@ -271,6 +280,7 @@ const preloadRecentImages = async (serverUrl: string, token: string, limit: numb
 }
 
 export interface ImageLoader {
+  clearImageFromCache: (itemId: string, imageType?: string) => void
   getImageCacheStats:  () => Promise<{
     cache_dir:                  string
     cache_expiry_hours:         number
@@ -286,6 +296,7 @@ export interface ImageLoader {
 }
 
 export const useImageLoader = (): ImageLoader => ({
+  clearImageFromCache,
   getImageCacheStats,
   getImageUrl,
   preloadRecentImages,

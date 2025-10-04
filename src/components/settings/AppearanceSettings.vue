@@ -131,8 +131,8 @@
       <!-- Accent Color Card -->
       <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
         <div class='flex items-center space-x-3 mb-4'>
-          <div class='p-2 bg-chart-3/10 rounded-lg'>
-            <Palette class='w-5 h-5 text-chart-3' />
+          <div class='p-2 bg-success/10 rounded-lg'>
+            <Palette class='w-5 h-5 text-success' />
           </div>
           <h3 class='text-lg font-medium'>
             Accent Color

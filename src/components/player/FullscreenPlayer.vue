@@ -114,9 +114,13 @@
   }, { immediate: true })
 
   watch(() => props.song, newSong => {
-    if (newSong)
+    if (newSong) {
+      // Immediately check if lyrics exist in the song data
+      hasLyrics.value = newSong.lyrics != null && newSong.lyrics.trim() !== ''
+    } else {
       hasLyrics.value = false
-  })
+    }
+  }, { immediate: true })
 
   watch(() => props.show, newVal => {
     if (newVal) {
@@ -187,7 +191,11 @@
         </Button>
         <Button
           @click='showLyrics = !showLyrics'
-          class='bg-black/20 hover:bg-black/40 backdrop-blur-sm text-white border-white/20'
+          :class="[
+            'bg-black/20 backdrop-blur-sm text-white border-white/20',
+            hasLyrics ? 'hover:bg-black/40' : 'opacity-50 cursor-not-allowed'
+          ]"
+          :disabled='!hasLyrics'
           size='icon'
           variant='ghost'
         >
