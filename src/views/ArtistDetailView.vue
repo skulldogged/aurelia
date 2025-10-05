@@ -165,6 +165,8 @@
 
     return sortedArtists.slice(0, 6).map(([name]) => {
       const artistInfo = allArtistsMap.get(name)
+      // Count actual songs for this artist in the library
+      const artistSongCount = props.allSongs.filter(s => s.artists?.includes(name)).length
       return {
         communityRating: null,
         id:              artistInfo?.id || '',
@@ -173,7 +175,7 @@
         name,
         overview:        null,
         providerIds:     null,
-        songCount:       artistInfo?.songCount || 0,
+        songCount:       BigInt(artistSongCount),
         songs:           null,
       } as Artist
     })
@@ -741,7 +743,7 @@
               {{ relatedArtist.name }}
             </h3>
             <p class='text-sm text-muted-foreground truncate'>
-              {{ relatedArtist.songs?.length || 0 }} songs
+              {{ relatedArtist.songCount }} {{ relatedArtist.songCount === BigInt(1) ? 'song' : 'songs' }}
             </p>
           </div>
         </div>

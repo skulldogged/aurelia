@@ -26,7 +26,7 @@
   import ImagePlaceholder from './ImagePlaceholder.vue'
   import ShareDialog from './ShareDialog.vue'
 
-  const props = defineProps<{
+  const props = withDefaults(defineProps<{
     currentSong:       null | Song
     isPlaying:         boolean
     layout?:           'comfy' | 'compact'
@@ -42,9 +42,13 @@
     showYear?:         boolean
     songs:             Song[]
     token:             string
-  }>()
+  }>(), {
+    layout:        'comfy',
+    showAddButton: true,
+  })
 
   const shouldShowAlbumArt = computed(() => props.showAlbumArt !== false)
+  const shouldShowAddButton = computed(() => props.showAddButton === undefined ? true : props.showAddButton)
   const layoutMode = computed(() => props.layout || 'comfy')
 
   const emit = defineEmits<{
@@ -342,7 +346,7 @@
               <Play class='w-4 h-4 mr-2' />
               Play
             </ContextMenuItem>
-            <AddToPlaylistMenu :songs='[song]' type='context' />
+            <AddToPlaylistMenu v-if='shouldShowAddButton' :songs='[song]' type='context' />
             <ContextMenuItem @click='openShareDialog(song)'>
               <Share2 class='w-4 h-4 mr-2' />
               Share

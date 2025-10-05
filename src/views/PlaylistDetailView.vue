@@ -25,6 +25,7 @@
   } from '@/components/ui/dropdown-menu'
   import { Input } from '@/components/ui/input'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { useSongInteractions } from '@/composables/useSongInteractions'
   import { useAuthStore, usePlayerStore, usePlaylistStore } from '@/stores'
 
   const route = useRoute()
@@ -32,6 +33,15 @@
   const playlistStore = usePlaylistStore()
   const authStore = useAuthStore()
   const playerStore = usePlayerStore()
+
+  const credentials = computed(() => ({
+    serverUrl: authStore.serverUrl,
+    token:     authStore.token,
+    userId:    authStore.userId,
+    username:  authStore.username,
+  }))
+
+  const { playSong, toggleFavorite: toggleSongFavorite } = useSongInteractions(credentials)
 
   const playlistId = computed(() => route.params.playlistId as string)
   const playlist = ref<null | Playlist>(null)
@@ -162,78 +172,95 @@
 </script>
 
 <template>
-  <div class='p-4 max-w-7xl mx-auto'>
-    <!-- Header -->
-    <div class='mb-8'>
-      <Button @click='goBack' class='mb-4 gap-2' variant='ghost'>
-        <ArrowLeft class='h-4 w-4' />
-        Back to Playlists
-      </Button>
+  <div class='p-4 max-w-7xl mx-auto space-y-8'>
+    <!-- Back Button -->
+    <Button @click='goBack' class='gap-2' variant='ghost'>
+      <ArrowLeft class='h-4 w-4' />
+      Back to Playlists
+    </Button>
 
-      <div v-if='isLoading' class='flex items-center gap-6 mb-6'>
-        <Skeleton class='w-48 h-48 rounded-lg' />
+    <!-- Loading Skeleton -->
+    <div v-if='isLoading' class='space-y-8'>
+      <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
+        <Skeleton class='w-48 h-48 rounded-lg flex-shrink-0' />
         <div class='flex-1 space-y-4'>
-          <Skeleton class='h-8 w-64' />
-          <Skeleton class='h-4 w-96' />
-          <Skeleton class='h-6 w-24' />
+          <Skeleton class='h-12 w-3/4' />
+          <Skeleton class='h-6 w-1/2' />
+          <Skeleton class='h-6 w-32' />
+          <div class='flex gap-2'>
+            <Skeleton class='h-10 w-24' />
+            <Skeleton class='h-10 w-28' />
+            <Skeleton class='h-10 w-10' />
+          </div>
         </div>
       </div>
+    </div>
 
-      <div v-else-if='playlist' class='flex items-start gap-6 mb-6'>
-        <ImageLoader
-          :alt='`${playlist.name} playlist art`'
-          :item-id='playlist.id'
-          :server-url='authStore.serverUrl'
-          :token='authStore.token'
-          class='w-48 h-48 rounded-lg object-cover shadow-lg flex-shrink-0'
-        >
-          <template #fallback>
-            <ImagePlaceholder
-              class='w-48 h-48 rounded-lg shadow-lg'
-              size='large'
-              type='playlist'
-            />
-          </template>
-        </ImageLoader>
+    <!-- Playlist Header -->
+    <div v-else-if='playlist' class='space-y-8'>
+      <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
+        <div class='flex-shrink-0'>
+          <ImageLoader
+            :alt='`${playlist.name} playlist art`'
+            :item-id='playlist.id'
+            :server-url='authStore.serverUrl'
+            :token='authStore.token'
+            class='w-48 h-48 rounded-lg object-cover shadow-lg'
+          >
+            <template #fallback>
+              <ImagePlaceholder
+                class='w-48 h-48 rounded-lg shadow-lg'
+                size='large'
+                type='playlist'
+              />
+            </template>
+          </ImageLoader>
+        </div>
 
         <div class='flex-1 min-w-0'>
-          <div class='flex items-center gap-4 mb-2'>
-            <h1 class='text-4xl font-bold truncate'>
+          <div class='flex items-center gap-3 mb-2'>
+            <h1 class='text-5xl font-bold text-foreground truncate'>
               {{ playlist.name }}
             </h1>
             <Heart
               v-if='playlist.userData?.isFavorite'
-              class='h-6 w-6 text-red-500 flex-shrink-0'
+              class='h-7 w-7 text-red-500 flex-shrink-0 fill-current'
             />
           </div>
 
-          <p v-if='playlist.description' class='text-muted-foreground mb-4'>
+          <p v-if='playlist.description' class='text-xl text-muted-foreground mt-2 mb-4'>
             {{ playlist.description }}
           </p>
 
-          <p class='text-sm text-muted-foreground mb-6'>
-            {{ songs.length }} songs
-          </p>
+          <div class='flex items-center gap-2 text-sm text-muted-foreground mt-3'>
+            <span>{{ songs.length }} song{{ songs.length !== 1 ? 's' : '' }}</span>
+          </div>
 
-          <div class='flex items-center gap-3'>
-            <Button @click='playPlaylist()' class='gap-2'>
-              <Play class='h-4 w-4' />
+          <!-- Actions -->
+          <div class='flex items-center gap-3 mt-6'>
+            <Button @click='playPlaylist()' class='gap-2' size='lg'>
+              <Play class='h-5 w-5' />
               Play
             </Button>
-            <Button @click='playPlaylist(true)' class='gap-2' variant='outline'>
-              <Shuffle class='h-4 w-4' />
+            <Button
+              @click='playPlaylist(true)'
+              class='gap-2'
+              size='lg'
+              variant='outline'
+            >
+              <Shuffle class='h-5 w-5' />
               Shuffle
             </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
-                <Button size='icon' variant='outline'>
-                  <MoreHorizontal class='h-4 w-4' />
+                <Button size='lg' variant='outline'>
+                  <MoreHorizontal class='h-5 w-5' />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
+              <DropdownMenuContent align='start'>
                 <DropdownMenuItem @click='toggleFavorite'>
-                  <Heart v-if='playlist.userData?.isFavorite' class='h-4 w-4 mr-2' />
+                  <Heart v-if='playlist.userData?.isFavorite' class='h-4 w-4 mr-2 fill-current' />
                   <HeartOff v-else class='h-4 w-4 mr-2' />
                   {{ playlist.userData?.isFavorite ? 'Unfavorite' : 'Favorite' }}
                 </DropdownMenuItem>
@@ -251,34 +278,42 @@
         </div>
       </div>
 
-      <Input
-        v-model='searchQuery'
-        class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
-        placeholder='Search songs in playlist...'
-        type='text'
+      <!-- Search -->
+      <div class='flex items-center justify-between'>
+        <h2 class='text-2xl font-semibold text-foreground'>
+          Songs
+        </h2>
+        <Input
+          v-model='searchQuery'
+          class='max-w-sm h-11 focus-visible:ring-1 focus-visible:ring-accent border
+                 focus-visible:border-accent'
+          placeholder='Search songs...'
+          type='text'
+        />
+      </div>
+
+      <!-- Songs List -->
+      <SongList
+        @play-song='playSong'
+        @toggle-favorite='toggleSongFavorite'
+        :current-song='playerStore.currentSong'
+        :is-playing='playerStore.isPlaying'
+        :server-url='authStore.serverUrl'
+        :show-add-button='false'
+        :show-album='true'
+        :show-album-art='true'
+        :show-artist='true'
+        :show-duration='true'
+        :songs='filteredSongs'
+        :token='authStore.token'
+        layout='comfy'
       />
-    </div>
 
-    <!-- Songs List -->
-    <SongList
-      v-if='!isLoading'
-      :current-song='playerStore.currentSong'
-      :is-playing='playerStore.isPlaying'
-      :server-url='authStore.serverUrl'
-      :show-album='true'
-      :show-artist='true'
-      :songs='filteredSongs'
-      :token='""'
-    />
-
-    <div v-else class='space-y-4'>
-      <Skeleton v-for='n in 10' :key='n' class='h-16 w-full' />
-    </div>
-
-    <div v-if='!isLoading && filteredSongs.length === 0' class='text-center py-12'>
-      <p class='text-muted-foreground'>
-        {{ songs.length === 0 ? 'This playlist is empty' : 'No songs match your search' }}
-      </p>
+      <div v-if='filteredSongs.length === 0' class='text-center py-12'>
+        <p class='text-muted-foreground text-lg'>
+          {{ songs.length === 0 ? 'This playlist is empty' : 'No songs match your search' }}
+        </p>
+      </div>
     </div>
 
     <!-- Delete Confirmation Dialog -->

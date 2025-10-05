@@ -1,6 +1,7 @@
   <script setup lang="ts">
-  import { ArrowLeft, Check, Plus, Save } from 'lucide-vue-next'
+  import { Check, GripVertical, Plus, Save, X } from 'lucide-vue-next'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
+  import { Sortable } from 'sortablejs-vue3'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
 
@@ -9,7 +10,6 @@
   import { PlaylistCreateData, PlaylistUpdateData, Song } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import SongList from '@/components/shared/SongList.vue'
   import { Button } from '@/components/ui/button'
   import {
     Dialog,
@@ -37,6 +37,7 @@
   const name = ref('')
   const selectedSongs = ref<Song[]>([])
   const isSaving = ref(false)
+  const isDragging = ref(false)
 
   // Error dialogs
   const showNameErrorDialog = ref(false)
@@ -176,6 +177,30 @@
     selectedSongs.value = selectedSongs.value.filter(s => s.id !== song.id)
   }
 
+  const formatDuration = (seconds?: null | number): string => {
+    if (seconds === undefined || seconds === null) return '?:??'
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const handleDragStart = (): void => {
+    isDragging.value = true
+  }
+
+  const handleDragEnd = (event: { newIndex: number | undefined; oldIndex: number | undefined }): void => {
+    isDragging.value = false
+    const { newIndex, oldIndex } = event
+    if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex)
+      return
+
+    const newList = [...selectedSongs.value]
+    const [item] = newList.splice(oldIndex, 1)
+    newList.splice(newIndex, 0, item)
+
+    selectedSongs.value = newList
+  }
+
   const goBack = (): void => {
     if (isCreate.value) {
       router.push('/playlists')
@@ -208,74 +233,104 @@
 </script>
 
 <template>
-  <div class='p-4 max-w-4xl mx-auto'>
+  <div class='p-4 max-w-7xl mx-auto space-y-8'>
     <!-- Header -->
-    <div class='mb-8'>
-      <Button @click='goBack' class='mb-4 gap-2' variant='ghost'>
-        <ArrowLeft class='h-4 w-4' />
-        {{ isCreate ? 'Back to Playlists' : 'Back to Playlist' }}
-      </Button>
-
-      <h1 class='text-4xl font-bold mb-6'>
-        {{ isCreate ? 'Create Playlist' : 'Edit Playlist' }}
-      </h1>
+    <div>
+      <div class='mb-8'>
+        <h1 class='text-4xl font-bold mb-2 text-foreground'>
+          {{ isCreate ? 'Create Playlist' : 'Edit Playlist' }}
+        </h1>
+        <p class='text-muted-foreground text-lg'>
+          {{
+            isCreate
+              ? 'Build your perfect playlist from your music library'
+              : 'Update your playlist details and song selection'
+          }}
+        </p>
+      </div>
     </div>
 
     <!-- Form -->
-    <div class='space-y-6'>
-      <div class='space-y-2'>
-        <Label for='name'>Name *</Label>
-        <Input
-          id='name'
-          v-model='name'
-          :disabled='isSaving'
-          placeholder='Enter playlist name'
-        />
+    <div class='space-y-8'>
+      <!-- Playlist Details Card -->
+      <div class='bg-card/50 backdrop-blur-sm rounded-lg border border-border/50 p-6 space-y-4'>
+        <h2 class='text-2xl font-semibold mb-4'>
+          Playlist Details
+        </h2>
+        <div class='space-y-2'>
+          <Label class='text-base' for='name'>
+            Playlist Name *
+          </Label>
+          <Input
+            id='name'
+            v-model='name'
+            :disabled='isSaving'
+            class='text-base h-11'
+            placeholder='My Awesome Playlist'
+          />
+          <p class='text-sm text-muted-foreground'>
+            Give your playlist a memorable name
+          </p>
+        </div>
       </div>
 
-      <!-- Selected Songs -->
-      <div class='space-y-4'>
+      <!-- Selected Songs Card -->
+      <div class='bg-card/50 backdrop-blur-sm rounded-lg border border-border/50 p-6 space-y-6'>
         <div class='flex items-center justify-between'>
-          <h2 class='text-xl font-semibold'>
-            Songs ({{ selectedSongs.length }})
-          </h2>
+          <div>
+            <h2 class='text-2xl font-semibold'>
+              Songs
+            </h2>
+            <p class='text-sm text-muted-foreground mt-1'>
+              {{ selectedSongs.length }} {{ selectedSongs.length === 1 ? 'song' : 'songs' }} added
+            </p>
+          </div>
 
           <Dialog v-model:open='showAddSongsDialog'>
             <DialogTrigger as-child>
-              <Button class='gap-2' variant='outline'>
-                <Plus class='h-4 w-4' />
+              <Button class='gap-2' size='lg'>
+                <Plus class='h-5 w-5' />
                 Add Songs
               </Button>
             </DialogTrigger>
-            <DialogContent class='max-w-2xl max-h-[80vh] flex flex-col'>
-              <DialogHeader class='flex-shrink-0'>
-                <DialogTitle>Add Songs to Playlist</DialogTitle>
+            <DialogContent class='max-w-3xl h-[85vh] flex flex-col p-0'>
+              <DialogHeader class='flex-shrink-0 px-6 pt-6 pb-4'>
+                <DialogTitle class='text-2xl'>
+                  Add Songs to Playlist
+                </DialogTitle>
+                <DialogDescription>
+                  Search and select songs from your library
+                </DialogDescription>
               </DialogHeader>
 
-              <div class='flex flex-col space-y-4 flex-1 min-h-0'>
+              <div class='flex flex-col flex-1 min-h-0 px-6 pb-6 gap-4'>
                 <Input
                   v-model='songSearchQuery'
-                  class='focus-visible:ring-1 focus-visible:ring-accent border-0
-                         focus-visible:border-accent flex-shrink-0'
-                  placeholder='Search songs...'
+                  class='focus-visible:ring-1 focus-visible:ring-accent border
+                         focus-visible:border-accent flex-shrink-0 h-11'
+                  placeholder='Search by song name, artist, or album...'
                 />
 
-                <div class='max-h-96'>
-                  <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='h-96' defer>
-                    <div class='px-2 py-1 space-y-1'>
+                <div class='flex-1 min-h-0 -mx-2'>
+                  <OverlayScrollbarsComponent
+                    :options='{ scrollbars: { autoHide: "scroll" } }'
+                    class='h-full'
+                    defer
+                  >
+                    <div class='px-1 py-1 space-y-1.5'>
                       <div
                         v-for='song in filteredLibrarySongs'
                         @click='toggleSongSelection(song)'
                         :key='song.id'
                         :class="[
-                          'flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all',
+                          'flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-all',
                           selectedSongs.some(s => s.id === song.id)
-                            ? 'bg-accent/30 border border-accent/50'
-                            : 'hover:bg-accent/20 border border-transparent'
+                            ? 'bg-accent/40 border-2 border-accent shadow-sm'
+                            : 'hover:bg-accent/10 border-2 border-transparent hover:border-accent/30'
                         ]"
                       >
                         <!-- Album Art -->
-                        <div class='w-12 h-12 flex-shrink-0 rounded overflow-hidden'>
+                        <div class='w-14 h-14 flex-shrink-0 rounded-md overflow-hidden shadow-md'>
                           <ImageLoader
                             :alt='`${song.album || song.name} album art`'
                             :item-id='song.albumId || song.id'
@@ -295,32 +350,49 @@
 
                         <!-- Song Info -->
                         <div class='flex-1 min-w-0'>
-                          <div class='font-medium truncate'>
+                          <div class='font-semibold truncate text-base'>
                             {{ song.name }}
                           </div>
-                          <div class='text-sm text-muted-foreground truncate'>
-                            {{ song.artists?.join(', ') }} • {{ song.album }}
+                          <div class='text-sm text-muted-foreground truncate mt-1'>
+                            <span v-if='song.artists'>
+                              {{ song.artists.join(', ') }}
+                            </span>
+                            <span v-if='song.artists && song.album' class='text-muted-foreground/60'>
+                              •
+                            </span>
+                            <span v-if='song.album'>
+                              {{ song.album }}
+                            </span>
                           </div>
                         </div>
 
                         <!-- Selection Indicator -->
                         <div
                           :class="[
-                            'flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all',
+                            'flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center',
+                            'transition-all',
                             selectedSongs.some(s => s.id === song.id)
                               ? 'bg-accent text-accent-foreground'
-                              : 'border-2 border-muted-foreground/30'
+                              : 'border-2 border-muted-foreground/40'
                           ]"
                         >
                           <Check
                             v-if='selectedSongs.some(s => s.id === song.id)'
-                            class='w-4 h-4'
+                            class='w-4 h-4 font-bold'
                           />
                         </div>
                       </div>
 
-                      <div v-if='filteredLibrarySongs.length === 0' class='text-center py-8 text-muted-foreground'>
-                        No songs found matching "{{ songSearchQuery }}"
+                      <div
+                        v-if='filteredLibrarySongs.length === 0'
+                        class='text-center py-12 text-muted-foreground'
+                      >
+                        <div class='text-lg font-medium mb-1'>
+                          No songs found
+                        </div>
+                        <div class='text-sm'>
+                          Try a different search term
+                        </div>
                       </div>
                     </div>
                   </OverlayScrollbarsComponent>
@@ -330,34 +402,129 @@
           </Dialog>
         </div>
 
-        <div v-if='selectedSongs.length === 0' class='text-center py-8 text-muted-foreground'>
-          No songs added yet. Click "Add Songs" to get started.
+        <div
+          v-if='selectedSongs.length === 0'
+          class='text-center py-16 text-muted-foreground border-2 border-dashed border-border/50 rounded-lg'
+        >
+          <div class='flex flex-col items-center gap-3'>
+            <div class='w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center'>
+              <Plus class='w-8 h-8 text-muted-foreground' />
+            </div>
+            <div>
+              <div class='text-lg font-medium mb-1'>
+                No songs added yet
+              </div>
+              <div class='text-sm'>
+                Click "Add Songs" above to start building your playlist
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div v-else class='space-y-2'>
-          <SongList
-            @remove-song='removeSongFromPlaylist'
-            :current-song='null'
-            :is-playing='false'
-            :server-url='""'
-            :show-album='true'
-            :show-artist='true'
-            :show-remove-button='true'
-            :songs='selectedSongs'
-            :token='""'
-          />
+        <div v-else class='space-y-1.5'>
+          <Sortable
+            @end='handleDragEnd'
+            @start='handleDragStart'
+            :list='selectedSongs'
+            :options="{ animation: 150, ghostClass: 'ghost', dragClass: 'drag' }"
+            handle='.handle'
+            item-key='id'
+          >
+            <template #item='{ element: song }'>
+              <div
+                class='flex items-center gap-3 p-3 rounded-lg bg-card/30 border border-border/30
+                       hover:bg-card/50 hover:border-border/50 transition-all group mb-1.5'
+              >
+                <!-- Drag Handle -->
+                <Button
+                  class='handle cursor-grab flex-shrink-0 p-1 opacity-0 group-hover:opacity-100
+                         transition-opacity'
+                  size='icon'
+                  variant='ghost'
+                >
+                  <GripVertical class='w-4 h-4 text-muted-foreground' />
+                </Button>
+
+                <!-- Album Art -->
+                <div class='w-14 h-14 flex-shrink-0 rounded-md overflow-hidden shadow-md'>
+                  <ImageLoader
+                    :alt='`${song.album || song.name} album art`'
+                    :item-id='song.albumId || song.id'
+                    :server-url='authStore.serverUrl'
+                    :token='authStore.token'
+                    class='w-full h-full object-cover'
+                  >
+                    <template #fallback>
+                      <ImagePlaceholder
+                        class='w-full h-full'
+                        size='small'
+                        type='album'
+                      />
+                    </template>
+                  </ImageLoader>
+                </div>
+
+                <!-- Song Info -->
+                <div class='flex-1 min-w-0'>
+                  <div class='font-semibold truncate text-base'>
+                    {{ song.name }}
+                  </div>
+                  <div class='text-sm text-muted-foreground truncate mt-1'>
+                    <span v-if='song.artists'>
+                      {{ song.artists.join(', ') }}
+                    </span>
+                    <span v-if='song.artists && song.album' class='text-muted-foreground/60'>
+                      •
+                    </span>
+                    <span v-if='song.album'>
+                      {{ song.album }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Duration -->
+                <div
+                  v-if='song.duration'
+                  class='text-sm text-muted-foreground font-medium flex-shrink-0 w-16 text-right'
+                >
+                  {{ formatDuration(song.duration) }}
+                </div>
+
+                <!-- Remove Button -->
+                <Button
+                  @click='removeSongFromPlaylist(song)'
+                  class='flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity'
+                  size='icon'
+                  variant='ghost'
+                >
+                  <X class='h-4 w-4' />
+                </Button>
+              </div>
+            </template>
+          </Sortable>
         </div>
       </div>
 
       <!-- Actions -->
-      <div class='flex items-center gap-4 pt-6 border-t' />
-      <Button @click='savePlaylist' :disabled='isSaving || !name.trim()' class='gap-2'>
-        <Save class='h-4 w-4' />
-        {{ isSaving ? 'Saving...' : 'Save Playlist' }}
-      </Button>
-      <Button @click='goBack' :disabled='isSaving' variant='outline'>
-        Cancel
-      </Button>
+      <div class='flex items-center gap-4 pt-2'>
+        <Button
+          @click='savePlaylist'
+          :disabled='isSaving || !name.trim()'
+          class='gap-2'
+          size='lg'
+        >
+          <Save class='h-5 w-5' />
+          {{ isSaving ? 'Saving...' : 'Save Playlist' }}
+        </Button>
+        <Button
+          @click='goBack'
+          :disabled='isSaving'
+          size='lg'
+          variant='outline'
+        >
+          Cancel
+        </Button>
+      </div>
     </div>
 
     <!-- Error Dialogs -->
@@ -394,3 +561,14 @@
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+.ghost {
+  opacity: 0.5;
+  background: var(--color-accent);
+}
+
+.drag {
+  opacity: 0;
+}
+</style>

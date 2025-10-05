@@ -206,8 +206,11 @@ export const usePlaylistStore = defineStore('playlists', () => {
       return false
     }
 
+    // Fetch current playlist items to get the actual song list
+    const currentSongs = await getPlaylistItems(playlistId)
+
     // Avoid duplicates
-    const existingIds = new Set(playlist.songs.map(s => s.id))
+    const existingIds = new Set(currentSongs.map(s => s.id))
     const newSongs = songs.filter(s => !existingIds.has(s.id))
 
     if (newSongs.length === 0) {
@@ -215,7 +218,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
     }
 
     // Combine existing song IDs with new song IDs
-    const updatedIds = [...playlist.songs.map(s => s.id), ...newSongs.map(s => s.id)]
+    const updatedIds = [...currentSongs.map(s => s.id), ...newSongs.map(s => s.id)]
     return await updatePlaylist(playlistId, { ids: updatedIds })
   }
 
