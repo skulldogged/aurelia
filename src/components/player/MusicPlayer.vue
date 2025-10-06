@@ -93,9 +93,34 @@
     && playerStore.currentIndex < playerStore.playlist.length - 1,
   )
 
-  const hasLyrics = computed(() =>
-    playerStore.currentSong?.lyrics != null && playerStore.currentSong.lyrics.trim() !== '',
-  )
+  const hasLyrics = computed(() => playerStore.hasLyrics)
+
+  watch(() => playerStore.currentSong, async newSong => {
+    if (newSong) {
+      if (newSong.lyrics != null && newSong.lyrics.trim() !== '') {
+        playerStore.setHasLyrics(true)
+      } else {
+        if (newSong.artists && newSong.artists.length > 0) {
+          try {
+            const result = await commands.getLyrics(
+              newSong.id,
+              newSong.artists[0],
+              newSong.name,
+              null,
+            )
+
+            playerStore.setHasLyrics(result.status === 'ok' && !!result.data && result.data.trim() !== '')
+          } catch {
+            playerStore.setHasLyrics(false)
+          }
+        } else {
+          playerStore.setHasLyrics(false)
+        }
+      }
+    } else {
+      playerStore.setHasLyrics(false)
+    }
+  }, { immediate: true })
 
   const nextSongInQueue = computed(() => {
     if (!hasNext.value) return null
@@ -109,14 +134,13 @@
     return playerStore.playlist[nextIndex]
   })
 
-  // Responsive logic for progressive icon hiding (left to right order)
   const visibleIcons = ref<string[]>([
-    'favorite',   // Hide 1st
-    'fullscreen', // Hide 2nd
-    'equalizer',  // Hide 3rd
-    'volume',     // Hide 4th
-    'lyrics',     // Hide 5th
-    'queue',      // Hide 6th (hide last)
+    'favorite',
+    'fullscreen',
+    'equalizer',
+    'volume',
+    'lyrics',
+    'queue',
   ])
 
   const iconWidths = {
@@ -128,7 +152,6 @@
     volume:     44,
   }
 
-  // Compute which view is currently active
   const activeView = computed(() =>
     props.isQueueOpen
       ? 'queue'
@@ -143,17 +166,15 @@
     if (!containerRef.value) return
 
     const containerWidth = containerRef.value.offsetWidth
-    const centerControlsWidth = 180 // Approximate width of center play controls (reduced)
-    const leftSectionWidth = 280   // Approximate width of left section (reduced)
-    const availableWidth = containerWidth - centerControlsWidth - leftSectionWidth - 60 // Reduced buffer
+    const centerControlsWidth = 180
+    const leftSectionWidth = 280
+    const availableWidth = containerWidth - centerControlsWidth - leftSectionWidth - 60
 
     let usedWidth = 0
     const newVisibleIcons: string[] = []
 
-    // Define all icons in priority order (right to left - volume hides first)
     const allIcons = ['volume', 'equalizer', 'fullscreen', 'favorite', 'lyrics', 'queue']
 
-    // First pass: add icons that fit naturally
     for (const icon of allIcons) {
       const iconWidth = iconWidths[icon as keyof typeof iconWidths]
 
@@ -163,41 +184,22 @@
       }
     }
 
-    // Second pass: if there's an active view and it's not visible,
-    // force it to be visible (it would be in the menu otherwise)
-    if (activeView.value && !newVisibleIcons.includes(activeView.value)) {
+    if (activeView.value && !newVisibleIcons.includes(activeView.value))
       newVisibleIcons.push(activeView.value)
-    }
 
     visibleIcons.value = newVisibleIcons
   }
 
-  const hasHiddenIcons = computed(() => {
-    const allPossibleIcons = [
-      'favorite',
-      'fullscreen',
-      'volume',
-    ]
-
-    // Add equalizer only if WebAudio is enabled
-    if (useWebAudio.value) {
-      allPossibleIcons.push('equalizer')
-    }
-
-    // Add lyrics only if current song has lyrics
-    if (hasLyrics.value) {
-      allPossibleIcons.push('lyrics')
-    }
-
-    // Always check queue
-    allPossibleIcons.push('queue')
-
-    return allPossibleIcons.some(icon => !visibleIcons.value.includes(icon))
-  })
+  const hasHiddenIcons = computed(() =>
+    (
+      useWebAudio.value
+        ? ['favorite', 'fullscreen', 'volume', 'equalizer', 'lyrics', 'queue']
+        : ['favorite', 'fullscreen', 'volume', 'lyrics', 'queue']
+    ).some(icon => !visibleIcons.value.includes(icon)),
+  )
 
   const songFormatInfo = computed(() => getSongFormatInfo(playerStore.currentSong))
 
-  // Volume popup controls
   const toggleVolumePopup = (): void => {
     isVolumePopupVisible.value = !isVolumePopupVisible.value
   }
@@ -210,9 +212,7 @@
     toggleVolumePopup()
   }
 
-  // Handle click outside to close volume popup
   const handleClickOutside = (event: Event): void => {
-    // Don't close if clicking on the volume button itself or inside the popup
     const target = event.target as Element
     const volumeButton = target.closest('[data-volume-button]')
     const insidePopup = volumePopupRef.value && volumePopupRef.value.contains(target)
@@ -223,7 +223,6 @@
       closeVolumePopup()
   }
 
-  // Watch for popup visibility changes to add/remove click listener
   watch(isVolumePopupVisible, visible => {
     if (visible)
       document.addEventListener('click', handleClickOutside)
@@ -231,7 +230,6 @@
       document.removeEventListener('click', handleClickOutside)
   })
 
-  // Cleanup on unmount
   onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside)
   })
@@ -982,7 +980,8 @@
             <!-- Lyrics button -->
             <Button
               @click="$emit('toggle-lyrics')"
-              v-if="hasLyrics && visibleIcons.includes('lyrics')"
+              v-if="visibleIcons.includes('lyrics')"
+              :disabled='!hasLyrics'
               :variant="activeView === 'lyrics' ? 'default' : 'ghost'"
               size='icon'
             >
@@ -1126,7 +1125,8 @@
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   @click="$emit('toggle-lyrics')"
-                  v-if="hasLyrics && !visibleIcons.includes('lyrics')"
+                  v-if="!visibleIcons.includes('lyrics')"
+                  :disabled='!hasLyrics'
                 >
                   <Mic2 class='w-4 h-4 mr-2' />
                   Lyrics

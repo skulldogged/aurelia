@@ -112,6 +112,7 @@ export const usePlayerStore = defineStore('player', () => {
   const eqBands = ref(getStoredEQBands())
   const hasPrevious = ref(false)
   const hasNext = ref(false)
+  const hasLyrics = ref(false)
 
   const currentSong = ref<null | Song>(null)
   const playlist = ref<Song[]>([])
@@ -212,10 +213,17 @@ export const usePlayerStore = defineStore('player', () => {
     if (song) {
       currentTime.value = 0
       duration.value = song.duration || 0
+      // Reset lyrics availability when song changes
+      hasLyrics.value = false
     } else {
       currentTime.value = 0
       duration.value = 0
+      hasLyrics.value = false
     }
+  }
+
+  const setHasLyrics = (value: boolean): void => {
+    hasLyrics.value = value
   }
 
   const setPlaylist = (songs: Song[]): void => {
@@ -318,6 +326,7 @@ export const usePlayerStore = defineStore('player', () => {
     eqEnabled,
     formattedCurrentTime,
     formattedDuration,
+    hasLyrics,
     hasNext,
     hasPrevious,
     isBuffering,
@@ -344,6 +353,7 @@ export const usePlayerStore = defineStore('player', () => {
     setEQBandGain,
     setEQBands,
     setEQEnabled,
+    setHasLyrics,
     setHasNext,
     setHasPrevious,
     setPlaylist,

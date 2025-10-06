@@ -188,6 +188,11 @@
       isClearing.value = false
     }
   }
+
+  const handleLyricsLoaded = (hasLyrics: boolean): void => {
+    // Pass lyrics availability to player controls
+    playerStore.setHasLyrics(hasLyrics)
+  }
 </script>
 
 <template>
@@ -291,6 +296,7 @@
         />
         <Equalizer v-if='isEqualizerOpen' />
         <LyricsSidebar
+          @lyrics-loaded='handleLyricsLoaded'
           @seek='handleSeek'
           v-if='isLyricsOpen'
           :current-song='currentSong as any'
