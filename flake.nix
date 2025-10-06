@@ -1,6 +1,4 @@
 {
-  description = "A Nix-based development shell for the Bitwarden Tauri App";
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
@@ -56,8 +54,7 @@
             ];
 
           LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
-          __NV_DISABLE_EXPLICIT_SYNC = 1; # for nvidia being weird
-
+          __NV_DISABLE_EXPLICIT_SYNC = 1;
           shellHook = ''
             export XDG_DATA_DIRS="$GSETTINGS_SCHEMAS_PATH"
           '';
