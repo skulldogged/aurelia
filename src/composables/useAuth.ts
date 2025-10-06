@@ -22,49 +22,41 @@ export type AuthStatus = 'error' | 'loggedIn' | 'loggedOut' | 'pending'
 const categorizeAuthError = (errorMessage: string): AuthError => {
   const lowerMessage = errorMessage.toLowerCase()
 
-  // Network-related errors
-  if (lowerMessage.includes('network') ||
-      lowerMessage.includes('connection') ||
-      lowerMessage.includes('timeout') ||
-      lowerMessage.includes('unreachable')) {
-    return {
+  const errorPatterns: Array<{
+    code:        string
+    isRetryable: boolean
+    keywords:    string[]
+    message:     string
+    type:        AuthErrorType
+  }> = [
+    {
       code:        'NETWORK_ERROR',
       isRetryable: true,
+      keywords:    ['network', 'connection', 'timeout', 'unreachable'],
       message:     'Unable to connect to the server. Please check your internet connection and server URL.',
       type:        'network',
-    }
-  }
-
-  // Authentication errors
-  if (lowerMessage.includes('authentication') ||
-      lowerMessage.includes('login') ||
-      lowerMessage.includes('credentials') ||
-      lowerMessage.includes('password') ||
-      lowerMessage.includes('unauthorized')) {
-    return {
+    },
+    {
       code:        'AUTH_FAILED',
       isRetryable: false,
+      keywords:    ['authentication', 'login', 'credentials', 'password', 'unauthorized'],
       message:     'Invalid username or password. Please check your credentials.',
       type:        'auth',
-    }
-  }
-
-  // Configuration errors
-  if (lowerMessage.includes('configuration') ||
-      lowerMessage.includes('config') ||
-      lowerMessage.includes('corrupted') ||
-      lowerMessage.includes('directory') ||
-      lowerMessage.includes('file')) {
-    return {
+    },
+    {
       code:        'CONFIG_ERROR',
       isRetryable: false,
+      keywords:    ['configuration', 'config', 'corrupted', 'directory', 'file'],
       message:     'Application configuration issue. Please try restarting the application.',
       type:        'config',
-    }
-  }
+    },
+  ]
 
-  // Default unknown error
-  return {
+  const matchedPattern = errorPatterns.find(pattern =>
+    pattern.keywords.some(keyword => lowerMessage.includes(keyword)),
+  )
+
+  return matchedPattern || {
     code:        'UNKNOWN_ERROR',
     isRetryable: true,
     message:     errorMessage,

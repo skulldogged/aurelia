@@ -27,11 +27,16 @@
   const isLoaded = ref(false)
   const isLoading = ref(false)
 
+  const resetState = (): void => {
+    isLoading.value = true
+    hasError.value = false
+    isLoaded.value = false
+    imageUrl.value = null
+  }
+
   const updateImageUrl = async (): Promise<void> => {
     if (props.itemId && props.serverUrl && props.token) {
-      isLoading.value = true
-      hasError.value = false
-      isLoaded.value = false
+      resetState()
 
       try {
         const url = await getImageUrl(props.itemId, props.serverUrl, props.token, props.imageType)
@@ -39,15 +44,13 @@
       } catch (error) {
         console.error('Failed to get image URL:', error)
         hasError.value = true
-        imageUrl.value = null
       } finally {
         isLoading.value = false
       }
     } else {
-      imageUrl.value = null
-      hasError.value = true
-      isLoaded.value = false
+      resetState()
       isLoading.value = false
+      hasError.value = true
     }
   }
 

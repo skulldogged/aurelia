@@ -119,6 +119,14 @@
       try {
         await libraryStore.loadLibrary(credentials.value)
 
+        // Sync library on startup to ensure fresh data
+        try {
+          await libraryStore.syncLibrary(credentials.value)
+          appLogger.info('Library synced successfully on startup')
+        } catch (err) {
+          appLogger.warn('Failed to sync library on startup:', err)
+        }
+
         // Preload recent images for better performance
         try {
           await preloadRecentImages(credentials.value.serverUrl, credentials.value.token, 20)

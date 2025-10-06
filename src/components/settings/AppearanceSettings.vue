@@ -13,7 +13,6 @@
     SelectContent,
     SelectGroup,
     SelectItem,
-    SelectLabel,
     SelectTrigger,
     SelectValue,
   } from '@/components/ui/select'
@@ -106,7 +105,7 @@
           </h3>
         </div>
         <p class='text-sm text-muted-foreground mb-4'>
-          Choose your preferred theme and color palette
+          Choose your preferred theme
         </p>
         <Select @update:model-value='handleColorSchemeChange' v-model='selectedColorScheme'>
           <SelectTrigger class='w-full bg-background/50 border-border/50 focus:border-accent transition-colors'>
@@ -114,7 +113,6 @@
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel>Available Themes</SelectLabel>
               <SelectItem
                 v-for='scheme in colorSchemes'
                 :key='scheme.name'
@@ -139,7 +137,7 @@
           </h3>
         </div>
         <p class='text-sm text-muted-foreground mb-4'>
-          Pick your favorite accent color to personalize the interface
+          Pick your favorite accent color
         </p>
         <Select @update:model-value='handleAccentColorChange' v-model='selectedAccentColorName'>
           <SelectTrigger class='w-full bg-background/50 border-border/50 focus:border-accent transition-colors'>
@@ -147,7 +145,6 @@
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel>Available Colors</SelectLabel>
               <SelectItem
                 v-for='color in accentColors'
                 :key='color.name'
@@ -178,7 +175,7 @@
           </h3>
         </div>
         <p class='text-sm text-muted-foreground mb-4'>
-          Choose the background blur effect for the window
+          Choose the background blur effect
         </p>
         <Select @update:model-value='handleBlurModeChange' :model-value='selectedBlurModeName'>
           <SelectTrigger class='w-full bg-background/50 border-border/50 focus:border-accent transition-colors'>
@@ -186,7 +183,6 @@
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel>Available Blur Modes</SelectLabel>
               <SelectItem
                 v-for='mode in blurModes'
                 :key='mode.name'

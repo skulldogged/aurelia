@@ -25,12 +25,15 @@ const handleGlobalSearch = (query: string): void => {
   isSearchVisible.value = true
 }
 
-const toggleQueue = (): void => {
-  if (isEqualizerOpen.value)
-    isEqualizerOpen.value = false
-  if (isLyricsOpen.value)
-    isLyricsOpen.value = false
+const closePanels = (except?: 'equalizer' | 'lyrics' | 'queue'): void => {
+  if (except !== 'queue') isQueueOpen.value = false
+  if (except !== 'equalizer') isEqualizerOpen.value = false
+  if (except !== 'lyrics') isLyricsOpen.value = false
+}
 
+const toggleQueue = (): void => {
+  if (!isQueueOpen.value)
+    closePanels('queue')
   isQueueOpen.value = !isQueueOpen.value
 }
 
@@ -77,22 +80,16 @@ export const usePlayerControls = (): PlayerControls => {
   const playerStore = usePlayerStore()
 
   const toggleEqualizer = (): void => {
-    if (isQueueOpen.value)
-      isQueueOpen.value = false
-    if (isLyricsOpen.value)
-      isLyricsOpen.value = false
-
+    if (!isEqualizerOpen.value)
+      closePanels('equalizer')
     const newState = !isEqualizerOpen.value
     isEqualizerOpen.value = newState
     playerStore.setEQEnabled(newState)
   }
 
   const toggleLyrics = (): void => {
-    if (isQueueOpen.value)
-      isQueueOpen.value = false
-    if (isEqualizerOpen.value)
-      isEqualizerOpen.value = false
-
+    if (!isLyricsOpen.value)
+      closePanels('lyrics')
     isLyricsOpen.value = !isLyricsOpen.value
   }
 

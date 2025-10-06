@@ -165,8 +165,7 @@
 
     return sortedArtists.slice(0, 6).map(([name]) => {
       const artistInfo = allArtistsMap.get(name)
-      // Count actual songs for this artist in the library
-      const artistSongCount = props.allSongs.filter(s => s.artists?.includes(name)).length
+
       return {
         communityRating: null,
         id:              artistInfo?.id || '',
@@ -175,16 +174,14 @@
         name,
         overview:        null,
         providerIds:     null,
-        songCount:       BigInt(artistSongCount),
+        songCount:       BigInt(props.allSongs.filter(s => s.artists?.includes(name)).length),
         songs:           null,
       } as Artist
     })
   })
 
   const primarySongs = computed(() => artistSongs.value.filter(song => song.artists?.[0] === artist.value?.name))
-
   const featuredSongs = computed(() => artistSongs.value.filter(song => song.artists?.[0] !== artist.value?.name))
-
   const isFeaturedOnlyArtist = computed(() => primarySongs.value.length === 0 && featuredSongs.value.length > 0)
 
   const playArtistShuffle = (): void => {

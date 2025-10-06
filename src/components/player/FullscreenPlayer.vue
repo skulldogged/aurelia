@@ -22,6 +22,7 @@
   import { Slider } from '@/components/ui/slider'
   import { useImageLoader } from '@/composables/useImageLoader'
   import { playerLogger } from '@/lib/logger'
+  import { formatDuration, getSongFormatInfo } from '@/lib/utils'
 
   const props = defineProps({
     currentTime: {
@@ -138,20 +139,8 @@
     }
   }
 
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const songFormatInfo = computed(() => {
-    if (!props.song) return ''
-    const parts: string[] = []
-    if (props.song.codec) parts.push(props.song.codec.toUpperCase())
-    if (props.song.sampleRate) parts.push(`${props.song.sampleRate / 1000} kHz`)
-    if (props.song.bitRate) parts.push(`${Math.round(props.song.bitRate / 1000)} kbps`)
-    return parts.join(' / ')
-  })
+  const formatTime = formatDuration
+  const songFormatInfo = computed(() => getSongFormatInfo(props.song))
 </script>
 
 <template>

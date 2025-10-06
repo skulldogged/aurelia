@@ -82,8 +82,10 @@
   const formatFrequency = (freq: number): string =>
     freq >= 1000 ? `${(freq / 1000).toFixed(0)}k` : freq.toString()
 
+  const frequencyDescriptions = ['Bass', 'Low Mids', 'Mids', 'High Mids', 'Treble']
+
   const getFrequencyDescription = (index: number): string =>
-    ['Bass', 'Low Mids', 'Mids', 'High Mids', 'Treble'][index]
+    frequencyDescriptions[index] ?? 'Unknown'
 </script>
 
 <template>

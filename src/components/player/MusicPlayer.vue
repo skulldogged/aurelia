@@ -34,6 +34,7 @@
   import { Slider } from '@/components/ui/slider'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { playerLogger } from '@/lib/logger'
+  import { getSongFormatInfo } from '@/lib/utils'
   import { usePlayerStore } from '@/stores'
 
   const props = defineProps<{
@@ -194,14 +195,7 @@
     return allPossibleIcons.some(icon => !visibleIcons.value.includes(icon))
   })
 
-  const songFormatInfo = computed(() => {
-    if (!playerStore.currentSong) return ''
-    const parts: string[] = []
-    if (playerStore.currentSong.codec) parts.push(playerStore.currentSong.codec.toUpperCase())
-    if (playerStore.currentSong.sampleRate) parts.push(`${playerStore.currentSong.sampleRate / 1000} kHz`)
-    if (playerStore.currentSong.bitRate) parts.push(`${Math.round(playerStore.currentSong.bitRate / 1000)} kbps`)
-    return parts.join(' / ')
-  })
+  const songFormatInfo = computed(() => getSongFormatInfo(playerStore.currentSong))
 
   // Volume popup controls
   const toggleVolumePopup = (): void => {

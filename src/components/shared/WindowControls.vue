@@ -8,40 +8,22 @@
 
   const isMaximized = ref(false)
   const appWindow = Window.getCurrent()
-  const systemTrayStore = useSystemTrayStore()
-  const { closeToTray, minimizeToTray } = storeToRefs(systemTrayStore)
+  const { closeToTray, minimizeToTray } = storeToRefs(useSystemTrayStore())
   const { hideMainWindow } = useSystemTray()
 
   const checkMaximized = async (): Promise<void> => {
     isMaximized.value = await appWindow.isMaximized()
   }
 
-  const handleMinimize = async (): Promise<void> => {
-    console.log('handleMinimize: minimizeToTray.value =', minimizeToTray.value)
-    if (minimizeToTray.value) {
-      console.log('Hiding to system tray')
-      await hideMainWindow()
-    } else {
-      console.log('Minimizing window normally')
-      await appWindow.minimize()
-    }
-  }
+  const handleMinimize = (): Promise<void> =>
+    minimizeToTray.value ? hideMainWindow() : appWindow.minimize()
 
-  const handleClose = async (): Promise<void> => {
-    if (closeToTray.value) {
-      await hideMainWindow()
-    } else {
-      await appWindow.close()
-    }
-  }
+  const handleClose = (): Promise<void> =>
+    closeToTray.value ? hideMainWindow() : appWindow.close()
 
-  appWindow.onResized(() => {
-    checkMaximized()
-  })
+  appWindow.onResized(checkMaximized)
 
-  onMounted(() => {
-    checkMaximized()
-  })
+  onMounted(checkMaximized)
 </script>
 
 <template>

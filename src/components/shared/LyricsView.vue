@@ -112,6 +112,7 @@
 
   const plainLyrics = computed(() => {
     if (!lyrics.value) return []
+
     return lyrics.value
       .replace(/\[.*?\]/g, '')
       .split('\n')

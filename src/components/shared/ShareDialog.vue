@@ -17,7 +17,6 @@
     siSpotify,
     siTidal,
     siX,
-    siYoutube,
     siYoutubemusic,
   } from 'simple-icons'
   import { computed, ref, watch } from 'vue'
@@ -53,115 +52,73 @@
     set: value => emit('update:open', value),
   })
 
-  // Primary platforms to show prominently
-  const primaryPlatforms = [
-    'Amazon Music',
-    'Apple Music',
-    'Bandcamp',
-    'Discogs',
-    'Instagram',
-    'Last.fm',
-    'MusicBrainz',
-    'SoundCloud',
-    'Spotify',
-    'Tidal',
-    'Twitter',
-    'YouTube Music',
-  ]
-
-  // Known platforms get nice display, everything else goes to dropdown with raw links
-
-  // Function to extract platform name from URL
-  const extractPlatformFromUrl = (url: string): null | string => {
-    if (url.includes('bandcamp.com')) return 'Bandcamp'
-    if (url.includes('deezer.com')) return 'Deezer'
-    if (url.includes('discogs.com')) return 'Discogs'
-    if (url.includes('instagram.com')) return 'Instagram'
-    if (url.includes('last.fm') || url.includes('lastfm.com')) return 'Last.fm'
-    if (url.includes('music.amazon.com')) return 'Amazon Music'
-    if (url.includes('music.apple.com')) return 'Apple Music'
-    if (url.includes('musicbrainz.org')) return 'MusicBrainz'
-    if (url.includes('patreon.com')) return 'Patreon'
-    if (url.includes('soundcloud.com')) return 'SoundCloud'
-    if (url.includes('spotify.com')) return 'Spotify'
-    if (url.includes('tidal.com')) return 'Tidal'
-    if (url.includes('tiktok.com')) return 'TikTok'
-    if (url.includes('twitch.tv')) return 'Twitch'
-    if (url.includes('twitter.com') || url.includes('x.com')) return 'Twitter'
-    if (url.includes('youtube.com') || url.includes('youtu.be')) return 'YouTube Music'
-    return null
-  }
-
-  // Computed properties for categorized links
-  const primaryLinks = computed(() => {
-    const result: Record<string, string> = {}
-    for (const [_relType, url] of Object.entries(shareUrls.value)) {
-      // Check if URL contains a known platform
-      const platform = extractPlatformFromUrl(url)
-      if (platform && primaryPlatforms.includes(platform)) {
-        result[platform] = url
-      }
-    }
-    // Sort alphabetically by platform name
-    const sortedResult: Record<string, string> = {}
-    Object.keys(result).sort().forEach(key => {
-      sortedResult[key] = result[key]
-    })
-    return sortedResult
+  const itemTypeLabel = computed(() => {
+    const labels = { album: 'Album', artist: 'Artist', song: 'Song' }
+    return labels[props.itemType]
   })
 
+  // Consolidated platform metadata
+  const platformMetadata: Array<{
+    icon?:     SimpleIcon
+    isPrimary: boolean
+    name:      string
+    patterns:  string[]
+  }> = [
+    { icon: undefined, isPrimary: true, name: 'Amazon Music', patterns: ['music.amazon.com'] },
+    { icon: siApplemusic, isPrimary: true, name: 'Apple Music', patterns: ['music.apple.com'] },
+    { icon: siBandcamp, isPrimary: true, name: 'Bandcamp', patterns: ['bandcamp.com'] },
+    { icon: undefined, isPrimary: false, name: 'Deezer', patterns: ['deezer.com'] },
+    { icon: siDiscogs, isPrimary: true, name: 'Discogs', patterns: ['discogs.com'] },
+    { icon: siInstagram, isPrimary: true, name: 'Instagram', patterns: ['instagram.com'] },
+    { icon: siLastdotfm, isPrimary: true, name: 'Last.fm', patterns: ['last.fm', 'lastfm.com'] },
+    { icon: siMusicbrainz, isPrimary: true, name: 'MusicBrainz', patterns: ['musicbrainz.org'] },
+    { icon: undefined, isPrimary: false, name: 'Patreon', patterns: ['patreon.com'] },
+    { icon: siSoundcloud, isPrimary: true, name: 'SoundCloud', patterns: ['soundcloud.com'] },
+    { icon: siSpotify, isPrimary: true, name: 'Spotify', patterns: ['spotify.com'] },
+    { icon: siTidal, isPrimary: true, name: 'Tidal', patterns: ['tidal.com'] },
+    { icon: undefined, isPrimary: false, name: 'TikTok', patterns: ['tiktok.com'] },
+    { icon: undefined, isPrimary: false, name: 'Twitch', patterns: ['twitch.tv'] },
+    { icon: siX, isPrimary: true, name: 'Twitter', patterns: ['twitter.com', 'x.com'] },
+    { icon: siYoutubemusic, isPrimary: true, name: 'YouTube Music', patterns: ['youtube.com', 'youtu.be'] },
+  ]
+
+  const extractPlatformFromUrl = (url: string): null | string =>
+    platformMetadata.find(({ patterns }) =>
+      patterns.some(pattern => url.includes(pattern)),
+    )?.name ?? null
+
+  const getPlatformIcon = (platform: string): null | SimpleIcon =>
+    platformMetadata.find(({ name }) => name === platform)?.icon ?? null
+
+  // Computed properties for categorized links
+  const primaryLinks = computed(() =>
+    Object.fromEntries(
+      Object.entries(shareUrls.value)
+        .map(([_relType, url]) => [extractPlatformFromUrl(url), url])
+        .filter(([platform, _url]) => {
+          const meta = platformMetadata.find(({ name }) => name === platform)
+          return meta?.isPrimary
+        })
+        .sort(([a], [b]) => (a ?? '').localeCompare(b ?? '')),
+    ),
+  )
+
   const secondaryLinks = computed(() => {
-    const result: Record<string, string> = {}
-    for (const [relType, url] of Object.entries(shareUrls.value)) {
-      // Check if URL contains a known platform
-      const platform = extractPlatformFromUrl(url)
-      if (!platform || !primaryPlatforms.includes(platform)) {
-        // Use extracted platform name or relationship type as fallback
-        const displayName = platform || relType
-        result[displayName] = url
-      }
-    }
-    // Sort alphabetically by platform name
-    const sortedResult: Record<string, string> = {}
-    Object.keys(result).sort().forEach(key => {
-      sortedResult[key] = result[key]
-    })
-    return sortedResult
+    type MetaTuple = [string, string, typeof platformMetadata[number] | undefined]
+    return Object.fromEntries(
+      Object.entries(shareUrls.value)
+        .map(([relType, url]): MetaTuple => {
+          const platform = extractPlatformFromUrl(url)
+          const meta = platformMetadata.find(({ name }) => name === platform)
+          return [platform || relType, url, meta]
+        })
+        .filter((tuple): tuple is MetaTuple => !tuple[2]?.isPrimary)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, url]) => [name, url]),
+    )
   })
 
   const hasSecondaryLinks = computed(() => Object.keys(secondaryLinks.value).length > 0)
-
-  // Function to get the appropriate icon for a platform
-  const getPlatformIcon = (platform: string): null | SimpleIcon => {
-    switch (platform) {
-      case 'Apple Music':
-        return siApplemusic
-      case 'Bandcamp':
-        return siBandcamp
-      case 'Discogs':
-        return siDiscogs
-      case 'Instagram':
-        return siInstagram
-      case 'Last.fm':
-        return siLastdotfm
-      case 'MusicBrainz':
-        return siMusicbrainz
-      case 'SoundCloud':
-        return siSoundcloud
-      case 'Spotify':
-        return siSpotify
-      case 'Tidal':
-        return siTidal
-      case 'Twitter':
-        return siX
-      case 'YouTube':
-        return siYoutube
-      case 'YouTube Music':
-        return siYoutubemusic
-      default:
-        return null
-    }
-  }
 
   const loadShareUrls = async (): Promise<void> => {
     if (!props.itemId) return
@@ -212,9 +169,8 @@
 
   // Load URLs when dialog opens
   watch(() => props.open, open => {
-    if (open && props.itemId) {
+    if (open && props.itemId)
       loadShareUrls()
-    }
   })
 </script>
 
@@ -227,7 +183,7 @@
             <div class='p-2 rounded-lg bg-primary/10'>
               <Share2 class='w-6 h-6 text-primary' />
             </div>
-            Share {{ itemType === 'song' ? 'Song' : itemType === 'album' ? 'Album' : 'Artist' }}
+            Share {{ itemTypeLabel }}
           </DialogTitle>
         </DialogHeader>
 
@@ -250,7 +206,7 @@
               </h3>
               <div class='space-y-2'>
                 <div
-                  v-for='[platform, url] in Object.entries(primaryLinks)'
+                  v-for='[platform, url] in Object.entries(primaryLinks) as [string, string][]'
                   :key='platform'
                   class='
                     group flex items-center justify-between p-4 rounded-xl border bg-card/50 hover:bg-accent/30
@@ -322,7 +278,7 @@
                 <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='h-64' defer>
                   <div class='space-y-2'>
                     <div
-                      v-for='[platform, url] in Object.entries(secondaryLinks)'
+                      v-for='[platform, url] in Object.entries(secondaryLinks) as [string, string][]'
                       :key='`${platform}-${url}`'
                       class='
                         group flex items-center justify-between p-4 rounded-xl border bg-card/50 hover:bg-accent/30

@@ -20,6 +20,7 @@
   } from '@/components/ui/select'
   import { Skeleton } from '@/components/ui/skeleton'
   import { usePageSizePreference } from '@/composables/useLayoutPreference'
+  import { formatDuration } from '@/lib/utils'
 
   import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
   import ImageLoader from './ImageLoader.vue'
@@ -58,13 +59,6 @@
     'toggle-favorite': [song: Song]
   }>()
 
-  const formatDuration = (seconds?: null | number): string => {
-    if (seconds === undefined || seconds === null) return '?:??'
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-    return `${mins}:${secs.toString().padStart(2, '0')}`
-  }
-
   const pageIndex = ref(0)
   const { pageSize } = usePageSizePreference('songlist-pagesize', 20)
 
@@ -76,19 +70,14 @@
     { deep: false },
   )
 
-  const pageCount = computed(() => {
-    const total = props.songs?.length ?? 0
-    return Math.max(1, Math.ceil(total / pageSize.value))
-  })
+  const pageCount = computed(() => Math.max(1, Math.ceil((props.songs?.length ?? 0) / pageSize.value)))
 
   const canPreviousPage = computed(() => pageIndex.value > 0)
   const canNextPage = computed(() => pageIndex.value < pageCount.value - 1)
 
-  const pagedSongs = computed(() => {
-    const start = pageIndex.value * pageSize.value
-    const end = start + pageSize.value
-    return props.songs.slice(start, end)
-  })
+  const pagedSongs = computed(() =>
+    props.songs.slice((pageIndex.value * pageSize.value), (pageIndex.value * pageSize.value + pageSize.value)),
+  )
 
   const previousPage = (): void => {
     if (canPreviousPage.value) pageIndex.value -= 1

@@ -12,6 +12,7 @@
   const scrollContainer = ref<HTMLElement | null>(null)
   const canScrollLeft = ref(false)
   const canScrollRight = ref(false)
+  let resizeObserver: null | ResizeObserver = null
 
   const updateScrollButtons = (): void => {
     if (scrollContainer.value) {
@@ -33,14 +34,16 @@
     await nextTick()
     updateScrollButtons()
     window.addEventListener('resize', updateScrollButtons)
-    // Also listen for resize on the container itself
+
     if (scrollContainer.value) {
-      new ResizeObserver(updateScrollButtons).observe(scrollContainer.value)
+      resizeObserver = new ResizeObserver(updateScrollButtons)
+      resizeObserver.observe(scrollContainer.value)
     }
   })
 
   onUnmounted(() => {
     window.removeEventListener('resize', updateScrollButtons)
+    resizeObserver?.disconnect()
   })
 </script>
 

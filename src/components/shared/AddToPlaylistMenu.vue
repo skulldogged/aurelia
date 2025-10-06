@@ -28,20 +28,16 @@
   const menuType = props.type || 'context'
 
   const addToPlaylist = async (playlistId: string): Promise<void> => {
-    const success = await playlistStore.addSongsToPlaylist(playlistId, props.songs)
-    if (success) {
-      // Reload playlists to get updated song counts
+    if (await playlistStore.addSongsToPlaylist(playlistId, props.songs)) {
       await playlistStore.loadPlaylists()
       console.log(`Added ${props.songs.length} song(s) to playlist`)
     }
   }
 
   const createNewPlaylist = (): void => {
-    // Pass song IDs as comma-separated query param
-    const songIds = props.songs.map(s => s.id).join(',')
     router.push({
       name:  'playlist-create',
-      query: { songs: songIds },
+      query: { songs: props.songs.map(s => s.id).join(',') },
     })
   }
 </script>

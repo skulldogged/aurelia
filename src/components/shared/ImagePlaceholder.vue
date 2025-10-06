@@ -1,4 +1,6 @@
 <script setup lang="ts">
+  import type { Component } from 'vue'
+
   import { Disc, Music, User } from 'lucide-vue-next'
   import { computed } from 'vue'
 
@@ -11,28 +13,23 @@
     size: 'medium',
   })
 
-  const sizeConfig = computed(() => {
-    switch (props.size) {
-      case 'large':
-        return {
-          container: 'w-full aspect-square',
-          icon:      'w-12 h-12',
-        }
-      case 'small':
-        return {
-          container: 'w-10 h-10',
-          icon:      'w-4 h-4',
-        }
-      default:
-        return {
-          container: 'w-12 h-12',
-          icon:      'w-5 h-5',
-        }
-    }
-  })
+  const sizeConfig = {
+    large: {
+      container: 'w-full aspect-square',
+      icon:      'w-12 h-12',
+    },
+    medium: {
+      container: 'w-12 h-12',
+      icon:      'w-5 h-5',
+    },
+    small: {
+      container: 'w-10 h-10',
+      icon:      'w-4 h-4',
+    },
+  }
 
-  const iconConfig = computed(() => ({
-    album: {
+  const iconConfig: Record<Props['type'], { icon: Component; iconColor: string }> = {
+    'album': {
       icon:      Disc,
       iconColor: 'rgb(107 114 128)',
     },
@@ -40,31 +37,31 @@
       icon:      Music,
       iconColor: 'rgb(156 163 175)',
     },
-    artist: {
+    'artist': {
       icon:      User,
       iconColor: 'rgb(107 114 128)',
     },
-    playlist: {
+    'playlist': {
       icon:      Music,
       iconColor: 'rgb(107 114 128)',
     },
-  }[props.type] ?? {
-    icon:      Music,
-    iconColor: 'rgb(156 163 175)',
-  }))
+  }
+
+  const currentSizeConfig = computed(() => sizeConfig[props.size])
+  const currentIconConfig = computed(() => iconConfig[props.type])
 </script>
 
 <template>
   <div
     :class="[
       'flex items-center justify-center rounded-lg bg-muted/30',
-      sizeConfig.container
+      currentSizeConfig.container
     ]"
   >
     <component
-      :is='iconConfig.icon'
-      :class='sizeConfig.icon'
-      :style='{ color: iconConfig.iconColor }'
+      :is='currentIconConfig.icon'
+      :class='currentSizeConfig.icon'
+      :style='{ color: currentIconConfig.iconColor }'
       class='flex-shrink-0 opacity-60'
     />
   </div>

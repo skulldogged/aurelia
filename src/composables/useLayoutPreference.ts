@@ -2,19 +2,35 @@ import { computed, type ComputedRef, ref, type Ref, watch } from 'vue'
 
 export type LayoutMode = 'comfy' | 'compact'
 
-const getInitialLayout = (storageKey: string, defaultLayout: LayoutMode): LayoutMode => {
+const safeGetLocalStorage = <T>(key: string, fallback: T, validator?: (value: unknown) => boolean): T => {
   try {
-    const stored = localStorage.getItem(storageKey)
+    const stored = localStorage.getItem(key)
+    if (!stored) return fallback
 
-    if (stored && ['comfy', 'compact'].includes(stored))
-      return stored as LayoutMode
+    const parsed: unknown = JSON.parse(stored)
+    if (validator && !validator(parsed)) return fallback
+
+    return parsed as T
   } catch (error) {
-    // localStorage might not be available (SSR, etc.)
-    console.warn('Failed to read layout preference from localStorage:', error)
+    console.warn(`Failed to read ${key} from localStorage:`, error)
+    return fallback
   }
-
-  return defaultLayout
 }
+
+const safeSetLocalStorage = (key: string, value: unknown): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch (error) {
+    console.warn(`Failed to save ${key} to localStorage:`, error)
+  }
+}
+
+const getInitialLayout = (storageKey: string, defaultLayout: LayoutMode): LayoutMode =>
+  safeGetLocalStorage(
+    storageKey,
+    defaultLayout,
+    (value): value is LayoutMode => typeof value === 'string' && ['comfy', 'compact'].includes(value),
+  )
 
 export interface LayoutPreference {
   layout: Ref<LayoutMode>
@@ -26,30 +42,20 @@ export const useLayoutPreference = (
 ): LayoutPreference => {
   const layout = ref<LayoutMode>(getInitialLayout(storageKey, defaultLayout))
 
-  watch(layout, newLayout => {
-    try {
-      localStorage.setItem(storageKey, newLayout)
-    } catch (error) {
-      console.warn('Failed to save layout preference to localStorage:', error)
-    }
-  })
+  watch(layout, newLayout => safeSetLocalStorage(storageKey, newLayout))
 
   return { layout }
 }
 
-const getInitialPageSize = (storageKey: string, defaultPageSize: number): number => {
-  try {
-    const stored = localStorage.getItem(storageKey)
-    if (stored) {
-      const parsed = parseInt(stored, 10)
-      if (!isNaN(parsed) && parsed > 0 && parsed <= 100)
-        return parsed
-    }
-  } catch (error) {
-    console.warn('Failed to read page size preference from localStorage:', error)
-  }
-  return defaultPageSize
-}
+const getInitialPageSize = (storageKey: string, defaultPageSize: number): number =>
+  safeGetLocalStorage(
+    storageKey,
+    defaultPageSize,
+    (value): value is number => {
+      const parsed = typeof value === 'string' ? parseInt(value, 10) : value
+      return typeof parsed === 'number' && !isNaN(parsed) && parsed > 0 && parsed <= 100
+    },
+  )
 
 export interface PageSizePreference {
   pageSize: Ref<number>
@@ -61,27 +67,13 @@ export const usePageSizePreference = (
 ): PageSizePreference => {
   const pageSize = ref<number>(getInitialPageSize(storageKey, defaultPageSize))
 
-  watch(pageSize, newPageSize => {
-    try {
-      localStorage.setItem(storageKey, newPageSize.toString())
-    } catch (error) {
-      console.warn('Failed to save page size preference to localStorage:', error)
-    }
-  })
+  watch(pageSize, newPageSize => safeSetLocalStorage(storageKey, newPageSize))
 
   return { pageSize }
 }
 
-const getInitialSort = (storageKey: string, defaultSort: string): string => {
-  try {
-    const stored = localStorage.getItem(storageKey)
-    if (stored)
-      return stored
-  } catch (error) {
-    console.warn('Failed to read sort preference from localStorage:', error)
-  }
-  return defaultSort
-}
+const getInitialSort = (storageKey: string, defaultSort: string): string =>
+  safeGetLocalStorage(storageKey, defaultSort)
 
 export interface SortPreference {
   sort: Ref<string>
@@ -93,13 +85,7 @@ export const useSortPreference = (
 ): SortPreference => {
   const sort = ref<string>(getInitialSort(storageKey, defaultSort))
 
-  watch(sort, newSort => {
-    try {
-      localStorage.setItem(storageKey, newSort)
-    } catch (error) {
-      console.warn('Failed to save sort preference to localStorage:', error)
-    }
-  })
+  watch(sort, newSort => safeSetLocalStorage(storageKey, newSort))
 
   return { sort }
 }

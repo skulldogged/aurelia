@@ -7,6 +7,13 @@ const currentView = ref('home')
 const canGoBack = ref(false)
 const canGoForward = ref(false)
 
+const ROUTE_MAP: Record<string, string> = {
+  'albums':  '/albums',
+  'artists': '/artists',
+  'home':    '/',
+  'library': '/songs',
+}
+
 const updateNavState = (): void => {
   canGoBack.value = window.history.state.position > 0
   canGoForward.value = window.history.state.position < window.history.length - 1
@@ -21,14 +28,7 @@ const navigateForward = (router: ReturnType<typeof useRouter>): void => {
 }
 
 const handleNavigation = (router: ReturnType<typeof useRouter>, view: string): void => {
-  const routeMap: Record<string, string> = {
-    'albums':  '/albums',
-    'artists': '/artists',
-    'home':    '/',
-    'library': '/songs',
-  }
-
-  const routePath = routeMap[view]
+  const routePath = ROUTE_MAP[view]
   if (routePath)
     router.push(routePath)
 }

@@ -77,9 +77,9 @@
   })
 
   type SearchResultItem =
-    | { item: Album; type: 'album', }
-    | { item: Artist; type: 'artist', }
-    | { item: Song; type: 'song', }
+    | { item: Album; type: 'album' }
+    | { item: Artist; type: 'artist' }
+    | { item: Song; type: 'song' }
 
   const categorizedResults = computed(() => {
     const results: {
@@ -92,12 +92,15 @@
       songs:   [],
     }
 
+    const limits = { albums: 5, artists: Infinity, songs: 5 }
+
     for (const result of searchResults.value) {
-      if (result.item.type === 'song' && results.songs.length < 5)
+      const { type } = result.item
+      if (type === 'song' && results.songs.length < limits.songs)
         results.songs.push(result)
-      else if (result.item.type === 'album' && results.albums.length < 5)
+      else if (type === 'album' && results.albums.length < limits.albums)
         results.albums.push(result)
-      else if (result.item.type === 'artist')
+      else if (type === 'artist' && results.artists.length < limits.artists)
         results.artists.push(result)
     }
 

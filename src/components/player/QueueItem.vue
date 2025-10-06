@@ -12,6 +12,7 @@
     ContextMenuItem,
     ContextMenuTrigger,
   } from '@/components/ui/context-menu'
+  import { formatDuration } from '@/lib/utils'
 
   defineProps<{
     class?:     string,
@@ -28,11 +29,6 @@
   }>()
 
   const showShareDialog = ref(false)
-
-  const formatDuration = (seconds: number): string =>
-    !isNaN(seconds) && isFinite(seconds) && seconds > 0
-      ? `${Math.floor(seconds / 60)}:${(Math.floor(seconds % 60)).toString().padStart(2, '0')}`
-      : '0:00'
 </script>
 
 <template>
