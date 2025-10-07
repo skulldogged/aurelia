@@ -16,6 +16,7 @@
     SelectTrigger,
     SelectValue,
   } from '@/components/ui/select'
+  import { isLinux } from '@/lib/platform'
   import { useAccentColorStore, useBlurStore, useThemeStore } from '@/stores'
 
   const accentColorStore = useAccentColorStore()
@@ -40,6 +41,22 @@
   const selectedColorScheme = ref(selectedScheme.value.name)
   const selectedBlurModeName = ref(selectedBlurMode.value.name)
   const selectedAccentColorName = ref(accentColor.value.name)
+  const isLinuxPlatform = ref(false)
+
+  // Linux-specific transparency modes
+  const transparencyModes = [
+    { displayName: 'Disabled', name: 'none' },
+    { displayName: 'Enabled', name: 'acrylic' },
+  ]
+
+  const applyTransparencyClass = (modeName: string): void => {
+    const body = document.body
+    if (modeName === 'none') {
+      body.classList.add('transparency-disabled')
+    } else {
+      body.classList.remove('transparency-disabled')
+    }
+  }
 
   const handleBlurModeChange = async (value: unknown): Promise<void> => {
     if (value && typeof value === 'string') {
@@ -48,7 +65,9 @@
         setBlurMode(value)
         // Update the local ref for the Select component
         selectedBlurModeName.value = value
-        // Apply the blur mode to the window
+        // Apply CSS class for transparency
+        applyTransparencyClass(value)
+        // Apply the blur mode to the window (Windows/macOS only)
         await commands.setBlurMode(value)
       } catch (error) {
         console.error('Failed to set blur mode:', error)
@@ -66,8 +85,14 @@
   // Apply initial blur mode when component mounts
   onMounted(async () => {
     try {
+      // Check platform
+      isLinuxPlatform.value = await isLinux()
+      
       // Update the local ref to match the current store value
       selectedBlurModeName.value = selectedBlurMode.value.name
+      // Apply initial CSS class
+      applyTransparencyClass(selectedBlurMode.value.name)
+      // Apply initial blur mode
       await commands.setBlurMode(selectedBlurMode.value.name)
     } catch (error) {
       console.error('Failed to apply initial blur mode:', error)
@@ -164,8 +189,40 @@
         </Select>
       </div>
 
-      <!-- Blur Mode Card -->
-      <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
+      <!-- Linux: Transparency Card -->
+      <div v-if='isLinuxPlatform' class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
+        <div class='flex items-center space-x-3 mb-4'>
+          <div class='p-2 bg-destructive/10 rounded-lg'>
+            <Layers class='w-5 h-5 text-destructive' />
+          </div>
+          <h3 class='text-lg font-medium'>
+            Window Transparency
+          </h3>
+        </div>
+        <p class='text-sm text-muted-foreground mb-4'>
+          Toggle window transparency effect
+        </p>
+        <Select @update:model-value='handleBlurModeChange' :model-value='selectedBlurModeName'>
+          <SelectTrigger class='w-full bg-background/50 border-border/50 focus:border-accent transition-colors'>
+            <SelectValue placeholder='Select transparency' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem
+                v-for='mode in transparencyModes'
+                :key='mode.name'
+                :value='mode.name'
+                class='cursor-pointer'
+              >
+                {{ mode.displayName }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <!-- Windows/macOS: Blur Mode Card -->
+      <div v-else class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
         <div class='flex items-center space-x-3 mb-4'>
           <div class='p-2 bg-destructive/10 rounded-lg'>
             <Layers class='w-5 h-5 text-destructive' />

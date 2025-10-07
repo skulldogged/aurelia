@@ -48,6 +48,11 @@
     user-select: none;
   }
 
+  /* Transparency disabled - opaque background */
+  body.transparency-disabled {
+    background-color: var(--background) !important;
+  }
+
   .blur-card {
     @apply backdrop-blur-md bg-card/80 border border-border/50;
   }

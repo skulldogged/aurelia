@@ -378,6 +378,8 @@ export const commands = {
   },
   /**
  * Set the window blur mode
+ * On Linux, blur effects are not supported
+ * On Windows/macOS, this applies the appropriate vibrancy effect
  */
   setBlurMode: async (mode: string): Promise<Result<null, string>> => {
     try {

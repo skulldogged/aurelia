@@ -29,6 +29,7 @@
     "clipboard-manager:allow-write-text",
     "drpc:allow-is-running",
     "drpc:allow-clear-activity",
-    "drpc:default"
+    "drpc:default",
+    "os:allow-platform"
   ]
 }
