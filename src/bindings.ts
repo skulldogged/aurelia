@@ -75,6 +75,46 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
+  discordRpcClearActivity: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('discord_rpc_clear_activity'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  discordRpcIsRunning: async (): Promise<Result<boolean, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('discord_rpc_is_running'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  discordRpcSetActivity: async (activity: RpcActivity): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('discord_rpc_set_activity', { activity }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  discordRpcStart: async (appId: string): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('discord_rpc_start', { appId }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  discordRpcStop: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('discord_rpc_stop'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
   /**
  * Get single album by ID
  */
@@ -273,6 +313,128 @@ export const commands = {
   },
   hideMainWindow: async (): Promise<void> => {
     await TAURI_INVOKE('hide_main_window')
+  },
+  lastfmAuthenticate: async (apiKey: string, apiSecret: string, token: string): Promise<Result<LastFmCredentials, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('lastfm_authenticate', { apiKey, apiSecret, token }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  lastfmClearCredentials: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('lastfm_clear_credentials'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  lastfmIsAuthenticated: async (): Promise<Result<boolean, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('lastfm_is_authenticated'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  lastfmScrobble: async (scrobble: LastFmScrobble): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('lastfm_scrobble', { scrobble }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  lastfmSetCredentials: async (credentials: LastFmCredentials): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('lastfm_set_credentials', { credentials }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  lastfmStartAuthServer: async (primaryColor: string, backgroundColor: string, textColor: string): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('lastfm_start_auth_server', { backgroundColor, primaryColor, textColor }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  lastfmUpdateNowPlaying: async (artist: string, track: string, album: null | string): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('lastfm_update_now_playing', { album, artist, track }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Clear ListenBrainz credentials
+ */
+  listenbrainzClearCredentials: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('listenbrainz_clear_credentials'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Check if authenticated with ListenBrainz
+ */
+  listenbrainzIsAuthenticated: async (): Promise<Result<boolean, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('listenbrainz_is_authenticated'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Update "now playing" status on ListenBrainz
+ */
+  listenbrainzPlayingNow: async (artist: string, track: string, album: null | string): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('listenbrainz_playing_now', { album, artist, track }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Set ListenBrainz credentials
+ */
+  listenbrainzSetCredentials: async (credentials: ListenBrainzCredentials): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('listenbrainz_set_credentials', { credentials }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Submit a scrobble (past listen) to ListenBrainz
+ */
+  listenbrainzSubmitListen: async (listen: ListenBrainzListen, timestamp: bigint): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('listenbrainz_submit_listen', { listen, timestamp }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Validate a ListenBrainz user token and get the username
+ */
+  listenbrainzValidateToken: async (userToken: string): Promise<Result<ListenBrainzCredentials, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('listenbrainz_validate_token', { userToken }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
   },
   /**
  * Login to Jellyfin server
@@ -543,6 +705,10 @@ export type Credentials = {
  * Username
  */
   username:  string; }
+export type LastFmCredentials = { api_key: string; api_secret: string; session_key: null | string; username: null | string }
+export type LastFmScrobble = { album: null | string; artist: string; duration: bigint | null; timestamp: bigint; track: string; }
+export type ListenBrainzCredentials = { user_token: string; username: null | string }
+export type ListenBrainzListen = { album: null | string; artist: string; duration: bigint | null; track: string; }
 /**
  * Response from successful Jellyfin login
  */
@@ -702,6 +868,8 @@ export type PlaylistUpdateData = {
 export type Result<T, E> =
 	| { data: T; status: 'ok'; }
 	| { error: E; status: 'error'; }
+export type RpcActivity = { buttons: null | RpcButton[]; details: null | string; end_timestamp: bigint | null; large_image: null | string; large_text: null | string; small_image: null | string; small_text: null | string; start_timestamp: bigint | null; state: null | string; }
+export type RpcButton = { label: string; url: string }
 /**
  * Song representing a music track or audio file
  */

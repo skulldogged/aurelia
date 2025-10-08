@@ -151,7 +151,7 @@
                 size='sm'
                 variant='ghost'
               >
-                <RotateCcw class='w-4 h-4' />
+                <RotateCcw class='size-4' />
               </Button>
             </div>
           </div>
@@ -217,7 +217,7 @@
     <!-- Placeholder when EQ is disabled -->
     <div v-else class='flex-1 min-h-0 flex items-center justify-center p-8'>
       <div class='text-center'>
-        <Sliders class='w-12 h-12 text-muted-foreground/50 mx-auto mb-4' />
+        <Sliders class='size-12 text-muted-foreground/50 mx-auto mb-4' />
         <p class='text-sm text-muted-foreground'>
           Enable equalizer to adjust audio settings
         </p>

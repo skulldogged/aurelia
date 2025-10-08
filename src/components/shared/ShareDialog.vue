@@ -181,7 +181,7 @@
         <DialogHeader class='space-y-3'>
           <DialogTitle class='flex items-center gap-3 text-2xl font-bold'>
             <div class='p-2 rounded-lg bg-primary/10'>
-              <Share2 class='w-6 h-6 text-primary' />
+              <Share2 class='size-6 text-primary' />
             </div>
             Share {{ itemTypeLabel }}
           </DialogTitle>
@@ -217,12 +217,12 @@
                     <div class='p-2 rounded-lg bg-transparent group-hover:bg-transparent transition-colors'>
                       <span
                         v-if='getPlatformIcon(platform)'
-                        class='w-5 h-5 block'
+                        class='size-5 block'
                         v-html='getPlatformIcon(platform)?.svg.replace(
                           "<svg", `<svg style="fill: #${getPlatformIcon(platform)?.hex};"`
                         )'
                       />
-                      <Link v-else class='w-5 h-5 text-muted-foreground' />
+                      <Link v-else class='size-5 text-muted-foreground' />
                     </div>
                     <span class='font-semibold text-base'>{{ platform }}</span>
                   </div>
@@ -235,8 +235,8 @@
                       size='sm'
                       variant='ghost'
                     >
-                      <Check v-if='copiedUrl === platform' class='w-4 h-4 text-green-500' />
-                      <Copy v-else class='w-4 h-4' />
+                      <Check v-if='copiedUrl === platform' class='size-4 text-green-500' />
+                      <Copy v-else class='size-4' />
                     </Button>
 
                     <Button
@@ -246,7 +246,7 @@
                       title='Open in browser'
                       variant='ghost'
                     >
-                      <ExternalLink class='w-4 h-4' />
+                      <ExternalLink class='size-4' />
                     </Button>
                   </div>
                 </div>
@@ -267,8 +267,8 @@
                 <span class='font-medium'>
                   {{ showAllLinks ? 'Hide' : 'Show' }} additional links ({{ Object.keys(secondaryLinks).length }})
                 </span>
-                <ChevronDown v-if='!showAllLinks' class='w-4 h-4' />
-                <ChevronUp v-else class='w-4 h-4' />
+                <ChevronDown v-if='!showAllLinks' class='size-4' />
+                <ChevronUp v-else class='size-4' />
               </Button>
 
               <div v-if='showAllLinks' class='border-t border-border/50 pt-4'>
@@ -287,7 +287,7 @@
                     >
                       <div class='flex items-center gap-3 flex-1 min-w-0'>
                         <div class='p-2 rounded-lg bg-transparent group-hover:bg-transparent transition-colors'>
-                          <Link class='w-5 h-5 text-muted-foreground' />
+                          <Link class='size-5 text-muted-foreground' />
                         </div>
 
                         <div class='min-w-0 flex-1'>
@@ -305,8 +305,8 @@
                           size='sm'
                           variant='ghost'
                         >
-                          <Check v-if='copiedUrl === platform' class='w-4 h-4 text-green-500' />
-                          <Copy v-else class='w-4 h-4' />
+                          <Check v-if='copiedUrl === platform' class='size-4 text-green-500' />
+                          <Copy v-else class='size-4' />
                         </Button>
 
                         <Button
@@ -316,7 +316,7 @@
                           title='Open in browser'
                           variant='ghost'
                         >
-                          <ExternalLink class='w-4 h-4' />
+                          <ExternalLink class='size-4' />
                         </Button>
                       </div>
                     </div>

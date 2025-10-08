@@ -174,7 +174,7 @@
 </script>
 
 <template>
-  <div class='h-full w-full flex flex-col overflow-hidden'>
+  <div class='size-full flex flex-col overflow-hidden'>
     <div
       v-if='isInSidebar'
       class='h-12 flex items-center justify-between px-4 flex-shrink-0'
@@ -188,7 +188,7 @@
       v-if='isLoading'
       class='flex-grow flex items-center justify-center'
     >
-      <Loader2 class='w-8 h-8 animate-spin' />
+      <Loader2 class='size-8 animate-spin' />
     </div>
     <div
       v-else-if='error'
@@ -197,7 +197,7 @@
       <div class='w-full max-w-md bg-card/60 border border-destructive/30 rounded-2xl shadow-lg backdrop-blur-sm p-6'>
         <div class='flex items-start space-x-4'>
           <div class='p-3 rounded-xl bg-destructive/10 text-destructive'>
-            <AlertTriangle class='w-6 h-6' />
+            <AlertTriangle class='size-6' />
           </div>
           <div class='space-y-2 text-left'>
             <h3 class='text-lg font-semibold'>

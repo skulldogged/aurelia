@@ -24,7 +24,7 @@
   <section class='space-y-6'>
     <div class='flex items-center space-x-3'>
       <div class='p-2 bg-accent/10 rounded-lg'>
-        <HardDrive class='w-5 h-5 text-accent' />
+        <HardDrive class='size-5 text-accent' />
       </div>
       <h2 class='text-2xl font-semibold'>
         Library Management
@@ -35,7 +35,7 @@
     <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
       <div class='flex items-start space-x-4'>
         <div class='p-3 bg-primary/10 rounded-lg flex-shrink-0'>
-          <RefreshCw class='w-6 h-6 text-primary' />
+          <RefreshCw class='size-6 text-primary' />
         </div>
         <div class='flex-1'>
           <h3 class='text-lg font-medium mb-2'>
@@ -51,7 +51,7 @@
             class='px-6'
             variant='default'
           >
-            <RefreshCw :class="{'animate-spin': isSyncing}" class='w-4 h-4 mr-2' />
+            <RefreshCw :class="{'animate-spin': isSyncing}" class='size-4 mr-2' />
             {{ isSyncing ? 'Syncing...' : 'Sync Library' }}
           </Button>
         </div>
@@ -62,7 +62,7 @@
     <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
       <div class='flex items-start space-x-4'>
         <div class='p-3 bg-accent/10 rounded-lg flex-shrink-0'>
-          <AlertTriangle class='w-6 h-6 text-accent' />
+          <AlertTriangle class='size-6 text-accent' />
         </div>
         <div class='flex-1'>
           <h3 class='text-lg font-medium mb-2'>
@@ -78,7 +78,7 @@
             class='px-6'
             variant='destructive'
           >
-            <Trash2 class='w-4 h-4 mr-2' />
+            <Trash2 class='size-4 mr-2' />
             {{ isClearing ? 'Clearing...' : 'Clear Cache' }}
           </Button>
         </div>

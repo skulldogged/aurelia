@@ -172,24 +172,24 @@
       <div class='absolute top-4 left-4 right-4 flex justify-between items-center z-20'>
         <Button
           @click="$emit('close')"
-          class='bg-black/20 hover:bg-black/40 backdrop-blur-sm text-white border-white/20'
+          class='bg-black/20 backdrop-blur-sm text-white border-white/20'
           size='icon'
           variant='ghost'
         >
-          <ChevronDown class='w-5 h-5' />
+          <ChevronDown class='size-4' />
         </Button>
         <Button
           @click='showLyrics = !showLyrics'
           :class="[
             'bg-black/20 backdrop-blur-sm text-white border-white/20',
-            hasLyrics ? 'hover:bg-black/40' : 'opacity-50 cursor-not-allowed'
+            hasLyrics ? '' : 'opacity-50 cursor-not-allowed'
           ]"
           :disabled='!hasLyrics'
           size='icon'
           variant='ghost'
         >
-          <Mic2 v-if='!showLyrics' class='w-5 h-5' />
-          <Album v-else class='w-5 h-5' />
+          <Mic2 v-if='!showLyrics' class='size-4' />
+          <Album v-else class='size-4' />
         </Button>
       </div>
 
@@ -197,10 +197,10 @@
         class='flex-grow flex flex-col items-center p-8 gap-8 overflow-hidden'
       >
         <div class='relative flex-1 w-full min-h-0 flex flex-col items-center justify-center gap-6'>
-          <div class='relative w-full h-full'>
+          <div class='relative size-full'>
             <div
               :class="[
-                'flex justify-center items-center w-full h-full transition-opacity duration-300 ease-in-out',
+                'flex justify-center items-center size-full transition-opacity duration-300 ease-in-out',
                 showLyrics ? 'opacity-0 pointer-events-none' : 'opacity-100'
               ]"
             >
@@ -211,11 +211,11 @@
                   :server-url='serverUrl'
                   :token='token'
                   alt='Album art'
-                  class='w-full h-full object-cover rounded-lg shadow-2xl'
+                  class='size-full object-cover rounded-lg shadow-2xl'
                 >
                   <template #fallback>
-                    <div class='flex items-center justify-center w-full h-full rounded-lg bg-muted'>
-                      <Music2 class='w-24 h-24 text-muted-foreground' />
+                    <div class='flex items-center justify-center size-full rounded-lg bg-muted'>
+                      <Music2 class='size-24 text-muted-foreground' />
                     </div>
                   </template>
                 </ImageLoader>
@@ -223,11 +223,11 @@
             </div>
             <div
               :class="[
-                'absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out',
+                'absolute inset-0 transition-opacity duration-300 ease-in-out',
                 showLyrics ? 'opacity-100' : 'opacity-0 pointer-events-none'
               ]"
             >
-              <div class='w-full h-full flex justify-center'>
+              <div class='size-full flex justify-center'>
                 <LyricsView
                   @lyrics-loaded='onLyricsLoaded'
                   @seek='handleLyricsSeek'
@@ -279,7 +279,7 @@
                 size='icon'
                 variant='ghost'
               >
-                <Shuffle class='w-5 h-5' />
+                <Shuffle class='size-4' />
               </Button>
               <Button
                 @click='$emit("previous-song")'
@@ -287,14 +287,14 @@
                 size='icon'
                 variant='ghost'
               >
-                <SkipBack class='w-6 h-6' />
+                <SkipBack class='size-5' />
               </Button>
               <Button
                 @click='$emit("toggle-play-pause")'
-                class='rounded-full w-16 h-16'
+                class='rounded-full size-14'
               >
-                <Pause v-if='isPlaying' class='w-8 h-8' />
-                <Play v-else class='w-8 h-8' />
+                <Pause v-if='isPlaying' class='size-6' />
+                <Play v-else class='size-6' />
               </Button>
               <Button
                 @click='$emit("next-song")'
@@ -302,7 +302,7 @@
                 size='icon'
                 variant='ghost'
               >
-                <SkipForward class='w-6 h-6' />
+                <SkipForward class='size-5' />
               </Button>
               <Button
                 @click='$emit("toggle-repeat")'
@@ -310,8 +310,8 @@
                 size='icon'
                 variant='ghost'
               >
-                <Repeat1 v-if="repeatMode === 'one'" class='w-5 h-5' />
-                <Repeat v-else class='w-5 h-5' />
+                <Repeat1 v-if="repeatMode === 'one'" class='size-4' />
+                <Repeat v-else class='size-4' />
               </Button>
             </div>
           </div>

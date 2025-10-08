@@ -1,6 +1,9 @@
 pub mod cache;
+pub mod discord_rpc;
 pub mod error;
 pub mod handlers;
+pub mod lastfm;
+pub mod listenbrainz;
 pub mod models;
 pub mod services;
 pub mod system_tray;
@@ -93,6 +96,24 @@ pub fn run() {
         handlers::playlists::add_playlist_items,
         handlers::playlists::remove_playlist_items,
         handlers::playlists::get_playlist_items,
+        discord_rpc::discord_rpc_start,
+        discord_rpc::discord_rpc_stop,
+        discord_rpc::discord_rpc_is_running,
+        discord_rpc::discord_rpc_set_activity,
+        discord_rpc::discord_rpc_clear_activity,
+        lastfm::lastfm_authenticate,
+        lastfm::lastfm_scrobble,
+        lastfm::lastfm_update_now_playing,
+        lastfm::lastfm_set_credentials,
+        lastfm::lastfm_clear_credentials,
+        lastfm::lastfm_is_authenticated,
+        lastfm::lastfm_start_auth_server,
+        listenbrainz::listenbrainz_validate_token,
+        listenbrainz::listenbrainz_submit_listen,
+        listenbrainz::listenbrainz_playing_now,
+        listenbrainz::listenbrainz_set_credentials,
+        listenbrainz::listenbrainz_clear_credentials,
+        listenbrainz::listenbrainz_is_authenticated,
         system_tray::show_main_window,
         system_tray::hide_main_window,
         system_tray::quit_application,
@@ -114,8 +135,11 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_drpc::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_opener::init())
+        .manage(discord_rpc::DiscordRpcState::new())
+        .manage(lastfm::LastFmState::new())
+        .manage(listenbrainz::ListenBrainzState::new())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);

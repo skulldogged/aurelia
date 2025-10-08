@@ -1,19 +1,6 @@
 <script setup lang="ts">
-  import type { SimpleIcon } from 'simple-icons'
-
   import { useBreakpoints } from '@vueuse/core'
-  import { ListPlus, Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
-  import {
-    siApplemusic,
-    siBandcamp,
-    siDiscogs,
-    siLastdotfm,
-    siMusicbrainz,
-    siSoundcloud,
-    siSpotify,
-    siWikipedia,
-    siYoutube,
-  } from 'simple-icons'
+  import { MoreHorizontal, Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
   import { computed, ref } from 'vue'
   import { useRoute } from 'vue-router'
 
@@ -27,10 +14,10 @@
   import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuItem,
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
-  import { uiLogger } from '@/lib/logger'
 
   const breakpoints = useBreakpoints({
     tablet: 768,
@@ -61,7 +48,6 @@
 
   const route = useRoute()
   const artistId = computed(() => route.params.artistId as string)
-  const showSkeleton = ref(false)
   const showFullOverview = ref(false)
   const showShareDialog = ref(false)
 
@@ -296,70 +282,6 @@
   const albumCollaboratorsFor = (album: Album): NameId[] =>
     albumArtistPairsFor(album).filter(p => p.name !== artist.value?.name)
 
-  const getIconForProvider = (provider: string): null | SimpleIcon => {
-    const key = provider.toLowerCase().replace('artist', '')
-    const iconMap: Record<string, SimpleIcon> = {
-      applemusic:  siApplemusic,
-      bandcamp:    siBandcamp,
-      discogs:     siDiscogs,
-      lastfm:      siLastdotfm,
-      musicbrainz: siMusicbrainz,
-      soundcloud:  siSoundcloud,
-      spotify:     siSpotify,
-      wikipedia:   siWikipedia,
-      youtube:     siYoutube,
-    }
-    return iconMap[key] || null
-  }
-
-  const getProviderUrl = (provider: string, providerId: string): null | string => {
-    const providerUrls: Record<string, (id: string) => string> = {
-      'AppleMusicArtist':  id => `https://music.apple.com/artist/${id}`,
-      'AudioDbArtist':     id => `https://www.theaudiodb.com/artist/${id}`,
-      'BandcampArtist':    id => `https://bandcamp.com/artist/${id}`,
-      'DiscogsArtist':     id => `https://www.discogs.com/artist/${id}`,
-      'LastFmArtist':      id => `https://www.last.fm/music/${encodeURIComponent(id)}`,
-      'MusicBrainzArtist': id => `https://musicbrainz.org/artist/${id}`,
-      'SoundCloudArtist':  id => `https://soundcloud.com/${id}`,
-      'SpotifyArtist':     id => `https://open.spotify.com/artist/${id}`,
-      'WikipediaArtist':   id => `https://en.wikipedia.org/wiki/${encodeURIComponent(id)}`,
-      'YouTubeArtist':     id => `https://www.youtube.com/channel/${id}`,
-    }
-
-    const urlGenerator = providerUrls[provider]
-
-    if (urlGenerator) {
-      return urlGenerator(providerId)
-    } else {
-      uiLogger.warn(`No URL generator found for provider: ${provider}`)
-      return null
-    }
-  }
-
-  const validProviderLinks = computed(() => {
-    if (!artist.value?.providerIds) return []
-
-    return Object.entries(artist.value.providerIds)
-      .map(([provider, providerId]) => {
-        if (!providerId) return null
-
-        const url = getProviderUrl(provider, providerId)
-        const iconData = getIconForProvider(provider)
-
-        if (url && iconData) {
-          // Inject the brand color directly into the SVG for consistent display
-          const coloredSvg = iconData.svg.replace('<svg', `<svg style="fill: #${iconData.hex};"`)
-          return {
-            icon: { ...iconData, svg: coloredSvg },
-            provider,
-            url,
-          }
-        }
-        return null
-      })
-      .filter(Boolean) as { icon: SimpleIcon; provider: string, url: string, }[]
-  })
-
   const playSong = (song: Song): void => {
     emit('play-song', song)
   }
@@ -372,27 +294,17 @@
 
 <template>
   <div class='p-4 max-w-7xl mx-auto space-y-8'>
-    <div class='flex justify-end'>
-      <Button
-        @click='showSkeleton = !showSkeleton'
-        :disabled='libraryLoading || !libraryLoaded || !artist'
-        size='sm'
-        variant='outline'
-      >
-        {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
-      </Button>
-    </div>
-    <div v-if='libraryLoading || !libraryLoaded || !artist || showSkeleton' class='space-y-8'>
+    <div v-if='libraryLoading || !libraryLoaded || !artist' class='space-y-8'>
       <!-- Header Skeleton -->
       <div class='flex items-center p-8 blur-card rounded-2xl'>
-        <Skeleton class='w-48 h-48 rounded-lg' />
+        <Skeleton class='size-48 rounded-lg' />
         <div class='ml-6 space-y-3 flex-1'>
           <Skeleton class='h-10 w-48' />
           <Skeleton class='h-6 w-52' />
           <Skeleton class='h-6 w-72' />
           <div class='flex items-center gap-2 pt-1'>
             <Button disabled>
-              <Shuffle class='w-4 h-4 mr-2' />
+              <Shuffle class='size-4 mr-2' />
               Shuffle All
             </Button>
           </div>
@@ -408,7 +320,7 @@
             :key='`top-song-skeleton-${i}`'
             class='flex items-center py-2.5 px-2 rounded-md'
           >
-            <Skeleton class='w-10 h-10 rounded-md mr-3' />
+            <Skeleton class='size-10 rounded-md mr-3' />
             <div class='flex-1 space-y-2'>
               <Skeleton class='h-4 w-3/4' />
               <Skeleton class='h-3 w-1/2' />
@@ -435,7 +347,10 @@
     <div v-else-if='artist' class='space-y-12'>
       <!-- Header -->
       <div
-        class='relative flex flex-col md:flex-row items-start p-8 blur-card rounded-2xl shadow-lg gap-8 overflow-hidden'
+        class='
+          relative flex flex-col md:flex-row md:items-center items-start
+          p-8 blur-card rounded-2xl shadow-lg gap-8 overflow-hidden
+        '
       >
         <!-- Backdrop Background -->
         <!-- <ImageLoader
@@ -445,7 +360,7 @@
           :server-url='serverUrl'
           :token='token'
           alt='Artist backdrop'
-          class='absolute inset-0 w-full h-full object-cover opacity-10'
+          class='absolute inset-0 object-cover opacity-10'
         /> -->
         <div class='flex-shrink-0 mx-auto md:mx-0'>
           <ImageLoader
@@ -453,11 +368,11 @@
             :server-url='serverUrl'
             :token='token'
             alt='Artist art'
-            class='w-50 h-50 rounded-lg object-cover'
+            class='size-48 rounded-lg object-cover'
           >
             <template #fallback>
-              <div class='w-50 h-50 rounded-lg bg-muted flex items-center justify-center'>
-                <Music class='w-25 h-25 text-muted-foreground' />
+              <div class='size-48 rounded-lg bg-muted flex items-center justify-center'>
+                <Music class='size-24 text-muted-foreground' />
               </div>
             </template>
           </ImageLoader>
@@ -471,7 +386,7 @@
                 </h2>
                 <div class='flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-muted-foreground'>
                   <div v-if='artist.communityRating' class='flex items-center gap-1'>
-                    <Star class='w-4 h-4 text-yellow-500' />
+                    <Star class='size-4 text-yellow-500' />
                     <span>{{ artist.communityRating.toFixed(1) }} / 10</span>
                   </div>
                   <p v-if='isFeaturedOnlyArtist'>
@@ -490,43 +405,28 @@
                     {{ genre }}
                   </span>
                 </div>
-                <!-- Provider Links -->
-                <div v-if='validProviderLinks.length > 0' class='flex flex-wrap gap-4 pt-4'>
-                  <a
-                    v-for='link in validProviderLinks'
-                    :key='link.provider'
-                    :href='link.url'
-                    class='text-sm font-medium text-accent hover:underline flex items-center gap-2'
-                    rel='noopener noreferrer'
-                    target='_blank'
-                  >
-                    <span v-if='link.icon' class='w-4 h-4' v-html='link.icon.svg' />
-                    <span>{{ link.provider.replace('Artist', '') }}</span>
-                  </a>
-                </div>
               </div>
 
               <!-- Actions -->
               <div class='flex items-center gap-2'>
                 <Button @click='playArtistShuffle'>
-                  <Shuffle class='w-4 h-4 mr-2' />
+                  <Shuffle class='size-4 mr-2' />
                   Shuffle All
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
                     <Button variant='outline'>
-                      <ListPlus class='w-4 h-4 mr-2' />
-                      Add to Playlist
+                      <MoreHorizontal class='size-4' />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <AddToPlaylistMenu :songs='artistSongs' type='flat' />
+                  <DropdownMenuContent align='start'>
+                    <AddToPlaylistMenu :songs='artistSongs' type='dropdown' />
+                    <DropdownMenuItem @click='showShareDialog = true'>
+                      <Share2 class='size-4 mr-2' />
+                      Share
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button @click='showShareDialog = true' variant='outline'>
-                  <Share2 class='w-4 h-4 mr-2' />
-                  Share
-                </Button>
               </div>
             </div>
 
@@ -566,11 +466,11 @@
                 :server-url='serverUrl'
                 :token='token'
                 alt='Album art'
-                class='w-10 h-10 rounded-md object-cover'
+                class='size-10 rounded-md object-cover'
               >
                 <template #fallback>
                   <ImagePlaceholder
-                    class='w-10 h-10 rounded-md'
+                    class='size-10 rounded-md'
                     size='small'
                     type='album'
                   />
@@ -578,19 +478,19 @@
               </ImageLoader>
               <div
                 :class="[
-                  'absolute inset-0 w-10 h-10 flex items-center justify-center transition-opacity',
+                  'absolute inset-0 size-10 flex items-center justify-center transition-opacity',
                   currentSong?.id === song.id && isPlaying
                     ? 'opacity-100'
                     : 'opacity-0 group-hover:opacity-100',
                 ]"
               >
                 <Button
-                  class='w-8 h-8 rounded-full bg-background/75 text-foreground hover:bg-background'
+                  class='size-8 rounded-full bg-background/75 text-foreground hover:bg-background'
                   size='icon'
                   variant='ghost'
                 >
-                  <Pause v-if='currentSong?.id === song.id && isPlaying' class='w-5 h-5' />
-                  <Play v-else class='w-5 h-5' />
+                  <Pause v-if='currentSong?.id === song.id && isPlaying' class='size-5' />
+                  <Play v-else class='size-5' />
                 </Button>
               </div>
             </div>

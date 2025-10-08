@@ -16,15 +16,15 @@
   const sizeConfig = {
     large: {
       container: 'w-full aspect-square',
-      icon:      'w-12 h-12',
+      icon:      'size-12',
     },
     medium: {
-      container: 'w-12 h-12',
-      icon:      'w-5 h-5',
+      container: 'size-12',
+      icon:      'size-5',
     },
     small: {
-      container: 'w-10 h-10',
-      icon:      'w-4 h-4',
+      container: 'size-10',
+      icon:      'size-4',
     },
   }
 

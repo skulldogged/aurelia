@@ -19,11 +19,12 @@
     SelectValue,
   } from '@/components/ui/select'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
   import { usePagination } from '@/composables/useLayoutPreference'
 
   const router = useRouter()
 
-  const showAllArtists = ref(false)
+  const artistMode = ref<'album' | 'all'>('album')
 
   const props = defineProps<{
     allArtists:     Artist[],
@@ -40,7 +41,6 @@
   }>()
 
   const searchQuery = ref('')
-  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
   // Artists who appear as an "album artist" on at least one song
   const albumArtists = computed(() => props.allArtists.filter(artist =>
@@ -49,9 +49,10 @@
     ),
   ))
 
-  const artistsToDisplay = computed(() =>
-    showAllArtists.value ? props.allArtists : (albumArtists.value?.length ? albumArtists.value : props.allArtists),
-  )
+  const artistsToDisplay = computed(() => {
+    const mode = artistMode.value
+    return mode === 'all' ? props.allArtists : (albumArtists.value?.length ? albumArtists.value : props.allArtists)
+  })
 
   // Deduplicate artists by name (not ID) to handle Jellyfin duplicate artist entries
   // For duplicates, keep the entry with the most songs
@@ -105,10 +106,6 @@
     total,
   } = usePagination(filteredArtists, 'artists-pagesize', 20)
 
-  const toggleArtistMode = (): void => {
-    showAllArtists.value = !showAllArtists.value
-  }
-
   const playArtistShuffle = (artist: Artist): void => {
     const artistSongs = artist.songs
 
@@ -129,9 +126,16 @@
         <h1 class='text-4xl font-bold'>
           Artists
         </h1>
-        <Button @click='toggleArtistMode'>
-          {{ showAllArtists ? "Album Artists Only" : "All Artists" }}
-        </Button>
+        <Tabs v-model='artistMode'>
+          <TabsList>
+            <TabsTrigger value='album'>
+              Album Artists
+            </TabsTrigger>
+            <TabsTrigger value='all'>
+              All Artists
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
       <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center'>
         <Input
@@ -140,19 +144,11 @@
           placeholder='Search artists...'
           type='text'
         />
-        <!-- Dev toggle for skeleton adjustment -->
-        <Button
-          @click='showSkeleton = !showSkeleton'
-          :variant='showSkeleton ? "default" : "outline"'
-          size='sm'
-        >
-          {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
-        </Button>
       </div>
     </div>
 
     <div
-      v-if='libraryLoading || showSkeleton'
+      v-if='libraryLoading'
       class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'
     >
       <!-- Skeleton loading grid -->
@@ -229,7 +225,7 @@
     </div>
 
     <div
-      v-if='!libraryLoading && !showSkeleton && filteredArtists && filteredArtists.length === 0'
+      v-if='!libraryLoading && filteredArtists && filteredArtists.length === 0'
       class='text-center py-12'
     >
       <p class='text-muted-foreground'>

@@ -30,7 +30,6 @@
   }>()
 
   const recentlyPlayedSongs = ref<Song[]>([])
-  const showSkeleton = ref(false) // Dev toggle for skeleton adjustment
 
   const fetchRecentlyPlayed = async (): Promise<void> => {
     if (!props.serverUrl || !props.token) {
@@ -209,34 +208,24 @@
 <template>
   <div class='p-4 max-w-7xl mx-auto'>
     <div class='mb-8'>
-      <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center'>
-        <h1 class='text-4xl font-bold'>
-          Home
-        </h1>
-        <!-- Dev toggle for skeleton adjustment -->
-        <Button
-          @click='showSkeleton = !showSkeleton'
-          :variant='showSkeleton ? "default" : "outline"'
-          size='sm'
-        >
-          {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
-        </Button>
-      </div>
+      <h1 class='text-4xl font-bold'>
+        Home
+      </h1>
     </div>
 
     <!-- Featured Album Section -->
     <div
-      v-if='featuredAlbum || libraryLoading || showSkeleton'
+      v-if='featuredAlbum || libraryLoading'
       class='relative isolate rounded-2xl p-8 mb-8 overflow-hidden blur-card'
     >
       <!-- Blurred Background -->
       <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-2xl blur-md scale-105 overflow-hidden'>
         <ImageLoader
-          v-if='featuredAlbum && !libraryLoading && !showSkeleton'
+          v-if='featuredAlbum && !libraryLoading'
           :item-id='featuredAlbum.id || featuredAlbum.name'
           :server-url='serverUrl'
           :token='token'
-          class='w-full h-full object-cover'
+          class='size-full object-cover'
         />
         <div class='absolute inset-0 bg-black/60 rounded-2xl' />
       </div>
@@ -244,8 +233,8 @@
       <!-- Content -->
       <div class='relative z-10 flex items-center space-x-6'>
         <div class='flex-shrink-0'>
-          <template v-if='libraryLoading || showSkeleton'>
-            <Skeleton class='w-48 h-48 rounded-xl' />
+          <template v-if='libraryLoading'>
+            <Skeleton class='size-48 rounded-xl' />
           </template>
           <template v-else-if='featuredAlbum'>
             <ImageLoader
@@ -253,11 +242,11 @@
               :item-id='featuredAlbum.id || featuredAlbum.name'
               :server-url='serverUrl'
               :token='token'
-              class='w-48 h-48 rounded-xl shadow-2xl object-cover'
+              class='size-48 rounded-xl shadow-2xl object-cover'
             >
               <template #fallback>
                 <ImagePlaceholder
-                  class='w-48 h-48 rounded-xl shadow-2xl'
+                  class='size-48 rounded-xl shadow-2xl'
                   size='large'
                   type='album'
                 />
@@ -266,7 +255,7 @@
           </template>
         </div>
         <div class='flex-1 min-w-0'>
-          <template v-if='libraryLoading || showSkeleton'>
+          <template v-if='libraryLoading'>
             <Skeleton class='h-10 w-3/4 mb-2' />
             <Skeleton class='h-7 w-1/2 mb-4' />
             <Skeleton class='h-5 w-1/4 mb-6' />
@@ -319,7 +308,7 @@
             </p>
             <button
               @click='playFeaturedAlbum'
-              :disabled='libraryLoading || showSkeleton'
+              :disabled='libraryLoading'
               class='
                   bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8
                   py-3 rounded-full font-semibold transition-colors border
@@ -336,7 +325,7 @@
       <div v-if='featuredAlbums.length > 1' class='absolute bottom-4 right-4 z-20 flex space-x-2'>
         <button
           @click='prevFeaturedAlbum'
-          :disabled='libraryLoading || showSkeleton'
+          :disabled='libraryLoading'
           class='
               flex items-center justify-center bg-white/20 p-2 text-white
               backdrop-blur-sm transition-colors hover:bg-white/30
@@ -347,7 +336,7 @@
         </button>
         <button
           @click='nextFeaturedAlbum'
-          :disabled='libraryLoading || showSkeleton'
+          :disabled='libraryLoading'
           class='
             flex items-center justify-center bg-white/20 p-2 text-white
             backdrop-blur-sm transition-colors hover:bg-white/30
@@ -360,11 +349,11 @@
     </div>
 
     <Carousel
-      :disabled='libraryLoading || showSkeleton || !libraryLoaded || recentlyPlayedSongs.length === 0'
+      :disabled='libraryLoading || !libraryLoaded || recentlyPlayedSongs.length === 0'
       class='mb-8'
       title='Most Played'
     >
-      <template v-if='libraryLoading || showSkeleton || !libraryLoaded || recentlyPlayedSongs.length === 0'>
+      <template v-if='libraryLoading || !libraryLoaded || recentlyPlayedSongs.length === 0'>
         <div
           v-for='n in 10'
           :key='`most-played-skeleton-${n}`'
@@ -411,7 +400,7 @@
             >
               <Button
                 @click.stop='playSongs(mostPlayed, song)'
-                :disabled='libraryLoading || showSkeleton'
+                :disabled='libraryLoading'
                 class='
                        bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                        border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
@@ -447,11 +436,11 @@
     </Carousel>
 
     <Carousel
-      :disabled='libraryLoading || showSkeleton || !libraryLoaded || recentlyPlayedSongs.length === 0'
+      :disabled='libraryLoading || !libraryLoaded || recentlyPlayedSongs.length === 0'
       class='mb-8'
       title='Recently Played'
     >
-      <template v-if='libraryLoading || showSkeleton || !libraryLoaded || recentlyPlayedSongs.length === 0'>
+      <template v-if='libraryLoading || !libraryLoaded || recentlyPlayedSongs.length === 0'>
         <div
           v-for='n in 10'
           :key='`recently-played-skeleton-${n}`'
@@ -498,7 +487,7 @@
             >
               <Button
                 @click.stop='playSongs(recentlyPlayed, song)'
-                :disabled='libraryLoading || showSkeleton'
+                :disabled='libraryLoading'
                 class='
                     bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                     border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
@@ -533,8 +522,8 @@
       </template>
     </Carousel>
 
-    <Carousel :disabled='libraryLoading || showSkeleton || !libraryLoaded' class='mb-8' title='Recently Added'>
-      <template v-if='libraryLoading || showSkeleton || !libraryLoaded'>
+    <Carousel :disabled='libraryLoading || !libraryLoaded' class='mb-8' title='Recently Added'>
+      <template v-if='libraryLoading || !libraryLoaded'>
         <div
           v-for='n in 10'
           :key='`recently-added-skeleton-${n}`'
@@ -581,7 +570,7 @@
             >
               <Button
                 @click.stop='playAlbumSongs(album)'
-                :disabled='libraryLoading || showSkeleton'
+                :disabled='libraryLoading'
                 class='
                     bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                     border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
@@ -610,8 +599,8 @@
       </template>
     </Carousel>
 
-    <Carousel :disabled='libraryLoading || showSkeleton || !libraryLoaded' class='mb-8' title='From Your Library'>
-      <template v-if='libraryLoading || showSkeleton || !libraryLoaded'>
+    <Carousel :disabled='libraryLoading || !libraryLoaded' class='mb-8' title='From Your Library'>
+      <template v-if='libraryLoading || !libraryLoaded'>
         <div
           v-for='n in 10'
           :key='`library-skeleton-${n}`'
@@ -658,7 +647,7 @@
             >
               <Button
                 @click.stop='playAlbumSongs(album)'
-                :disabled='libraryLoading || showSkeleton'
+                :disabled='libraryLoading'
                 class='
                     bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                     border-white/20 disabled:opacity-50 disabled:cursor-not-allowed

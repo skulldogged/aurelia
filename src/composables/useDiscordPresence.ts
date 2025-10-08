@@ -1,5 +1,4 @@
-import { clearActivity, isRunning, setActivity, start, stop } from 'tauri-plugin-drpc'
-import { Activity, ActivityType, Assets, Timestamps } from 'tauri-plugin-drpc/activity'
+import { invoke } from '@tauri-apps/api/core'
 import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 
 import type { Song } from '@/bindings'
@@ -7,9 +6,21 @@ import type { Song } from '@/bindings'
 import { presenceLogger } from '@/lib/logger'
 import { usePlayerStore } from '@/stores'
 
+interface DiscordRpcActivity {
+  buttons?:         Array<{ label: string; url: string }>
+  details?:         string
+  end_timestamp?:   number
+  large_image?:     string
+  large_text?:      string
+  small_image?:     string
+  small_text?:      string
+  start_timestamp?: number
+  state?:           string
+}
+
 const DISCORD_APP_ID =
   import.meta.env.VITE_DISCORD_APP_ID
-  || ''
+  || '1422099270340837419'
 
 const POSITION_UPDATE_THRESHOLD = 10
 const hasTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -81,12 +92,12 @@ export const useDiscordPresence = (): {
     }
 
     try {
-      const running = await isRunning()
+      const running = await invoke<boolean>('discord_rpc_is_running')
       presenceLogger.debug('Discord RPC thread status before start:', { running })
 
       if (!running) {
         presenceLogger.info('Starting Discord RPC thread with app ID:', DISCORD_APP_ID)
-        await start(DISCORD_APP_ID)
+        await invoke('discord_rpc_start', { appId: DISCORD_APP_ID })
         presenceLogger.info('Discord RPC thread started successfully')
         // Give Discord a moment to establish the connection
         await sleep(500)
@@ -105,13 +116,13 @@ export const useDiscordPresence = (): {
 
   const stopThread = async (): Promise<void> => {
     try {
-      await clearActivity()
+      await invoke('discord_rpc_clear_activity')
     } catch (error) {
       presenceLogger.debug('Failed to clear Discord activity on shutdown', error)
     }
 
     try {
-      await stop()
+      await invoke('discord_rpc_stop')
       presenceLogger.debug('Stopped Discord RPC thread')
     } catch (error) {
       presenceLogger.debug('Failed to stop Discord RPC thread', error)
@@ -138,7 +149,7 @@ export const useDiscordPresence = (): {
         return
 
       try {
-        await clearActivity()
+        await invoke('discord_rpc_clear_activity')
         lastSuccessfulUpdate = Date.now()
         presenceLogger.debug('Cleared Discord activity (no active song)')
       } catch (error) {
@@ -160,38 +171,32 @@ export const useDiscordPresence = (): {
     if (song.artistIds?.length && song.albumArtUrl)
       artistImageUrl = `${song.albumArtUrl.split('/Items/')[0]}/Items/${song.artistIds[0]}/Images/Primary`
 
-    const assets = new Assets()
+    const activity: DiscordRpcActivity = {
+      details:     song.name,
+      large_image: song.albumArtUrl ?? undefined,
+      large_text:  song.name,
+    }
 
-    if (song.albumArtUrl)
-      assets
-        .setLargeImage(song.albumArtUrl)
-        .setLargeText(`Listening to ${song.name}`)
-
-    if (artistImageUrl)
-      assets
-        .setSmallImage(artistImageUrl)
-        .setSmallText(artists)
-
-    const activity = new Activity()
-      .setActivity(ActivityType.Listening)
-      .setDetails(song.name)
-      .setAssets(assets)
+    if (artistImageUrl) {
+      activity.small_image = artistImageUrl
+      activity.small_text = artists
+    }
 
     if (isPlaying) {
-      activity.setState(artists)
+      activity.state = artists
 
       const now = Date.now()
       const startAt = Math.max(0, now - Math.round(position * 1000))
 
+      activity.start_timestamp = startAt
+
       if (duration > 0) {
         const remaining = Math.max(0, duration - position)
         const endAt = startAt + Math.round(remaining * 1000)
-        activity.setTimestamps(new Timestamps(startAt, endAt))
-      } else {
-        activity.setTimestamps(new Timestamps(startAt))
+        activity.end_timestamp = endAt
       }
     } else {
-      activity.setState(`Paused — ${artists}`)
+      activity.state = `Paused — ${artists}`
     }
 
     presenceLogger.debug('Updated Discord activity', {
@@ -213,7 +218,7 @@ export const useDiscordPresence = (): {
     })
 
     try {
-      await setActivity(activity)
+      await invoke('discord_rpc_set_activity', { activity })
       lastSuccessfulUpdate = Date.now()
       presenceLogger.debug('Discord activity set successfully')
     } catch (error) {

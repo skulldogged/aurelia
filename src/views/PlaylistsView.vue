@@ -41,7 +41,6 @@
   const playlistStore = usePlaylistStore()
 
   const searchQuery = ref('')
-  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
   const showDeleteDialog = ref(false)
   const playlistToDelete = ref<null | Playlist>(null)
 
@@ -140,18 +139,11 @@
           placeholder='Search playlists...'
           type='text'
         />
-        <Button
-          @click='showSkeleton = !showSkeleton'
-          :variant='showSkeleton ? "default" : "outline"'
-          size='sm'
-        >
-          {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
-        </Button>
       </div>
     </div>
 
     <div
-      v-if='playlistStore.isLoading || showSkeleton'
+      v-if='playlistStore.isLoading'
       class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'
     >
       <div
@@ -256,7 +248,7 @@
       </div>
     </div>
 
-    <div v-if='!playlistStore.isLoading && !showSkeleton && filteredPlaylists.length === 0' class='text-center py-12'>
+    <div v-if='!playlistStore.isLoading && filteredPlaylists.length === 0' class='text-center py-12'>
       <p class='text-muted-foreground mb-4'>
         {{ playlistStore.playlists.length === 0 ? 'No playlists found' : 'No playlists match your search' }}
       </p>

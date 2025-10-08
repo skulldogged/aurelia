@@ -41,7 +41,7 @@
     username:  authStore.username,
   }))
 
-  const { playSong, toggleFavorite: toggleSongFavorite } = useSongInteractions(credentials)
+  const { playSongs, toggleFavorite: toggleSongFavorite } = useSongInteractions(credentials)
 
   const playlistId = computed(() => route.params.playlistId as string)
   const playlist = ref<null | Playlist>(null)
@@ -123,6 +123,15 @@
     await playlistStore.playPlaylist(playlistId.value, shuffle)
   }
 
+  const playSongWithQueue = (song: Song): void => {
+    const songIndex = songs.value.findIndex(s => s.id === song.id)
+    if (songIndex === -1) return
+
+    // Queue current song and all songs after it
+    const songsToQueue = songs.value.slice(songIndex)
+    playSongs(songsToQueue)
+  }
+
   const toggleFavorite = async (): Promise<void> => {
     if (!playlist.value) return
     const success = await playlistStore.togglePlaylistFavorite(playlist.value.id)
@@ -182,7 +191,7 @@
     <!-- Loading Skeleton -->
     <div v-if='isLoading' class='space-y-8'>
       <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
-        <Skeleton class='w-48 h-48 rounded-lg flex-shrink-0' />
+        <Skeleton class='size-48 rounded-lg flex-shrink-0' />
         <div class='flex-1 space-y-4'>
           <Skeleton class='h-12 w-3/4' />
           <Skeleton class='h-6 w-1/2' />
@@ -205,11 +214,11 @@
             :item-id='playlist.id'
             :server-url='authStore.serverUrl'
             :token='authStore.token'
-            class='w-48 h-48 rounded-lg object-cover shadow-lg'
+            class='size-48 rounded-lg object-cover shadow-lg'
           >
             <template #fallback>
               <ImagePlaceholder
-                class='w-48 h-48 rounded-lg shadow-lg'
+                class='size-48 rounded-lg shadow-lg'
                 size='large'
                 type='playlist'
               />
@@ -242,15 +251,6 @@
               <Play class='h-5 w-5' />
               Play
             </Button>
-            <Button
-              @click='playPlaylist(true)'
-              class='gap-2'
-              size='lg'
-              variant='outline'
-            >
-              <Shuffle class='h-5 w-5' />
-              Shuffle
-            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
@@ -259,6 +259,10 @@
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
+                <DropdownMenuItem @click='playPlaylist(true)'>
+                  <Shuffle class='h-4 w-4 mr-2' />
+                  Shuffle
+                </DropdownMenuItem>
                 <DropdownMenuItem @click='toggleFavorite'>
                   <Heart v-if='playlist.userData?.isFavorite' class='h-4 w-4 mr-2 fill-current' />
                   <HeartOff v-else class='h-4 w-4 mr-2' />
@@ -294,7 +298,7 @@
 
       <!-- Songs List -->
       <SongList
-        @play-song='playSong'
+        @play-song='playSongWithQueue'
         @toggle-favorite='toggleSongFavorite'
         :current-song='playerStore.currentSong'
         :is-playing='playerStore.isPlaying'

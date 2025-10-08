@@ -5,7 +5,6 @@
   import type { Credentials, Song } from '@/bindings'
 
   import SongList from '@/components/shared/SongList.vue'
-  import { Button } from '@/components/ui/button'
   import { Input } from '@/components/ui/input'
   import {
     Select,
@@ -16,6 +15,7 @@
     SelectTrigger,
     SelectValue,
   } from '@/components/ui/select'
+  import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
   import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
 
   const props = defineProps<{
@@ -79,8 +79,6 @@
     }
   })
 
-  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
-
   const playSong = (song: Song): void => {
     emit('play-song', song)
   }
@@ -95,9 +93,21 @@
     <div class='max-w-7xl mx-auto p-4 w-full'>
       <div class='w-full'>
         <div class='mb-8'>
-          <h1 class='text-4xl font-bold mb-4'>
-            Songs
-          </h1>
+          <div class='flex justify-between items-start mb-4'>
+            <h1 class='text-4xl font-bold'>
+              Songs
+            </h1>
+            <Tabs v-model='viewLayout'>
+              <TabsList>
+                <TabsTrigger value='comfy'>
+                  Comfy
+                </TabsTrigger>
+                <TabsTrigger value='compact'>
+                  Compact
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between'>
             <Input
               v-model='searchQuery'
@@ -105,53 +115,21 @@
               placeholder='Search songs...'
               type='text'
             />
-            <div class='flex items-center gap-4'>
-              <!-- Dev toggle for skeleton adjustment -->
-              <Button
-                @click='showSkeleton = !showSkeleton'
-                :variant='showSkeleton ? "default" : "outline"'
-                size='sm'
-              >
-                {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
-              </Button>
 
-              <!-- Sort Controls -->
-              <Select v-model='sortOption'>
-                <SelectTrigger class='w-[180px]'>
-                  <SelectValue placeholder='Sort by' />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Sort by</SelectLabel>
-                    <SelectItem v-for='option in sortingOptions' :key='option' :value='option'>
-                      {{ option }}
-                    </SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-
-              <!-- Layout Controls -->
-              <div class='flex items-center gap-2'>
-                <div class='flex rounded-md border'>
-                  <Button
-                    @click='viewLayout = "comfy"'
-                    :variant='viewLayout === "comfy" ? "default" : "ghost"'
-                    class='rounded-r-none border-r-0'
-                    size='sm'
-                  >
-                    Comfy
-                  </Button>
-                  <Button
-                    @click='viewLayout = "compact"'
-                    :variant='viewLayout === "compact" ? "default" : "ghost"'
-                    class='rounded-l-none'
-                    size='sm'
-                  >
-                    Compact
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <!-- Sort Controls -->
+            <Select v-model='sortOption'>
+              <SelectTrigger class='w-[180px]'>
+                <SelectValue placeholder='Sort by' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Sort by</SelectLabel>
+                  <SelectItem v-for='option in sortingOptions' :key='option' :value='option'>
+                    {{ option }}
+                  </SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -162,7 +140,7 @@
             :current-song='props.currentSong'
             :is-playing='props.isPlaying'
             :layout='viewLayout'
-            :loading='libraryLoading || showSkeleton'
+            :loading='libraryLoading'
             :server-url='props.credentials.serverUrl'
             :show-album='true'
             :show-album-art='true'

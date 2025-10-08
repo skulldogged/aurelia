@@ -330,17 +330,17 @@
                         ]"
                       >
                         <!-- Album Art -->
-                        <div class='w-14 h-14 flex-shrink-0 rounded-md overflow-hidden shadow-md'>
+                        <div class='size-14 flex-shrink-0 rounded-md overflow-hidden shadow-md'>
                           <ImageLoader
                             :alt='`${song.album || song.name} album art`'
                             :item-id='song.albumId || song.id'
                             :server-url='authStore.serverUrl'
                             :token='authStore.token'
-                            class='w-full h-full object-cover'
+                            class='size-full object-cover'
                           >
                             <template #fallback>
                               <ImagePlaceholder
-                                class='w-full h-full'
+                                class='size-full'
                                 size='small'
                                 type='album'
                               />
@@ -369,7 +369,7 @@
                         <!-- Selection Indicator -->
                         <div
                           :class="[
-                            'flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center',
+                            'flex-shrink-0 size-7 rounded-full flex items-center justify-center',
                             'transition-all',
                             selectedSongs.some(s => s.id === song.id)
                               ? 'bg-accent text-accent-foreground'
@@ -378,7 +378,7 @@
                         >
                           <Check
                             v-if='selectedSongs.some(s => s.id === song.id)'
-                            class='w-4 h-4 font-bold'
+                            class='size-4 font-bold'
                           />
                         </div>
                       </div>
@@ -407,8 +407,8 @@
           class='text-center py-16 text-muted-foreground border-2 border-dashed border-border/50 rounded-lg'
         >
           <div class='flex flex-col items-center gap-3'>
-            <div class='w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center'>
-              <Plus class='w-8 h-8 text-muted-foreground' />
+            <div class='size-16 rounded-full bg-accent/10 flex items-center justify-center'>
+              <Plus class='size-8 text-muted-foreground' />
             </div>
             <div>
               <div class='text-lg font-medium mb-1'>
@@ -442,21 +442,21 @@
                   size='icon'
                   variant='ghost'
                 >
-                  <GripVertical class='w-4 h-4 text-muted-foreground' />
+                  <GripVertical class='size-4 text-muted-foreground' />
                 </Button>
 
                 <!-- Album Art -->
-                <div class='w-14 h-14 flex-shrink-0 rounded-md overflow-hidden shadow-md'>
+                <div class='size-14 flex-shrink-0 rounded-md overflow-hidden shadow-md'>
                   <ImageLoader
                     :alt='`${song.album || song.name} album art`'
                     :item-id='song.albumId || song.id'
                     :server-url='authStore.serverUrl'
                     :token='authStore.token'
-                    class='w-full h-full object-cover'
+                    class='size-full object-cover'
                   >
                     <template #fallback>
                       <ImagePlaceholder
-                        class='w-full h-full'
+                        class='size-full'
                         size='small'
                         type='album'
                       />

@@ -170,7 +170,7 @@
                   :item-id='song.id'
                   :server-url='serverUrl'
                   :token='token'
-                  class='w-10 h-10 rounded-md mr-3'
+                  class='size-10 rounded-md mr-3'
                 />
                 <div>
                   <p class='font-semibold'>
@@ -199,7 +199,7 @@
                   :item-id='album.id || album.name'
                   :server-url='serverUrl'
                   :token='token'
-                  class='w-10 h-10 rounded-md mr-3'
+                  class='size-10 rounded-md mr-3'
                 />
                 <div>
                   <p class='font-semibold'>
@@ -223,7 +223,7 @@
                 :key='artist.id'
                 class='flex items-center p-2 rounded-md hover:bg-accent/20 cursor-pointer'
               >
-                <div class='w-10 h-10 rounded-full bg-muted flex items-center justify-center mr-3'>
+                <div class='size-10 rounded-full bg-muted flex items-center justify-center mr-3'>
                   <span class='text-lg font-bold'>{{ artist.name.charAt(0) }}</span>
                 </div>
                 <p class='font-semibold'>

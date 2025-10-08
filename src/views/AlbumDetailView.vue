@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ListPlus, Music, Play, Share2, Shuffle } from 'lucide-vue-next'
+  import { MoreHorizontal, Music, Play, Share2, Shuffle } from 'lucide-vue-next'
   import { computed, ref } from 'vue'
   import { useRoute } from 'vue-router'
 
@@ -12,6 +12,7 @@
   import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuItem,
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
@@ -27,13 +28,11 @@
   }>()
 
   const emit = defineEmits<{
-    'play-song':       [song: Song]
     'play-songs':      [songs: Song[]]
     'toggle-favorite': [song: Song]
   }>()
 
   const route = useRoute()
-  const showSkeleton = ref(false) // Dev toggle for skeleton adjustment
   const showShareDialog = ref(false)
 
   const album = computed(() =>
@@ -109,6 +108,15 @@
       emit('play-songs', albumSongs.value)
   }
 
+  const playSongWithQueue = (song: Song): void => {
+    const songIndex = albumSongs.value.findIndex(s => s.id === song.id)
+    if (songIndex === -1) return
+
+    // Queue current song and all songs after it
+    const songsToQueue = albumSongs.value.slice(songIndex)
+    emit('play-songs', songsToQueue)
+  }
+
   const shuffleAll = (): void => {
     const songs = [...albumSongs.value]
     for (let i = songs.length - 1; i > 0; i -= 1) {
@@ -123,20 +131,10 @@
 
 <template>
   <div class='p-4 max-w-7xl mx-auto space-y-8'>
-    <div class='flex justify-end'>
-      <Button
-        @click='showSkeleton = !showSkeleton'
-        :disabled='libraryLoading || !libraryLoaded || !album'
-        size='sm'
-        variant='outline'
-      >
-        {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
-      </Button>
-    </div>
-    <div v-if='libraryLoading || !libraryLoaded || !album || showSkeleton' class='space-y-8'>
+    <div v-if='libraryLoading || !libraryLoaded || !album' class='space-y-8'>
       <!-- Header Skeleton -->
       <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
-        <Skeleton class='w-48 h-48 rounded-lg' />
+        <Skeleton class='size-48 rounded-lg' />
         <div class='flex-1'>
           <Skeleton class='h-12 w-3/4 mb-3' />
           <Skeleton class='h-6 w-1/2 mb-4' />
@@ -157,7 +155,7 @@
         <Skeleton class='h-8 w-24 mb-4' />
         <div class='space-y-2'>
           <div v-for='i in 10' :key='`song-skeleton-${i}`' class='flex items-center space-x-4 p-2 rounded-md'>
-            <Skeleton class='w-10 h-10 rounded-md' />
+            <Skeleton class='size-10 rounded-md' />
             <div class='flex-1 space-y-2'>
               <Skeleton class='h-4 w-3/4' />
               <Skeleton class='h-3 w-1/2' />
@@ -176,11 +174,11 @@
             :server-url='serverUrl'
             :token='token'
             alt='Album art'
-            class='w-48 h-48 rounded-lg object-cover'
+            class='size-48 rounded-lg object-cover'
           >
             <template #fallback>
-              <div class='w-48 h-48 rounded-lg bg-muted flex items-center justify-center'>
-                <Music class='w-24 h-24 text-muted-foreground' />
+              <div class='size-48 rounded-lg bg-muted flex items-center justify-center'>
+                <Music class='size-24 text-muted-foreground' />
               </div>
             </template>
           </ImageLoader>
@@ -226,28 +224,27 @@
           <!-- Actions -->
           <div class='flex items-center gap-2 mt-4'>
             <Button @click='playAll'>
-              <Play class='w-4 h-4 mr-2' />
+              <Play class='size-4 mr-2' />
               Play
-            </Button>
-            <Button @click='shuffleAll' variant='outline'>
-              <Shuffle class='w-4 h-4 mr-2' />
-              Shuffle
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
                 <Button variant='outline'>
-                  <ListPlus class='w-4 h-4 mr-2' />
-                  Add to Playlist
+                  <MoreHorizontal class='size-4' />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <AddToPlaylistMenu :songs='albumSongs' type='flat' />
+              <DropdownMenuContent align='start'>
+                <DropdownMenuItem @click='shuffleAll'>
+                  <Shuffle class='size-4 mr-2' />
+                  Shuffle
+                </DropdownMenuItem>
+                <AddToPlaylistMenu :songs='albumSongs' type='dropdown' />
+                <DropdownMenuItem @click='showShareDialog = true'>
+                  <Share2 class='size-4 mr-2' />
+                  Share
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button @click='showShareDialog = true' variant='outline'>
-              <Share2 class='w-4 h-4 mr-2' />
-              Share
-            </Button>
           </div>
         </div>
       </div>
@@ -258,11 +255,11 @@
           Songs
         </h2>
         <SongList
-          @play-song='(song) => $emit("play-song", song)'
+          @play-song='playSongWithQueue'
           @toggle-favorite='(song) => $emit("toggle-favorite", song)'
           :current-song='props.currentSong'
           :is-playing='props.isPlaying'
-          :loading='libraryLoading || !libraryLoaded || !album || showSkeleton'
+          :loading='libraryLoading || !libraryLoaded || !album'
           :server-url='props.serverUrl'
           :show-album-art='false'
           :show-artist='hasMultipleArtists'

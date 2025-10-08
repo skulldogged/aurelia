@@ -74,9 +74,9 @@
   <div :class='className'>
     <div
       v-if='isLoading'
-      class='w-full h-full bg-muted rounded-lg flex items-center justify-center animate-pulse'
+      class='size-full bg-muted rounded-lg flex items-center justify-center animate-pulse'
     >
-      <div class='w-8 h-8 bg-muted-foreground/20 rounded-full' />
+      <div class='size-8 bg-muted-foreground/20 rounded-full' />
     </div>
 
     <img
@@ -86,11 +86,11 @@
       v-show='!hasError && isLoaded'
       :alt='alt'
       :src='imageUrl'
-      class='w-full h-full object-cover rounded-lg'
+      class='size-full object-cover rounded-lg'
     >
 
     <slot v-else-if='!imageUrl || hasError || !isLoaded' name='fallback'>
-      <div class='w-full h-full bg-muted rounded-lg flex items-center justify-center' />
+      <div class='size-full bg-muted rounded-lg flex items-center justify-center' />
     </slot>
   </div>
 </template>

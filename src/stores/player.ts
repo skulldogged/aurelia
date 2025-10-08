@@ -95,6 +95,7 @@ const getStoredEQBands = (): EQBand[] => {
   } catch (error) {
     playerLogger.warn('Failed to load EQ bands from localStorage:', error)
   }
+
   return DEFAULT_EQ_BANDS
 }
 

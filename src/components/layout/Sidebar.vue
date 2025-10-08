@@ -70,7 +70,7 @@
           to='/'
         >
           <div class='w-12 flex-shrink-0 flex justify-center items-center'>
-            <Home class='w-5 h-5' />
+            <Home class='size-5' />
           </div>
           <div
             :class="[
@@ -91,7 +91,7 @@
           to='/songs'
         >
           <div class='w-12 flex-shrink-0 flex justify-center items-center'>
-            <Music class='w-5 h-5' />
+            <Music class='size-5' />
           </div>
           <div
             :class="[
@@ -112,7 +112,7 @@
           to='/artists'
         >
           <div class='w-12 flex-shrink-0 flex justify-center items-center'>
-            <Users class='w-5 h-5' />
+            <Users class='size-5' />
           </div>
           <div
             :class="[
@@ -133,7 +133,7 @@
           to='/albums'
         >
           <div class='w-12 flex-shrink-0 flex justify-center items-center'>
-            <Disc class='w-5 h-5' />
+            <Disc class='size-5' />
           </div>
           <div
             :class="[
@@ -154,7 +154,7 @@
           to='/playlists'
         >
           <div class='w-12 flex-shrink-0 flex justify-center items-center'>
-            <ListMusic class='w-5 h-5' />
+            <ListMusic class='size-5' />
           </div>
           <div
             :class="[
@@ -176,7 +176,7 @@
         to='/settings'
       >
         <div class='w-12 flex-shrink-0 flex justify-center items-center'>
-          <Settings class='w-5 h-5' />
+          <Settings class='size-5' />
         </div>
         <div
           :class="[

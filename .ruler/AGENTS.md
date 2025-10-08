@@ -19,6 +19,7 @@ Ship reliable updates to this actively evolving Tauri + Vue 3 music player deskt
 3. **Keep the repo healthy.** Leave files better organized, follow the patterns already in place, and note follow-ups only when work is safely scoped.
 4. **Respect tooling guardrails.** Use Bun for packages and scripts, and never spin up long-running dev servers or builds unless the user explicitly requests it.
 5. **Keep the code modern.** This project is actively in development; retire deprecated patterns instead of preserving them.
+6. **No emojis anywhere.** Never use emojis in code, comments, documentation, commit messages, or any project files. Use clear, professional language.
 
 ## Workflow Expectations
 
@@ -44,7 +45,7 @@ Ship reliable updates to this actively evolving Tauri + Vue 3 music player deskt
 
 ### Styling & UX
 - Leverage Tailwind utility classes; avoid ad-hoc CSS unless necessary.
-- Use configured Catppuccin palette, spacing, and responsive patterns.
+- Use configured theme system and color tokens for theming.
 - Keep components accessible (ARIA, keyboard focus, reduced motion awareness).
 
 ### Tauri & Rust Bridge

@@ -46,7 +46,7 @@
   <!-- Context Menu Version -->
   <ContextMenuSub v-if="menuType === 'context'">
     <ContextMenuSubTrigger>
-      <ListPlus class='w-4 h-4 mr-2' />
+      <ListPlus class='size-4 mr-2' />
       Add to Playlist
     </ContextMenuSubTrigger>
     <ContextMenuSubContent>
@@ -58,7 +58,7 @@
         {{ playlist.name }}
       </ContextMenuItem>
       <ContextMenuItem @click='createNewPlaylist'>
-        <Plus class='w-4 h-4 mr-2' />
+        <Plus class='size-4 mr-2' />
         Create New Playlist
       </ContextMenuItem>
     </ContextMenuSubContent>
@@ -67,7 +67,7 @@
   <!-- Dropdown Menu Version (Submenu) -->
   <DropdownMenuSub v-else-if="menuType === 'dropdown'">
     <DropdownMenuSubTrigger>
-      <ListPlus class='w-4 h-4 mr-2' />
+      <ListPlus class='size-4 mr-2' />
       Add to Playlist
     </DropdownMenuSubTrigger>
     <DropdownMenuSubContent>
@@ -79,7 +79,7 @@
         {{ playlist.name }}
       </DropdownMenuItem>
       <DropdownMenuItem @click='createNewPlaylist'>
-        <Plus class='w-4 h-4 mr-2' />
+        <Plus class='size-4 mr-2' />
         Create New Playlist
       </DropdownMenuItem>
     </DropdownMenuSubContent>
@@ -95,7 +95,7 @@
       {{ playlist.name }}
     </DropdownMenuItem>
     <DropdownMenuItem @click='createNewPlaylist'>
-      <Plus class='w-4 h-4 mr-2' />
+      <Plus class='size-4 mr-2' />
       Create New Playlist
     </DropdownMenuItem>
   </template>

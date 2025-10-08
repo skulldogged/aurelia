@@ -59,7 +59,7 @@
           :server-url='serverUrl'
           :token='token'
           alt='Album Art'
-          class='w-10 h-10 rounded-md mx-2'
+          class='size-10 rounded-md mx-2'
         />
         <div @click="emit('play', song)" class='flex-grow cursor-pointer min-w-0'>
           <p :class="['font-semibold text-sm truncate', isCurrent ? 'text-accent-foreground' : '']" :title='song.name'>
@@ -96,19 +96,19 @@
     </ContextMenuTrigger>
     <ContextMenuContent>
       <ContextMenuItem>
-        <Play class='w-4 h-4 mr-2' />
+        <Play class='size-4 mr-2' />
         Play Next
       </ContextMenuItem>
       <ContextMenuItem @click="emit('remove', song)">
-        <Trash2 class='w-4 h-4 mr-2' />
+        <Trash2 class='size-4 mr-2' />
         Remove from Queue
       </ContextMenuItem>
       <ContextMenuItem>
-        <ListPlus class='w-4 h-4 mr-2' />
+        <ListPlus class='size-4 mr-2' />
         Add to Playlist
       </ContextMenuItem>
       <ContextMenuItem @click='showShareDialog = true'>
-        <Share2 class='w-4 h-4 mr-2' />
+        <Share2 class='size-4 mr-2' />
         Share
       </ContextMenuItem>
     </ContextMenuContent>

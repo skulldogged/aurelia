@@ -40,6 +40,7 @@ export default defineConfig(
     },
     rules: {
       '@stylistic/arrow-parens': ['warn', 'as-needed'],
+      '@stylistic/brace-style':  ['warn', '1tbs'],
       '@stylistic/comma-dangle': ['warn', 'always-multiline'],
       '@stylistic/indent':       ['warn', 2, {
         ArrayExpression:        'first',

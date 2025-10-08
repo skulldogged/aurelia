@@ -37,7 +37,7 @@ export const useBlurStore = defineStore('blur', () => {
   const blurModes = computed(() => BLUR_MODES)
 
   const selectedBlurMode = computed(() =>
-    blurModes.value.find(mode => mode.name === selectedBlurModeName.value) || blurModes.value[1], // Default to enabled (acrylic)
+    blurModes.value.find(mode => mode.name === selectedBlurModeName.value) || blurModes.value[0],
   )
 
   const setBlurMode = (modeName: string): void => {

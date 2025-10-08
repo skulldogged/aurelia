@@ -11,7 +11,6 @@ interface ImportMeta {
 }
 
 interface ImportMetaEnv {
-  readonly VITE_DISCORD_APP_ID?:         string
-  readonly VITE_DISCORD_APPLICATION_ID?: string
-  readonly VITE_DISCORD_RPC_APP_ID?:     string
+  readonly VITE_DISCORD_APP_ID?: string
+
 }

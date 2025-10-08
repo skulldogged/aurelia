@@ -130,8 +130,8 @@
             <Skeleton
               v-if='shouldShowAlbumArt'
               :class="{
-                'w-12 h-12 rounded-lg': layoutMode === 'comfy',
-                'w-8 h-8 rounded-md': layoutMode === 'compact'
+                'size-12 rounded-lg': layoutMode === 'comfy',
+                'size-8 rounded-md': layoutMode === 'compact'
               }"
             />
 
@@ -151,7 +151,7 @@
                   <Skeleton v-if='showYear' class='h-4 w-12' />
                   <Skeleton class='h-4 w-16' />
                   <Skeleton v-if='showDuration' class='h-4 w-12' />
-                  <Skeleton class='w-8 h-8 rounded' />
+                  <Skeleton class='size-8 rounded' />
                 </div>
               </div>
             </div>
@@ -184,9 +184,9 @@
                 <div v-if='shouldShowAlbumArt' class='relative flex-shrink-0'>
                   <ImageLoader
                     :class="layoutMode === 'comfy'
-                      ? 'w-12 h-12 rounded-lg object-cover ' +
+                      ? 'size-12 rounded-lg object-cover ' +
                         'group-hover:opacity-75 transition-opacity'
-                      : 'w-8 h-8 rounded-md object-cover group-hover:opacity-75 transition-opacity'"
+                      : 'size-8 rounded-md object-cover group-hover:opacity-75 transition-opacity'"
                     :item-id='song.albumId || song.id'
                     :server-url='serverUrl'
                     :token='token'
@@ -195,8 +195,8 @@
                     <template #fallback>
                       <ImagePlaceholder
                         :class="{
-                          'w-12 h-12 rounded-lg group-hover:opacity-75 transition-opacity': layoutMode === 'comfy',
-                          'w-8 h-8 rounded-md group-hover:opacity-75 transition-opacity': layoutMode === 'compact'
+                          'size-12 rounded-lg group-hover:opacity-75 transition-opacity': layoutMode === 'comfy',
+                          'size-8 rounded-md group-hover:opacity-75 transition-opacity': layoutMode === 'compact'
                         }"
                         size='small'
                         type='album-art'
@@ -216,9 +216,9 @@
                       @click.stop="$emit('play-song', song)"
                       :class="layoutMode === 'comfy'
                         ? 'bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white ' +
-                          'border border-white/20 w-8 h-8'
+                          'border border-white/20 size-8'
                         : 'bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white ' +
-                          'border border-white/20 w-6 h-6'"
+                          'border border-white/20 size-6'"
                       size='icon'
                     >
                       <Pause
@@ -319,7 +319,7 @@
                       >
                         <Heart
                           :class="[
-                            layoutMode === 'compact' ? 'w-3.5 h-3.5' : 'w-5 h-5',
+                            layoutMode === 'compact' ? 'size-3.5' : 'size-5',
                             song.isFavorite ? 'text-foreground fill-current' : 'text-muted-foreground'
                           ]"
                         />
@@ -332,16 +332,16 @@
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem @click="$emit('play-song', song)">
-              <Play class='w-4 h-4 mr-2' />
+              <Play class='size-4 mr-2' />
               Play
             </ContextMenuItem>
             <AddToPlaylistMenu v-if='shouldShowAddButton' :songs='[song]' type='context' />
             <ContextMenuItem @click='openShareDialog(song)'>
-              <Share2 class='w-4 h-4 mr-2' />
+              <Share2 class='size-4 mr-2' />
               Share
             </ContextMenuItem>
             <ContextMenuItem @click='removeSongFromPlaylist(song)' v-if='showRemoveButton'>
-              <Heart class='w-4 h-4 mr-2' />
+              <Heart class='size-4 mr-2' />
               Remove
             </ContextMenuItem>
           </ContextMenuContent>

@@ -27,9 +27,14 @@
     "fs:allow-read-dir",
     "fs:allow-remove",
     "clipboard-manager:allow-write-text",
-    "drpc:allow-is-running",
-    "drpc:allow-clear-activity",
-    "drpc:default",
-    "os:allow-platform"
+    "os:allow-platform",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://www.last.fm/*"
+        }
+      ]
+    }
   ]
 }

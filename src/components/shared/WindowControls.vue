@@ -34,6 +34,7 @@
 <template>
   <!-- Linux-style controls -->
   <div v-if='isLinuxPlatform' class='flex h-auto items-center gap-[13px] pt-[10px] pr-[10px]'>
+    <!-- eslint-disable @stylistic/max-len -->
     <button
       @click='handleMinimize'
       class='flex aspect-square h-6 w-6 cursor-default items-center justify-center rounded-full bg-sidebar p-0 text-foreground hover:bg-muted/80 active:bg-muted/60'
@@ -107,12 +108,13 @@
         />
       </svg>
     </button>
+    <!-- eslint-enable @stylistic/max-len -->
   </div>
 
   <!-- Windows-style controls -->
   <div v-else class='flex items-center h-12'>
     <!-- eslint-disable @stylistic/max-len -->
-    <div
+    <button
       @click='handleMinimize'
       class='
         cursor-default rounded-none bg-transparent text-foreground
@@ -134,8 +136,8 @@
           fill-opacity='0.8956'
         />
       </svg>
-    </div>
-    <div
+    </button>
+    <button
       @click='appWindow.toggleMaximize()'
       class='
         cursor-default rounded-none bg-transparent text-foreground
@@ -172,8 +174,8 @@
           fill-opacity='0.8956'
         />
       </svg>
-    </div>
-    <div
+    </button>
+    <button
       @click='handleClose'
       class='
         cursor-default rounded-none bg-transparent text-foreground
@@ -195,7 +197,7 @@
           fill-opacity='0.8956'
         />
       </svg>
-    </div>
+    </button>
     <!-- eslint-enable @stylistic/max-len -->
   </div>
 </template>

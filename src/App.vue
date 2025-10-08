@@ -13,6 +13,8 @@
   import { useAuth } from '@/composables/useAuth'
   import { useDiscordPresence } from '@/composables/useDiscordPresence'
   import { useImageLoader } from '@/composables/useImageLoader'
+  import { useLastFm } from '@/composables/useLastFm'
+  import { useListenBrainz } from '@/composables/useListenBrainz'
   import { useNavigation } from '@/composables/useNavigation'
   import { usePlayerControls } from '@/composables/usePlayerControls'
   import { usePlayerSession } from '@/composables/usePlayerSession'
@@ -37,6 +39,8 @@
   const { preloadRecentImages } = useImageLoader()
   useSystemTray() // Initialize system tray functionality
   useDiscordPresence()
+  useLastFm() // Initialize Last.fm scrobbling
+  useListenBrainz() // Initialize ListenBrainz scrobbling
 
   const {
     canGoBack,
@@ -197,18 +201,18 @@
 
 <template>
   <div id='app' class='h-screen text-foreground'>
-    <div v-if="authStatus === 'pending'" class='h-full w-full flex items-center justify-center'>
+    <div v-if="authStatus === 'pending'" class='size-full flex items-center justify-center'>
       <div class='text-center'>
-        <div class='animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4' />
-        <p class='text-muted-foreground'>
-          Loading...
+        <div class='animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mx-auto' />
+        <p class='mt-4 text-muted-foreground'>
+          Connecting to server...
         </p>
       </div>
     </div>
-    <div v-else-if="authStatus === 'error'" class='h-full w-full flex items-center justify-center'>
+    <div v-else-if="authStatus === 'error'" class='size-full flex items-center justify-center'>
       <div class='text-center max-w-md mx-auto p-8'>
         <div class='text-red-500 text-6xl mb-4'>
-          ⚠️
+          !
         </div>
         <h2 class='text-xl font-semibold mb-2'>
           Connection Error

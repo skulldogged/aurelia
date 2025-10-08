@@ -87,7 +87,7 @@
     try {
       // Check platform
       isLinuxPlatform.value = await isLinux()
-      
+
       // Update the local ref to match the current store value
       selectedBlurModeName.value = selectedBlurMode.value.name
       // Apply initial CSS class
@@ -110,7 +110,7 @@
   <section class='space-y-6'>
     <div class='flex items-center space-x-3'>
       <div class='p-2 bg-accent/10 rounded-lg'>
-        <Palette class='w-5 h-5 text-accent' />
+        <Palette class='size-5 text-accent' />
       </div>
       <h2 class='text-2xl font-semibold'>
         Appearance
@@ -123,7 +123,7 @@
       <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
         <div class='flex items-center space-x-3 mb-4'>
           <div class='p-2 bg-primary/10 rounded-lg'>
-            <Sun class='w-5 h-5 text-primary' />
+            <Sun class='size-5 text-primary' />
           </div>
           <h3 class='text-lg font-medium'>
             Color Scheme
@@ -155,7 +155,7 @@
       <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
         <div class='flex items-center space-x-3 mb-4'>
           <div class='p-2 bg-success/10 rounded-lg'>
-            <Palette class='w-5 h-5 text-success' />
+            <Palette class='size-5 text-success' />
           </div>
           <h3 class='text-lg font-medium'>
             Accent Color
@@ -179,7 +179,7 @@
                 <div class='flex items-center space-x-3'>
                   <div
                     :style='{ backgroundColor: color.hex }'
-                    class='w-4 h-4 rounded-full border border-border/20'
+                    class='size-4 rounded-full border border-border/20'
                   />
                   <span>{{ color.displayName }}</span>
                 </div>
@@ -193,7 +193,7 @@
       <div v-if='isLinuxPlatform' class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
         <div class='flex items-center space-x-3 mb-4'>
           <div class='p-2 bg-destructive/10 rounded-lg'>
-            <Layers class='w-5 h-5 text-destructive' />
+            <Layers class='size-5 text-destructive' />
           </div>
           <h3 class='text-lg font-medium'>
             Window Transparency
@@ -225,7 +225,7 @@
       <div v-else class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
         <div class='flex items-center space-x-3 mb-4'>
           <div class='p-2 bg-destructive/10 rounded-lg'>
-            <Layers class='w-5 h-5 text-destructive' />
+            <Layers class='size-5 text-destructive' />
           </div>
           <h3 class='text-lg font-medium'>
             Window Blur

@@ -44,7 +44,6 @@
   }>()
 
   const searchQuery = ref('')
-  const showSkeleton = ref(false) // Temporary dev toggle for adjusting skeleton sizes
 
   const albumsFuse = ref(new Fuse(props.allAlbums, {
     includeScore: true,
@@ -108,18 +107,11 @@
           placeholder='Search albums...'
           type='text'
         />
-        <Button
-          @click='showSkeleton = !showSkeleton'
-          :variant='showSkeleton ? "default" : "outline"'
-          size='sm'
-        >
-          {{ showSkeleton ? 'Hide' : 'Show' }} Skeleton (dev)
-        </Button>
       </div>
     </div>
 
     <div
-      v-if='libraryLoading || showSkeleton'
+      v-if='libraryLoading'
       class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'
     >
       <div
@@ -197,7 +189,7 @@
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem @click='playAlbum(album)'>
-            <Play class='w-4 h-4 mr-2' />
+            <Play class='size-4 mr-2' />
             Play Album
           </ContextMenuItem>
           <AddToPlaylistMenu
@@ -208,7 +200,7 @@
       </ContextMenu>
     </div>
 
-    <div v-if='!libraryLoading && !showSkeleton && filteredAlbums.length === 0' class='text-center py-12'>
+    <div v-if='!libraryLoading && filteredAlbums.length === 0' class='text-center py-12'>
       <p class='text-muted-foreground'>
         No albums found
       </p>

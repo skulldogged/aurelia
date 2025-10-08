@@ -369,7 +369,7 @@
         activePlayer.value.play()
       }
     } else if (nextSongReady.value && nextSongInQueue.value) {
-      playerLogger.debug('📻 Using gapless playback')
+      playerLogger.debug('Using gapless playback')
       await fallbackToGapless()
     } else if (playerStore.repeatMode === 'all' || hasNext.value) {
       nextSong()
@@ -379,14 +379,14 @@
   }
 
   const fallbackToGapless = async (): Promise<void> => {
-    playerLogger.debug('🔄 Performing gapless fallback')
+    playerLogger.debug('Performing gapless fallback')
 
     const nextPlayerElement = nextPlayer.value
     if (nextPlayerElement && nextPlayerElement.paused && nextSongReady.value) {
       try {
         nextPlayerElement.currentTime = 0
         await nextPlayerElement.play()
-        playerLogger.debug('▶️ Next player started for gapless transition')
+        playerLogger.debug('Next player started for gapless transition')
       } catch (error) {
         playerLogger.error('Failed to start next player in gapless fallback:', error)
       }
@@ -401,7 +401,7 @@
     playerStore.setDuration(nextSongInQueue.value?.duration || 0)
     playerStore.setCurrentSong(nextSongInQueue.value)
 
-    playerLogger.debug('✅ Gapless fallback complete')
+    playerLogger.debug('Gapless fallback complete')
   }
 
   const togglePlayPause = async (): Promise<void> => {
@@ -642,8 +642,12 @@
       stopWebAudioTimeUpdates()
       webAudioPlayer.stop()
 
-      if (audioPlayer1.value) { audioPlayer1.value.src = ''; audioPlayer1.value.pause() }
-      if (audioPlayer2.value) { audioPlayer2.value.src = ''; audioPlayer2.value.pause() }
+      if (audioPlayer1.value) {
+        audioPlayer1.value.src = ''; audioPlayer1.value.pause()
+      }
+      if (audioPlayer2.value) {
+        audioPlayer2.value.src = ''; audioPlayer2.value.pause()
+      }
       playerStore.pause()
     }
   })
@@ -809,13 +813,13 @@
               :server-url='serverUrl'
               :token='token'
               alt='Album art'
-              class='w-12 h-12 rounded-md cursor-pointer'
+              class='size-12 rounded-md cursor-pointer'
             >
               <template #fallback>
                 <div
-                  class='w-12 h-12 bg-muted rounded-md flex items-center justify-center cursor-pointer'
+                  class='size-12 bg-muted rounded-md flex items-center justify-center cursor-pointer'
                 >
-                  <Music2 class='w-6 h-6 text-muted-foreground' />
+                  <Music2 class='size-6 text-muted-foreground' />
                 </div>
               </template>
             </ImageLoader>
@@ -899,7 +903,7 @@
                 ]"
               >
                 <Shuffle
-                  :class="['w-4 h-4', playerStore.isShuffled ? '' : 'text-muted-foreground']"
+                  :class="['size-4', playerStore.isShuffled ? '' : 'text-muted-foreground']"
                 />
               </button>
               <Button
@@ -908,17 +912,17 @@
                 size='icon'
                 variant='ghost'
               >
-                <SkipBack class='w-4 h-4' />
+                <SkipBack class='size-4' />
               </Button>
 
               <Button
                 @click='togglePlayPause'
                 :disabled='!playerStore.audioReady || playerStore.isBuffering'
-                class='rounded-full w-10 h-10'
+                class='rounded-full size-10'
               >
-                <Loader2 v-if='playerStore.isBuffering' class='w-5 h-5 animate-spin' />
-                <Play v-else-if='!playerStore.isPlaying' class='w-5 h-5' />
-                <Pause v-else class='w-5 h-5' />
+                <Loader2 v-if='playerStore.isBuffering' class='size-4 animate-spin' />
+                <Play v-else-if='!playerStore.isPlaying' class='size-4' />
+                <Pause v-else class='size-4' />
               </Button>
 
               <Button
@@ -927,7 +931,7 @@
                 size='icon'
                 variant='ghost'
               >
-                <SkipForward class='w-4 h-4' />
+                <SkipForward class='size-4' />
               </Button>
               <button
                 @click='playerStore.cycleRepeatMode'
@@ -940,12 +944,12 @@
               >
                 <Repeat1
                   v-if="playerStore.repeatMode === 'one'"
-                  class='w-4 h-4'
+                  class='size-4'
                 />
                 <Repeat
                   v-else
                   :class="[
-                    'w-4 h-4',
+                    'size-4',
                     playerStore.repeatMode === 'none' ? 'text-muted-foreground' : '',
                   ]"
                 />
@@ -974,7 +978,7 @@
               :variant="activeView === 'queue' ? 'default' : 'ghost'"
               size='icon'
             >
-              <ListMusic class='w-5 h-5' />
+              <ListMusic class='size-4' />
             </Button>
 
             <!-- Lyrics button -->
@@ -985,7 +989,7 @@
               :variant="activeView === 'lyrics' ? 'default' : 'ghost'"
               size='icon'
             >
-              <Mic2 class='w-5 h-5' />
+              <Mic2 class='size-4' />
             </Button>
 
             <!-- Favorite button -->
@@ -997,7 +1001,7 @@
             >
               <Heart
                 :class="[
-                  'w-5 h-5',
+                  'size-4',
                   playerStore.currentSong.isFavorite
                     ? 'fill-current'
                     : '',
@@ -1012,7 +1016,7 @@
               size='icon'
               variant='ghost'
             >
-              <Expand class='w-5 h-5' />
+              <Expand class='size-4' />
             </Button>
 
             <!-- Equalizer button -->
@@ -1022,7 +1026,7 @@
               :variant="activeView === 'equalizer' ? 'default' : 'ghost'"
               size='icon'
             >
-              <Sliders class='w-5 h-5' />
+              <Sliders class='size-4' />
             </Button>
 
             <!-- Volume button -->
@@ -1034,9 +1038,9 @@
                 variant='ghost'
                 data-volume-button
               >
-                <Volume2 v-if='playerStore.volume > 50' class='w-4 h-4' />
-                <Volume1 v-else-if='playerStore.volume > 0' class='w-4 h-4' />
-                <VolumeX v-else class='w-4 h-4' />
+                <Volume2 v-if='playerStore.volume > 50' class='size-4' />
+                <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
+                <VolumeX v-else class='size-4' />
               </Button>
               <div
                 v-if='isVolumePopupVisible'
@@ -1060,9 +1064,9 @@
                     @click.stop='playerStore.toggleMute'
                     class='text-muted-foreground hover:text-foreground transition-colors p-1 rounded'
                   >
-                    <Volume2 v-if='playerStore.volume > 50' class='w-4 h-4' />
-                    <Volume1 v-else-if='playerStore.volume > 0' class='w-4 h-4' />
-                    <VolumeX v-else class='w-4 h-4' />
+                    <Volume2 v-if='playerStore.volume > 50' class='size-4' />
+                    <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
+                    <VolumeX v-else class='size-4' />
                   </button>
                 </div>
               </div>
@@ -1072,7 +1076,7 @@
             <DropdownMenu v-if='hasHiddenIcons'>
               <DropdownMenuTrigger as-child>
                 <Button size='icon' variant='ghost'>
-                  <MoreHorizontal class='w-5 h-5' />
+                  <MoreHorizontal class='size-4' />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end'>
@@ -1099,14 +1103,14 @@
                   @click="$emit('toggle-equalizer')"
                   v-if="!visibleIcons.includes('equalizer') && useWebAudio"
                 >
-                  <Sliders class='w-4 h-4 mr-2' />
+                  <Sliders class='size-4 mr-2' />
                   Equalizer
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   @click="$emit('toggle-fullscreen')"
                   v-if="!visibleIcons.includes('fullscreen')"
                 >
-                  <Expand class='w-4 h-4 mr-2' />
+                  <Expand class='size-4 mr-2' />
                   Fullscreen
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -1115,7 +1119,7 @@
                 >
                   <Heart
                     :class="[
-                      'w-4 h-4 mr-2',
+                      'size-4 mr-2',
                       playerStore.currentSong.isFavorite
                         ? 'fill-current'
                         : '',
@@ -1128,14 +1132,14 @@
                   v-if="!visibleIcons.includes('lyrics')"
                   :disabled='!hasLyrics'
                 >
-                  <Mic2 class='w-4 h-4 mr-2' />
+                  <Mic2 class='size-4 mr-2' />
                   Lyrics
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   @click="$emit('toggle-queue')"
                   v-if="!visibleIcons.includes('queue')"
                 >
-                  <ListMusic class='w-4 h-4 mr-2' />
+                  <ListMusic class='size-4 mr-2' />
                   Queue
                 </DropdownMenuItem>
               </DropdownMenuContent>

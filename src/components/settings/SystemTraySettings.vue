@@ -27,7 +27,7 @@
   <section class='space-y-6'>
     <div class='flex items-center space-x-3'>
       <div class='p-2 bg-accent/10 rounded-lg'>
-        <Monitor class='w-5 h-5 text-accent' />
+        <Monitor class='size-5 text-accent' />
       </div>
       <h2 class='text-2xl font-semibold'>
         System Tray
@@ -37,7 +37,7 @@
     <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
       <div class='flex items-center space-x-3 mb-4'>
         <div class='p-2 bg-primary/10 rounded-lg'>
-          <Minimize2 class='w-5 h-5 text-primary' />
+          <Minimize2 class='size-5 text-primary' />
         </div>
         <h3 class='text-lg font-medium'>
           Minimize Behavior
