@@ -6,7 +6,7 @@
     Trash2,
   } from 'lucide-vue-next'
 
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
 
   defineEmits<{
     (e: 'sync-library'): void
@@ -20,69 +20,77 @@
 </script>
 
 <template>
-  <!-- Library Management Section -->
-  <section class='space-y-6'>
-    <div class='flex items-center space-x-3'>
-      <div class='p-2 bg-accent/10 rounded-lg'>
-        <HardDrive class='size-5 text-accent' />
+  <div class='bg-sidebar rounded-lg'>
+    <!-- Header -->
+    <div class='p-6'>
+      <div class='flex items-center space-x-3'>
+        <div class='p-2 bg-accent/10 rounded-lg'>
+          <HardDrive class='size-5 text-accent' />
+        </div>
+        <h2 class='text-2xl font-semibold'>
+          Library Management
+        </h2>
       </div>
-      <h2 class='text-2xl font-semibold'>
-        Library Management
-      </h2>
+      <p class='text-sm text-muted-foreground mt-2'>
+        Sync or clear your local music library cache
+      </p>
     </div>
 
-    <!-- Sync Library Card -->
-    <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
-      <div class='flex items-start space-x-4'>
-        <div class='p-3 bg-primary/10 rounded-lg flex-shrink-0'>
-          <RefreshCw class='size-6 text-primary' />
-        </div>
-        <div class='flex-1'>
-          <h3 class='text-lg font-medium mb-2'>
-            Sync Music Library
-          </h3>
-          <p class='text-sm text-muted-foreground mb-6'>
-            Update your local music library with the latest data from Jellyfin server.
-            This will add new songs and update existing metadata without removing your current data.
-          </p>
-          <Button
-            @click='$emit("sync-library")'
-            :disabled='isSyncing'
-            class='px-6'
-            variant='default'
-          >
-            <RefreshCw :class="{'animate-spin': isSyncing}" class='size-4 mr-2' />
-            {{ isSyncing ? 'Syncing...' : 'Sync Library' }}
-          </Button>
+    <!-- Content -->
+    <div class='p-6 space-y-6'>
+      <!-- Sync Library Card -->
+      <div class='bg-popover border border-border/30 rounded-lg p-6'>
+        <div class='flex items-start space-x-4'>
+          <div class='p-3 bg-primary/10 rounded-lg flex-shrink-0'>
+            <RefreshCw class='size-6 text-primary' />
+          </div>
+          <div class='flex-1'>
+            <h3 class='text-lg font-medium mb-2'>
+              Sync Music Library
+            </h3>
+            <p class='text-sm text-muted-foreground mb-6'>
+              Update your local music library with the latest data from Jellyfin server.
+              This will add new songs and update existing metadata without removing your current data.
+            </p>
+            <Button
+              @click='$emit("sync-library")'
+              :disabled='isSyncing'
+              class='px-6'
+              variant='default'
+            >
+              <RefreshCw :class="{'animate-spin': isSyncing}" class='size-4 mr-2' />
+              {{ isSyncing ? 'Syncing...' : 'Sync Library' }}
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Clear Cache Card -->
-    <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
-      <div class='flex items-start space-x-4'>
-        <div class='p-3 bg-accent/10 rounded-lg flex-shrink-0'>
-          <AlertTriangle class='size-6 text-accent' />
-        </div>
-        <div class='flex-1'>
-          <h3 class='text-lg font-medium mb-2'>
-            Clear Music Library Cache
-          </h3>
-          <p class='text-sm text-muted-foreground mb-6'>
-            This action will clear your local music library cache and refresh all music data from the server.
-            Your playlists and settings will remain unchanged.
-          </p>
-          <Button
-            @click='$emit("clear-cache")'
-            :disabled='isClearing'
-            class='px-6'
-            variant='destructive'
-          >
-            <Trash2 class='size-4 mr-2' />
-            {{ isClearing ? 'Clearing...' : 'Clear Cache' }}
-          </Button>
+      <!-- Clear Cache Card -->
+      <div class='bg-popover border border-border/30 rounded-lg p-6'>
+        <div class='flex items-start space-x-4'>
+          <div class='p-3 bg-accent/10 rounded-lg flex-shrink-0'>
+            <AlertTriangle class='size-6 text-accent' />
+          </div>
+          <div class='flex-1'>
+            <h3 class='text-lg font-medium mb-2'>
+              Clear Music Library Cache
+            </h3>
+            <p class='text-sm text-muted-foreground mb-6'>
+              This action will clear your local music library cache and refresh all music data from the server.
+              Your playlists and settings will remain unchanged.
+            </p>
+            <Button
+              @click='$emit("clear-cache")'
+              :disabled='isClearing'
+              class='px-6'
+              variant='destructive'
+            >
+              <Trash2 class='size-4 mr-2' />
+              {{ isClearing ? 'Clearing...' : 'Clear Cache' }}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
-  </section>
+  </div>
 </template>

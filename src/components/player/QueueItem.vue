@@ -5,7 +5,7 @@
   import { Song } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     ContextMenu,
     ContextMenuContent,

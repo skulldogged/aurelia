@@ -25,13 +25,15 @@ export interface PlayerState {
 export type RepeatMode = 'all' | 'none' | 'one'
 
 const STORAGE_KEYS = {
-  EQ_BANDS:     'player-eq-bands',
-  EQ_ENABLED:   'player-eq-enabled',
-  IS_MUTED:     'player-muted',
-  IS_SHUFFLED:  'player-shuffled',
-  MUTED_VOLUME: 'player-muted-volume',
-  REPEAT_MODE:  'player-repeat-mode',
-  VOLUME:       'player-volume',
+  EQ_BANDS:           'player-eq-bands',
+  EQ_ENABLED:         'player-eq-enabled',
+  IS_MUTED:           'player-muted',
+  IS_SHUFFLED:        'player-shuffled',
+  MUTED_VOLUME:       'player-muted-volume',
+  REPEAT_MODE:        'player-repeat-mode',
+  VISUALIZER_ENABLED: 'player-visualizer-enabled',
+  VISUALIZER_STYLE:   'player-visualizer-style',
+  VOLUME:             'player-volume',
 }
 
 const getStoredValue = <T>(key: string, defaultValue: T): T => {
@@ -114,6 +116,12 @@ export const usePlayerStore = defineStore('player', () => {
   const hasPrevious = ref(false)
   const hasNext = ref(false)
   const hasLyrics = ref(false)
+
+  // Visualizer settings
+  const visualizerEnabled = ref(getStoredValue(STORAGE_KEYS.VISUALIZER_ENABLED, true))
+  const visualizerStyle = ref<'bars' | 'bars-mirror' | 'curve' | 'wave'>(
+    getStoredValue(STORAGE_KEYS.VISUALIZER_STYLE, 'bars-mirror') as 'bars' | 'bars-mirror' | 'curve' | 'wave',
+  )
 
   const currentSong = ref<null | Song>(null)
   const playlist = ref<Song[]>([])
@@ -316,6 +324,16 @@ export const usePlayerStore = defineStore('player', () => {
   const formatTime = (seconds: number): string =>
     `${Math.floor(seconds / 60)}:${(Math.floor(seconds % 60)).toString().padStart(2, '0')}`
 
+  const setVisualizerEnabled = (enabled: boolean): void => {
+    visualizerEnabled.value = enabled
+    setStoredValue(STORAGE_KEYS.VISUALIZER_ENABLED, enabled)
+  }
+
+  const setVisualizerStyle = (style: 'bars' | 'bars-mirror' | 'curve' | 'wave'): void => {
+    visualizerStyle.value = style
+    setStoredValue(STORAGE_KEYS.VISUALIZER_STYLE, style)
+  }
+
   return {
     audioReady,
     currentIndex,
@@ -359,10 +377,14 @@ export const usePlayerStore = defineStore('player', () => {
     setHasPrevious,
     setPlaylist,
     setRepeatMode,
+    setVisualizerEnabled,
+    setVisualizerStyle,
     setVolume,
     toggleMute,
     togglePlay,
     toggleShuffle,
+    visualizerEnabled,
+    visualizerStyle,
     volume,
   }
 })

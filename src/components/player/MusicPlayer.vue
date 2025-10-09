@@ -23,8 +23,9 @@
 
   import { commands } from '@/bindings'
   import { Song } from '@/bindings'
+  import AudioVisualizer from '@/components/player/AudioVisualizer.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     DropdownMenu,
     DropdownMenuContent,
@@ -798,8 +799,22 @@
 </script>
 
 <template>
-  <div v-if='playerStore.currentSong' class='px-2 py-3'>
-    <div ref='containerRef' class='mx-auto max-w-full'>
+  <div v-if='playerStore.currentSong' class='px-2 py-3 relative'>
+    <!-- Audio Visualizer Background -->
+    <div
+      v-if='playerStore.visualizerEnabled'
+      class='absolute inset-0 overflow-hidden opacity-30 pointer-events-none'
+      style='z-index: 0;'
+    >
+      <AudioVisualizer
+        v-if='useWebAudio && playerStore.isPlaying'
+        :analyser-node='webAudioPlayer.getAnalyserNode()'
+        :is-playing='playerStore.isPlaying'
+        :style='playerStore.visualizerStyle'
+      />
+    </div>
+
+    <div ref='containerRef' class='mx-auto max-w-full relative' style='z-index: 1;'>
       <div class='grid grid-cols-3 items-center px-2'>
         <div
           @mouseenter='onTitleMouseEnter'
@@ -919,6 +934,8 @@
                 @click='togglePlayPause'
                 :disabled='!playerStore.audioReady || playerStore.isBuffering'
                 class='rounded-full size-10'
+                size='icon'
+                variant='default'
               >
                 <Loader2 v-if='playerStore.isBuffering' class='size-4 animate-spin' />
                 <Play v-else-if='!playerStore.isPlaying' class='size-4' />

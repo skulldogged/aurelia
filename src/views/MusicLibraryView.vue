@@ -17,20 +17,28 @@
   } from '@/components/ui/select'
   import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
   import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
+  import { useAuthStore } from '@/stores/auth'
+  import { useLibraryStore } from '@/stores/library'
 
   const props = defineProps<{
-    allSongs:       Song[]
-    credentials:    Credentials
-    currentSong:    null | Song
-    isPlaying:      boolean
-    libraryLoaded:  boolean
-    libraryLoading: boolean
+    credentials: Credentials
+    currentSong: null | Song
+    isPlaying:   boolean
   }>()
 
   const emit = defineEmits<{
     'play-song':       [song: Song]
     'toggle-favorite': [song: Song]
   }>()
+
+  const authStore = useAuthStore()
+  const libraryStore = useLibraryStore()
+
+  // Create computed properties from stores
+  const allSongs = computed(() => libraryStore.allSongs as Song[])
+  const libraryLoading = computed(() => libraryStore.isLoading)
+  const serverUrl = computed(() => authStore.serverUrl)
+  const token = computed(() => authStore.token)
 
   const searchQuery = ref('')
 
@@ -41,9 +49,9 @@
 
   const songFuse = ref<Fuse<Song>>()
 
-  watch(() => props.allSongs, newSongs => {
+  watch(() => allSongs.value, newSongs => {
     if (newSongs && newSongs.length > 0) {
-      songFuse.value = new Fuse(newSongs, {
+      songFuse.value = new Fuse(newSongs as Song[], {
         includeScore: true,
         keys:         [
           { name: 'name', weight: 0.5 },
@@ -59,7 +67,7 @@
   const filteredSongs = computed(() =>
     searchQuery.value && searchQuery.value.length >= 2 && songFuse.value
       ? songFuse.value.search(searchQuery.value).map(result => result.item)
-      : props.allSongs,
+      : allSongs.value as Song[],
   )
 
   const sortedSongs = computed(() => {
@@ -141,7 +149,7 @@
             :is-playing='props.isPlaying'
             :layout='viewLayout'
             :loading='libraryLoading'
-            :server-url='props.credentials.serverUrl'
+            :server-url='serverUrl'
             :show-album='true'
             :show-album-art='true'
             :show-artist='true'
@@ -149,7 +157,7 @@
             :show-track-number='true'
             :show-year='true'
             :songs='sortedSongs'
-            :token='props.credentials.token'
+            :token='token'
           />
         </div>
       </div>

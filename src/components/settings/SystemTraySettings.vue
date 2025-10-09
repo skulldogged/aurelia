@@ -4,7 +4,8 @@
     Monitor,
   } from 'lucide-vue-next'
 
-  import { Label } from '@/components/ui/label'
+  import Label from '@/components/ui/Label.vue'
+  import Switch from '@/components/ui/Switch.vue'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useSystemTrayStore } from '@/stores'
 
@@ -48,82 +49,26 @@
       </p>
 
       <div class='space-y-4'>
-        <div class='flex items-center space-x-3 p-3 bg-background/50 rounded-lg border border-border/30'>
-          <div class='relative flex items-center justify-center'>
-            <input
-              @change='handleMinimizeToggle(($event.target as HTMLInputElement).checked)'
-              id='minimize-checkbox'
-              :checked='systemTrayStore.minimizeToTray'
-              class='peer h-5 w-5 shrink-0 appearance-none rounded-sm border border-input
-                     ring-offset-background focus-visible:outline-none focus-visible:ring-2
-                     focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed
-                     disabled:opacity-50 checked:bg-accent checked:text-accent-foreground checked:border-accent'
-              type='checkbox'
-            >
-            <div
-              class='absolute inset-0 flex items-center justify-center text-accent-foreground
-                       opacity-0 peer-checked:opacity-100 pointer-events-none'
-            >
-              <svg
-                class='h-3 w-3'
-                fill='none'
-                viewBox='0 0 12 12'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <path
-                  d='M10.5 3L4.5 9L2 6.5'
-                  stroke='currentColor'
-                  stroke-linecap='round'
-                  stroke-linejoin='round'
-                  stroke-width='1.5'
-                />
-              </svg>
-            </div>
-          </div>
-          <div class='flex items-center space-x-2 flex-1'>
-            <Label class='text-sm font-medium cursor-pointer' for='minimize-checkbox'>
-              Minimize to system tray
-            </Label>
-          </div>
+        <div class='flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/30'>
+          <Label class='text-sm font-medium cursor-pointer' for='minimize-switch'>
+            Minimize to system tray
+          </Label>
+          <Switch
+            @update:checked='handleMinimizeToggle'
+            id='minimize-switch'
+            :checked='systemTrayStore.minimizeToTray'
+          />
         </div>
 
-        <div class='flex items-center space-x-3 p-3 bg-background/50 rounded-lg border border-border/30'>
-          <div class='relative flex items-center justify-center'>
-            <input
-              @change='handleCloseToggle(($event.target as HTMLInputElement).checked)'
-              id='close-checkbox'
-              :checked='systemTrayStore.closeToTray'
-              class='peer h-5 w-5 shrink-0 appearance-none rounded-sm border border-input
-                     ring-offset-background focus-visible:outline-none focus-visible:ring-2
-                     focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed
-                     disabled:opacity-50 checked:bg-accent checked:text-accent-foreground checked:border-accent'
-              type='checkbox'
-            >
-            <div
-              class='absolute inset-0 flex items-center justify-center text-accent-foreground
-                       opacity-0 peer-checked:opacity-100 pointer-events-none'
-            >
-              <svg
-                class='h-3 w-3'
-                fill='none'
-                viewBox='0 0 12 12'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <path
-                  d='M10.5 3L4.5 9L2 6.5'
-                  stroke='currentColor'
-                  stroke-linecap='round'
-                  stroke-linejoin='round'
-                  stroke-width='1.5'
-                />
-              </svg>
-            </div>
-          </div>
-          <div class='flex items-center space-x-2 flex-1'>
-            <Label class='text-sm font-medium cursor-pointer' for='close-checkbox'>
-              Close to system tray
-            </Label>
-          </div>
+        <div class='flex items-center justify-between p-3 bg-background/50 rounded-lg border border-border/30'>
+          <Label class='text-sm font-medium cursor-pointer' for='close-switch'>
+            Close to system tray
+          </Label>
+          <Switch
+            @update:checked='handleCloseToggle'
+            id='close-switch'
+            :checked='systemTrayStore.closeToTray'
+          />
         </div>
       </div>
 

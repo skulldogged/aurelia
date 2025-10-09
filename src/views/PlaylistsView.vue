@@ -8,7 +8,7 @@
   import { Playlist } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     Dialog,
     DialogContent,

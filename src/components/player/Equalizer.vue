@@ -4,7 +4,7 @@
   import { storeToRefs } from 'pinia'
   import { computed } from 'vue'
 
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     Select,
     SelectContent,

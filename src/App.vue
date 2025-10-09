@@ -9,7 +9,7 @@
   import { commands } from '@/bindings'
   import SearchResults from '@/components/shared/SearchResultsView.vue'
   import WindowControls from '@/components/shared/WindowControls.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import { useAuth } from '@/composables/useAuth'
   import { useDiscordPresence } from '@/composables/useDiscordPresence'
   import { useImageLoader } from '@/composables/useImageLoader'
@@ -20,6 +20,7 @@
   import { usePlayerSession } from '@/composables/usePlayerSession'
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { useSystemTray } from '@/composables/useSystemTray'
+  import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { appLogger } from '@/lib/logger'
   import { useBlurStore, useLibraryStore } from '@/stores'
 
@@ -41,6 +42,8 @@
   useDiscordPresence()
   useLastFm() // Initialize Last.fm scrobbling
   useListenBrainz() // Initialize ListenBrainz scrobbling
+
+  const webAudioPlayer = useWebAudioPlayer()
 
   const {
     canGoBack,
@@ -97,6 +100,8 @@
     playlist,
     progress,
     repeatMode,
+    visualizerEnabled,
+    visualizerStyle,
   } = storeToRefs(playerStore)
 
   const isSyncing = ref(false)
@@ -255,20 +260,11 @@
             @sync-library='handleSyncLibrary'
             @toggle-favorite='toggleFavorite'
             :key='$route.path'
-            :album-artists='libraryStore.albumArtistsWithSongs'
-            :all-albums='libraryStore.allAlbums'
-            :all-artists='libraryStore.allArtistsWithSongs'
-            :all-songs='libraryStore.allSongs'
             :credentials='credentials'
             :current-song='currentSong'
             :is-clearing='isClearing'
             :is-playing='!!currentSong'
             :is-syncing='isSyncing'
-            :library-loaded='libraryStore.isLoaded'
-            :library-loading='libraryStore.isLoading'
-            :server-url='credentials?.serverUrl'
-            :token='credentials?.token'
-            :user-id='credentials?.userId'
           />
         </transition>
       </router-view>
@@ -341,6 +337,7 @@
       @toggle-repeat='handleToggleRepeat'
       @toggle-shuffle='handleToggleShuffle'
       @update:playlist='updatePlaylist'
+      :analyser-node='webAudioPlayer.getAnalyserNode()'
       :current-time='currentTime'
       :duration='duration'
       :has-next='hasNext'
@@ -354,6 +351,8 @@
       :show='isFullScreenPlayerOpen'
       :song='currentSong as any'
       :token='credentials?.token'
+      :visualizer-enabled='visualizerEnabled'
+      :visualizer-style='visualizerStyle'
     />
 
     <WindowControls v-if='!isFullScreenPlayerOpen' class='fixed top-0 right-0 z-[100]' />

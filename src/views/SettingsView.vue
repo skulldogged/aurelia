@@ -1,10 +1,8 @@
 <script setup lang="ts">
   import AppearanceSettings from '@/components/settings/AppearanceSettings.vue'
-  import LastFmSettings from '@/components/settings/LastFmSettings.vue'
+  import IntegrationsSettings from '@/components/settings/IntegrationsSettings.vue'
   import LibrarySettings from '@/components/settings/LibrarySettings.vue'
-  import ListenBrainzSettings from '@/components/settings/ListenBrainzSettings.vue'
   import ServerSettings from '@/components/settings/ServerSettings.vue'
-  import SystemTraySettings from '@/components/settings/SystemTraySettings.vue'
   import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
   interface Credentials {
@@ -40,8 +38,8 @@
         <TabsTrigger value='appearance'>
           Appearance
         </TabsTrigger>
-        <TabsTrigger value='scrobbling'>
-          Scrobbling
+        <TabsTrigger value='integrations'>
+          Integrations
         </TabsTrigger>
         <TabsTrigger value='server'>
           Server
@@ -51,16 +49,12 @@
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent class='space-y-6' value='appearance'>
+      <TabsContent value='appearance'>
         <AppearanceSettings />
-        <SystemTraySettings />
       </TabsContent>
 
-      <TabsContent class='space-y-6' value='scrobbling'>
-        <div class='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-          <LastFmSettings />
-          <ListenBrainzSettings />
-        </div>
+      <TabsContent value='integrations'>
+        <IntegrationsSettings />
       </TabsContent>
 
       <TabsContent value='server'>

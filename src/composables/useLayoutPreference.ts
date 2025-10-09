@@ -101,18 +101,40 @@ export interface Pagination<T> {
   pagedItems:       ComputedRef<T[]>
   pageIndex:        Ref<number>
   pageSize:         Ref<number>
-  pageSizeOptions:  number[]
+  pageSizeOptions:  ComputedRef<number[]>
   setPageSize:      (value: number) => void
   total:            ComputedRef<number>
 }
 
 export const usePagination = <T>(
   items: ComputedRef<T[]> | Ref<T[]>,
-  pageSizeKey = 'page-size',
-  defaultPageSize = 20,
+  pageSizeKey: Ref<string> | string = 'page-size',
+  defaultPageSize: number | Ref<number> = 20,
+  pageSizeOptions: number[] | Ref<number[]> = [10, 20, 30, 50],
 ): Pagination<T> => {
   const pageIndex = ref(0)
-  const { pageSize } = usePageSizePreference(pageSizeKey, defaultPageSize)
+
+  // Convert to refs if they're not already
+  const pageSizeKeyRef = typeof pageSizeKey === 'string' ? ref(pageSizeKey) : pageSizeKey
+  const defaultPageSizeRef = typeof defaultPageSize === 'number' ? ref(defaultPageSize) : defaultPageSize
+  const pageSizeOptionsRef = Array.isArray(pageSizeOptions) ? ref(pageSizeOptions) : pageSizeOptions
+
+  // Watch for changes in pageSizeKey and reload pageSize from localStorage
+  const pageSize = ref(getInitialPageSize(pageSizeKeyRef.value, defaultPageSizeRef.value))
+
+  watch(pageSizeKeyRef, newKey => {
+    pageSize.value = getInitialPageSize(newKey, defaultPageSizeRef.value)
+  })
+
+  // Watch for changes in defaultPageSize and update pageSize (but don't save to localStorage)
+  watch(defaultPageSizeRef, newDefault => {
+    pageSize.value = newDefault
+  })
+
+  // Save pageSize to localStorage when it changes
+  watch(pageSize, newPageSize => {
+    safeSetLocalStorage(pageSizeKeyRef.value, newPageSize)
+  })
 
   // Reset to first page when page size changes
   watch(pageSize, () => {
@@ -157,8 +179,6 @@ export const usePagination = <T>(
     pageIndex.value = Math.floor(oldStart / pageSize.value)
   }
 
-  const pageSizeOptions = [10, 20, 30, 50]
-
   return {
     canNextPage,
     canPreviousPage,
@@ -170,7 +190,9 @@ export const usePagination = <T>(
     pagedItems,
     pageIndex,
     pageSize,
-    pageSizeOptions,
+    pageSizeOptions: computed(() =>
+      Array.isArray(pageSizeOptions) ? pageSizeOptions : pageSizeOptionsRef.value,
+    ),
     setPageSize,
     total,
   }

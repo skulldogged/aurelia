@@ -16,6 +16,7 @@ export interface EQPreset {
 export interface WebAudioPlayer {
   applyEQPreset:       (presetName: string) => boolean
   cleanup:             () => void
+  getAnalyserNode:     () => AnalyserNode | null
   getCurrentTime:      () => number
   getDuration:         () => number
   getEQBandGain:       (bandIndex: number) => number
@@ -602,6 +603,8 @@ const setOnDurationChange = (callback: (duration: number) => void): void => {
   onDurationChange = callback
 }
 
+const getAnalyserNode = (): AnalyserNode | null => analyserNode
+
 const cleanup = (): void => {
   try {
     stop()
@@ -647,6 +650,7 @@ const cleanup = (): void => {
 export const useWebAudioPlayer = (): WebAudioPlayer => ({
   applyEQPreset,
   cleanup,
+  getAnalyserNode,
   getCurrentTime,
 
   getDuration,

@@ -10,7 +10,7 @@
   import { PlaylistCreateData, PlaylistUpdateData, Song } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     Dialog,
     DialogContent,
@@ -21,7 +21,7 @@
     DialogTrigger,
   } from '@/components/ui/dialog'
   import { Input } from '@/components/ui/input'
-  import { Label } from '@/components/ui/label'
+  import Label from '@/components/ui/Label.vue'
   import { useAuthStore, useLibraryStore, usePlaylistStore } from '@/stores'
 
   const route = useRoute()
@@ -253,7 +253,7 @@
     <!-- Form -->
     <div class='space-y-8'>
       <!-- Playlist Details Card -->
-      <div class='bg-card/50 backdrop-blur-sm rounded-lg border border-border/50 p-6 space-y-4'>
+      <div class='bg-sidebar rounded-lg p-6 space-y-4'>
         <h2 class='text-2xl font-semibold mb-4'>
           Playlist Details
         </h2>
@@ -275,7 +275,7 @@
       </div>
 
       <!-- Selected Songs Card -->
-      <div class='bg-card/50 backdrop-blur-sm rounded-lg border border-border/50 p-6 space-y-6'>
+      <div class='bg-sidebar rounded-lg p-6 space-y-6'>
         <div class='flex items-center justify-between'>
           <div>
             <h2 class='text-2xl font-semibold'>

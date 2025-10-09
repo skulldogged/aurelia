@@ -16,15 +16,20 @@
   import { PropType } from 'vue'
 
   import { Song } from '@/bindings'
+  import AudioVisualizer from '@/components/player/AudioVisualizer.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import LyricsView from '@/components/shared/LyricsView.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import { Slider } from '@/components/ui/slider'
   import { useImageLoader } from '@/composables/useImageLoader'
   import { playerLogger } from '@/lib/logger'
   import { formatDuration, getSongFormatInfo } from '@/lib/utils'
 
   const props = defineProps({
+    analyserNode: {
+      default: null,
+      type:    Object as PropType<AnalyserNode | null>,
+    },
     currentTime: {
       required: true,
       type:     Number,
@@ -76,6 +81,14 @@
     token: {
       default: '',
       type:    String,
+    },
+    visualizerEnabled: {
+      default: true,
+      type:    Boolean,
+    },
+    visualizerStyle: {
+      default: 'bars-mirror',
+      type:    String as PropType<'bars' | 'bars-mirror' | 'curve' | 'wave'>,
     },
   })
 
@@ -168,6 +181,17 @@
       class='absolute inset-0 bg-cover bg-center filter blur-3xl opacity-30 z-0'
     />
 
+    <div
+      v-if='visualizerEnabled && analyserNode && isPlaying'
+      class='absolute bottom-0 left-0 right-0 h-[150px] z-0 opacity-30'
+    >
+      <AudioVisualizer
+        :analyser-node='analyserNode'
+        :is-playing='isPlaying'
+        :style='visualizerStyle'
+      />
+    </div>
+
     <div class='relative z-10 flex flex-col h-full'>
       <div class='absolute top-4 left-4 right-4 flex justify-between items-center z-20'>
         <Button
@@ -194,9 +218,9 @@
       </div>
 
       <div
-        class='flex-grow flex flex-col items-center p-8 gap-8 overflow-hidden'
+        class='flex flex-col items-center justify-center p-8 gap-8 overflow-hidden flex-1'
       >
-        <div class='relative flex-1 w-full min-h-0 flex flex-col items-center justify-center gap-6'>
+        <div class='relative w-full flex flex-col items-center gap-6'>
           <div class='relative size-full'>
             <div
               :class="[
@@ -292,6 +316,8 @@
               <Button
                 @click='$emit("toggle-play-pause")'
                 class='rounded-full size-14'
+                size='icon'
+                variant='default'
               >
                 <Pause v-if='isPlaying' class='size-6' />
                 <Play v-else class='size-6' />

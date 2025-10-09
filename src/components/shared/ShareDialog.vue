@@ -21,7 +21,7 @@
   } from 'simple-icons'
   import { computed, ref, watch } from 'vue'
 
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     Dialog,
     DialogContent,
@@ -177,7 +177,7 @@
 <template>
   <Dialog @update:open='dialogOpen = $event' :open='dialogOpen'>
     <DialogContent class='sm:max-w-xl p-0 bg-transparent border-0 shadow-2xl'>
-      <div class='blur-card rounded-2xl p-6 space-y-6'>
+      <div class='bg-sidebar rounded-lg p-6 space-y-6'>
         <DialogHeader class='space-y-3'>
           <DialogTitle class='flex items-center gap-3 text-2xl font-bold'>
             <div class='p-2 rounded-lg bg-primary/10'>

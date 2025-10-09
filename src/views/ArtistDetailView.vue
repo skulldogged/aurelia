@@ -10,7 +10,7 @@
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     DropdownMenu,
     DropdownMenuContent,
@@ -18,6 +18,8 @@
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { useAuthStore } from '@/stores/auth'
+  import { useLibraryStore } from '@/stores/library'
 
   const breakpoints = useBreakpoints({
     tablet: 768,
@@ -27,16 +29,9 @@
 
   const topSongsCount = computed(() => isTabletOrLarger.value ? 10 : 5)
 
-  const props = defineProps<{
-    allArtists:     Artist[],
-    allSongs:       Song[],
-    currentSong:    null | Song,
-    isPlaying:      boolean,
-    libraryLoaded:  boolean,
-    libraryLoading: boolean,
-    serverUrl:      string,
-    token:          string,
-    userId:         string,
+  defineProps<{
+    currentSong: null | Song,
+    isPlaying:   boolean,
   }>()
 
   const emit = defineEmits<{
@@ -46,20 +41,31 @@
     'select-artist': [artist: Artist],
   }>()
 
+  const authStore = useAuthStore()
+  const libraryStore = useLibraryStore()
+
+  // Create computed properties from stores
+  const allArtists = computed(() => libraryStore.allArtistsWithSongs as Artist[])
+  const allSongs = computed(() => libraryStore.allSongs as Song[])
+  const libraryLoaded = computed(() => libraryStore.isLoaded)
+  const libraryLoading = computed(() => libraryStore.isLoading)
+  const serverUrl = computed(() => authStore.serverUrl)
+  const token = computed(() => authStore.token)
+
   const route = useRoute()
   const artistId = computed(() => route.params.artistId as string)
   const showFullOverview = ref(false)
   const showShareDialog = ref(false)
 
   const artist = computed(() =>
-    props.libraryLoaded && props.allArtists.length
-      ? props.allArtists.find(a => a.id === artistId.value) || null
+    libraryLoaded.value && allArtists.value.length
+      ? allArtists.value.find(a => a.id === artistId.value) || null
       : null,
   )
 
   const artistSongs = computed(() =>
     artist.value
-      ? props.allSongs.filter(song =>
+      ? allSongs.value.filter(song =>
         song.artists
         && song.artists.includes(artist.value!.name)).sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
       : [],
@@ -103,18 +109,18 @@
 
     // 1. Get all data for the current artist
     const currentArtistName = artist.value.name
-    const currentArtistSongs = props.allSongs.filter(s => s.artists?.includes(currentArtistName))
+    const currentArtistSongs = allSongs.value.filter(s => s.artists?.includes(currentArtistName))
     const currentArtistGenres = new Set(currentArtistSongs.flatMap(s => s.genres || []))
     const currentArtistAlbums = new Set(currentArtistSongs.map(s => s.album).filter(Boolean))
 
     const artistScores = new Map<string, number>()
 
     // 2. Iterate over every *other* artist to calculate a similarity score
-    props.allArtists.forEach(otherArtist => {
+    allArtists.value.forEach(otherArtist => {
       if (otherArtist.name === currentArtistName) return
 
       let score = 0
-      const otherArtistSongs = props.allSongs.filter(s => s.artists?.includes(otherArtist.name))
+      const otherArtistSongs = allSongs.value.filter(s => s.artists?.includes(otherArtist.name))
       if (otherArtistSongs.length === 0) return
 
       // 3. Calculate score based on collaborations, genres, and albums
@@ -147,7 +153,7 @@
     // 4. Sort artists by score and return the top 6
     const sortedArtists = [...artistScores.entries()].sort((a, b) => b[1] - a[1])
 
-    const allArtistsMap = new Map(props.allArtists.map(a => [a.name, a]))
+    const allArtistsMap = new Map(allArtists.value.map(a => [a.name, a]))
 
     return sortedArtists.slice(0, 6).map(([name]) => {
       const artistInfo = allArtistsMap.get(name)
@@ -160,7 +166,7 @@
         name,
         overview:        null,
         providerIds:     null,
-        songCount:       BigInt(props.allSongs.filter(s => s.artists?.includes(name)).length),
+        songCount:       BigInt(allSongs.value.filter(s => s.artists?.includes(name)).length),
         songs:           null,
       } as Artist
     })
@@ -220,7 +226,7 @@
   const albumTrackCountsById = computed(() => {
     const counts = new Map<string, number>()
 
-    for (const s of props.allSongs)
+    for (const s of allSongs.value)
       if (s.albumId)
         counts.set(s.albumId, (counts.get(s.albumId) || 0) + 1)
 
@@ -296,7 +302,7 @@
   <div class='p-4 max-w-7xl mx-auto space-y-8'>
     <div v-if='libraryLoading || !libraryLoaded || !artist' class='space-y-8'>
       <!-- Header Skeleton -->
-      <div class='flex items-center p-8 blur-card rounded-2xl'>
+      <div class='flex items-center p-8 bg-sidebar rounded-lg'>
         <Skeleton class='size-48 rounded-lg' />
         <div class='ml-6 space-y-3 flex-1'>
           <Skeleton class='h-10 w-48' />
@@ -336,7 +342,7 @@
         <div class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6'>
           <div v-for='i in 6' :key='`albums-skeleton-${i}`' class='cursor-pointer group'>
             <div class='relative mb-4'>
-              <Skeleton class='w-full aspect-square rounded-lg shadow-lg' />
+              <Skeleton class='w-full aspect-square rounded-lg' />
             </div>
             <Skeleton class='h-6 w-3/4 mb-1' />
             <Skeleton class='h-4 w-1/2' />
@@ -349,7 +355,7 @@
       <div
         class='
           relative flex flex-col md:flex-row md:items-center items-start
-          p-8 blur-card rounded-2xl shadow-lg gap-8 overflow-hidden
+          p-8 bg-sidebar rounded-lg gap-8 overflow-hidden
         '
       >
         <!-- Backdrop Background -->
@@ -449,7 +455,7 @@
       </div>
 
       <!-- Top Songs -->
-      <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg space-y-4'>
+      <div class='bg-sidebar rounded-lg p-6 space-y-4'>
         <h3 class='text-2xl font-semibold'>
           {{ isFeaturedOnlyArtist ? 'Features' : 'Top Songs' }}
         </h3>

@@ -7,7 +7,7 @@
   } from 'lucide-vue-next'
   import { ref } from 'vue'
 
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import { Input } from '@/components/ui/input'
 
   defineProps<{

@@ -8,20 +8,19 @@
   import Carousel from '@/components/shared/Carousel.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import { Skeleton } from '@/components/ui/skeleton'
   import { uiLogger } from '@/lib/logger'
   import { withCustomState } from '@/lib/result'
+  import { useAuthStore, useLibraryStore } from '@/stores'
 
   const router = useRouter()
+  const authStore = useAuthStore()
+  const libraryStore = useLibraryStore()
   const { getRecentlyPlayed } = commands
 
-  const props = defineProps<{
-    allAlbums:      Album[],
-    libraryLoaded:  boolean,
-    libraryLoading: boolean,
-    serverUrl:      string,
-    token:          string,
+  defineProps<{
+    currentSong: null | Song
   }>()
 
   const emit = defineEmits<{
@@ -31,14 +30,20 @@
 
   const recentlyPlayedSongs = ref<Song[]>([])
 
+  const allAlbums = computed(() => libraryStore.allAlbums)
+  const libraryLoaded = computed(() => libraryStore.isLoaded)
+  const libraryLoading = computed(() => libraryStore.isLoading)
+  const serverUrl = computed(() => authStore.serverUrl)
+  const token = computed(() => authStore.token)
+
   const fetchRecentlyPlayed = async (): Promise<void> => {
-    if (!props.serverUrl || !props.token) {
-      uiLogger.error('Missing serverUrl or token props')
+    if (!serverUrl.value || !token.value) {
+      uiLogger.error('Missing serverUrl or token')
       return
     }
 
     await withCustomState(
-      () => getRecentlyPlayed(props.serverUrl, props.token),
+      () => getRecentlyPlayed(serverUrl.value, token.value),
       {
         onError: error => {
           uiLogger.error('Failed to fetch recently played:', error)
@@ -53,8 +58,8 @@
   onMounted(fetchRecentlyPlayed)
 
   // Refetch recently played songs when navigating back to this view
-  watch(() => props.libraryLoaded, loaded => {
-    if (loaded && props.serverUrl && props.token && recentlyPlayedSongs.value.length === 0)
+  watch(() => libraryLoaded.value, loaded => {
+    if (loaded && serverUrl.value && token.value && recentlyPlayedSongs.value.length === 0)
       fetchRecentlyPlayed()
   })
 
@@ -69,7 +74,7 @@
   const recentlyPlayed = computed(() => recentlyPlayedSongs.value)
 
   const recentlyAdded = computed(() =>
-    [...props.allAlbums]
+    [...allAlbums.value as Album[]]
       .filter(album => album.name && album.name.trim().length > 0)
       .sort((a, b) => {
         // Sort by date created descending (most recent first)
@@ -81,7 +86,7 @@
   )
 
   const randomAlbums = computed(() =>
-    [...props.allAlbums]
+    [...allAlbums.value as Album[]]
       .filter(album => album.name && album.name.trim().length > 0)
       .sort(() => Math.random() - 0.5)
       .slice(0, 10),
@@ -127,7 +132,7 @@
     !!(name && name.trim().length > 0)
 
   const initializeFeaturedAlbums = (): void => {
-    featuredAlbums.value = [...props.allAlbums].sort(() => 0.5 - Math.random())
+    featuredAlbums.value = [...allAlbums.value as Album[]].sort(() => 0.5 - Math.random())
   }
 
   const sortSongsByTrackOrder = (songs: Song[]): Song[] =>
@@ -150,7 +155,7 @@
         : currentFeaturedIndex.value - 1
   }
 
-  watch(() => props.allAlbums, () => {
+  watch(() => allAlbums.value, () => {
     initializeFeaturedAlbums()
   }, { immediate: true })
 
@@ -216,10 +221,10 @@
     <!-- Featured Album Section -->
     <div
       v-if='featuredAlbum || libraryLoading'
-      class='relative isolate rounded-2xl p-8 mb-8 overflow-hidden blur-card'
+      class='relative isolate bg-sidebar rounded-lg p-8 mb-8 overflow-hidden'
     >
       <!-- Blurred Background -->
-      <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-2xl blur-md scale-105 overflow-hidden'>
+      <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-lg blur-md scale-105 overflow-hidden'>
         <ImageLoader
           v-if='featuredAlbum && !libraryLoading'
           :item-id='featuredAlbum.id || featuredAlbum.name'
@@ -227,7 +232,7 @@
           :token='token'
           class='size-full object-cover'
         />
-        <div class='absolute inset-0 bg-black/60 rounded-2xl' />
+        <div class='absolute inset-0 bg-black/60 rounded-lg' />
       </div>
 
       <!-- Content -->

@@ -8,7 +8,7 @@
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
   import SongList from '@/components/shared/SongList.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     DropdownMenu,
     DropdownMenuContent,
@@ -16,15 +16,12 @@
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { useAuthStore } from '@/stores/auth'
+  import { useLibraryStore } from '@/stores/library'
 
-  const props = defineProps<{
-    allAlbums:      Album[]
-    currentSong:    null | Song
-    isPlaying:      boolean
-    libraryLoaded:  boolean
-    libraryLoading: boolean
-    serverUrl:      string
-    token:          string
+  defineProps<{
+    currentSong: null | Song
+    isPlaying:   boolean
   }>()
 
   const emit = defineEmits<{
@@ -32,12 +29,22 @@
     'toggle-favorite': [song: Song]
   }>()
 
+  const authStore = useAuthStore()
+  const libraryStore = useLibraryStore()
+
+  // Create computed properties from stores
+  const allAlbums = computed(() => libraryStore.allAlbums as Album[])
+  const libraryLoaded = computed(() => libraryStore.isLoaded)
+  const libraryLoading = computed(() => libraryStore.isLoading)
+  const serverUrl = computed(() => authStore.serverUrl)
+  const token = computed(() => authStore.token)
+
   const route = useRoute()
   const showShareDialog = ref(false)
 
   const album = computed(() =>
-    props.libraryLoaded && props.allAlbums.length > 0
-      ? props.allAlbums.find(a => a.name === decodeURIComponent(route.params.albumName as string)) || null
+    libraryLoaded.value && allAlbums.value.length > 0
+      ? allAlbums.value.find(a => a.name === decodeURIComponent(route.params.albumName as string)) || null
       : null,
   )
 
@@ -133,7 +140,7 @@
   <div class='p-4 max-w-7xl mx-auto space-y-8'>
     <div v-if='libraryLoading || !libraryLoaded || !album' class='space-y-8'>
       <!-- Header Skeleton -->
-      <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
+      <div class='flex items-center space-x-6 p-8 bg-sidebar rounded-lg'>
         <Skeleton class='size-48 rounded-lg' />
         <div class='flex-1'>
           <Skeleton class='h-12 w-3/4 mb-3' />
@@ -167,7 +174,7 @@
     </div>
     <div v-else-if='album' class='space-y-8'>
       <!-- Header -->
-      <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
+      <div class='flex items-center space-x-6 p-8 bg-sidebar rounded-lg'>
         <div class='flex-shrink-0'>
           <ImageLoader
             :item-id='album.id || album.name'
@@ -257,16 +264,16 @@
         <SongList
           @play-song='playSongWithQueue'
           @toggle-favorite='(song) => $emit("toggle-favorite", song)'
-          :current-song='props.currentSong'
-          :is-playing='props.isPlaying'
+          :current-song='$props.currentSong'
+          :is-playing='$props.isPlaying'
           :loading='libraryLoading || !libraryLoaded || !album'
-          :server-url='props.serverUrl'
+          :server-url='serverUrl'
           :show-album-art='false'
           :show-artist='hasMultipleArtists'
           :show-duration='true'
           :show-track-number='true'
           :songs='albumSongs'
-          :token='props.token'
+          :token='token'
           layout='comfy'
         />
       </div>
@@ -284,3 +291,4 @@
     />
   </div>
 </template>
+

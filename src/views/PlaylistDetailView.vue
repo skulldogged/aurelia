@@ -8,7 +8,7 @@
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import SongList from '@/components/shared/SongList.vue'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     Dialog,
     DialogContent,
@@ -190,7 +190,7 @@
 
     <!-- Loading Skeleton -->
     <div v-if='isLoading' class='space-y-8'>
-      <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
+      <div class='flex items-center space-x-6 p-8 bg-sidebar rounded-lg'>
         <Skeleton class='size-48 rounded-lg flex-shrink-0' />
         <div class='flex-1 space-y-4'>
           <Skeleton class='h-12 w-3/4' />
@@ -207,18 +207,18 @@
 
     <!-- Playlist Header -->
     <div v-else-if='playlist' class='space-y-8'>
-      <div class='flex items-center space-x-6 p-8 blur-card rounded-2xl'>
+      <div class='flex items-center space-x-6 p-8 bg-sidebar rounded-lg'>
         <div class='flex-shrink-0'>
           <ImageLoader
             :alt='`${playlist.name} playlist art`'
             :item-id='playlist.id'
             :server-url='authStore.serverUrl'
             :token='authStore.token'
-            class='size-48 rounded-lg object-cover shadow-lg'
+            class='size-48 rounded-lg object-cover'
           >
             <template #fallback>
               <ImagePlaceholder
-                class='size-48 rounded-lg shadow-lg'
+                class='size-48 rounded-lg'
                 size='large'
                 type='playlist'
               />

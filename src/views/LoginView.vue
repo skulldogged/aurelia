@@ -3,9 +3,9 @@
   import { onMounted, ref } from 'vue'
 
   import { commands } from '@/bindings'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import { Input } from '@/components/ui/input'
-  import { Label } from '@/components/ui/label'
+  import Label from '@/components/ui/Label.vue'
   import { withCustomState } from '@/lib/result'
 
   const { getSavedCredentials, loginToJellyfin, saveCredentials } = commands

@@ -4,7 +4,7 @@
   import { computed, nextTick, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import { useBlurStore } from '@/stores'
 
   import Sidebar from './Sidebar.vue'
@@ -151,7 +151,7 @@
     <div
       v-if='hasPlayer'
       :class="[
-        'absolute bottom-0 z-30 border-t border-border/50 bg-background',
+        'absolute bottom-0 z-30 border-t border-border/50 bg-sidebar',
         {
           'left-[64px] right-0': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
           'left-[192px] right-0': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,

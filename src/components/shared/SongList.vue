@@ -3,7 +3,7 @@
   import { computed, ref, watch } from 'vue'
 
   import { Song } from '@/bindings'
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
   import {
     ContextMenu,
     ContextMenuContent,
@@ -110,7 +110,7 @@
 </script>
 
 <template>
-  <div class='bg-card/50 backdrop-blur-sm border border-border/50 rounded-xl p-6 shadow-lg'>
+  <div class='bg-sidebar rounded-lg p-6'>
     <div class='space-y-4 w-full'>
       <div
         v-if='loading'
@@ -120,7 +120,7 @@
           v-for='n in pageSize'
           :key='`list-skeleton-${n}`'
           :class="{
-            'bg-card rounded-lg p-3': layoutMode === 'comfy',
+            'rounded-lg p-3': layoutMode === 'comfy',
             'rounded-md px-2 py-1.5': layoutMode === 'compact'
           }"
         >
@@ -168,8 +168,8 @@
             <div
               @click="$emit('play-song', song)"
               :class="layoutMode === 'comfy'
-                ? 'group cursor-pointer bg-card hover:bg-muted/50 rounded-lg p-3 ' +
-                  'transition-all duration-200 hover:shadow-md w-full min-w-0 max-w-full'
+                ? 'group cursor-pointer hover:bg-muted/50 rounded-lg p-3 ' +
+                  'transition-all duration-200 w-full min-w-0 max-w-full'
                 : 'group cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1.5 ' +
                   'transition-all duration-200 w-full min-w-0 max-w-full'"
             >
@@ -314,13 +314,13 @@
                       <Button
                         @click.stop="$emit('toggle-favorite', song)"
                         :size='layoutMode === "compact" ? "sm" : "icon"'
-                        class='flex-shrink-0'
+                        class='flex-shrink-0 hover:text-accent-foreground'
                         variant='ghost'
                       >
                         <Heart
                           :class="[
                             layoutMode === 'compact' ? 'size-3.5' : 'size-5',
-                            song.isFavorite ? 'text-foreground fill-current' : 'text-muted-foreground'
+                            song.isFavorite ? 'fill-current' : ''
                           ]"
                         />
                       </Button>

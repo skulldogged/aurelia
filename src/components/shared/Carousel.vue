@@ -2,7 +2,7 @@
   import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
   import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 
-  import { Button } from '@/components/ui/button'
+  import Button from '@/components/ui/Button.vue'
 
   const props = defineProps<{
     disabled?: boolean
@@ -48,7 +48,7 @@
 </script>
 
 <template>
-  <section class='blur-card rounded-2xl shadow-lg p-6'>
+  <section class='bg-sidebar rounded-lg p-6'>
     <div class='flex justify-between items-center mb-4'>
       <h2 class='text-3xl font-bold'>
         {{ title }}
@@ -112,13 +112,13 @@
 
 .carousel-container::before {
   left: 0;
-  background-image: linear-gradient(to right, var(--background), transparent);
+  background-image: linear-gradient(to right, var(--sidebar), transparent);
   opacity: var(--left-fade-opacity, 0);
 }
 
 .carousel-container::after {
   right: 0;
-  background-image: linear-gradient(to left, var(--background), transparent);
+  background-image: linear-gradient(to left, var(--sidebar), transparent);
   opacity: var(--right-fade-opacity, 0);
 }
 </style>

@@ -33,6 +33,9 @@
       "allow": [
         {
           "url": "https://www.last.fm/*"
+        },
+        {
+          "url": "https://listenbrainz.org/*"
         }
       ]
     }
