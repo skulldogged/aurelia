@@ -191,7 +191,7 @@
           </ImageLoader>
         </div>
         <div>
-          <h1 class='text-5xl font-bold text-foreground select-text'>
+          <h1 class='text-4xl font-bold text-foreground select-text'>
             {{ album.name }}
           </h1>
           <p class='text-2xl text-muted-foreground mt-2 select-text'>
@@ -223,9 +223,15 @@
             <span v-if='albumSongs.length' class='inline-flex items-center gap-1'>
               {{ formattedTotalDuration }}
             </span>
-            <span v-if='albumGenres.length && (albumYear || albumSongs.length)' class='mx-2 self-center'>•</span>
-            <span v-if='albumGenres.length' class='inline-flex items-center'>
-              {{ albumGenres.join(', ') }}
+          </div>
+          <!-- Genres -->
+          <div v-if='albumGenres.length > 0' class='flex flex-wrap gap-2 mt-3'>
+            <span
+              v-for='genre in albumGenres'
+              :key='genre'
+              class='px-2 py-1 text-xs font-semibold rounded-full bg-secondary/30 text-foreground'
+            >
+              {{ genre }}
             </span>
           </div>
           <!-- Actions -->

@@ -65,10 +65,10 @@ export const createLogger = (tag: string): {
   info:  (...args: unknown[]) => void
   warn:  (...args: unknown[]) => void
 } => ({
-  debug: (logger.withTag(tag)).debug.bind(logger.withTag(tag)),
-  error: (logger.withTag(tag)).error.bind(logger.withTag(tag)),
-  info:  (logger.withTag(tag)).info.bind(logger.withTag(tag)),
-  warn:  (logger.withTag(tag)).warn.bind(logger.withTag(tag)),
+  debug: logger.withTag(tag).debug.bind(logger.withTag(tag)),
+  error: logger.withTag(tag).error.bind(logger.withTag(tag)),
+  info:  logger.withTag(tag).info.bind(logger.withTag(tag)),
+  warn:  logger.withTag(tag).warn.bind(logger.withTag(tag)),
 })
 
 // Pre-configured loggers for different modules

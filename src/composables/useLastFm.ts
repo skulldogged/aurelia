@@ -1,8 +1,8 @@
-import { invoke } from '@tauri-apps/api/core'
 import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 
 import type { LastFmCredentials, Song } from '@/bindings'
 
+import { commands } from '@/bindings'
 import { lastfmLogger } from '@/lib/logger'
 import { useLastFmStore, usePlayerStore } from '@/stores'
 
@@ -42,12 +42,13 @@ export const useLastFm = (): {
 
   // Restore credentials to Rust backend on init
   if (lastfmStore.credentials) {
-    void invoke('lastfm_set_credentials', {
-      credentials: lastfmStore.credentials,
-    }).catch(err => {
-      lastfmLogger.error('Failed to restore credentials to backend:', err)
+    void commands.lastfmSetCredentials(lastfmStore.credentials).then(result => {
+      if (result.status === 'error') {
+        lastfmLogger.error('Failed to restore credentials to backend:', result.error)
+      } else {
+        lastfmLogger.debug('Loaded Last.fm credentials from localStorage')
+      }
     })
-    lastfmLogger.debug('Loaded Last.fm credentials from localStorage')
   }
 
   let hasScrobbled = false
@@ -87,14 +88,17 @@ export const useLastFm = (): {
     const scrobble = {
       album,
       artist,
-      duration,
-      timestamp,
+      duration:  duration !== null ? BigInt(duration) : null,
+      timestamp: BigInt(timestamp),
       track,
     }
 
     try {
       lastfmLogger.info('Scrobbling track:', { artist, timestamp, track })
-      await invoke('lastfm_scrobble', { scrobble })
+      const result = await commands.lastfmScrobble(scrobble)
+      if (result.status === 'error') {
+        throw new Error(result.error)
+      }
       lastfmLogger.debug('Successfully scrobbled track')
     } catch (error) {
       lastfmLogger.error('Failed to scrobble track:', error)
@@ -113,8 +117,12 @@ export const useLastFm = (): {
 
     try {
       lastfmLogger.debug('Updating now playing:', { artist, track })
-      await invoke('lastfm_update_now_playing', { album, artist, track })
-      lastfmLogger.debug('Successfully updated now playing')
+      const result = await commands.lastfmUpdateNowPlaying(artist, track, album ?? null)
+      if (result.status === 'error') {
+        lastfmLogger.warn('Failed to update now playing:', result.error)
+      } else {
+        lastfmLogger.debug('Successfully updated now playing')
+      }
     } catch (error) {
       lastfmLogger.warn('Failed to update now playing:', error)
     }
@@ -170,11 +178,11 @@ export const useLastFm = (): {
   ): Promise<LastFmCredentials> => {
     try {
       lastfmLogger.info('Authenticating with Last.fm')
-      const credentials = await invoke<LastFmCredentials>('lastfm_authenticate', {
-        apiKey,
-        apiSecret,
-        token,
-      })
+      const result = await commands.lastfmAuthenticate(apiKey, apiSecret, token)
+      if (result.status === 'error') {
+        throw new Error(result.error)
+      }
+      const credentials = result.data
 
       lastfmStore.setCredentials(credentials)
       lastfmStore.setEnabled(true)
@@ -190,7 +198,10 @@ export const useLastFm = (): {
 
   const setCredentials = async (credentials: LastFmCredentials): Promise<void> => {
     try {
-      await invoke('lastfm_set_credentials', { credentials })
+      const result = await commands.lastfmSetCredentials(credentials)
+      if (result.status === 'error') {
+        throw new Error(result.error)
+      }
       lastfmStore.setCredentials(credentials)
       lastfmStore.setEnabled(true)
       isEnabled.value = true
@@ -203,7 +214,10 @@ export const useLastFm = (): {
 
   const clearSession = async (): Promise<void> => {
     try {
-      await invoke('lastfm_clear_credentials')
+      const result = await commands.lastfmClearCredentials()
+      if (result.status === 'error') {
+        throw new Error(result.error)
+      }
       lastfmStore.clearCredentials()
       isEnabled.value = false
       hasScrobbled = false

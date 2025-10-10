@@ -16,16 +16,16 @@ export const isErr = <T, E>(result: Result<T, E>): result is { error: E; status:
 
 // Extractors (unsafe - will throw if wrong variant)
 export const unwrap = <T, E>(result: Result<T, E>): T => {
-  if (isErr(result)) {
+  if (isErr(result))
     throw new Error(`Called unwrap on error: ${result.error}`)
-  }
+
   return result.data
 }
 
 export const unwrapErr = <T, E>(result: Result<T, E>): E => {
-  if (isOk(result)) {
+  if (isOk(result))
     throw new Error('Called unwrap_err on ok result')
-  }
+
   return result.error
 }
 
@@ -58,20 +58,22 @@ export const match = <T, E, R>(
     ok:  (value: T) => R
   },
 ): R =>
-  isOk(result) ? patterns.ok(result.data) : patterns.err(result.error)
+  isOk(result)
+    ? patterns.ok(result.data)
+    : patterns.err(result.error)
 
 // Expect with custom error messages (like Rust's expect)
 export const expect = <T, E>(result: Result<T, E>, message: string): T => {
-  if (isErr(result)) {
+  if (isErr(result))
     throw new Error(`${message}: ${result.error}`)
-  }
+
   return result.data
 }
 
 export const expectErr = <T, E>(result: Result<T, E>, message: string): E => {
-  if (isOk(result)) {
+  if (isOk(result))
     throw new Error(`${message}: expected error but got ok`)
-  }
+
   return result.error
 }
 
@@ -113,9 +115,10 @@ export const chainAsync = async <T, E>(
 
   for (const op of operations) {
     const result = await op()
-    if (isErr(result)) {
+
+    if (isErr(result))
       return result
-    }
+
     results.push(result.data)
   }
 
@@ -222,19 +225,16 @@ export const withMultipleResults = async <TResults extends readonly unknown[]>(
     const errors: string[] = []
     const data: unknown[] = []
 
-    for (const result of results) {
-      if (isErr(result)) {
+    for (const result of results)
+      if (isErr(result))
         errors.push(result.error)
-      } else {
+      else
         data.push(result.data)
-      }
-    }
 
-    if (errors.length > 0) {
+    if (errors.length > 0)
       handlers.onError(errors)
-    } else {
+    else
       handlers.onSuccess(data as unknown as TResults)
-    }
   } finally {
     handlers.onFinally?.()
   }

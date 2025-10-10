@@ -1,8 +1,8 @@
-import { invoke } from '@tauri-apps/api/core'
 import { ref, type Ref, watch } from 'vue'
 
 import type { ListenBrainzCredentials, Song } from '@/bindings'
 
+import { commands } from '@/bindings'
 import { listenbrainzLogger as logger } from '@/lib/logger'
 import { useListenBrainzStore, usePlayerStore } from '@/stores'
 
@@ -38,10 +38,9 @@ export const useListenBrainz = (): {
   }
 
   if (listenbrainzStore.credentials) {
-    void invoke('listenbrainz_set_credentials', {
-      credentials: listenbrainzStore.credentials,
-    }).catch(err => {
-      logger.error('Failed to restore credentials:', err)
+    void commands.listenbrainzSetCredentials(listenbrainzStore.credentials).then(result => {
+      if (result.status === 'error')
+        logger.error('Failed to restore credentials:', result.error)
     })
   }
 
@@ -68,12 +67,20 @@ export const useListenBrainz = (): {
     const album = song.album ?? null
     const duration = song.duration ? Math.floor(song.duration) : null
 
-    const listen = { album, artist, duration, track }
-    const timestamp = trackStartTimestamp
+    const listen = {
+      album,
+      artist,
+      duration: duration !== null ? BigInt(duration) : null,
+      track,
+    }
+    const timestamp = BigInt(trackStartTimestamp)
 
     try {
       logger.info('Submitting listen:', { artist, track })
-      await invoke('listenbrainz_submit_listen', { listen, timestamp })
+      const result = await commands.listenbrainzSubmitListen(listen, timestamp)
+      if (result.status === 'error') {
+        throw new Error(result.error)
+      }
     } catch (error) {
       logger.error('Failed to submit listen:', error)
       hasScrobbled = false
@@ -89,7 +96,9 @@ export const useListenBrainz = (): {
     const album = song.album ?? null
 
     try {
-      await invoke('listenbrainz_playing_now', { album, artist, track })
+      const result = await commands.listenbrainzPlayingNow(artist, track, album)
+      if (result.status === 'error')
+        logger.warn('Failed to update playing now:', result.error)
     } catch (error) {
       logger.warn('Failed to update playing now:', error)
     }
@@ -126,9 +135,11 @@ export const useListenBrainz = (): {
 
   const validateToken = async (userToken: string): Promise<ListenBrainzCredentials> => {
     try {
-      const credentials = await invoke<ListenBrainzCredentials>('listenbrainz_validate_token', {
-        userToken,
-      })
+      const result = await commands.listenbrainzValidateToken(userToken)
+      if (result.status === 'error')
+        throw new Error(result.error)
+
+      const credentials = result.data
 
       listenbrainzStore.setCredentials(credentials)
       listenbrainzStore.setEnabled(true)
@@ -144,7 +155,10 @@ export const useListenBrainz = (): {
 
   const setCredentials = async (credentials: ListenBrainzCredentials): Promise<void> => {
     try {
-      await invoke('listenbrainz_set_credentials', { credentials })
+      const result = await commands.listenbrainzSetCredentials(credentials)
+      if (result.status === 'error')
+        throw new Error(result.error)
+
       listenbrainzStore.setCredentials(credentials)
       listenbrainzStore.setEnabled(true)
       isEnabled.value = true
@@ -156,7 +170,10 @@ export const useListenBrainz = (): {
 
   const clearSession = async (): Promise<void> => {
     try {
-      await invoke('listenbrainz_clear_credentials')
+      const result = await commands.listenbrainzClearCredentials()
+      if (result.status === 'error')
+        throw new Error(result.error)
+
       listenbrainzStore.clearCredentials()
       isEnabled.value = false
       hasScrobbled = false

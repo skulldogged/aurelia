@@ -1,8 +1,8 @@
 import { getVersion } from '@tauri-apps/api/app'
-import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { readonly, ref, type Ref } from 'vue'
 
+import { commands } from '@/bindings'
 import { logger } from '@/lib/logger'
 import { useAuthStore } from '@/stores'
 
@@ -52,10 +52,11 @@ const registerCapabilities = async (authStore: ReturnType<typeof useAuthStore>):
     return
 
   try {
-    await invoke('register_client_capabilities', {
-      serverUrl: authStore.serverUrl,
-      token:     authStore.token,
-    })
+    const result = await commands.registerClientCapabilities(authStore.serverUrl, authStore.token)
+    if (result.status === 'error') {
+      logger.error('Failed to register client capabilities:', result.error)
+      return
+    }
 
     sessionState.value.isRegistered = true
     logger.info('Client capabilities registered with Jellyfin')
@@ -73,12 +74,12 @@ const reportPlaybackStart = async (
     return
 
   try {
-    await invoke('report_playback_start', {
-      itemId,
-      positionTicks: positionTicks ? Math.floor(positionTicks * 10_000_000) : undefined,
-      serverUrl:     authStore.serverUrl,
-      token:         authStore.token,
-    })
+    const ticks = positionTicks ? Math.floor(positionTicks * 10_000_000) : null
+    const result = await commands.reportPlaybackStart(authStore.serverUrl, authStore.token, itemId, ticks)
+    if (result.status === 'error') {
+      logger.error('Failed to report playback start:', result.error)
+      return
+    }
     logger.debug('Playback start reported', { itemId, positionTicks })
   } catch (error) {
     logger.error('Failed to report playback start:', error)
@@ -96,14 +97,18 @@ const reportPlaybackProgress = async (
     return
 
   try {
-    await invoke('report_playback_progress', {
-      eventName,
-      isPaused,
+    const result = await commands.reportPlaybackProgress(
+      authStore.serverUrl,
+      authStore.token,
       itemId,
-      positionTicks: Math.floor(positionTicks * 10_000_000),
-      serverUrl:     authStore.serverUrl,
-      token:         authStore.token,
-    })
+      Math.floor(positionTicks * 10_000_000),
+      eventName ?? null,
+      isPaused ?? null,
+    )
+    if (result.status === 'error') {
+      logger.debug('Failed to report playback progress:', result.error)
+      return
+    }
   } catch (error) {
     logger.debug('Failed to report playback progress:', error)
   }
@@ -118,12 +123,12 @@ const reportPlaybackStop = async (
     return
 
   try {
-    await invoke('report_playback_stop', {
-      itemId,
-      positionTicks: positionTicks ? Math.floor(positionTicks * 10_000_000) : undefined,
-      serverUrl:     authStore.serverUrl,
-      token:         authStore.token,
-    })
+    const ticks = positionTicks ? Math.floor(positionTicks * 10_000_000) : null
+    const result = await commands.reportPlaybackStop(authStore.serverUrl, authStore.token, itemId, ticks)
+    if (result.status === 'error') {
+      logger.error('Failed to report playback stop:', result.error)
+      return
+    }
 
     logger.debug('Playback stop reported', { itemId, positionTicks })
 
@@ -141,12 +146,11 @@ const markItemPlayed = async (
     return
 
   try {
-    await invoke('mark_item_played', {
-      itemId,
-      serverUrl: authStore.serverUrl,
-      token:     authStore.token,
-      userId:    authStore.userId,
-    })
+    const result = await commands.markItemPlayed(authStore.serverUrl, authStore.token, authStore.userId, itemId)
+    if (result.status === 'error') {
+      logger.error('Failed to mark item as played:', result.error)
+      return
+    }
 
     logger.debug('Item marked as played', { itemId })
   } catch (error) {

@@ -34,6 +34,7 @@ const closePanels = (except?: 'equalizer' | 'lyrics' | 'queue'): void => {
 const toggleQueue = (): void => {
   if (!isQueueOpen.value)
     closePanels('queue')
+
   isQueueOpen.value = !isQueueOpen.value
 }
 
@@ -82,14 +83,18 @@ export const usePlayerControls = (): PlayerControls => {
   const toggleEqualizer = (): void => {
     if (!isEqualizerOpen.value)
       closePanels('equalizer')
+
     const newState = !isEqualizerOpen.value
+
     isEqualizerOpen.value = newState
+
     playerStore.setEQEnabled(newState)
   }
 
   const toggleLyrics = (): void => {
     if (!isLyricsOpen.value)
       closePanels('lyrics')
+
     isLyricsOpen.value = !isLyricsOpen.value
   }
 

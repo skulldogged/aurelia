@@ -355,19 +355,9 @@
       <div
         class='
           relative flex flex-col md:flex-row md:items-center items-start
-          p-8 bg-sidebar rounded-lg gap-8 overflow-hidden
+          p-8 bg-sidebar rounded-lg gap-8
         '
       >
-        <!-- Backdrop Background -->
-        <!-- <ImageLoader
-          v-if='artist.imageTags?.Backdrop'
-          :image-type='"Backdrop"'
-          :item-id='artist.id'
-          :server-url='serverUrl'
-          :token='token'
-          alt='Artist backdrop'
-          class='absolute inset-0 object-cover opacity-10'
-        /> -->
         <div class='flex-shrink-0 mx-auto md:mx-0'>
           <ImageLoader
             :item-id='artist.id'
@@ -385,7 +375,7 @@
         </div>
         <div class='flex-1 w-full'>
           <div class='flex flex-col lg:flex-row items-start gap-8'>
-            <div class='space-y-4 flex-shrink-0'>
+            <div class='space-y-4'>
               <div>
                 <h2 class='text-4xl font-bold'>
                   {{ artist.name }}
@@ -402,11 +392,11 @@
                     {{ artistSongs.length }} songs across {{ artistAlbums.length }} albums
                   </p>
                 </div>
-                <div v-if='artistGenres.length > 0' class='flex flex-wrap gap-2 mt-4'>
+                <div v-if='artistGenres.length > 0' class='flex flex-wrap gap-2 mt-4 w-full'>
                   <span
                     v-for='genre in artistGenres'
                     :key='genre'
-                    class='px-2 py-1 text-xs font-semibold rounded-full bg-secondary text-secondary-foreground'
+                    class='px-2 py-1 text-xs font-semibold rounded-full bg-secondary/30 text-foreground'
                   >
                     {{ genre }}
                   </span>
@@ -651,9 +641,8 @@
           </div>
         </div>
       </Carousel>
-
-      <!-- About Section -->
     </div>
+
     <div v-else class='text-center py-12 text-muted-foreground'>
       Artist not found.
     </div>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-  import { invoke } from '@tauri-apps/api/core'
   import { listen, type UnlistenFn } from '@tauri-apps/api/event'
   import { openUrl } from '@tauri-apps/plugin-opener'
   import { ExternalLink, Plug, XCircle } from 'lucide-vue-next'
   import { computed, onBeforeUnmount, ref } from 'vue'
 
+  import { commands } from '@/bindings'
   import Button from '@/components/ui/Button.vue'
   import { Input } from '@/components/ui/input'
   import Label from '@/components/ui/Label.vue'
@@ -68,11 +68,12 @@
       const backgroundColor = styles.getPropertyValue('--background').trim() || '#1a1b26'
       const textColor = styles.getPropertyValue('--foreground').trim() || '#cdd6f4'
 
-      await invoke('lastfm_start_auth_server', {
-        backgroundColor,
-        primaryColor,
-        textColor,
-      })
+      const result = await commands.lastfmStartAuthServer(primaryColor, backgroundColor, textColor)
+      if (result.status === 'error') {
+        lastfmError.value = result.error
+        isWaitingForCallback.value = false
+        return
+      }
 
       lastfmLogger.info('Started Last.fm callback server')
 

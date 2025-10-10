@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { commands } from '@/bindings'
 
 interface CacheMetadata {
   size:      number
@@ -166,10 +166,11 @@ const getImageUrl = async (
 
   const loadingPromise = (async () => {
     try {
-      const cachedDataUrl = await invoke<null | string>('get_cached_image_data_url', {
-        imageType,
-        itemId,
-      })
+      const cachedResult = await commands.getCachedImageDataUrl(itemId, imageType)
+      if (cachedResult.status === 'error') {
+        throw new Error(cachedResult.error)
+      }
+      const cachedDataUrl = cachedResult.data
 
       if (cachedDataUrl) {
         dataUrlCache.set(cacheKey, cachedDataUrl)
@@ -179,13 +180,11 @@ const getImageUrl = async (
       }
 
       const imageUrl = `${serverUrl.replace(/\/$/, '')}/Items/${itemId}/Images/${imageType}`
-      const newCachedDataUrl = await invoke<string>('cache_image_from_url', {
-        imageType,
-        imageUrl,
-        itemId,
-        serverUrl,
-        token,
-      })
+      const cacheResult = await commands.cacheImageFromUrl(itemId, imageType, imageUrl, serverUrl, token)
+      if (cacheResult.status === 'error') {
+        throw new Error(cacheResult.error)
+      }
+      const newCachedDataUrl = cacheResult.data
 
       dataUrlCache.set(cacheKey, newCachedDataUrl)
       updateCacheMetadata(cacheKey, newCachedDataUrl.length)
@@ -217,7 +216,11 @@ const getImageCacheStats = async (): Promise<{
   total_size:                 number
 }> => {
   try {
-    const stats = await invoke<string>('get_image_cache_stats')
+    const statsResult = await commands.getImageCacheStats()
+    if (statsResult.status === 'error') {
+      throw new Error(statsResult.error)
+    }
+    const stats = statsResult.data
     const backendStats = JSON.parse(stats)
 
     const now = Date.now()

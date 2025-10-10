@@ -1,22 +1,22 @@
 export enum AccentColorName {
-  Blue = 'blue',
-  Green = 'green',
+  Blue   = 'blue',
+  Green  = 'green',
   Orange = 'orange',
-  Pink = 'pink',
+  Pink   = 'pink',
   Purple = 'purple',
-  Red = 'red',
+  Red    = 'red',
   Yellow = 'yellow',
 }
 
 export enum ColorSchemeName {
-  CatppuccinFrappe = 'catppuccin-frappe',
-  CatppuccinLatte = 'catppuccin-latte',
+  CatppuccinFrappe    = 'catppuccin-frappe',
+  CatppuccinLatte     = 'catppuccin-latte',
   CatppuccinMacchiato = 'catppuccin-macchiato',
-  CatppuccinMocha = 'catppuccin-mocha',
-  DefaultDark = 'default-dark',
-  DefaultLight = 'default-light',
-  GruvboxDark = 'gruvbox-dark',
-  GruvboxLight = 'gruvbox-light',
+  CatppuccinMocha     = 'catppuccin-mocha',
+  DefaultDark         = 'default-dark',
+  DefaultLight        = 'default-light',
+  GruvboxDark         = 'gruvbox-dark',
+  GruvboxLight        = 'gruvbox-light',
 }
 
 export interface AccentColor {
@@ -89,7 +89,6 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       sidebar:               '#cdcdd4',
       success:               '#10b981',
     },
-
     name: ColorSchemeName.DefaultLight,
   },
   {
@@ -126,7 +125,6 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       sidebar:               '#000000',
       success:               '#10b981',
     },
-
     name: ColorSchemeName.DefaultDark,
   },
   {
@@ -163,7 +161,6 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       sidebar:               '#d1d5db',
       success:               '#40a02b',
     },
-
     name: ColorSchemeName.CatppuccinLatte,
   },
   {
@@ -200,7 +197,6 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       sidebar:               '#292c3c',
       success:               '#a6d189',
     },
-
     name: ColorSchemeName.CatppuccinFrappe,
   },
   {
@@ -237,7 +233,6 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       sidebar:               '#1e1e2e',
       success:               '#a6da95',
     },
-
     name: ColorSchemeName.CatppuccinMacchiato,
   },
   {
@@ -274,7 +269,6 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       sidebar:               '#181825',
       success:               '#a6e3a1',
     },
-
     name: ColorSchemeName.CatppuccinMocha,
   },
   {
@@ -311,7 +305,6 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       sidebar:               '#d5c4a1',
       success:               '#98971a',
     },
-
     name: ColorSchemeName.GruvboxLight,
   },
   {
@@ -348,7 +341,6 @@ export const COLOR_SCHEMES: ColorScheme[] = [
       sidebar:               '#1d2021',
       success:               '#b8bb26',
     },
-
     name: ColorSchemeName.GruvboxDark,
   },
 ]

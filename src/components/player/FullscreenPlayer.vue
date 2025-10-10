@@ -315,7 +315,7 @@
               </Button>
               <Button
                 @click='$emit("toggle-play-pause")'
-                class='rounded-full size-14'
+                class='!rounded-full size-14'
                 size='icon'
                 variant='default'
               >

@@ -14,19 +14,18 @@ Ship reliable updates to this actively evolving Tauri + Vue 3 music player deskt
 
 ## Golden Rules (read every time)
 
-1. **Digest the full prompt and repo guidance before touching code.** If context is missing, fetch it—do not guess when you can verify.
-2. **Work like an engineer, not a note-taker.** Propose a short plan, execute it immediately (using the tools), then validate with tests/lints when you change runnable code.
+1. **Digest the full prompt and repo guidance before touching code.** If context is missing, fetch it to verify before proceeding.
+2. **Work like an engineer, not a note-taker.** Propose a short plan, execute it immediately (using the tools).
 3. **Keep the repo healthy.** Leave files better organized, follow the patterns already in place, and note follow-ups only when work is safely scoped.
-4. **Respect tooling guardrails.** Use Bun for packages and scripts, and never spin up long-running dev servers or builds unless the user explicitly requests it.
+4. **Respect tooling guardrails.** Use Bun for package management (`bun install`, `bun add <pkg>` only—no npm/pnpm/yarn). Run scripts with `bun run <script>` or one-off tooling with `bunx`. Fix lints via `bunx eslint --fix` only after completing all edits for the response, instead of manual edits. Spin up long-running dev servers or perform full builds ONLY when the user explicitly requests it.
 5. **Keep the code modern.** This project is actively in development; retire deprecated patterns instead of preserving them.
-6. **No emojis anywhere.** Never use emojis in code, comments, documentation, commit messages, or any project files. Use clear, professional language.
+6. **Communicate clearly and concisely.** Use professional language without emojis in code, comments, documentation, and commit messages. In responses, ALWAYS sacrifice grammar for conciseness, even with incomplete sentences or informal grammar, as long as meaning is clear.
 
 ## Workflow Expectations
 
 - Start responses with a concise acknowledgement + plan; update progress without repeating unchanged items.
 - Pull enough context: prefer `read_file`, searches, or repo docs over assumptions. When details are missing, make up to two explicit, reasonable assumptions.
 - Break complex tasks into actionable steps. Prefer implementing tests (happy path + 1-2 edge cases) before or alongside code where practical.
-- After edits, run fast verification (unit tests, lint, typecheck) that covers the touched areas. Report pass/fail and include key output.
 - If a command fails, iterate up to three targeted fixes. Still failing? Summarize the root cause and next options instead of looping indefinitely.
 
 ## Coding Standards
@@ -35,6 +34,7 @@ Ship reliable updates to this actively evolving Tauri + Vue 3 music player deskt
 - Use `<script setup>` with Composition API.
 - Enforce TypeScript everywhere; define interfaces for props/emits.
 - Keep single-file component order: `<script setup>`, `<template>`, `<style>`.
+- Prefer Tailwind utility classes over `<style>` elements; include `<style>` only for scoped overrides when necessary.
 - Favor composables (`src/composables`) for reusable logic over mixins.
 - Use PascalCase component names and `ref/ reactive` for state.
 
@@ -44,21 +44,13 @@ Ship reliable updates to this actively evolving Tauri + Vue 3 music player deskt
 - Prefer pure functions and small modules; surface errors with typed `Result` helpers when relevant.
 
 ### Styling & UX
-- Leverage Tailwind utility classes; avoid ad-hoc CSS unless necessary.
-- Use configured theme system and color tokens for theming.
+- Leverage Tailwind utility classes and the configured theme system with color tokens; avoid ad-hoc CSS unless necessary.
 - Keep components accessible (ARIA, keyboard focus, reduced motion awareness).
 
 ### Tauri & Rust Bridge
 - Call Rust via `@tauri-apps/api` commands with `try/catch` + user-facing error handling.
-- Follow Tauri security best practices (no untrusted command execution, validate payloads).
+- Follow Tauri security best practices: validate payloads to ensure secure command execution.
 - Rust modules live under `src-tauri/src`; mirror frontend models when needed.
-
-## Tooling & Commands
-
-- Package management: `bun install`, `bun add <pkg>` only (no npm/pnpm/yarn).
-- Scripts: `bun run <script>`; one-off tooling via `bunx`.
-- Lint fixes: run `bunx eslint --fix` instead of manual mass edits.
-- Never launch long-running dev servers or perform full builds unless the user explicitly asks.
 
 ## Deliverables & Reporting
 

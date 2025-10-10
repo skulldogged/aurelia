@@ -1,22 +1,10 @@
-import { invoke } from '@tauri-apps/api/core'
 import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 
-import type { Song } from '@/bindings'
+import type { RpcActivity, Song } from '@/bindings'
 
+import { commands } from '@/bindings'
 import { presenceLogger } from '@/lib/logger'
 import { usePlayerStore } from '@/stores'
-
-interface DiscordRpcActivity {
-  buttons?:         Array<{ label: string; url: string }>
-  details?:         string
-  end_timestamp?:   number
-  large_image?:     string
-  large_text?:      string
-  small_image?:     string
-  small_text?:      string
-  start_timestamp?: number
-  state?:           string
-}
 
 const DISCORD_APP_ID =
   import.meta.env.VITE_DISCORD_APP_ID
@@ -92,15 +80,23 @@ export const useDiscordPresence = (): {
     }
 
     try {
-      const running = await invoke<boolean>('discord_rpc_is_running')
+      const result = await commands.discordRpcIsRunning()
+      if (result.status === 'error') {
+        presenceLogger.error('Failed to check Discord RPC status:', result.error)
+        return false
+      }
+      const running = result.data
       presenceLogger.debug('Discord RPC thread status before start:', { running })
 
       if (!running) {
         presenceLogger.info('Starting Discord RPC thread with app ID:', DISCORD_APP_ID)
-        await invoke('discord_rpc_start', { appId: DISCORD_APP_ID })
+        const startResult = await commands.discordRpcStart(DISCORD_APP_ID)
+        if (startResult.status === 'error') {
+          presenceLogger.error('Failed to start Discord RPC:', startResult.error)
+          return false
+        }
         presenceLogger.info('Discord RPC thread started successfully')
-        // Give Discord a moment to establish the connection
-        await sleep(500)
+        await sleep(500) // Give Discord a moment to establish the connection
       } else {
         presenceLogger.debug('Discord RPC thread already running')
       }
@@ -115,17 +111,16 @@ export const useDiscordPresence = (): {
   }
 
   const stopThread = async (): Promise<void> => {
-    try {
-      await invoke('discord_rpc_clear_activity')
-    } catch (error) {
-      presenceLogger.debug('Failed to clear Discord activity on shutdown', error)
+    const clearResult = await commands.discordRpcClearActivity()
+    if (clearResult.status === 'error') {
+      presenceLogger.debug('Failed to clear Discord activity on shutdown', clearResult.error)
     }
 
-    try {
-      await invoke('discord_rpc_stop')
+    const stopResult = await commands.discordRpcStop()
+    if (stopResult.status === 'error') {
+      presenceLogger.debug('Failed to stop Discord RPC thread', stopResult.error)
+    } else {
       presenceLogger.debug('Stopped Discord RPC thread')
-    } catch (error) {
-      presenceLogger.debug('Failed to stop Discord RPC thread', error)
     }
 
     hasStartedThread = false
@@ -148,14 +143,14 @@ export const useDiscordPresence = (): {
       if (!await ensureThread())
         return
 
-      try {
-        await invoke('discord_rpc_clear_activity')
-        lastSuccessfulUpdate = Date.now()
-        presenceLogger.debug('Cleared Discord activity (no active song)')
-      } catch (error) {
-        presenceLogger.error('Failed to clear Discord activity', error)
+      const clearResult = await commands.discordRpcClearActivity()
+      if (clearResult.status === 'error') {
+        presenceLogger.error('Failed to clear Discord activity', clearResult.error)
         hasStartedThread = false
+        return
       }
+      lastSuccessfulUpdate = Date.now()
+      presenceLogger.debug('Cleared Discord activity (no active song)')
       return
     }
 
@@ -171,10 +166,16 @@ export const useDiscordPresence = (): {
     if (song.artistIds?.length && song.albumArtUrl)
       artistImageUrl = `${song.albumArtUrl.split('/Items/')[0]}/Items/${song.artistIds[0]}/Images/Primary`
 
-    const activity: DiscordRpcActivity = {
-      details:     song.name,
-      large_image: song.albumArtUrl ?? undefined,
-      large_text:  song.name,
+    const activity: RpcActivity = {
+      buttons:         null,
+      details:         song.name,
+      end_timestamp:   null,
+      large_image:     song.albumArtUrl ?? null,
+      large_text:      song.name,
+      small_image:     null,
+      small_text:      null,
+      start_timestamp: null,
+      state:           null,
     }
 
     if (artistImageUrl) {
@@ -188,12 +189,12 @@ export const useDiscordPresence = (): {
       const now = Date.now()
       const startAt = Math.max(0, now - Math.round(position * 1000))
 
-      activity.start_timestamp = startAt
+      activity.start_timestamp = BigInt(startAt)
 
       if (duration > 0) {
         const remaining = Math.max(0, duration - position)
         const endAt = startAt + Math.round(remaining * 1000)
-        activity.end_timestamp = endAt
+        activity.end_timestamp = BigInt(endAt)
       }
     } else {
       activity.state = `Paused — ${artists}`
@@ -217,16 +218,15 @@ export const useDiscordPresence = (): {
       state:         isPlaying ? artists : `Paused — ${artists}`,
     })
 
-    try {
-      await invoke('discord_rpc_set_activity', { activity })
-      lastSuccessfulUpdate = Date.now()
-      presenceLogger.debug('Discord activity set successfully')
-    } catch (error) {
-      presenceLogger.error('Failed to set Discord activity', error)
+    const activityResult = await commands.discordRpcSetActivity(activity)
+    if (activityResult.status === 'error') {
+      presenceLogger.error('Failed to set Discord activity', activityResult.error)
       // Reset the thread state so it will retry on next update
       hasStartedThread = false
-      throw error
+      return
     }
+    lastSuccessfulUpdate = Date.now()
+    presenceLogger.debug('Discord activity set successfully')
   }
 
   const updatePresence = async (): Promise<void> => {

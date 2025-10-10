@@ -4,7 +4,7 @@
   import { onMounted, ref } from 'vue'
 
   import { useSystemTray } from '@/composables/useSystemTray'
-  import { isLinux } from '@/lib/platform'
+  import { getPlatform } from '@/lib/platform'
   import { useSystemTrayStore } from '@/stores'
 
   const isMaximized = ref(false)
@@ -27,7 +27,7 @@
 
   onMounted(async () => {
     await checkMaximized()
-    isLinuxPlatform.value = await isLinux()
+    isLinuxPlatform.value = getPlatform() === 'linux'
   })
 </script>
 

@@ -18,7 +18,7 @@
   import Switch from '@/components/ui/Switch.vue'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { AccentColorName } from '@/lib/colorSchemes'
-  import { isLinux } from '@/lib/platform'
+  import { getPlatform } from '@/lib/platform'
   import { useAccentColorStore, useBlurStore, usePlayerStore, useSystemTrayStore, useThemeStore } from '@/stores'
 
   const accentColorStore = useAccentColorStore()
@@ -71,14 +71,10 @@
     { displayName: 'Enabled', name: 'acrylic' },
   ]
 
-  const applyTransparencyClass = (modeName: string): void => {
-    const body = document.body
-    if (modeName === 'none') {
-      body.classList.add('transparency-disabled')
-    } else {
-      body.classList.remove('transparency-disabled')
-    }
-  }
+  const applyTransparencyClass = (modeName: string): void =>
+    void (modeName === 'none'
+      ? document.body.classList.add('transparency-disabled')
+      : document.body.classList.remove('transparency-disabled'))
 
   const handleBlurModeChange = async (value: unknown): Promise<void> => {
     if (value && typeof value === 'string') {
@@ -132,7 +128,7 @@
   onMounted(async () => {
     try {
       // Check platform
-      isLinuxPlatform.value = await isLinux()
+      isLinuxPlatform.value = getPlatform() === 'linux'
 
       // Update the local ref to match the current store value
       selectedBlurModeName.value = selectedBlurMode.value.name

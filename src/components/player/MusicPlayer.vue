@@ -933,7 +933,7 @@
               <Button
                 @click='togglePlayPause'
                 :disabled='!playerStore.audioReady || playerStore.isBuffering'
-                class='rounded-full size-10'
+                class='!rounded-full size-10'
                 size='icon'
                 variant='default'
               >

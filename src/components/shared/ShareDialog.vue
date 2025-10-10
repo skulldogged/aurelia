@@ -1,7 +1,6 @@
 <script setup lang="ts">
   import type { SimpleIcon } from 'simple-icons'
 
-  import { invoke } from '@tauri-apps/api/core'
   import { writeText } from '@tauri-apps/plugin-clipboard-manager'
   import { openUrl } from '@tauri-apps/plugin-opener'
   import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, Link, Share2 } from 'lucide-vue-next'
@@ -21,6 +20,7 @@
   } from 'simple-icons'
   import { computed, ref, watch } from 'vue'
 
+  import { commands } from '@/bindings'
   import Button from '@/components/ui/Button.vue'
   import {
     Dialog,
@@ -128,15 +128,24 @@
       let urls: Record<string, string> = {}
 
       switch (props.itemType) {
-        case 'album':
-          urls = await invoke('get_album_share_urls', { albumId: props.itemId })
+        case 'album': {
+          const result = await commands.getAlbumShareUrls(props.itemId)
+          if (result.status === 'error') throw new Error(result.error)
+          urls = result.data as Record<string, string>
           break
-        case 'artist':
-          urls = await invoke('get_artist_share_urls', { artistId: props.itemId })
+        }
+        case 'artist': {
+          const result = await commands.getArtistShareUrls(props.itemId)
+          if (result.status === 'error') throw new Error(result.error)
+          urls = result.data as Record<string, string>
           break
-        case 'song':
-          urls = await invoke('get_song_share_urls', { songId: props.itemId })
+        }
+        case 'song': {
+          const result = await commands.getSongShareUrls(props.itemId)
+          if (result.status === 'error') throw new Error(result.error)
+          urls = result.data as Record<string, string>
           break
+        }
       }
 
       shareUrls.value = urls
