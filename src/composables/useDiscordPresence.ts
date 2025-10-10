@@ -10,7 +10,7 @@ const DISCORD_APP_ID =
   import.meta.env.VITE_DISCORD_APP_ID
   || '1422099270340837419'
 
-const POSITION_UPDATE_THRESHOLD = 10
+const POSITION_UPDATE_THRESHOLD = 5
 const hasTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 const activitySignature = (song: null | Song, isPlaying: boolean, position: number): string => {
@@ -63,6 +63,7 @@ export const useDiscordPresence = (): {
   let isUpdating = false
   let pendingUpdate = false
   let lastSuccessfulUpdate = Date.now() // Initialize to now to avoid false reconnection on startup
+  let currentSongStartTime: null | number = null // Track when the current song started playing
 
   const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -171,7 +172,7 @@ export const useDiscordPresence = (): {
       details:         song.name,
       end_timestamp:   null,
       large_image:     song.albumArtUrl ?? null,
-      large_text:      song.name,
+      large_text:      song.album ?? 'Unknown Album',
       small_image:     null,
       small_text:      null,
       start_timestamp: null,
@@ -186,18 +187,45 @@ export const useDiscordPresence = (): {
     if (isPlaying) {
       activity.state = artists
 
-      const now = Date.now()
-      const startAt = Math.max(0, now - Math.round(position * 1000))
+      // Use the recorded song start time, or calculate it if not available
+      const songStartTime = currentSongStartTime ?? (Date.now() - (position * 1000))
+      const startAt = Math.max(0, songStartTime)
 
-      activity.start_timestamp = BigInt(startAt)
+      presenceLogger.debug('Discord timestamp calculation', {
+        currentSongStartTime,
+        duration,
+        position,
+        songStartTime,
+        startAt,
+      })
+
+      // Discord expects timestamps in seconds, not milliseconds
+      activity.start_timestamp = Math.floor(startAt / 1000)
 
       if (duration > 0) {
-        const remaining = Math.max(0, duration - position)
-        const endAt = startAt + Math.round(remaining * 1000)
-        activity.end_timestamp = BigInt(endAt)
+        const endAt = startAt + (duration * 1000)
+        activity.end_timestamp = Math.floor(endAt / 1000)
+
+        presenceLogger.debug('Discord end timestamp', {
+          duration,
+          endAt,
+        })
       }
     } else {
-      activity.state = `Paused — ${artists}`
+      // When paused, show static position without progress bar animation
+      activity.state = artists
+
+      if (duration > 0) {
+        // Set start_timestamp to represent current position, don't set end_timestamp
+        // This shows elapsed time without animated progress bar
+        const now = Date.now()
+        const positionMs = Math.round(position * 1000)
+        const startAt = Math.max(0, now - positionMs)
+
+        activity.start_timestamp = Math.floor(startAt / 1000)
+        // Don't set end_timestamp for paused songs to avoid progress bar animation
+        activity.end_timestamp = null
+      }
     }
 
     presenceLogger.debug('Updated Discord activity', {
@@ -214,8 +242,9 @@ export const useDiscordPresence = (): {
       hasLargeImage: !!song.albumArtUrl,
       hasSmallImage: !!artistImageUrl,
       largeImageUrl: song.albumArtUrl?.substring(0, 100), // Truncate for readability
+      largeText:     song.album ?? 'Unknown Album',
       smallImageUrl: artistImageUrl?.substring(0, 100),
-      state:         isPlaying ? artists : `Paused — ${artists}`,
+      state:         artists,
     })
 
     const activityResult = await commands.discordRpcSetActivity(activity)
@@ -250,11 +279,17 @@ export const useDiscordPresence = (): {
 
   const stopWatchers: Array<() => void> = [
     watch(() => playerStore.currentSong, () => {
+      // Reset start time when song changes
+      currentSongStartTime = null
       lastProgressPosition = playerStore.currentTime
       lastSignature = ''
       void updatePresence()
     }, { immediate: true }),
-    watch(() => playerStore.isPlaying, () => {
+    watch(() => playerStore.isPlaying, isPlaying => {
+      if (isPlaying && playerStore.currentSong) {
+        // When playback starts, record the start time
+        currentSongStartTime = Date.now() - (playerStore.currentTime * 1000)
+      }
       lastSignature = ''
       void updatePresence()
     }, { immediate: true }),
@@ -262,7 +297,20 @@ export const useDiscordPresence = (): {
       if (!playerStore.currentSong || !playerStore.isPlaying)
         return
 
-      if (Math.abs(position - lastProgressPosition) < POSITION_UPDATE_THRESHOLD)
+      const positionChange = Math.abs(position - lastProgressPosition)
+
+      // Detect seeking: if position changed by more than 10 seconds at once
+      if (positionChange > 10 && lastProgressPosition >= 0) {
+        // User seeked, update the song start time to maintain correct progress bar
+        currentSongStartTime = Date.now() - (position * 1000)
+        presenceLogger.debug('Detected seeking, updated song start time', {
+          newStartTime: currentSongStartTime,
+          position,
+          positionChange,
+        })
+      }
+
+      if (positionChange < POSITION_UPDATE_THRESHOLD)
         return
 
       lastProgressPosition = position

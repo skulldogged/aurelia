@@ -17,8 +17,8 @@ pub struct RpcActivity {
     pub large_text: Option<String>,
     pub small_image: Option<String>,
     pub small_text: Option<String>,
-    pub start_timestamp: Option<i64>,
-    pub end_timestamp: Option<i64>,
+    pub start_timestamp: Option<i32>,
+    pub end_timestamp: Option<i32>,
     pub buttons: Option<Vec<RpcButton>>,
 }
 
@@ -176,11 +176,11 @@ pub fn discord_rpc_set_activity(
         let mut timestamps = Timestamps::new();
 
         if let Some(start) = activity.start_timestamp {
-            timestamps = timestamps.start(start);
+            timestamps = timestamps.start(start.into());
         }
 
         if let Some(end) = activity.end_timestamp {
-            timestamps = timestamps.end(end);
+            timestamps = timestamps.end(end.into());
         }
 
         rpc_activity = rpc_activity.timestamps(timestamps);

@@ -868,7 +868,7 @@ export type PlaylistUpdateData = {
 export type Result<T, E> =
 	| { data: T; status: 'ok'; }
 	| { error: E; status: 'error'; }
-export type RpcActivity = { buttons: null | RpcButton[]; details: null | string; end_timestamp: bigint | null; large_image: null | string; large_text: null | string; small_image: null | string; small_text: null | string; start_timestamp: bigint | null; state: null | string; }
+export type RpcActivity = { buttons: null | RpcButton[]; details: null | string; end_timestamp: null | number; large_image: null | string; large_text: null | string; small_image: null | string; small_text: null | string; start_timestamp: null | number; state: null | string; }
 export type RpcButton = { label: string; url: string }
 /**
  * Song representing a music track or audio file
