@@ -166,7 +166,7 @@
   watch(() => props.song, async newSong => {
     if (newSong && props.serverUrl && props.token) {
       try {
-        const imageId = newSong.albumId || newSong.id
+        const imageId = newSong.albumId
         const imageData = await getImageUrl(imageId, props.serverUrl, props.token, 'Primary')
         backgroundImageData.value = imageData
       } catch (error) {
@@ -359,7 +359,7 @@
               <div class='album-art-container aspect-square'>
                 <ImageLoader
                   v-if='song'
-                  :item-id='song.id'
+                  :item-id='song.albumId'
                   :server-url='serverUrl'
                   :token='token'
                   alt='Album art'
