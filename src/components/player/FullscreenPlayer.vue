@@ -167,8 +167,10 @@
     if (newSong && props.serverUrl && props.token) {
       try {
         const imageId = newSong.albumId
-        const imageData = await getImageUrl(imageId, props.serverUrl, props.token, 'Primary')
-        backgroundImageData.value = imageData
+        if (imageId) {
+          const imageData = await getImageUrl(imageId, props.serverUrl, props.token, 'Primary')
+          backgroundImageData.value = imageData
+        }
       } catch (error) {
         playerLogger.error('Failed to load background image:', error)
         backgroundImageData.value = null
@@ -359,7 +361,7 @@
               <div class='album-art-container aspect-square'>
                 <ImageLoader
                   v-if='song'
-                  :item-id='song.albumId'
+                  :item-id='song.albumId || undefined'
                   :server-url='serverUrl'
                   :token='token'
                   alt='Album art'
