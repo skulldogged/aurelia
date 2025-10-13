@@ -1,6 +1,6 @@
-# Building Jellyfin Music Player
+# Building Aurelia
 
-This guide covers building the Jellyfin Music Player from source for development and production.
+This guide covers building the Aurelia from source for development and production.
 
 ## Prerequisites
 
@@ -88,7 +88,7 @@ sudo pacman -S --needed \
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/pupbrained/jellyfin-music-player.git
+   git clone https://github.com/pupbrained/aurelia.git
    cd jellyfin-music-player
    ```
 

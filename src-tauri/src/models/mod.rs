@@ -1,4 +1,4 @@
-//! Data models for the Jellyfin Music Player
+//! Data models for Aurelia
 //!
 //! This module contains all the data structures used throughout the application,
 //! including API response types, internal data models, and configuration structures.

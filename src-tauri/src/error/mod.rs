@@ -1,4 +1,4 @@
-//! Error handling for the Jellyfin Music Player
+//! Error handling for Aurelia
 //!
 //! Uses thiserror for structured error types and anyhow for ergonomic error handling
 

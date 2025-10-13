@@ -426,7 +426,7 @@ pub fn lastfm_start_auth_server(
     <div class="container">
         <h1>✓ Authorization Successful</h1>
         <p class="success">You can now close this window and return to the application.</p>
-        <p>The authorization token has been automatically sent to the Jellyfin Music Player.</p>
+        <p>The authorization token has been automatically sent to Aurelia.</p>
     </div>
 </body>
 </html>"#,

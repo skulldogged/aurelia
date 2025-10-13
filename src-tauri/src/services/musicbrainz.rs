@@ -178,7 +178,7 @@ impl MusicBrainzService {
             .get(&url)
             .header(
                 "User-Agent",
-                "JellyfinMusicPlayer/1.0.0 (https://github.com/pupbrained/jellyfin-music-player)",
+                "Aurelia/0.1.0 (https://github.com/pupbrained/aurelia)",
             )
             .send()
             .await
@@ -221,7 +221,7 @@ impl MusicBrainzService {
             .get(&url)
             .header(
                 "User-Agent",
-                "JellyfinMusicPlayer/1.0.0 (https://github.com/pupbrained/jellyfin-music-player)",
+                "Aurelia/0.1.0 (https://github.com/pupbrained/aurelia)",
             )
             .send()
             .await

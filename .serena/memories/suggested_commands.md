@@ -1,4 +1,4 @@
-# Suggested Commands for Jellyfin Music Player Development
+# Suggested Commands for Aurelia Development
 
 ## Package Management
 - `bun install` - Install all dependencies (use Bun exclusively, no npm/pnpm/yarn)

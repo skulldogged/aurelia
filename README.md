@@ -1,4 +1,4 @@
-# Jellyfin Music Player
+# Aurelia
 
 A modern desktop music player for Jellyfin, built with Tauri and Vue 3.
 
@@ -37,7 +37,7 @@ A modern desktop music player for Jellyfin, built with Tauri and Vue 3.
 
 ```bash
 # Clone the repository
-git clone https://github.com/pupbrained/jellyfin-music-player.git
+git clone https://github.com/pupbrained/aurelia.git
 cd jellyfin-music-player
 
 # Install dependencies

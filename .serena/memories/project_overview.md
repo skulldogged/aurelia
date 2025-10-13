@@ -1,4 +1,4 @@
-# Project Overview: Jellyfin Music Player
+# Project Overview: Aurelia
 
 ## Purpose
 A modern desktop music player for Jellyfin, providing a beautiful native interface for browsing and playing music from a Jellyfin server. Features include full library management, playback controls, audio features like equalizer and gapless playback, lyrics support, Discord Rich Presence, fullscreen player, and system tray integration.

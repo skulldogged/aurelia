@@ -102,7 +102,7 @@
     <div class='max-w-md w-full p-8'>
       <div class='text-center mb-8'>
         <h1 class='text-3xl font-bold text-foreground mb-2'>
-          Jellyfin Music Player
+          Aurelia
         </h1>
         <p class='text-muted-foreground'>
           Connect to your Jellyfin server
