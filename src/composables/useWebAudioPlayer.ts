@@ -459,13 +459,13 @@ const setupEventListeners = (): void => {
     isPlaying = false
     playerLogger.debug('Streaming audio ended, advancing to next song')
 
-    setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        const w = window as typeof window & { advanceToNextSong?: () => void }
-        if (w.advanceToNextSong)
-          w.advanceToNextSong()
-      }
-    }, 100)
+    // Import player store dynamically to avoid circular dependencies
+    import('@/stores/player').then(({ usePlayerStore }) => {
+      const playerStore = usePlayerStore()
+      playerStore.nextSong()
+    }).catch(error => {
+      playerLogger.error('Failed to advance to next song:', error)
+    })
   })
 
   mediaElement.addEventListener('play', () => {

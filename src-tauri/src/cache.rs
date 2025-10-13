@@ -490,6 +490,33 @@ impl CacheManager {
 
         Ok(())
     }
+
+    /// Update favorite status for a specific song
+    pub async fn update_song_favorite_status(
+        &self,
+        song_id: &str,
+        is_favorite: bool,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let cache_to_save = {
+            let mut cache = self.cache.write().await;
+            let cache_data = cache.as_mut().ok_or("Cache not initialized")?;
+
+            if let Some(song) = cache_data.songs.iter_mut().find(|s| s.id == song_id) {
+                song.is_favorite = Some(is_favorite);
+                info!(
+                    "Updated favorite status for song {} to {}",
+                    song_id, is_favorite
+                );
+            } else {
+                return Err(format!("Song with ID {} not found in cache", song_id).into());
+            }
+
+            cache_data.clone()
+        };
+        self.save_cache(&cache_to_save).await?;
+
+        Ok(())
+    }
 }
 
 impl Default for CacheManager {
@@ -570,4 +597,12 @@ pub async fn get_albums() -> Result<Vec<Album>, String> {
 /// Clear all cache data
 pub async fn clear_cache() -> Result<(), String> {
     CACHE_MANAGER.clear_cache().await.map_err(|e| e.to_string())
+}
+
+/// Update favorite status for a specific song
+pub async fn update_song_favorite_status(song_id: &str, is_favorite: bool) -> Result<(), String> {
+    CACHE_MANAGER
+        .update_song_favorite_status(song_id, is_favorite)
+        .await
+        .map_err(|e| e.to_string())
 }

@@ -29,7 +29,7 @@
     isDragging.value = true
   }
 
-  const handleDragEnd = (event: { newIndex: number | undefined; oldIndex: number | undefined, }): void => {
+  const handleDragEnd = (event: { newIndex: number | undefined; oldIndex: number | undefined }): void => {
     isDragging.value = false
     const { newIndex, oldIndex } = event
     if (oldIndex === undefined || newIndex === undefined || oldIndex === newIndex)
@@ -40,57 +40,47 @@
     newList.splice(newIndex, 0, item)
 
     playerStore.setPlaylist(newList)
+    emit('update:playlist', newList)
   }
 </script>
 
 <template>
-  <div
-    class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] bg-background-dark flex flex-col h-full'
-  >
-    <div
-      class='h-12 flex items-center px-4 flex-shrink-0'
-      data-tauri-drag-region
-    >
-      <h2 class='text-base font-semibold tracking-tight text-muted-foreground'>
-        Up Next
-      </h2>
-    </div>
+  <div class='flex flex-col h-full w-full'>
+    <!-- Queue content with padding -->
     <OverlayScrollbarsComponent
+      :class="'flex-1 p-4'"
       :options='{ scrollbars: { autoHide: "scroll" } }'
-      class='flex-grow px-2 py-3'
       defer
     >
-      <Sortable
-        @end='handleDragEnd'
-        @start='handleDragStart'
-        :list='playerStore.playlist'
-        :options="{ animation: 150, ghostClass: 'ghost', dragClass: 'drag' }"
-        handle='.handle'
-        item-key='id'
-      >
-        <template #item='{ element: song, index }: { element: Song; index: number }'>
-          <QueueItem
-            @play='handlePlay'
-            @remove='handleRemove'
-            :index='index'
-            :is-current='playerStore.currentIndex === index'
-            :is-dragging='isDragging'
-            :song='song'
-            class='mb-1'
-          />
-        </template>
-      </Sortable>
+      <div v-if='playerStore.playlist.length === 0' class='flex items-center justify-center h-full'>
+        <div class='text-center space-y-2'>
+          <p class='text-sm text-muted-foreground'>
+            No songs in queue
+          </p>
+        </div>
+      </div>
+
+      <div v-else class='space-y-1'>
+        <Sortable
+          @end='handleDragEnd'
+          @start='handleDragStart'
+          :list='playerStore.playlist'
+          class='space-y-1'
+          handle='.drag-handle'
+          item-key='id'
+        >
+          <template #item='{ element, index }'>
+            <QueueItem
+              @play='handlePlay(element, index)'
+              @remove='handleRemove(element)'
+              :index='index'
+              :is-current='index === playerStore.currentIndex'
+              :is-dragging='isDragging'
+              :song='element'
+            />
+          </template>
+        </Sortable>
+      </div>
     </OverlayScrollbarsComponent>
   </div>
 </template>
-
-<style scoped>
-.ghost {
-  opacity: 0.5;
-  background: var(--color-accent);
-}
-
-.drag {
-  opacity: 0;
-}
-</style>

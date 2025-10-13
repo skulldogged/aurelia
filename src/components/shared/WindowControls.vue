@@ -33,7 +33,10 @@
 
 <template>
   <!-- Linux-style controls -->
-  <div v-if='isLinuxPlatform' class='flex h-auto items-center gap-[13px] pt-[10px] pr-[10px]'>
+  <div
+    v-if='isLinuxPlatform'
+    class='flex h-auto items-center gap-[13px]'
+  >
     <!-- eslint-disable @stylistic/max-len -->
     <button
       @click='handleMinimize'

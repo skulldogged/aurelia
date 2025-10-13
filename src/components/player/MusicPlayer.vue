@@ -123,6 +123,19 @@
     }
   }, { immediate: true })
 
+  // Watch for index changes (including switching to same song at different position)
+  watch(() => playerStore.currentIndex, (newIndex, oldIndex) => {
+    if (newIndex !== oldIndex && playerStore.currentSong) {
+      // Reset playback position when switching to same song at different index
+      playerStore.setCurrentTime(0)
+      if (useWebAudio.value && webAudioPlayer.getIsReady()) {
+        webAudioPlayer.seek(0)
+      } else if (activePlayer.value) {
+        activePlayer.value.currentTime = 0
+      }
+    }
+  })
+
   const nextSongInQueue = computed(() => {
     if (!hasNext.value) return null
 
@@ -445,11 +458,11 @@
       if (useWebAudio.value) {
         const success = await webAudioPlayer.seek(seekTime)
         if (success)
-          playerStore.setCurrentTime(seekTime)
+          playerStore.setCurrentTime(seekTime, true)
       } else {
         if (!activePlayer.value) return
         activePlayer.value.currentTime = seekTime
-        playerStore.setCurrentTime(seekTime)
+        playerStore.setCurrentTime(seekTime, true)
       }
     }
   }

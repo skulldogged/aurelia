@@ -75,15 +75,12 @@ export const useListenBrainz = (): {
     }
     const timestamp = BigInt(trackStartTimestamp)
 
-    try {
-      logger.info('Submitting listen:', { artist, track })
-      const result = await commands.listenbrainzSubmitListen(listen, timestamp)
-      if (result.status === 'error') {
-        throw new Error(result.error)
-      }
-    } catch (error) {
-      logger.error('Failed to submit listen:', error)
+    const result = await commands.listenbrainzSubmitListen(listen, timestamp)
+    if (result.status === 'error') {
+      logger.error('Failed to submit listen:', result.error)
       hasScrobbled = false
+    } else {
+      logger.debug('Successfully submitted listen')
     }
   }
 
@@ -95,13 +92,9 @@ export const useListenBrainz = (): {
     const track = song.name
     const album = song.album ?? null
 
-    try {
-      const result = await commands.listenbrainzPlayingNow(artist, track, album)
-      if (result.status === 'error')
-        logger.warn('Failed to update playing now:', result.error)
-    } catch (error) {
-      logger.warn('Failed to update playing now:', error)
-    }
+    const result = await commands.listenbrainzPlayingNow(artist, track, album)
+    if (result.status === 'error')
+      logger.warn('Failed to update playing now:', result.error)
   }
 
   watch(

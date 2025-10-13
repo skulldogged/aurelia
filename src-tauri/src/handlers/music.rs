@@ -241,6 +241,22 @@ pub async fn get_recently_played(server_url: String, token: String) -> Result<Ve
         .map_err(|e| e.to_string())
 }
 
+/// Get instant mix (similar songs) for a given item
+#[tauri::command]
+#[specta::specta]
+pub async fn get_instant_mix(item_id: String) -> Result<Vec<Song>, String> {
+    let (server_url, token) = match crate::handlers::auth::get_saved_credentials() {
+        Ok(Some(creds)) => (creds.server_url, creds.token),
+        _ => return Err("No saved credentials found".to_string()),
+    };
+
+    let client = JellyfinClient::with_auth(server_url, token);
+    client
+        .get_instant_mix(&item_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Get artists with optional filtering and song inclusion
 #[tauri::command]
 #[specta::specta]
@@ -484,6 +500,11 @@ pub async fn toggle_favorite_status(
         .toggle_favorite(&user_id, &item_id, is_favorite)
         .await
         .map_err(|e| e.to_string())?;
+
+    // Update the cached song's favorite status
+    cache::update_song_favorite_status(&item_id, is_favorite)
+        .await
+        .map_err(|e| format!("Failed to update cache: {}", e))?;
 
     Ok(is_favorite)
 }

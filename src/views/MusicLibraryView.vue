@@ -20,15 +20,14 @@
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
 
-  const props = defineProps<{
+  defineProps<{
     credentials: Credentials
-    currentSong: null | Song
-    isPlaying:   boolean
   }>()
 
   const emit = defineEmits<{
-    'play-song':       [song: Song]
-    'toggle-favorite': [song: Song]
+    'play-instant-mix': [song: Song]
+    'play-song':        [song: Song]
+    'toggle-favorite':  [song: Song]
   }>()
 
   const authStore = useAuthStore()
@@ -143,10 +142,9 @@
 
         <div class='w-full'>
           <SongList
+            @play-instant-mix='$emit("play-instant-mix", $event)'
             @play-song='playSong'
             @toggle-favorite='handleToggleFavorite'
-            :current-song='props.currentSong'
-            :is-playing='props.isPlaying'
             :layout='viewLayout'
             :loading='libraryLoading'
             :server-url='serverUrl'

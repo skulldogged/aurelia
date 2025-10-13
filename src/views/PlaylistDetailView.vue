@@ -26,13 +26,12 @@
   import { Input } from '@/components/ui/input'
   import { Skeleton } from '@/components/ui/skeleton'
   import { useSongInteractions } from '@/composables/useSongInteractions'
-  import { useAuthStore, usePlayerStore, usePlaylistStore } from '@/stores'
+  import { useAuthStore, usePlaylistStore } from '@/stores'
 
   const route = useRoute()
   const router = useRouter()
   const playlistStore = usePlaylistStore()
   const authStore = useAuthStore()
-  const playerStore = usePlayerStore()
 
   const credentials = computed(() => ({
     serverUrl: authStore.serverUrl,
@@ -41,7 +40,7 @@
     username:  authStore.username,
   }))
 
-  const { playSongs, toggleFavorite: toggleSongFavorite } = useSongInteractions(credentials)
+  const { playInstantMix, playSongs, toggleFavorite: toggleSongFavorite } = useSongInteractions(credentials)
 
   const playlistId = computed(() => route.params.playlistId as string)
   const playlist = ref<null | Playlist>(null)
@@ -298,10 +297,9 @@
 
       <!-- Songs List -->
       <SongList
+        @play-instant-mix='playInstantMix'
         @play-song='playSongWithQueue'
         @toggle-favorite='toggleSongFavorite'
-        :current-song='playerStore.currentSong'
-        :is-playing='playerStore.isPlaying'
         :server-url='authStore.serverUrl'
         :show-add-button='false'
         :show-album='true'

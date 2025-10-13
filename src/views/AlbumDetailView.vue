@@ -19,14 +19,10 @@
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
 
-  defineProps<{
-    currentSong: null | Song
-    isPlaying:   boolean
-  }>()
-
   const emit = defineEmits<{
-    'play-songs':      [songs: Song[]]
-    'toggle-favorite': [song: Song]
+    'play-instant-mix': [song: Song]
+    'play-songs':       [songs: Song[]]
+    'toggle-favorite':  [song: Song]
   }>()
 
   const authStore = useAuthStore()
@@ -268,10 +264,9 @@
           Songs
         </h2>
         <SongList
+          @play-instant-mix='$emit("play-instant-mix", $event)'
           @play-song='playSongWithQueue'
           @toggle-favorite='(song) => $emit("toggle-favorite", song)'
-          :current-song='$props.currentSong'
-          :is-playing='$props.isPlaying'
           :loading='libraryLoading || !libraryLoaded || !album'
           :server-url='serverUrl'
           :show-album-art='false'
@@ -280,7 +275,6 @@
           :show-track-number='true'
           :songs='albumSongs'
           :token='token'
-          layout='comfy'
         />
       </div>
     </div>

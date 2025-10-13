@@ -17,6 +17,7 @@
     isInSidebar?: boolean
     song:         null | Song
     visible:      boolean
+    size?:        'normal' | 'large'
   }>()
 
   const emit = defineEmits<{
@@ -221,7 +222,7 @@
           @click='handleLineClick(line.time)'
           :key='line.time + line.text'
           :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
-          :class="['lyric-line', { 'active': index === currentLineIndex, 'sidebar': isInSidebar }]"
+          :class="['lyric-line', { 'active': index === currentLineIndex, 'sidebar': isInSidebar, 'large': size === 'large' }]"
         >
           {{ line.text }}
         </p>
@@ -235,7 +236,7 @@
         <p
           v-for='(line, index) in plainLyrics'
           :key='`${index}-${line}`'
-          :class="['lyric-line lyric-line--static', { 'sidebar': isInSidebar }]"
+          :class="['lyric-line lyric-line--static', { 'sidebar': isInSidebar, 'large': size === 'large' }]"
         >
           {{ line }}
         </p>
@@ -296,6 +297,10 @@
 .lyric-line.sidebar {
   font-size: 1.5rem;
   padding: 6px 0;
+}
+
+.lyric-line.large:not(.sidebar) {
+  font-size: 2.5rem;
 }
 
 .lyric-line.sidebar.active {

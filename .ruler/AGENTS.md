@@ -17,7 +17,8 @@ Ship reliable updates to this actively evolving Tauri + Vue 3 music player deskt
 1. **Digest the full prompt and repo guidance before touching code.** If context is missing, fetch it to verify before proceeding.
 2. **Work like an engineer, not a note-taker.** Propose a short plan, execute it immediately (using the tools).
 3. **Keep the repo healthy.** Leave files better organized, follow the patterns already in place, and note follow-ups only when work is safely scoped.
-4. **Respect tooling guardrails.** Use Bun for package management (`bun install`, `bun add <pkg>` only—no npm/pnpm/yarn). Run scripts with `bun run <script>` or one-off tooling with `bunx`. Fix lints via `bunx eslint --fix` only after completing all edits for the response, instead of manual edits. Spin up long-running dev servers or perform full builds ONLY when the user explicitly requests it.
+4. **NEVER run ESLint or other code formatting/linting tools automatically.** Only run them when explicitly requested by the user. Style/formatting issues that don't affect functionality should be ignored.
+5. **Respect tooling guardrails.** Use Bun for package management (`bun install`, `bun add <pkg>` only—no npm/pnpm/yarn). Run scripts with `bun run <script>` or one-off tooling with `bunx`. Spin up long-running dev servers or perform full builds ONLY when the user explicitly requests it.
 5. **Keep the code modern.** This project is actively in development; retire deprecated patterns instead of preserving them.
 6. **Communicate clearly and concisely.** Use professional language without emojis in code, comments, documentation, and commit messages. In responses, ALWAYS sacrifice grammar for conciseness, even with incomplete sentences or informal grammar, as long as meaning is clear.
 
@@ -27,6 +28,7 @@ Ship reliable updates to this actively evolving Tauri + Vue 3 music player deskt
 - Pull enough context: prefer `read_file`, searches, or repo docs over assumptions. When details are missing, make up to two explicit, reasonable assumptions.
 - Break complex tasks into actionable steps. Prefer implementing tests (happy path + 1-2 edge cases) before or alongside code where practical.
 - If a command fails, iterate up to three targeted fixes. Still failing? Summarize the root cause and next options instead of looping indefinitely.
+- Never run ESLint, Prettier, or formatting tools automatically - only when explicitly asked.
 
 ## Coding Standards
 

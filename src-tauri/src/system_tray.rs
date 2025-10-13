@@ -1,5 +1,8 @@
+use tauri::image::Image;
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Listener, Manager};
+use tauri::{AppHandle, Listener, Manager, include_image};
+
+const TRAY_ICON: Image<'_> = include_image!("icons/icon.png");
 
 #[tauri::command]
 #[specta::specta]
@@ -37,6 +40,7 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
         .build()?;
 
     let _tray = TrayIconBuilder::new()
+        .icon(TRAY_ICON)
         .menu(&menu)
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "toggle_visibility" => {

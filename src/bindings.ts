@@ -213,6 +213,17 @@ export const commands = {
     }
   },
   /**
+ * Get instant mix (similar songs) for a given item
+ */
+  getInstantMix: async (itemId: string): Promise<Result<Song[], string>> => {
+    try {
+      return { data: await TAURI_INVOKE('get_instant_mix', { itemId }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
  * Get lyrics for a track
  */
   getLyrics: async (id: string, artist: string, title: string, path: null | string): Promise<Result<string, string>> => {

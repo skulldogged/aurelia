@@ -1,4 +1,5 @@
-import { commands } from '@/bindings'
+import { commands, type Result } from '@/bindings'
+import { err, ok } from '@/lib/result'
 
 interface CacheMetadata {
   size:      number
@@ -165,39 +166,34 @@ const getImageUrl = async (
     return loadingPromises.get(cacheKey)!
 
   const loadingPromise = (async () => {
-    try {
-      const cachedResult = await commands.getCachedImageDataUrl(itemId, imageType)
-      if (cachedResult.status === 'error') {
-        throw new Error(cachedResult.error)
-      }
-      const cachedDataUrl = cachedResult.data
-
-      if (cachedDataUrl) {
-        dataUrlCache.set(cacheKey, cachedDataUrl)
-        updateCacheMetadata(cacheKey, cachedDataUrl.length)
-        evictOldCacheEntries()
-        return cachedDataUrl
-      }
-
-      const imageUrl = `${serverUrl.replace(/\/$/, '')}/Items/${itemId}/Images/${imageType}`
-      const cacheResult = await commands.cacheImageFromUrl(itemId, imageType, imageUrl, serverUrl, token)
-      if (cacheResult.status === 'error') {
-        throw new Error(cacheResult.error)
-      }
-      const newCachedDataUrl = cacheResult.data
-
-      dataUrlCache.set(cacheKey, newCachedDataUrl)
-      updateCacheMetadata(cacheKey, newCachedDataUrl.length)
-      evictOldCacheEntries()
-      return newCachedDataUrl
-    } catch (error) {
-      console.warn('Failed to load/cached image:', error)
-      cacheFailure(cacheKey, error instanceof Error ? error.message : String(error))
-
+    const cachedResult = await commands.getCachedImageDataUrl(itemId, imageType)
+    if (cachedResult.status === 'error') {
+      console.warn('Failed to get cached image:', cachedResult.error)
+      cacheFailure(cacheKey, cachedResult.error)
       return null
-    } finally {
-      loadingPromises.delete(cacheKey)
     }
+    const cachedDataUrl = cachedResult.data
+
+    if (cachedDataUrl) {
+      dataUrlCache.set(cacheKey, cachedDataUrl)
+      updateCacheMetadata(cacheKey, cachedDataUrl.length)
+      evictOldCacheEntries()
+      return cachedDataUrl
+    }
+
+    const imageUrl = `${serverUrl.replace(/\/$/, '')}/Items/${itemId}/Images/${imageType}`
+    const cacheResult = await commands.cacheImageFromUrl(itemId, imageType, imageUrl, serverUrl, token)
+    if (cacheResult.status === 'error') {
+      console.warn('Failed to cache image from URL:', cacheResult.error)
+      cacheFailure(cacheKey, cacheResult.error)
+      return null
+    }
+    const newCachedDataUrl = cacheResult.data
+
+    dataUrlCache.set(cacheKey, newCachedDataUrl)
+    updateCacheMetadata(cacheKey, newCachedDataUrl.length)
+    evictOldCacheEntries()
+    return newCachedDataUrl
   })()
 
   loadingPromises.set(cacheKey, loadingPromise)
@@ -205,7 +201,7 @@ const getImageUrl = async (
   return loadingPromise
 }
 
-const getImageCacheStats = async (): Promise<{
+const getImageCacheStats = async (): Promise<Result<{
   cache_dir:                  string
   cache_expiry_hours:         number
   failure_cache_expiry_hours: number
@@ -214,77 +210,69 @@ const getImageCacheStats = async (): Promise<{
   memory_cache_size:          number
   persistent_cache_size:      number
   total_size:                 number
-}> => {
+}, string>> => {
+  const statsResult = await commands.getImageCacheStats()
+  if (statsResult.status === 'error')
+    return err(statsResult.error)
+
+  const stats = statsResult.data
+
+  let backendStats
   try {
-    const statsResult = await commands.getImageCacheStats()
-    if (statsResult.status === 'error') {
-      throw new Error(statsResult.error)
-    }
-    const stats = statsResult.data
-    const backendStats = JSON.parse(stats)
-
-    const now = Date.now()
-    const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000
-    const failureExpiryTime = FAILURE_CACHE_EXPIRY_HOURS * 60 * 60 * 1000
-
-    let persistentCacheSize = 0
-    let failureCacheSize = 0
-
-    cacheMetadata.forEach(metadata => {
-      if (now - metadata.timestamp < expiryTime)
-        persistentCacheSize++
-    })
-
-    failureCache.forEach(failure => {
-      if (now - failure.timestamp < failureExpiryTime)
-        failureCacheSize++
-    })
-
-    return {
-      ...backendStats,
-      cache_expiry_hours:         CACHE_EXPIRY_HOURS,
-      failure_cache_expiry_hours: FAILURE_CACHE_EXPIRY_HOURS,
-      failure_cache_size:         failureCacheSize,
-      memory_cache_size:          dataUrlCache.size,
-      persistent_cache_size:      persistentCacheSize,
-    }
+    backendStats = JSON.parse(stats)
   } catch (error) {
-    console.error('Failed to get image cache stats:', error)
-    throw error
+    return err(`Failed to parse cache stats: ${error}`)
   }
+
+  const now = Date.now()
+  const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000
+  const failureExpiryTime = FAILURE_CACHE_EXPIRY_HOURS * 60 * 60 * 1000
+
+  let persistentCacheSize = 0
+  let failureCacheSize = 0
+
+  cacheMetadata.forEach(metadata => {
+    if (now - metadata.timestamp < expiryTime)
+      persistentCacheSize++
+  })
+
+  failureCache.forEach(failure => {
+    if (now - failure.timestamp < failureExpiryTime)
+      failureCacheSize++
+  })
+
+  return ok({
+    ...backendStats,
+    cache_expiry_hours:         CACHE_EXPIRY_HOURS,
+    failure_cache_expiry_hours: FAILURE_CACHE_EXPIRY_HOURS,
+    failure_cache_size:         failureCacheSize,
+    memory_cache_size:          dataUrlCache.size,
+    persistent_cache_size:      persistentCacheSize,
+  })
 }
 
 const preloadRecentImages = async (serverUrl: string, token: string, limit: number = 10): Promise<void> => {
-  try {
-    const recentEntries = Array.from(cacheMetadata.entries())
-      .sort(([, a], [, b]) => b.timestamp - a.timestamp) // Most recent first
-      .slice(0, limit)
+  const recentEntries = Array.from(cacheMetadata.entries())
+    .sort(([, a], [, b]) => b.timestamp - a.timestamp) // Most recent first
+    .slice(0, limit)
 
-    if (recentEntries.length === 0) return
+  if (recentEntries.length === 0) return
 
-    const validEntries = recentEntries.filter(([cacheKey]) => !failureCache.has(cacheKey))
+  const validEntries = recentEntries.filter(([cacheKey]) => !failureCache.has(cacheKey))
 
-    if (validEntries.length === 0) return
+  if (validEntries.length === 0) return
 
-    const preloadPromises = validEntries.map(async ([cacheKey]) => {
-      const [itemId, imageType] = cacheKey.split('_')
+  const preloadPromises = validEntries.map(async ([cacheKey]) => {
+    const [itemId, imageType] = cacheKey.split('_')
+    await getImageUrl(itemId, serverUrl, token, imageType)
+  })
 
-      try {
-        await getImageUrl(itemId, serverUrl, token, imageType)
-      } catch (error) {
-        console.warn(`Failed to preload image ${cacheKey}:`, error)
-      }
-    })
-
-    await Promise.allSettled(preloadPromises)
-  } catch (error) {
-    console.warn('Failed to preload recent images:', error)
-  }
+  await Promise.allSettled(preloadPromises)
 }
 
 export interface ImageLoader {
   clearImageFromCache: (itemId: string, imageType?: string) => void
-  getImageCacheStats:  () => Promise<{
+  getImageCacheStats:  () => Promise<Result<{
     cache_dir:                  string
     cache_expiry_hours:         number
     failure_cache_expiry_hours: number
@@ -293,7 +281,7 @@ export interface ImageLoader {
     memory_cache_size:          number
     persistent_cache_size:      number
     total_size:                 number
-  }>
+  }, string>>
   getImageUrl:         (itemId: string, serverUrl: string, token: string, imageType?: string) => Promise<null | string>
   preloadRecentImages: (serverUrl: string, token: string, limit?: number) => Promise<void>
 }

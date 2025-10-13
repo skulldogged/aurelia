@@ -26,6 +26,7 @@ dist-ssr
 .cache
 .direnv/
 .env
+.gemini
 
 # START Ruler Generated Files
 /.cursor/rules/ruler_cursor_instructions.mdc

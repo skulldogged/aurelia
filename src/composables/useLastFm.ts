@@ -97,9 +97,12 @@ export const useLastFm = (): {
       lastfmLogger.info('Scrobbling track:', { artist, timestamp, track })
       const result = await commands.lastfmScrobble(scrobble)
       if (result.status === 'error') {
-        throw new Error(result.error)
+        lastfmLogger.error('Failed to scrobble track:', result.error)
+        // Reset flag on error so we can retry
+        hasScrobbled = false
+      } else {
+        lastfmLogger.debug('Successfully scrobbled track')
       }
-      lastfmLogger.debug('Successfully scrobbled track')
     } catch (error) {
       lastfmLogger.error('Failed to scrobble track:', error)
       // Reset flag on error so we can retry
@@ -115,16 +118,11 @@ export const useLastFm = (): {
     const track = song.name
     const album = song.album ?? undefined
 
-    try {
-      lastfmLogger.debug('Updating now playing:', { artist, track })
-      const result = await commands.lastfmUpdateNowPlaying(artist, track, album ?? null)
-      if (result.status === 'error') {
-        lastfmLogger.warn('Failed to update now playing:', result.error)
-      } else {
-        lastfmLogger.debug('Successfully updated now playing')
-      }
-    } catch (error) {
-      lastfmLogger.warn('Failed to update now playing:', error)
+    const result = await commands.lastfmUpdateNowPlaying(artist, track, album ?? null)
+    if (result.status === 'error') {
+      lastfmLogger.warn('Failed to update now playing:', result.error)
+    } else {
+      lastfmLogger.debug('Successfully updated now playing')
     }
   }
 

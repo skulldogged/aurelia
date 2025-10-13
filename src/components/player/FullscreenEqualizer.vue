@@ -28,15 +28,6 @@
   // EQ presets (from WebAudio)
   const eqPresets = computed(() => webAudioPlayer.getEQPresets())
 
-  // Selected preset state
-  const selectedPreset = computed({
-    get: () => getCurrentPreset(),
-    set: (value: string) => {
-      if (value !== 'Custom')
-        applyEQPreset(value)
-    },
-  })
-
   const setEQEnabled = (enabled: boolean): void => {
     webAudioPlayer.setEQEnabled(enabled)
     playerStore.setEQEnabled(enabled)
@@ -89,22 +80,16 @@
 </script>
 
 <template>
-  <div
-    class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] bg-background-dark flex flex-col h-full'
-  >
-    <!-- Header -->
-    <div
-      class='h-12 flex items-center justify-between pl-4 pr-[142px] flex-shrink-0'
-      data-tauri-drag-region
-    >
-      <div class='flex items-center gap-3'>
-        <h2 class='text-base font-semibold tracking-tight leading-tight text-muted-foreground'>
-          Equalizer
-        </h2>
-      </div>
+  <div class='flex flex-col h-full w-full'>
+    <!-- Fullscreen header with better toggle styling -->
+    <div class='flex items-center justify-between p-4 pb-2'>
+      <h2 class='text-lg font-semibold text-foreground'>
+        Equalizer
+      </h2>
       <Button
         @click='setEQEnabled(!eqEnabled)'
         :variant='eqEnabled ? "default" : "outline"'
+        class='min-w-[60px]'
         size='sm'
       >
         {{ eqEnabled ? 'On' : 'Off' }}
@@ -114,14 +99,14 @@
     <!-- Controls (only show when EQ is enabled) -->
     <div v-if='eqEnabled' class='flex-1 min-h-0'>
       <OverlayScrollbarsComponent :options='{ scrollbars: { autoHide: "scroll" } }' class='h-full' defer>
-        <div class='px-4 pb-4 pt-6 space-y-6'>
+        <div class='p-4 space-y-6'>
           <!-- Presets Section -->
           <div class='space-y-3'>
             <h3 class='text-sm font-medium text-foreground'>
               Quick Presets
             </h3>
             <div class='flex items-center gap-2'>
-              <Select @update:model-value='handlePresetChange' :model-value='selectedPreset' class='flex-1'>
+              <Select @update:model-value='handlePresetChange' :model-value='getCurrentPreset()' class='flex-1'>
                 <SelectTrigger class='w-full bg-background/50 border-border/50 focus:border-accent transition-colors'>
                   <SelectValue placeholder='Select a preset' />
                 </SelectTrigger>
@@ -132,16 +117,10 @@
                       v-for='preset in eqPresets'
                       :key='preset.name'
                       :value='preset.name'
-                      class='cursor-pointer'
                     >
                       {{ preset.name }}
                     </SelectItem>
-                    <SelectItem
-                      v-if='selectedPreset === "Custom"'
-                      class='opacity-60 cursor-not-allowed'
-                      value='Custom'
-                      disabled
-                    >
+                    <SelectItem value='Custom'>
                       Custom
                     </SelectItem>
                   </SelectGroup>
@@ -149,26 +128,23 @@
               </Select>
               <Button
                 @click='resetEQ'
-                class='flex-shrink-0'
                 size='sm'
-                variant='ghost'
+                variant='outline'
               >
                 <RotateCcw class='size-4' />
               </Button>
             </div>
           </div>
 
-          <!-- Frequency Bands -->
+          <!-- EQ Bands Section -->
           <div class='space-y-4'>
             <h3 class='text-sm font-medium text-foreground'>
               Frequency Bands
             </h3>
-
-            <!-- EQ Bands Grid -->
             <div class='grid grid-cols-5 gap-2'>
               <div
                 v-for='(band, index) in eqBands'
-                :key='band.frequency'
+                :key='index'
                 class='flex flex-col items-center space-y-2 min-w-0'
               >
                 <!-- Slider Container -->
@@ -216,7 +192,7 @@
       </OverlayScrollbarsComponent>
     </div>
 
-    <!-- Placeholder when EQ is disabled -->
+    <!-- Disabled state -->
     <div v-else class='flex-1 min-h-0 flex items-center justify-center p-8'>
       <div class='text-center'>
         <Sliders class='size-12 text-muted-foreground/50 mx-auto mb-4' />

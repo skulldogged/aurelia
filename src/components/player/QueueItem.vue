@@ -16,6 +16,7 @@
 
   defineProps<{
     class?:     string,
+    index:      number,
     isCurrent:  boolean,
     isDragging: boolean,
     serverUrl?: string,
@@ -24,7 +25,7 @@
   }>()
 
   const emit = defineEmits<{
-    play:   [song: Song]
+    play:   [song: Song, index: number]
     remove: [song: Song]
   }>()
 
@@ -61,7 +62,7 @@
           alt='Album Art'
           class='size-10 rounded-md mx-2'
         />
-        <div @click="emit('play', song)" class='flex-grow cursor-pointer min-w-0'>
+        <div @click="emit('play', song, index)" class='flex-grow cursor-pointer min-w-0'>
           <p :class="['font-semibold text-sm truncate', isCurrent ? 'text-accent-foreground' : '']" :title='song.name'>
             {{ song.name }}
           </p>
@@ -70,15 +71,15 @@
             :title='song.artists?.join(", ") || "Unknown Artist"'
           >
             <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
-              <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
+              <template v-for='(artist, artistIndex) in song.artists' :key='song.artistIds[artistIndex]'>
                 <router-link
                   @click.stop
-                  :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
+                  :to="{ name: 'artist-detail', params: { artistId: song.artistIds[artistIndex] } }"
                   class='hover:underline'
                 >
                   {{ artist }}
                 </router-link>
-                <span v-if='index < song.artists.length - 1'>, </span>
+                <span v-if='artistIndex < song.artists.length - 1'>, </span>
               </template>
             </template>
             <template v-else>

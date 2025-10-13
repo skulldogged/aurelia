@@ -7,8 +7,7 @@
 
   import { Album, Song } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
-  import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
+  import AlbumStack from '@/components/shared/AlbumStack.vue'
   import Button from '@/components/ui/Button.vue'
   import {
     ContextMenu,
@@ -217,40 +216,34 @@
               @click='selectAlbum(album)'
               class='cursor-pointer group'
             >
-              <div :class='viewLayout === "compact" ? "relative mb-2" : "relative mb-4"'>
-                <ImageLoader
-                  :alt='`${album.name} album art`'
-                  :item-id='album.id || album.name'
+              <div
+                :class='viewLayout === "compact"
+                  ? "relative mb-2"
+                  : "relative mb-4"'
+              >
+                <AlbumStack
+                  @play='playAlbum'
+                  :album='album'
                   :server-url='serverUrl'
+                  :show-play-button='false'
+                  :size='"responsive"'
                   :token='token'
-                  class='
-                    w-full aspect-square rounded-lg object-cover shadow-lg
-                    group-hover:opacity-75 transition-opacity
-                  '
-                >
-                  <template #fallback>
-                    <ImagePlaceholder
-                      class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-                      size='large'
-                      type='album'
-                    />
-                  </template>
-                </ImageLoader>
+                />
 
                 <div
                   class='
-                    absolute inset-0 bg-black/50 rounded-lg opacity-0
+                    absolute inset-0 bg-black/25 rounded-lg opacity-0
                     group-hover:opacity-100 transition-opacity flex items-center
-                    justify-center
+                    justify-center z-10
                   '
                 >
                   <Button
                     @click.stop='playAlbum(album)'
-                    :size='viewLayout === "compact" ? "sm" : "icon"'
                     class='
                       bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
                       border-white/20
                     '
+                    size='icon'
                   >
                     <Play :class='viewLayout === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"' />
                   </Button>
@@ -368,3 +361,9 @@
     </div>
   </div>
 </template>
+
+<style scoped>
+@reference "tailwindcss";
+
+/* Album stack effect */
+</style>

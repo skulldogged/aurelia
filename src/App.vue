@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { useColorMode } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
-  import { onMounted, watch } from 'vue'
+  import { computed, onMounted, watch } from 'vue'
   import { ref } from 'vue'
 
   import type { Credentials, Song } from '@/bindings'
@@ -21,7 +21,6 @@
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
-  import { appLogger } from '@/lib/logger'
   import { useBlurStore, useLibraryStore } from '@/stores'
 
   import MainLayout from './components/layout/MainLayout.vue'
@@ -82,6 +81,7 @@
   const {
     handleSongChanged,
     handleUpdateCurrentSong,
+    playInstantMix,
     playSong,
     playSongs,
     removeSongFromPlaylist,
@@ -93,8 +93,6 @@
     currentSong,
     currentTime,
     duration,
-    hasNext,
-    hasPrevious,
     isPlaying,
     isShuffled,
     playlist,
@@ -104,6 +102,14 @@
     visualizerStyle,
   } = storeToRefs(playerStore)
 
+  // Compute navigation state locally like MusicPlayer does
+  const hasNext = computed(() =>
+    playlist.value.length > 1
+    && playerStore.currentIndex > -1
+    && playerStore.currentIndex < playlist.value.length - 1,
+  )
+  const hasPrevious = computed(() => playlist.value.length > 1 && playerStore.currentIndex > 0)
+
   const isSyncing = ref(false)
   const isClearing = ref(false)
 
@@ -112,44 +118,18 @@
   onMounted(async () => {
     playerStore.setVolume(playerStore.volume)
 
-    // Apply saved blur mode when app loads
-    try {
-      // Small delay to ensure Tauri window is fully initialized
-      await new Promise(resolve => setTimeout(resolve, 100))
-      await commands.setBlurMode(blurStore.selectedBlurMode.name)
-    } catch (error) {
-      console.error('Failed to apply initial blur mode:', error)
-    }
+    await new Promise(resolve => setTimeout(resolve, 100))
+    await commands.setBlurMode(blurStore.selectedBlurMode.name)
   })
 
-  // Load library data when user becomes logged in
   watch(authStatus, async newStatus => {
     if (newStatus === 'loggedIn' && credentials.value) {
-      try {
-        await libraryStore.loadLibrary(credentials.value)
+      await libraryStore.loadLibrary(credentials.value)
 
-        // Sync library on startup to ensure fresh data
-        try {
-          await libraryStore.syncLibrary(credentials.value)
-          appLogger.info('Library synced successfully on startup')
-        } catch (err) {
-          appLogger.warn('Failed to sync library on startup:', err)
-        }
-
-        // Preload recent images for better performance
-        try {
-          await preloadRecentImages(credentials.value.serverUrl, credentials.value.token, 20)
-          appLogger.info('Preloaded recent images for better performance')
-        } catch (err) {
-          appLogger.warn('Failed to preload images:', err)
-        }
-      } catch (err) {
-        appLogger.error('Failed to load library on auth:', err)
-      }
+      await preloadRecentImages(credentials.value.serverUrl, credentials.value.token, 20)
     }
   })
 
-  // Clear library data on logout
   watch(authStatus, newStatus => {
     if (newStatus === 'loggedOut')
       libraryStore.clearData()
@@ -166,36 +146,26 @@
     playerStore.setCurrentIndex(-1)
   }
 
-  const handleToggleFavorite = (song: Song): void => {
-    toggleFavorite(song)
+  const handleToggleFavorite = async (song: Song): Promise<void> => {
+    await toggleFavorite(song)
   }
 
   const handleVolumeChange = (newVolume: number): void => {
-    playerStore.setVolume(newVolume)
+    playerStore.setVolume(newVolume / 100)
   }
 
   const handleSyncLibrary = async (): Promise<void> => {
     if (!credentials.value) return
     isSyncing.value = true
-    try {
-      await libraryStore.syncLibrary(credentials.value)
-    } catch (err) {
-      appLogger.error('Failed to sync library:', err)
-    } finally {
-      isSyncing.value = false
-    }
+    await libraryStore.syncLibrary(credentials.value)
+    isSyncing.value = false
   }
 
   const handleClearCache = async (): Promise<void> => {
     if (!credentials.value) return
     isClearing.value = true
-    try {
-      await libraryStore.clearCache(credentials.value)
-    } catch (err) {
-      appLogger.error('Failed to clear cache:', err)
-    } finally {
-      isClearing.value = false
-    }
+    await libraryStore.clearCache(credentials.value)
+    isClearing.value = false
   }
 
   const handleLyricsLoaded = (hasLyrics: boolean): void => {
@@ -252,6 +222,7 @@
             :is='Component'
             @clear-cache='handleClearCache'
             @logout='handleLogout'
+            @play-instant-mix='playInstantMix'
             @play-song='playSong'
             @play-songs='playSongs'
             @reload-library='() => credentials && libraryStore.loadLibrary(credentials)'
@@ -263,7 +234,6 @@
             :credentials='credentials'
             :current-song='currentSong'
             :is-clearing='isClearing'
-            :is-playing='!!currentSong'
             :is-syncing='isSyncing'
           />
         </transition>
@@ -287,12 +257,8 @@
 
       <template #queue>
         <Queue
-          @play-song='playSong'
           @remove-song='removeSongFromPlaylist'
-          @update:playlist='updatePlaylist'
           v-if='isQueueOpen'
-          :current-song='currentSong as any'
-          :playlist='playlist as any'
         />
         <Equalizer v-if='isEqualizerOpen' />
         <LyricsSidebar
@@ -333,16 +299,26 @@
       @previous-song='handlePreviousSong'
       @remove-song='removeSongFromPlaylist'
       @seek='handleSeek'
+      @toggle-equalizer='toggleEqualizer'
+      @toggle-favorite='handleToggleFavorite'
+      @toggle-lyrics='toggleLyrics'
+      @toggle-mute='playerStore.toggleMute'
       @toggle-play-pause='handleTogglePlayPause'
+      @toggle-queue='toggleQueue'
       @toggle-repeat='handleToggleRepeat'
       @toggle-shuffle='handleToggleShuffle'
       @update:playlist='updatePlaylist'
+      @volume-change='handleVolumeChange'
       :analyser-node='webAudioPlayer.getAnalyserNode()'
       :current-time='currentTime'
       :duration='duration'
       :has-next='hasNext'
       :has-previous='hasPrevious'
+      :is-equalizer-open='isEqualizerOpen'
+      :is-lyrics-open='isLyricsOpen'
+      :is-muted='playerStore.isMuted'
       :is-playing='isPlaying'
+      :is-queue-open='isQueueOpen'
       :is-shuffled='isShuffled'
       :playlist='playlist'
       :progress='progress'
@@ -353,6 +329,7 @@
       :token='credentials?.token'
       :visualizer-enabled='visualizerEnabled'
       :visualizer-style='visualizerStyle'
+      :volume='playerStore.volume * 100'
     />
 
     <WindowControls v-if='!isFullScreenPlayerOpen' class='fixed top-0 right-0 z-[100]' />

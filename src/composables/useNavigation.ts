@@ -14,9 +14,21 @@ const ROUTE_MAP: Record<string, string> = {
   'library': '/songs',
 }
 
+// Pure functions for navigation logic
+const getRoutePath = (view: string): string | undefined => ROUTE_MAP[view]
+
+const createArtistPath = (artist: Artist): string => `/songs/artist/${artist.id}`
+
+const createAlbumPath = (album: Album): string => `/songs/album/${encodeURIComponent(album.name)}`
+
 const updateNavState = (): void => {
   canGoBack.value = window.history.state.position > 0
   canGoForward.value = window.history.state.position < window.history.length - 1
+}
+
+// Navigation functions
+const navigateToPath = (router: ReturnType<typeof useRouter>, path: string): void => {
+  router.push(path)
 }
 
 const navigateBack = (router: ReturnType<typeof useRouter>): void => {
@@ -27,18 +39,20 @@ const navigateForward = (router: ReturnType<typeof useRouter>): void => {
   router.forward()
 }
 
-const handleNavigation = (router: ReturnType<typeof useRouter>, view: string): void => {
-  const routePath = ROUTE_MAP[view]
-  if (routePath)
-    router.push(routePath)
+// Composed navigation functions
+const handleNavigation = (router: ReturnType<typeof useRouter>) => (view: string): void => {
+  const path = getRoutePath(view)
+  if (path) navigateToPath(router, path)
 }
 
-const navigateToArtist = (router: ReturnType<typeof useRouter>, artist: Artist): void => {
-  router.push(`/songs/artist/${artist.id}`)
+const navigateToArtist = (router: ReturnType<typeof useRouter>) => (artist: Artist): void => {
+  const path = createArtistPath(artist)
+  navigateToPath(router, path)
 }
 
-const navigateToAlbum = (router: ReturnType<typeof useRouter>, album: Album): void => {
-  router.push(`/songs/album/${encodeURIComponent(album.name)}`)
+const navigateToAlbum = (router: ReturnType<typeof useRouter>) => (album: Album): void => {
+  const path = createAlbumPath(album)
+  navigateToPath(router, path)
 }
 
 export interface Navigation {
@@ -74,10 +88,10 @@ export const useNavigation = (): Navigation => {
     canGoBack:        readonly(canGoBack),
     canGoForward:     readonly(canGoForward),
     currentView:      readonly(currentView),
-    handleNavigation: view => handleNavigation(router, view),
+    handleNavigation: handleNavigation(router),
     navigateBack:     () => navigateBack(router),
     navigateForward:  () => navigateForward(router),
-    navigateToAlbum:  album => navigateToAlbum(router, album),
-    navigateToArtist: artist => navigateToArtist(router, artist),
+    navigateToAlbum:  navigateToAlbum(router),
+    navigateToArtist: navigateToArtist(router),
   }
 }

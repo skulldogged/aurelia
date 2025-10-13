@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Heart, Pause, Play, Share2 } from 'lucide-vue-next'
+  import { Heart, Pause, Play, Share2, Shuffle } from 'lucide-vue-next'
   import { computed, ref, watch } from 'vue'
 
   import { Song } from '@/bindings'
@@ -21,15 +21,16 @@
   import { Skeleton } from '@/components/ui/skeleton'
   import { usePageSizePreference } from '@/composables/useLayoutPreference'
   import { formatDuration } from '@/lib/utils'
+  import { usePlayerStore } from '@/stores'
 
   import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
   import ImageLoader from './ImageLoader.vue'
   import ImagePlaceholder from './ImagePlaceholder.vue'
   import ShareDialog from './ShareDialog.vue'
 
+  const playerStore = usePlayerStore()
+
   const props = withDefaults(defineProps<{
-    currentSong:       null | Song
-    isPlaying:         boolean
     layout?:           'comfy' | 'compact'
     loading?:          boolean
     serverUrl:         string
@@ -53,10 +54,11 @@
   const layoutMode = computed(() => props.layout || 'comfy')
 
   const emit = defineEmits<{
-    'add-song':        [song: Song]
-    'play-song':       [song: Song]
-    'remove-song':     [song: Song]
-    'toggle-favorite': [song: Song]
+    'add-song':         [song: Song]
+    'play-instant-mix': [song: Song]
+    'play-song':        [song: Song]
+    'remove-song':      [song: Song]
+    'toggle-favorite':  [song: Song]
   }>()
 
   const pageIndex = ref(0)
@@ -207,7 +209,7 @@
                   <div
                     :class="[
                       'absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center transition-opacity',
-                      currentSong?.id === song.id && isPlaying
+                      playerStore.currentSong?.id === song.id && playerStore.isPlaying
                         ? 'opacity-100'
                         : 'opacity-0 group-hover:opacity-100'
                     ]"
@@ -222,7 +224,7 @@
                       size='icon'
                     >
                       <Pause
-                        v-if='currentSong?.id === song.id && isPlaying'
+                        v-if='playerStore.currentSong?.id === song.id && playerStore.isPlaying'
                         :class="layoutMode === 'compact' ? 'h-2.5 w-2.5' : 'h-3 w-3'"
                       />
                       <Play
@@ -334,6 +336,10 @@
             <ContextMenuItem @click="$emit('play-song', song)">
               <Play class='size-4 mr-2' />
               Play
+            </ContextMenuItem>
+            <ContextMenuItem @click="$emit('play-instant-mix', song)">
+              <Shuffle class='size-4 mr-2' />
+              Instant Mix
             </ContextMenuItem>
             <AddToPlaylistMenu v-if='shouldShowAddButton' :songs='[song]' type='context' />
             <ContextMenuItem @click='openShareDialog(song)'>

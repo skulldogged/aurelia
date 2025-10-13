@@ -287,29 +287,25 @@ export const usePlaylistStore = defineStore('playlists', () => {
   }
 
   const playPlaylist = async (playlistId: string, shuffle = false): Promise<void> => {
-    try {
-      const songs = await getPlaylistItems(playlistId)
-      if (songs.length > 0) {
-        const playerStore = usePlayerStore()
+    const songs = await getPlaylistItems(playlistId)
+    if (songs.length > 0) {
+      const playerStore = usePlayerStore()
 
-        // Apply shuffle if requested
-        const songsToPlay = [...songs]
-        if (shuffle) {
-          for (let i = songsToPlay.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1))
-            ;[songsToPlay[i], songsToPlay[j]] = [songsToPlay[j], songsToPlay[i]]
-          }
+      // Apply shuffle if requested
+      const songsToPlay = [...songs]
+      if (shuffle) {
+        for (let i = songsToPlay.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1))
+          ;[songsToPlay[i], songsToPlay[j]] = [songsToPlay[j], songsToPlay[i]]
         }
-
-        playerStore.setPlaylist(songsToPlay)
-        playerStore.setCurrentIndex(0)
-        playerStore.play()
-        setCurrentPlaylist(playlistId)
-
-        appLogger.info(`Started playing playlist: ${playlistId}`)
       }
-    } catch (error) {
-      appLogger.error('Failed to play playlist:', error)
+
+      playerStore.setPlaylist(songsToPlay)
+      playerStore.setCurrentIndex(0)
+      playerStore.play()
+      setCurrentPlaylist(playlistId)
+
+      appLogger.info(`Started playing playlist: ${playlistId}`)
     }
   }
 

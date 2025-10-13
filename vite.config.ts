@@ -36,6 +36,14 @@ export default defineConfig(async () => ({
     }),
   ],
 
+  css: {
+    lightningcss: {
+      nonStandard: {
+        pseudoClasses: true,
+      },
+    },
+  },
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

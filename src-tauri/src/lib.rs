@@ -76,6 +76,7 @@ pub fn run() {
         handlers::music::clear_cache,
         handlers::music::get_recently_played,
         handlers::music::register_client_capabilities,
+        handlers::music::get_instant_mix,
         handlers::music::report_playback_start,
         handlers::music::report_playback_progress,
         handlers::music::report_playback_stop,

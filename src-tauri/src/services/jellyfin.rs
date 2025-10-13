@@ -281,6 +281,34 @@ impl JellyfinClient {
         self.parse_music_items(&response_json)
     }
 
+    /// Get instant mix (similar songs) for a given item
+    pub async fn get_instant_mix(&self, item_id: &str) -> AppResult<Vec<Song>> {
+        let instant_mix_url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!(
+                "/Items/{}/InstantMix?Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,MediaSources,Width,Height,Container",
+                item_id
+            ),
+        );
+
+        let response = self
+            .client
+            .get(&instant_mix_url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to fetch instant mix: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let response_json: serde_json::Value = response.json().await?;
+        self.parse_music_items(&response_json)
+    }
+
     /// Parse music items from Jellyfin API response
     fn parse_music_items(&self, response_json: &serde_json::Value) -> AppResult<Vec<Song>> {
         let items = response_json["Items"]
@@ -1592,6 +1620,7 @@ impl JellyfinClient {
                 ("ParentId", playlist_id),
                 ("IncludeItemTypes", "Audio"),
                 ("Recursive", "false"),
+                ("Fields", "Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,MediaSources,Width,Height,Container"),
             ])
             .send()
             .await?;

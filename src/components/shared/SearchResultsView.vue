@@ -1,10 +1,10 @@
 <script setup lang="ts">
-  import Fuse, { FuseResult } from 'fuse.js'
   import { computed, onMounted, onUnmounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Album, Artist, Song } from '@/bindings'
   import { ScrollArea } from '@/components/ui/scroll-area'
+  import { albumMatchesQuery, artistMatchesQuery, songMatchesQuery } from '@/lib/transforms'
 
   import ImageLoader from './ImageLoader.vue'
 
@@ -48,80 +48,31 @@
     document.removeEventListener('click', handleClickOutside)
   })
 
-  const fuseOptions = {
-    includeScore:       true,
-    minMatchCharLength: 2,
-    threshold:          0.2,
-  }
+  const filteredSongs = computed(() =>
+    props.query.length >= 2
+      ? props.songs.filter(song => songMatchesQuery(props.query, song)).slice(0, 5)
+      : [],
+  )
 
-  const combinedData = computed(() => [
-    ...props.songs.map(item => ({ item, type: 'song' as const })),
-    ...props.albums.map(item => ({ item, type: 'album' as const })),
-    ...props.artists.map(item => ({ item, type: 'artist' as const })),
-  ])
+  const filteredAlbums = computed(() =>
+    props.query.length >= 2
+      ? props.albums.filter(album => albumMatchesQuery(props.query, album)).slice(0, 5)
+      : [],
+  )
 
-  const fuse = computed(() => new Fuse(combinedData.value, {
-    ...fuseOptions,
-    keys: [
-      { name: 'item.name', weight: 0.6 },
-      { name: 'item.Name', weight: 0.7 },
-      { name: 'item.artists', weight: 0.3 },
-      { name: 'item.artist', weight: 0.4 },
-      { name: 'item.album', weight: 0.2 },
-    ],
-  }))
+  const filteredArtists = computed(() =>
+    props.query.length >= 2
+      ? props.artists.filter(artist => artistMatchesQuery(props.query, artist))
+      : [],
+  )
 
-  const searchResults = computed(() => {
-    if (!props.query || props.query.length < 2) return []
-    return fuse.value.search(props.query)
-  })
+  const hasResults = computed(() =>
+    filteredSongs.value.length > 0 ||
+    filteredAlbums.value.length > 0 ||
+    filteredArtists.value.length > 0,
+  )
 
-  type SearchResultItem =
-    | { item: Album; type: 'album' }
-    | { item: Artist; type: 'artist' }
-    | { item: Song; type: 'song' }
-
-  const categorizedResults = computed(() => {
-    const results: {
-      albums:  FuseResult<SearchResultItem>[]
-      artists: FuseResult<SearchResultItem>[]
-      songs:   FuseResult<SearchResultItem>[]
-    } = {
-      albums:  [],
-      artists: [],
-      songs:   [],
-    }
-
-    const limits = { albums: 5, artists: Infinity, songs: 5 }
-
-    for (const result of searchResults.value) {
-      const { type } = result.item
-      if (type === 'song' && results.songs.length < limits.songs)
-        results.songs.push(result)
-      else if (type === 'album' && results.albums.length < limits.albums)
-        results.albums.push(result)
-      else if (type === 'artist' && results.artists.length < limits.artists)
-        results.artists.push(result)
-    }
-
-    return results
-  })
-
-  const filteredSongs = computed(() => categorizedResults.value.songs.map(r => r.item.item as Song))
-  const filteredAlbums = computed(() => categorizedResults.value.albums.map(r => r.item.item as Album))
-  const filteredArtists = computed(() => categorizedResults.value.artists.map(r => r.item.item as Artist))
-
-  const resultOrder = computed(() => {
-    const topScores: { [key: string]: number | undefined } = {
-      albums:  categorizedResults.value.albums[0]?.score,
-      artists: categorizedResults.value.artists[0]?.score,
-      songs:   categorizedResults.value.songs[0]?.score,
-    }
-
-    return ['songs', 'albums', 'artists'].sort((a, b) => (topScores[a] ?? 1) - (topScores[b] ?? 1))
-  })
-
-  const hasResults = computed(() => searchResults.value.length > 0)
+  const resultOrder = computed(() => ['songs', 'albums', 'artists'])
 
   const selectSong = (song: Song): void => {
     emit('play-song', song)

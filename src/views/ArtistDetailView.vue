@@ -6,6 +6,7 @@
 
   import { Album, Artist, Song } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
+  import AlbumStack from '@/components/shared/AlbumStack.vue'
   import Carousel from '@/components/shared/Carousel.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
@@ -18,6 +19,7 @@
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { usePlayerStore } from '@/stores'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
 
@@ -29,11 +31,6 @@
 
   const topSongsCount = computed(() => isTabletOrLarger.value ? 10 : 5)
 
-  defineProps<{
-    currentSong: null | Song,
-    isPlaying:   boolean,
-  }>()
-
   const emit = defineEmits<{
     'play-song':     [song: Song],
     'play-songs':    [songs: Song[]],
@@ -43,6 +40,7 @@
 
   const authStore = useAuthStore()
   const libraryStore = useLibraryStore()
+  const playerStore = usePlayerStore()
 
   // Create computed properties from stores
   const allArtists = computed(() => libraryStore.allArtistsWithSongs as Artist[])
@@ -475,7 +473,7 @@
               <div
                 :class="[
                   'absolute inset-0 size-10 flex items-center justify-center transition-opacity',
-                  currentSong?.id === song.id && isPlaying
+                  playerStore.currentSong?.id === song.id && playerStore.isPlaying
                     ? 'opacity-100'
                     : 'opacity-0 group-hover:opacity-100',
                 ]"
@@ -485,7 +483,7 @@
                   size='icon'
                   variant='ghost'
                 >
-                  <Pause v-if='currentSong?.id === song.id && isPlaying' class='size-5' />
+                  <Pause v-if='playerStore.currentSong?.id === song.id && playerStore.isPlaying' class='size-5' />
                   <Play v-else class='size-5' />
                 </Button>
               </div>
@@ -543,37 +541,15 @@
           :key='album.name'
           class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
         >
-          <div class='relative mb-4'>
-            <ImageLoader
-              :alt='`${album.name} album art`'
-              :item-id='album.id || album.name'
+          <div class='relative mb-2'>
+            <AlbumStack
+              @play='playAlbum'
+              :album='album'
+              :disabled='libraryLoading'
               :server-url='serverUrl'
+              :size='"responsive"'
               :token='token'
-              class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
-            >
-              <template #fallback>
-                <ImagePlaceholder
-                  class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-                  size='large'
-                  type='album'
-                />
-              </template>
-            </ImageLoader>
-            <div
-              class='
-                absolute inset-0 bg-black/50 rounded-lg opacity-0
-                group-hover:opacity-100 transition-opacity
-                flex items-center justify-center
-              '
-            >
-              <Button
-                @click.stop='playAlbum(album)'
-                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20'
-                size='icon'
-              >
-                <Play class='h-4 w-4' />
-              </Button>
-            </div>
+            />
           </div>
           <div>
             <h3 class='font-semibold truncate'>
@@ -658,6 +634,8 @@
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
@@ -665,6 +643,10 @@
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+:deep(.album-art-image) {
+  @apply w-full h-auto rounded-lg shadow-lg aspect-square object-cover transition-all;
 }
 
 .carousel-container::before,
@@ -690,5 +672,6 @@
   background-image: linear-gradient(to left, var(--background), transparent);
   opacity: var(--right-fade-opacity, 0);
 }
+
 </style>
 

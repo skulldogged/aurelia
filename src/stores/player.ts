@@ -3,7 +3,9 @@ import { computed, ref } from 'vue'
 
 import type { Song } from '@/bindings'
 
+import { setIn } from '@/lib/immutable'
 import { playerLogger } from '@/lib/logger'
+import { fromNullable, map, unwrapOr } from '@/lib/option'
 
 export interface EQBand {
   frequency: number
@@ -39,30 +41,22 @@ const STORAGE_KEYS = {
 const getStoredValue = <T>(key: string, defaultValue: T): T => {
   try {
     const stored = localStorage.getItem(key)
-    if (stored === null) {
-      playerLogger.debug(`No stored value for ${key}, using default:`, defaultValue)
-      return defaultValue
-    }
-
-    if (typeof defaultValue === 'boolean') {
-      const result = (stored === 'true') as T
-      playerLogger.debug(`Loaded ${key} from localStorage:`, result)
-      return result
-    }
-
-    if (typeof defaultValue === 'number') {
-      const parsed = parseFloat(stored)
-      const result = isNaN(parsed) ? defaultValue : parsed as T
-      playerLogger.debug(`Loaded ${key} from localStorage:`, result)
-      return result
-    }
-
-    if (typeof defaultValue === 'string') {
-      playerLogger.debug(`Loaded ${key} from localStorage:`, stored)
-      return stored as T
-    }
-
-    return defaultValue
+    return unwrapOr(
+      map(fromNullable(stored), value => {
+        if (typeof defaultValue === 'boolean') {
+          return (value === 'true') as T
+        }
+        if (typeof defaultValue === 'number') {
+          const parsed = parseFloat(value)
+          return isNaN(parsed) ? defaultValue : parsed as T
+        }
+        if (typeof defaultValue === 'string') {
+          return value as T
+        }
+        return defaultValue
+      }),
+      defaultValue,
+    )
   } catch (error) {
     playerLogger.warn(`Failed to load ${key} from localStorage:`, error)
     return defaultValue
@@ -101,6 +95,13 @@ const getStoredEQBands = (): EQBand[] => {
   return DEFAULT_EQ_BANDS
 }
 
+const getRandomIndex = (array: unknown[], excludeIndex: number): number => {
+  const availableIndices = array
+    .map((_, i) => i)
+    .filter(i => i !== excludeIndex)
+  return availableIndices[Math.floor(Math.random() * availableIndices.length)] ?? 0
+}
+
 export const usePlayerStore = defineStore('player', () => {
   const isPlaying = ref(false)
   const currentTime = ref(0)
@@ -116,6 +117,7 @@ export const usePlayerStore = defineStore('player', () => {
   const hasPrevious = ref(false)
   const hasNext = ref(false)
   const hasLyrics = ref(false)
+  const isSeeking = ref(false)
 
   // Visualizer settings
   const visualizerEnabled = ref(getStoredValue(STORAGE_KEYS.VISUALIZER_ENABLED, true))
@@ -147,8 +149,15 @@ export const usePlayerStore = defineStore('player', () => {
     isPlaying.value = !isPlaying.value
   }
 
-  const setCurrentTime = (time: number): void => {
+  const setCurrentTime = (time: number, isSeek = false): void => {
     currentTime.value = time
+    if (isSeek) {
+      isSeeking.value = true
+      // Reset the flag after a short delay to allow watchers to detect it
+      setTimeout(() => {
+        isSeeking.value = false
+      }, 0)
+    }
   }
 
   const setDuration = (time: number): void => {
@@ -206,7 +215,7 @@ export const usePlayerStore = defineStore('player', () => {
 
   const setEQBandGain = (bandIndex: number, gain: number): void => {
     if (bandIndex >= 0 && bandIndex < eqBands.value.length) {
-      eqBands.value[bandIndex].gain = gain
+      eqBands.value = setIn(eqBands.value, [bandIndex, 'gain'], gain)
       setEQBands(eqBands.value)
     }
   }
@@ -267,15 +276,9 @@ export const usePlayerStore = defineStore('player', () => {
   const nextSong = (): void => {
     if (playlist.value.length === 0) return
 
-    let nextIndex: number
-    if (isShuffled.value) {
-      const availableIndices = playlist.value
-        .map((_, i) => i)
-        .filter(i => i !== currentIndex.value)
-      nextIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)] ?? 0
-    } else {
-      nextIndex = (currentIndex.value + 1) % playlist.value.length
-    }
+    const nextIndex = isShuffled.value
+      ? getRandomIndex(playlist.value, currentIndex.value)
+      : (currentIndex.value + 1) % playlist.value.length
 
     setCurrentIndex(nextIndex)
   }
@@ -283,15 +286,9 @@ export const usePlayerStore = defineStore('player', () => {
   const previousSong = (): void => {
     if (playlist.value.length === 0) return
 
-    let prevIndex: number
-    if (isShuffled.value) {
-      const availableIndices = playlist.value
-        .map((_, i) => i)
-        .filter(i => i !== currentIndex.value)
-      prevIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)] ?? 0
-    } else {
-      prevIndex = currentIndex.value <= 0 ? playlist.value.length - 1 : currentIndex.value - 1
-    }
+    const prevIndex = isShuffled.value
+      ? getRandomIndex(playlist.value, currentIndex.value)
+      : currentIndex.value <= 0 ? playlist.value.length - 1 : currentIndex.value - 1
 
     setCurrentIndex(prevIndex)
   }
@@ -299,6 +296,7 @@ export const usePlayerStore = defineStore('player', () => {
   const playSongAtIndex = (index: number): void => {
     if (index >= 0 && index < playlist.value.length) {
       setCurrentIndex(index)
+      setCurrentTime(0)
       play()
     }
   }
@@ -351,6 +349,7 @@ export const usePlayerStore = defineStore('player', () => {
     isBuffering,
     isMuted,
     isPlaying,
+    isSeeking,
     isShuffled,
     mutedVolume,
     nextSong,
