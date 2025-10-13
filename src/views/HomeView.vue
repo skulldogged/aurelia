@@ -398,7 +398,7 @@
             >
               <div class='relative mb-2'>
                 <ImageLoader
-                  :item-id='song.id'
+                  :item-id='song.albumId || song.id'
                   :server-url='serverUrl'
                   :token='token'
                   alt='Album art'
@@ -497,7 +497,7 @@
             >
               <div class='relative mb-2'>
                 <ImageLoader
-                  :item-id='song.id'
+                  :item-id='song.albumId || song.id'
                   :server-url='serverUrl'
                   :token='token'
                   alt='Album art'
