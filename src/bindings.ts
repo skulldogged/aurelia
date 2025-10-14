@@ -15,14 +15,6 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  cacheImageFromUrl: async (itemId: string, imageType: string, imageUrl: string, serverUrl: string, token: string): Promise<Result<string, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('cache_image_from_url', { imageType, imageUrl, itemId, serverUrl, token }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
   /**
  * Clear the music cache, then re-fetch and cache the library
  */
@@ -43,22 +35,22 @@ export const commands = {
     }
   },
   /**
- * Create a new playlist on Jellyfin server
+ * Delete a specific cached image by item ID and type
  */
-  createPlaylist: async (data: PlaylistCreateData): Promise<Result<Playlist, string>> => {
+  clearImageFromCache: async (itemId: string, imageType: string): Promise<Result<null, string>> => {
     try {
-      return { data: await TAURI_INVOKE('create_playlist', { data }), status: 'ok' }
+      return { data: await TAURI_INVOKE('clear_image_from_cache', { imageType, itemId }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
     }
   },
   /**
- * Delete a specific cached image by item ID and type
+ * Create a new playlist on Jellyfin server
  */
-  deleteCachedImage: async (itemId: string, imageType: string): Promise<Result<null, string>> => {
+  createPlaylist: async (data: PlaylistCreateData): Promise<Result<Playlist, string>> => {
     try {
-      return { data: await TAURI_INVOKE('delete_cached_image', { imageType, itemId }), status: 'ok' }
+      return { data: await TAURI_INVOKE('create_playlist', { data }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -195,10 +187,10 @@ export const commands = {
   /**
  * Get the current blur mode
  */
-  getBlurMode:           async (): Promise<string> => await TAURI_INVOKE('get_blur_mode'),
-  getCachedImageDataUrl: async (itemId: string, imageType: string): Promise<Result<null | string, string>> => {
+  getBlurMode: async (): Promise<string> => await TAURI_INVOKE('get_blur_mode'),
+  getImage:    async (itemId: string, imageType: string, serverUrl: string, token: string): Promise<Result<null | string, string>> => {
     try {
-      return { data: await TAURI_INVOKE('get_cached_image_data_url', { imageType, itemId }), status: 'ok' }
+      return { data: await TAURI_INVOKE('get_image', { imageType, itemId, serverUrl, token }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }

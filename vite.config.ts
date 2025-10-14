@@ -9,7 +9,15 @@ const host = process.env.TAURI_DEV_HOST
 
 export default defineConfig(async () => ({
   clearScreen: false,
-  plugins:     [
+  css:         {
+    lightningcss: {
+      nonStandard: {
+        pseudoClasses: true,
+      },
+    },
+  },
+
+  plugins: [
     vue(),
     tailwindcss(),
     VitePWA({
@@ -35,14 +43,6 @@ export default defineConfig(async () => ({
       },
     }),
   ],
-
-  css: {
-    lightningcss: {
-      nonStandard: {
-        pseudoClasses: true,
-      },
-    },
-  },
 
   resolve: {
     alias: {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import { refDebounced } from '@vueuse/core'
   import Fuse from 'fuse.js'
   import { computed, ref, watch } from 'vue'
 
@@ -40,6 +41,7 @@
   const token = computed(() => authStore.token)
 
   const searchQuery = ref('')
+  const debouncedSearchQuery = refDebounced(searchQuery, 300)
 
   const { layout: viewLayout } = useLayoutPreference('songlist-layout', 'comfy')
   const { sort: sortOption } = useSortPreference('songlist-sort', 'Title')
@@ -61,30 +63,37 @@
         threshold:          0.2,
       })
     }
-  }, { immediate: true })
+  })
 
   const filteredSongs = computed(() =>
-    searchQuery.value && searchQuery.value.length >= 2 && songFuse.value
-      ? songFuse.value.search(searchQuery.value).map(result => result.item)
+    debouncedSearchQuery.value && debouncedSearchQuery.value.length >= 2 && songFuse.value
+      ? songFuse.value.search(debouncedSearchQuery.value).map(result => result.item)
       : allSongs.value as Song[],
   )
 
-  const sortedSongs = computed(() => {
-    switch (sortOption.value) {
+  const sortedSongs = ref<Song[]>([])
+
+  watch([filteredSongs, sortOption], ([newFilteredSongs, newSortOption]) => {
+    const songsToSort = [...newFilteredSongs]
+    switch (newSortOption) {
       case 'Album':
-        return [...filteredSongs.value].sort((a, b) => (a.album || '').localeCompare(b.album || ''))
+        songsToSort.sort((a, b) => (a.album || '').localeCompare(b.album || ''))
+        break
       case 'Artist':
-        return [...filteredSongs.value].sort((a, b) => (a.artists?.[0] || '').localeCompare(b.artists?.[0] || ''))
+        songsToSort.sort((a, b) => (a.artists?.[0] || '').localeCompare(b.artists?.[0] || ''))
+        break
       case 'Date Added':
-        return [...filteredSongs.value].sort((a, b) => (b.dateCreated || '').localeCompare(a.dateCreated || ''))
+        songsToSort.sort((a, b) => (b.dateCreated || '').localeCompare(a.dateCreated || ''))
+        break
       case 'Play Count':
-        return [...filteredSongs.value].sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+        songsToSort.sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+        break
       case 'Title':
-        return [...filteredSongs.value].sort((a, b) => a.name.localeCompare(b.name))
-      default:
-        return [...filteredSongs.value]
+        songsToSort.sort((a, b) => a.name.localeCompare(b.name))
+        break
     }
-  })
+    sortedSongs.value = songsToSort
+  }, { immediate: true })
 
   const playSong = (song: Song): void => {
     emit('play-song', song)

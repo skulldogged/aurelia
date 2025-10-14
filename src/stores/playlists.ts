@@ -173,7 +173,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
           error.value = null
           appLogger.info('Deleting playlist:', id)
         },
-        onSuccess: () => {
+        onSuccess: async () => {
           const index = playlists.value.findIndex(p => p.id === id)
           if (index !== -1) {
             const deletedName = playlists.value[index].name
@@ -188,7 +188,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
 
           // Clear the image from frontend cache
           const imageLoader = useImageLoader()
-          imageLoader.clearImageFromCache(id, 'Primary')
+          await imageLoader.clearImageFromCache(id, 'Primary')
           appLogger.info('Frontend image cache cleared for:', id)
 
           success = true

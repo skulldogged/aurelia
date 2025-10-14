@@ -1,4 +1,7 @@
 <script setup lang="ts">
+  import { ref, watch } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
+
   import AppearanceSettings from '@/components/settings/AppearanceSettings.vue'
   import IntegrationsSettings from '@/components/settings/IntegrationsSettings.vue'
   import LibrarySettings from '@/components/settings/LibrarySettings.vue'
@@ -23,6 +26,24 @@
     (e: 'sync-library'): void
     (e: 'clear-cache'): void
   }>()
+
+  const route = useRoute()
+  const router = useRouter()
+
+  // Get initial tab from query param or default to 'appearance'
+  const activeTab = ref(route.query.tab as string || 'appearance')
+
+  // Watch for query param changes
+  watch(() => route.query.tab, newTab => {
+    if (newTab && typeof newTab === 'string') {
+      activeTab.value = newTab
+    }
+  })
+
+  // Watch for tab changes and update query param
+  watch(activeTab, newTab => {
+    router.replace({ query: { tab: newTab } })
+  })
 </script>
 
 <template>
@@ -33,7 +54,7 @@
       </h1>
     </div>
 
-    <Tabs default-value='appearance'>
+    <Tabs v-model='activeTab' default-value='appearance'>
       <TabsList class='mb-6'>
         <TabsTrigger value='appearance'>
           Appearance

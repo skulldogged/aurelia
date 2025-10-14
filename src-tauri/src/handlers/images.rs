@@ -4,7 +4,6 @@
 //! to improve performance and reduce network requests.
 
 use crate::error::AppResult;
-use base64::Engine;
 use tauri::{AppHandle, Manager};
 use tokio::fs;
 
@@ -29,10 +28,12 @@ fn generate_cache_key(item_id: &str, image_type: &str) -> String {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_cached_image_data_url(
+pub async fn get_image(
     app: AppHandle,
     item_id: String,
     image_type: String,
+    server_url: String,
+    token: String,
 ) -> Result<Option<String>, String> {
     let cache_dir = match get_image_cache_dir(&app) {
         Ok(dir) => dir,
@@ -42,45 +43,16 @@ pub async fn get_cached_image_data_url(
     let cache_path = cache_dir.join(format!("{cache_key}.jpg"));
 
     if cache_path.exists() {
-        let image_data = match fs::read(&cache_path).await {
-            Ok(data) => data,
-            Err(e) => return Err(format!("Failed to read cached image: {e}")),
-        };
-        let base64_data = base64::engine::general_purpose::STANDARD.encode(&image_data);
-        let data_url = format!("data:image/jpeg;base64,{base64_data}");
-
-        Ok(Some(data_url))
-    } else {
-        Ok(None)
+        let asset_url = cache_path.to_string_lossy().to_string();
+        return Ok(Some(asset_url));
     }
-}
 
-#[tauri::command]
-#[specta::specta]
-pub async fn cache_image_from_url(
-    app: AppHandle,
-    item_id: String,
-    image_type: String,
-    image_url: String,
-    _server_url: String,
-    token: String,
-) -> Result<String, String> {
-    let cache_dir = match get_image_cache_dir(&app) {
-        Ok(dir) => dir,
-        Err(e) => return Err(e.to_string()),
-    };
-    let cache_key = generate_cache_key(&item_id, &image_type);
-    let cache_path = cache_dir.join(format!("{cache_key}.jpg"));
-
-    if cache_path.exists() {
-        let image_data = match fs::read(&cache_path).await {
-            Ok(data) => data,
-            Err(e) => return Err(format!("Failed to read cached image: {e}")),
-        };
-        let base64_data = base64::engine::general_purpose::STANDARD.encode(&image_data);
-        let data_url = format!("data:image/jpeg;base64,{base64_data}");
-        return Ok(data_url);
-    }
+    let image_url = format!(
+        "{}/Items/{}/Images/{}",
+        server_url.trim_end_matches('/'),
+        item_id,
+        image_type
+    );
 
     let client = reqwest::Client::new();
     let response = match client
@@ -90,32 +62,33 @@ pub async fn cache_image_from_url(
         .await
     {
         Ok(resp) => resp,
-        Err(e) => return Err(format!("Failed to download image: {e}")),
+        Err(e) => {
+            tracing::warn!("Failed to download image: {}", e);
+            return Ok(None);
+        }
     };
 
     if !response.status().is_success() {
-        return Err(format!(
-            "HTTP {}: {}",
-            response.status(),
-            response
-                .status()
-                .canonical_reason()
-                .unwrap_or("Unknown error")
-        ));
+        tracing::warn!("Failed to download image, status: {}", response.status());
+        return Ok(None);
     }
 
     let image_bytes = match response.bytes().await {
         Ok(bytes) => bytes,
-        Err(e) => return Err(format!("Failed to read image data: {e}")),
+        Err(e) => {
+            tracing::warn!("Failed to read image bytes: {}", e);
+            return Ok(None);
+        }
     };
 
     if let Err(e) = fs::write(&cache_path, &image_bytes).await {
-        return Err(format!("Failed to save image to cache: {e}"));
+        tracing::warn!("Failed to write image to cache: {}", e);
+        return Ok(None);
     }
 
-    let base64_data = base64::engine::general_purpose::STANDARD.encode(&image_bytes);
-    let data_url = format!("data:image/jpeg;base64,{base64_data}");
-    Ok(data_url)
+    let asset_url = cache_path.to_string_lossy().to_string();
+
+    Ok(Some(asset_url))
 }
 
 #[tauri::command]
@@ -127,19 +100,11 @@ pub async fn clear_image_cache(app: AppHandle) -> Result<(), String> {
     };
 
     if cache_dir.exists() {
-        let mut entries = match fs::read_dir(&cache_dir).await {
-            Ok(entries) => entries,
-            Err(e) => return Err(format!("Failed to read cache directory: {e}")),
-        };
-        while let Some(entry) = match entries.next_entry().await {
-            Ok(entry) => entry,
-            Err(e) => return Err(format!("Failed to read directory entry: {e}")),
-        } {
-            if entry.path().is_file()
-                && let Err(e) = fs::remove_file(entry.path()).await
-            {
-                return Err(format!("Failed to remove cache file: {e}"));
-            }
+        if let Err(e) = fs::remove_dir_all(&cache_dir).await {
+            return Err(format!("Failed to clear image cache: {e}"));
+        }
+        if let Err(e) = fs::create_dir_all(&cache_dir).await {
+            return Err(format!("Failed to recreate image cache directory: {e}"));
         }
     }
 
@@ -187,7 +152,7 @@ pub async fn get_image_cache_stats(app: AppHandle) -> Result<String, String> {
 /// Delete a specific cached image by item ID and type
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_cached_image(
+pub async fn clear_image_from_cache(
     app: AppHandle,
     item_id: String,
     image_type: String,

@@ -34,28 +34,12 @@
   import { useImageLoader } from '@/composables/useImageLoader'
   import { playerLogger } from '@/lib/logger'
   import { formatDuration, getSongFormatInfo } from '@/lib/utils'
-  import { usePlayerStore } from '@/stores'
+  import { PlayerState, usePlayerStore } from '@/stores'
 
   const props = defineProps({
     analyserNode: {
       default: null,
       type:    Object as PropType<AnalyserNode | null>,
-    },
-    currentTime: {
-      required: true,
-      type:     Number,
-    },
-    duration: {
-      required: true,
-      type:     Number,
-    },
-    hasNext: {
-      required: true,
-      type:     Boolean,
-    },
-    hasPrevious: {
-      required: true,
-      type:     Boolean,
     },
     isEqualizerOpen: {
       default: false,
@@ -65,33 +49,13 @@
       default: false,
       type:    Boolean,
     },
-    isMuted: {
-      default: false,
-      type:    Boolean,
-    },
-    isPlaying: {
-      required: true,
-      type:     Boolean,
-    },
     isQueueOpen: {
       default: false,
       type:    Boolean,
     },
-    isShuffled: {
+    playerState: {
       required: true,
-      type:     Boolean,
-    },
-    playlist: {
-      default: () => [],
-      type:    Array as PropType<Song[]>,
-    },
-    progress: {
-      required: true,
-      type:     Number,
-    },
-    repeatMode: {
-      required: true,
-      type:     String as PropType<'all' | 'none' | 'one'>,
+      type:     Object as PropType<PlayerState>,
     },
     serverUrl: {
       default: '',
@@ -101,10 +65,6 @@
       required: true,
       type:     Boolean,
     },
-    song: {
-      default: null,
-      type:    Object as PropType<null | Song>,
-    },
     startWithLyrics: {
       default: false,
       type:    Boolean,
@@ -112,18 +72,6 @@
     token: {
       default: '',
       type:    String,
-    },
-    visualizerEnabled: {
-      default: true,
-      type:    Boolean,
-    },
-    visualizerStyle: {
-      default: 'bars-mirror',
-      type:    String as PropType<'bars' | 'bars-mirror' | 'curve' | 'wave'>,
-    },
-    volume: {
-      default: 100,
-      type:    Number,
     },
   })
 
@@ -154,16 +102,16 @@
   const isLargeScreen = useMediaQuery('(min-width: 1081px)')
   const isSmallScreen = useMediaQuery('(max-width: 768px)')
 
-  // Get hasLyrics from store instead of local ref
-  const { hasLyrics } = storeToRefs(usePlayerStore())
+  const playerStore = usePlayerStore()
+  const { hasLyrics, visualizerEnabled, visualizerStyle } = storeToRefs(playerStore)
 
   const backgroundImageData = ref<null | string>(null)
 
   const onLyricsLoaded = (lyricsFound: boolean): void => {
-    usePlayerStore().setHasLyrics(lyricsFound)
+    playerStore.setHasLyrics(lyricsFound)
   }
 
-  watch(() => props.song, async newSong => {
+  watch(() => props.playerState.currentSong, async newSong => {
     if (newSong && props.serverUrl && props.token) {
       try {
         const imageId = newSong.albumId
@@ -204,8 +152,8 @@
   })
 
   const handleLyricsSeek = (time: number): void => {
-    if (props.duration > 0) {
-      const percentage = (time / props.duration) * 100
+    if (props.playerState.duration > 0) {
+      const percentage = (time / props.playerState.duration) * 100
       emit('seek', percentage)
     }
   }
@@ -237,8 +185,13 @@
   })
 
   const formatTime = formatDuration
-  const songFormatInfo = computed(() => getSongFormatInfo(props.song))
-  const effectiveVolume = computed(() => props.isMuted ? 0 : props.volume)
+  const songFormatInfo = computed(() => getSongFormatInfo(props.playerState.currentSong))
+  const effectiveVolume = computed(() => props.playerState.isMuted ? 0 : props.playerState.volume)
+  const progress = computed(() =>
+    props.playerState.duration > 0
+      ? (props.playerState.currentTime / props.playerState.duration) * 100
+      : 0,
+  )
 </script>
 
 <template>
@@ -280,33 +233,21 @@
     <!-- Window Controls -->
     <WindowControls class='absolute top-0 right-0 z-[110]' />
 
-    <div
-      v-if='backgroundImageData'
-      class='absolute inset-0 z-0 album-art-bg'
-    >
-      <div
-        :style='{ backgroundImage: `url(${backgroundImageData})` }'
-        class='absolute inset-0 bg-cover bg-center filter blur-xl album-art-blurred'
-      />
-      <div
-        :style='{ backgroundImage: `url(${backgroundImageData})` }'
-        class='absolute inset-0 bg-cover bg-center album-art-clear'
-      />
-    </div>
-
+    <!-- Simplified Background -->
     <div
       v-if='backgroundImageData'
       :style='{ backgroundImage: `url(${backgroundImageData})` }'
-      class='absolute inset-0 bg-cover bg-center filter blur-3xl opacity-30 z-0'
+      class='absolute inset-0 z-0 bg-cover bg-center'
     />
+    <div class='absolute inset-0 z-0 bg-black/50 backdrop-blur-xl' />
 
     <div
-      v-if='visualizerEnabled && analyserNode && isPlaying'
+      v-if='visualizerEnabled && analyserNode && playerState.isPlaying'
       class='absolute bottom-0 left-0 right-0 h-[150px] z-0 opacity-30'
     >
       <AudioVisualizer
         :analyser-node='analyserNode'
-        :is-playing='isPlaying'
+        :is-playing='playerState.isPlaying'
         :style='visualizerStyle'
       />
     </div>
@@ -344,10 +285,10 @@
               <LyricsView
                 @lyrics-loaded='onLyricsLoaded'
                 @seek='handleLyricsSeek'
-                :current-time='currentTime'
-                :duration='duration'
+                :current-time='playerState.currentTime'
+                :duration='playerState.duration'
                 :is-in-sidebar='false'
-                :song='song'
+                :song='playerState.currentSong'
                 :visible='showLyrics'
                 class='h-full'
               />
@@ -360,8 +301,8 @@
               <!-- Album Art -->
               <div class='album-art-container aspect-square'>
                 <ImageLoader
-                  v-if='song'
-                  :item-id='song.albumId || undefined'
+                  v-if='playerState.currentSong'
+                  :item-id='playerState.currentSong.albumId || undefined'
                   :server-url='serverUrl'
                   :token='token'
                   alt='Album art'
@@ -378,13 +319,13 @@
               <!-- Song Info -->
               <div class='w-full text-center'>
                 <h1 class='text-2xl font-bold text-foreground truncate mb-1'>
-                  {{ song?.name || 'Unknown Song' }}
+                  {{ playerState.currentSong?.name || 'Unknown Song' }}
                 </h1>
                 <p class='text-lg text-muted-foreground truncate mb-1'>
-                  {{ song?.artists?.join(', ') || 'Unknown Artist' }}
+                  {{ playerState.currentSong?.artists?.join(', ') || 'Unknown Artist' }}
                 </p>
                 <p class='text-base text-muted-foreground/80 truncate'>
-                  {{ song?.album || 'Unknown Album' }}
+                  {{ playerState.currentSong?.album || 'Unknown Album' }}
                 </p>
                 <p v-if='songFormatInfo' class='text-xs text-muted-foreground/60 truncate mt-1'>
                   {{ songFormatInfo }}
@@ -404,8 +345,8 @@
                   class='w-full'
                 />
                 <div class='flex justify-between text-xs text-muted-foreground mt-2'>
-                  <span>{{ formatTime(currentTime) }}</span>
-                  <span>{{ formatTime(duration) }}</span>
+                  <span>{{ formatTime(playerState.currentTime) }}</span>
+                  <span>{{ formatTime(playerState.duration) }}</span>
                 </div>
               </div>
 
@@ -414,13 +355,13 @@
                 <!-- Left side - Favorite and Volume -->
                 <div class='flex items-center space-x-2'>
                   <Button
-                    @click="$emit('toggle-favorite', song)"
-                    v-if='song'
-                    :class="[song.isFavorite ? 'text-white' : 'text-white hover:text-black']"
+                    @click="$emit('toggle-favorite', playerState.currentSong)"
+                    v-if='playerState.currentSong'
+                    :class="[playerState.currentSong.isFavorite ? 'text-white' : 'text-white hover:text-black']"
                     size='icon'
                     variant='ghost'
                   >
-                    <Heart :class="['size-4', song.isFavorite ? 'fill-current' : '']" />
+                    <Heart :class="['size-4', playerState.currentSong.isFavorite ? 'fill-current' : '']" />
                   </Button>
 
                   <!-- Volume button -->
@@ -432,7 +373,7 @@
                       variant='ghost'
                       data-volume-button
                     >
-                      <Volume2 v-if='effectiveVolume > 50' class='size-4' />
+                      <Volume2 v-if='effectiveVolume > 0.5' class='size-4' />
                       <Volume1 v-else-if='effectiveVolume > 0' class='size-4' />
                       <VolumeX v-else class='size-4' />
                     </Button>
@@ -444,12 +385,12 @@
                     >
                       <div class='flex flex-col items-center gap-2'>
                         <span class='text-xs text-muted-foreground font-medium'>
-                          {{ Math.round(effectiveVolume) }}%
+                          {{ Math.round(effectiveVolume * 100) }}%
                         </span>
                         <Slider
                           @update:model-value='$event && $emit("volume-change", $event[0])'
                           :max='100'
-                          :model-value='[effectiveVolume]'
+                          :model-value='[effectiveVolume * 100]'
                           :step='1'
                           class='h-16 w-1.5'
                           orientation='vertical'
@@ -458,7 +399,7 @@
                           @click.stop='$emit("toggle-mute")'
                           class='text-muted-foreground hover:text-foreground transition-colors p-1 rounded'
                         >
-                          <Volume2 v-if='effectiveVolume > 50' class='size-4' />
+                          <Volume2 v-if='effectiveVolume > 0.5' class='size-4' />
                           <Volume1 v-else-if='effectiveVolume > 0' class='size-4' />
                           <VolumeX v-else class='size-4' />
                         </button>
@@ -471,7 +412,7 @@
                 <div class='flex items-center space-x-2'>
                   <Button
                     @click='$emit("toggle-shuffle")'
-                    :class="[isShuffled ? 'text-primary' : 'text-white hover:text-black']"
+                    :class="[playerState.isShuffled ? 'text-primary' : 'text-white hover:text-black']"
                     size='icon'
                     variant='ghost'
                   >
@@ -479,7 +420,7 @@
                   </Button>
                   <Button
                     @click='$emit("previous-song")'
-                    :disabled='!hasPrevious'
+                    :disabled='!playerState.hasPrevious'
                     size='icon'
                     variant='ghost'
                   >
@@ -492,13 +433,13 @@
                     size='icon'
                     variant='default'
                   >
-                    <Pause v-if='isPlaying' class='size-6' />
+                    <Pause v-if='playerState.isPlaying' class='size-6' />
                     <Play v-else class='size-6' />
                   </Button>
 
                   <Button
                     @click='$emit("next-song")'
-                    :disabled='!hasNext'
+                    :disabled='!playerState.hasNext'
                     size='icon'
                     variant='ghost'
                   >
@@ -506,11 +447,11 @@
                   </Button>
                   <Button
                     @click='$emit("toggle-repeat")'
-                    :class="[repeatMode !== 'none' ? 'text-primary' : 'text-white hover:text-black']"
+                    :class="[playerState.repeatMode !== 'none' ? 'text-primary' : 'text-white hover:text-black']"
                     size='icon'
                     variant='ghost'
                   >
-                    <Repeat1 v-if="repeatMode === 'one'" class='size-4' />
+                    <Repeat1 v-if="playerState.repeatMode === 'one'" class='size-4' />
                     <Repeat v-else class='size-4' />
                   </Button>
                 </div>
@@ -545,10 +486,10 @@
             <LyricsView
               @lyrics-loaded='onLyricsLoaded'
               @seek='handleLyricsSeek'
-              :current-time='currentTime'
-              :duration='duration'
+              :current-time='playerState.currentTime'
+              :duration='playerState.duration'
               :is-in-sidebar='false'
-              :song='song'
+              :song='playerState.currentSong'
               :visible='showLyrics'
               class='h-full'
               size='large'
@@ -571,90 +512,6 @@
   max-height: 35rem;
 }
 
-/* Album art background - hidden by default, visible on thin screens */
-.album-art-bg {
-  opacity: 0;
-}
-
-.album-art-bg::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0);
-  z-index: 2;
-  transition: background-color 0.3s ease-in-out;
-  pointer-events: none;
-}
-
-/* Blurred album art - shows through at bottom */
-.album-art-blurred {
-  /* Ensure this layer sits above the clear album art */
-  z-index: 1;
-  pointer-events: none;
-
-  /* Strong blur and slight darkening so controls are readable */
-  filter: blur(28px) brightness(0.6) saturate(0.9);
-
-  /* Prevent blur edge cropping and include corners */
-  top: -56px;
-  right: -56px;
-  bottom: -56px;
-  left: -56px;
-  transform: scale(1.02);
-
-  /* Only show this blur near the bottom, fading upward */
-  -webkit-mask-image: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 1) 280px,
-    rgba(0, 0, 0, 0.95) 340px,
-    rgba(0, 0, 0, 0) 460px
-  );
-  mask-image: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 1) 280px,
-    rgba(0, 0, 0, 0.95) 340px,
-    rgba(0, 0, 0, 0) 460px
-  );
-}
-
-.album-art-blurred::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  /* Darken bottom area further with a soft gradient like Cider */
-  background: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.70) 0%,
-    rgba(0, 0, 0, 0.55) 24%,
-    rgba(0, 0, 0, 0.28) 48%,
-    rgba(0, 0, 0, 0) 70%
-  );
-}
-
-/* Show album art background on thin screens */
-@media (max-width: 768px) {
-  .album-art-bg {
-    opacity: 1;
-  }
-
-  .fullscreen-player.lyrics-active .album-art-bg::before {
-    background-color: transparent;
-  }
-
-  .fullscreen-player.lyrics-active .album-art-blurred {
-    -webkit-mask-image: none;
-    mask-image: none;
-    /* Make it a bit darker when lyrics are on */
-    filter: blur(28px) brightness(0.6) saturate(0.9);
-  }
-
-  /* Hide the foreground album art on thin screens */
-  .album-art-container {
-    opacity: 0;
-    pointer-events: none;
-  }
-}
-
 /* Responsive adjustments for smaller screens */
 @media (max-width: 1024px) {
   .album-art-container {
@@ -662,6 +519,13 @@
     height: min(35vw, 35vh, 20rem);
     max-width: 20rem;
     max-height: 20rem;
+  }
+}
+
+@media (max-width: 768px) {
+  /* On smaller screens, hide the main album art and show the background */
+  .album-art-container {
+    display: none;
   }
 }
 

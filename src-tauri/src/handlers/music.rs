@@ -17,7 +17,7 @@ async fn fetch_library(
     token: String,
 ) -> Result<(Vec<Song>, Vec<Artist>, Vec<Album>), String> {
     let client = JellyfinClient::with_auth(server_url, token);
-    let user_id = match crate::handlers::auth::get_saved_credentials() {
+    let user_id = match crate::handlers::auth::get_saved_credentials().await {
         Ok(Some(creds)) => creds.user_id,
         _ => return Err("No saved credentials found".to_string()),
     };
@@ -66,14 +66,20 @@ pub async fn get_songs(
     album_id: Option<String>,
     artist_id: Option<String>,
 ) -> Result<Vec<Song>, String> {
-    let all_songs = match cache::get_songs().await {
+    let all_songs = match cache::get_songs().await.map_err(|e| e.to_string()) {
         Ok(items) if !items.is_empty() => items,
         _ => {
             if let (Some(server_url), Some(token)) = (server_url, token) {
                 let (songs, artists, albums) = fetch_library(server_url, token).await?;
-                cache::cache_library(&songs).await?;
-                cache::cache_artists(&artists).await?;
-                cache::cache_albums(&albums).await?;
+                cache::cache_library(&songs)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                cache::cache_artists(&artists)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                cache::cache_albums(&albums)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 songs
             } else {
                 return Err(
@@ -107,12 +113,12 @@ pub async fn get_songs(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_song(song_id: String) -> Result<Song, String> {
-    let songs = cache::get_songs().await?;
+    let songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
     songs
         .into_iter()
         .find(|song| song.id == song_id)
-        .ok_or_else(|| format!("Song with ID '{song_id}' not found"))
+        .ok_or_else(|| format!("Song with ID '{}' not found", song_id))
 }
 
 /// Get albums with optional filtering and song inclusion
@@ -127,7 +133,8 @@ pub async fn get_albums(
 ) -> Result<Vec<Album>, String> {
     let albums = if let (Some(server_url), Some(token)) = (server_url, token) {
         let client = crate::services::JellyfinClient::with_auth(server_url, token);
-        let user_id = crate::handlers::auth::get_saved_credentials()?
+        let user_id = crate::handlers::auth::get_saved_credentials()
+            .await?
             .map(|creds| creds.user_id)
             .ok_or("No saved credentials found")?;
 
@@ -136,14 +143,14 @@ pub async fn get_albums(
             .await
             .map_err(|e| e.to_string())?
     } else {
-        cache::get_albums().await?
+        cache::get_albums().await.map_err(|e| e.to_string())?
     };
 
     pagination::validate_pagination(offset, limit)?;
     let mut albums = pagination::apply_pagination(albums, offset, limit);
 
     if include_songs.unwrap_or(false) {
-        let all_songs = cache::get_songs().await?;
+        let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
         let mut album_songs: std::collections::HashMap<String, Vec<Song>> =
             std::collections::HashMap::new();
@@ -169,7 +176,7 @@ pub async fn get_albums(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_album(album_id: String, include_songs: Option<bool>) -> Result<Album, String> {
-    let mut albums = cache::get_albums().await?;
+    let mut albums = cache::get_albums().await.map_err(|e| e.to_string())?;
 
     let album_position = albums
         .iter()
@@ -178,12 +185,12 @@ pub async fn get_album(album_id: String, include_songs: Option<bool>) -> Result<
     let mut album = if let Some(pos) = album_position {
         albums.swap_remove(pos)
     } else {
-        return Err(format!("Album with ID '{album_id}' not found"));
+        return Err(format!("Album with ID '{}' not found", album_id));
     };
 
     // If album doesn't have provider_ids, try to refresh from server
     if album.provider_ids.is_none()
-        && let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials()
+        && let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials().await
     {
         let client = JellyfinClient::with_auth(creds.server_url, creds.token);
         match client.get_albums(&creds.user_id).await {
@@ -212,7 +219,7 @@ pub async fn get_album(album_id: String, include_songs: Option<bool>) -> Result<
     }
 
     if include_songs.unwrap_or(false) {
-        let all_songs = cache::get_songs().await?;
+        let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
         let album_songs: Vec<Song> = all_songs
             .into_iter()
@@ -230,7 +237,7 @@ pub async fn get_album(album_id: String, include_songs: Option<bool>) -> Result<
 #[specta::specta]
 pub async fn get_recently_played(server_url: String, token: String) -> Result<Vec<Song>, String> {
     let client = JellyfinClient::with_auth(server_url, token);
-    let user_id = match crate::handlers::auth::get_saved_credentials() {
+    let user_id = match crate::handlers::auth::get_saved_credentials().await {
         Ok(Some(creds)) => creds.user_id,
         _ => return Err("No saved credentials found".to_string()),
     };
@@ -245,7 +252,7 @@ pub async fn get_recently_played(server_url: String, token: String) -> Result<Ve
 #[tauri::command]
 #[specta::specta]
 pub async fn get_instant_mix(item_id: String) -> Result<Vec<Song>, String> {
-    let (server_url, token) = match crate::handlers::auth::get_saved_credentials() {
+    let (server_url, token) = match crate::handlers::auth::get_saved_credentials().await {
         Ok(Some(creds)) => (creds.server_url, creds.token),
         _ => return Err("No saved credentials found".to_string()),
     };
@@ -270,11 +277,12 @@ pub async fn get_artists(
     offset: Option<i32>,
 ) -> Result<Vec<Artist>, String> {
     let artists = if let (Some(server_url), Some(token)) = (server_url, token) {
-        match crate::cache::get_artists().await {
+        match crate::cache::get_artists().await.map_err(|e| e.to_string()) {
             Ok(cached_artists) if !cached_artists.is_empty() => cached_artists,
             _ => {
                 let client = JellyfinClient::with_auth(server_url, token);
-                let user_id = crate::handlers::auth::get_saved_credentials()?
+                let user_id = crate::handlers::auth::get_saved_credentials()
+                    .await?
                     .map(|creds| creds.user_id)
                     .ok_or("No saved credentials found")?;
 
@@ -321,7 +329,7 @@ pub async fn get_artists(
     let mut result_artists = artists;
 
     if album_artists_only.unwrap_or(false) {
-        let all_songs = cache::get_songs().await?;
+        let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
         let album_artist_ids: std::collections::HashSet<String> = all_songs
             .iter()
             .filter_map(|song| song.album_artists.as_ref())
@@ -335,7 +343,7 @@ pub async fn get_artists(
     let mut result_artists = pagination::apply_pagination(result_artists, offset, limit);
 
     if include_songs.unwrap_or(false) {
-        let all_songs = cache::get_songs().await?;
+        let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
         let mut artist_map: HashMap<String, Vec<Song>> = HashMap::new();
 
@@ -380,20 +388,21 @@ pub async fn get_artist(
     include_songs: Option<bool>,
     album_artists_only: Option<bool>,
 ) -> Result<Artist, String> {
-    let mut artist_opt: Option<Artist> = match crate::cache::get_artists().await {
-        Ok(artists) => artists.into_iter().find(|a| a.id == artist_id),
-        Err(e) => {
-            warn!("Failed to read cached artists: {}", e);
-            None
-        }
-    };
+    let mut artist_opt: Option<Artist> =
+        match crate::cache::get_artists().await.map_err(|e| e.to_string()) {
+            Ok(artists) => artists.into_iter().find(|a| a.id == artist_id),
+            Err(e) => {
+                warn!("Failed to read cached artists: {}", e);
+                None
+            }
+        };
 
     if artist_opt.is_none() {
-        if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials() {
+        if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials().await {
             let client = JellyfinClient::with_auth(creds.server_url, creds.token);
             match client.get_artist_details(&creds.user_id, &artist_id).await {
                 Ok(fresh) => {
-                    match crate::cache::get_artists().await {
+                    match crate::cache::get_artists().await.map_err(|e| e.to_string()) {
                         Ok(mut current) => {
                             if !current.iter().any(|a| a.id == fresh.id) {
                                 current.push(fresh.clone());
@@ -409,14 +418,14 @@ pub async fn get_artist(
                 Err(e) => return Err(e.to_string()),
             }
         } else {
-            return Err(format!("Artist with ID '{artist_id}' not found"));
+            return Err(format!("Artist with ID '{}' not found", artist_id));
         }
     }
 
     let mut artist = artist_opt.expect("artist should be set by now");
 
     if artist.overview.is_none()
-        && let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials()
+        && let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials().await
     {
         let client = JellyfinClient::with_auth(creds.server_url, creds.token);
         if let Ok(fresh) = client.get_artist_details(&creds.user_id, &artist_id).await {
@@ -429,7 +438,7 @@ pub async fn get_artist(
     }
 
     if include_songs.unwrap_or(false) {
-        let all_songs = cache::get_songs().await?;
+        let all_songs = cache::get_songs().await.map_err(|e| e.to_string())?;
 
         let artist_songs: Vec<Song> = if album_artists_only.unwrap_or(false) {
             let mut is_album_artist = false;
@@ -515,7 +524,9 @@ pub async fn toggle_favorite_status(
 pub async fn sync_library(server_url: String, token: String) -> Result<(), String> {
     info!("Starting library sync...");
     let (songs, artists, albums) = fetch_library(server_url, token).await?;
-    cache::sync_library(&songs, &artists, &albums).await?;
+    cache::sync_library(&songs, &artists, &albums)
+        .await
+        .map_err(|e| e.to_string())?;
     info!("Library sync completed successfully.");
     Ok(())
 }
@@ -528,7 +539,7 @@ pub async fn clear_cache(app: AppHandle, server_url: String, token: String) -> R
 
     // Clear music library cache
     info!("Clearing music cache...");
-    cache::clear_cache().await?;
+    cache::clear_cache().await.map_err(|e| e.to_string())?;
 
     // Clear image cache
     info!("Clearing image cache...");
@@ -539,9 +550,15 @@ pub async fn clear_cache(app: AppHandle, server_url: String, token: String) -> R
     // Re-fetch and cache library
     let (songs, artists, albums) = fetch_library(server_url, token).await?;
     info!("Re-caching library...");
-    cache::cache_library(&songs).await?;
-    cache::cache_artists(&artists).await?;
-    cache::cache_albums(&albums).await?;
+    cache::cache_library(&songs)
+        .await
+        .map_err(|e| e.to_string())?;
+    cache::cache_artists(&artists)
+        .await
+        .map_err(|e| e.to_string())?;
+    cache::cache_albums(&albums)
+        .await
+        .map_err(|e| e.to_string())?;
     info!("Cache cleared and library re-cached successfully.");
     Ok(())
 }

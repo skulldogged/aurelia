@@ -15,15 +15,8 @@ const isQueueOpen = ref(false)
 const isEqualizerOpen = ref(false)
 const isFullScreenPlayerOpen = ref(false)
 const isLyricsOpen = ref(false)
-const searchQuery = ref('')
-const isSearchVisible = ref(false)
 
 const musicPlayerRef = ref<MusicPlayerRef | null>(null)
-
-const handleGlobalSearch = (query: string): void => {
-  searchQuery.value = query
-  isSearchVisible.value = true
-}
 
 const closePanels = (except?: 'equalizer' | 'lyrics' | 'queue'): void => {
   if (except !== 'queue') isQueueOpen.value = false
@@ -50,12 +43,7 @@ const handleSeek = (value: number): void => {
   musicPlayerRef.value?.onSeek([value])
 }
 
-const toggleSearchVisibility = (visible: boolean): void => {
-  isSearchVisible.value = visible
-}
-
 export interface PlayerControls {
-  handleGlobalSearch:     (query: string) => void
   handleNextSong:         () => void
   handlePreviousSong:     () => void
   handleSeek:             (value: number) => void
@@ -66,15 +54,12 @@ export interface PlayerControls {
   isFullScreenPlayerOpen: Readonly<Ref<boolean>>
   isLyricsOpen:           Readonly<Ref<boolean>>
   isQueueOpen:            Readonly<Ref<boolean>>
-  isSearchVisible:        Readonly<Ref<boolean>>
   musicPlayerRef:         Ref<MusicPlayerRef | null>
   playerStore:            ReturnType<typeof usePlayerStore>
-  searchQuery:            Readonly<Ref<string>>
   toggleEqualizer:        () => void
   toggleFullScreenPlayer: () => void
   toggleLyrics:           () => void
   toggleQueue:            () => void
-  toggleSearchVisibility: (visible: boolean) => void
 }
 
 export const usePlayerControls = (): PlayerControls => {
@@ -109,7 +94,6 @@ export const usePlayerControls = (): PlayerControls => {
   }
 
   return {
-    handleGlobalSearch,
     handleNextSong,
     handlePreviousSong,
     handleSeek,
@@ -121,15 +105,11 @@ export const usePlayerControls = (): PlayerControls => {
     isFullScreenPlayerOpen: readonly(isFullScreenPlayerOpen),
     isLyricsOpen:           readonly(isLyricsOpen),
     isQueueOpen:            readonly(isQueueOpen),
-    isSearchVisible:        readonly(isSearchVisible),
     musicPlayerRef,
     playerStore,
-    searchQuery:            readonly(searchQuery),
     toggleEqualizer,
     toggleFullScreenPlayer,
     toggleLyrics,
     toggleQueue,
-
-    toggleSearchVisibility,
   }
 }

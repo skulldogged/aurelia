@@ -15,13 +15,18 @@ export interface EQBand {
 }
 
 export interface PlayerState {
+  currentSong: null | Song
   currentTime: number
   duration:    number
   hasNext:     boolean
   hasPrevious: boolean
+  isMuted:     boolean
   isPlaying:   boolean
   isShuffled:  boolean
+  playlist:    Song[]
+  progress:    number
   repeatMode:  RepeatMode
+  volume:      number
 }
 
 export type RepeatMode = 'all' | 'none' | 'one'

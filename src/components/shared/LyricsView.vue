@@ -15,9 +15,9 @@
     currentTime:  number
     duration:     number
     isInSidebar?: boolean
+    size?:        'large' | 'normal'
     song:         null | Song
     visible:      boolean
-    size?:        'normal' | 'large'
   }>()
 
   const emit = defineEmits<{
@@ -222,7 +222,11 @@
           @click='handleLineClick(line.time)'
           :key='line.time + line.text'
           :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
-          :class="['lyric-line', { 'active': index === currentLineIndex, 'sidebar': isInSidebar, 'large': size === 'large' }]"
+          :class="['lyric-line', {
+            'active': index === currentLineIndex,
+            'sidebar': isInSidebar,
+            'large': size === 'large'
+          }]"
         >
           {{ line.text }}
         </p>

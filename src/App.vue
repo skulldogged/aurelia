@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { useColorMode } from '@vueuse/core'
+  import { useColorMode, useMagicKeys } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
   import { computed, onMounted, watch } from 'vue'
   import { ref } from 'vue'
@@ -7,12 +7,11 @@
   import type { Credentials, Song } from '@/bindings'
 
   import { commands } from '@/bindings'
-  import SearchResults from '@/components/shared/SearchResultsView.vue'
+  import GlobalSearch from '@/components/shared/GlobalSearch.vue'
   import WindowControls from '@/components/shared/WindowControls.vue'
   import Button from '@/components/ui/Button.vue'
   import { useAuth } from '@/composables/useAuth'
   import { useDiscordPresence } from '@/composables/useDiscordPresence'
-  import { useImageLoader } from '@/composables/useImageLoader'
   import { useLastFm } from '@/composables/useLastFm'
   import { useListenBrainz } from '@/composables/useListenBrainz'
   import { useNavigation } from '@/composables/useNavigation'
@@ -36,11 +35,18 @@
   const { authStatus, clearError: clearAuthError, credentials, error: authError, login, logout } = useAuth()
   const libraryStore = useLibraryStore()
   const blurStore = useBlurStore()
-  const { preloadRecentImages } = useImageLoader()
-  useSystemTray() // Initialize system tray functionality
+  useSystemTray()
   useDiscordPresence()
-  useLastFm() // Initialize Last.fm scrobbling
-  useListenBrainz() // Initialize ListenBrainz scrobbling
+  useLastFm()
+  useListenBrainz()
+
+  const isSearchOpen = ref(false)
+  const keys = useMagicKeys()
+  const ctrlK = keys['Ctrl+K']
+  watch(ctrlK, v => {
+    if (v)
+      isSearchOpen.value = !isSearchOpen.value
+  })
 
   const webAudioPlayer = useWebAudioPlayer()
 
@@ -56,10 +62,9 @@
   } = useNavigation()
 
   const {
-    handleGlobalSearch,
     handleNextSong,
     handlePreviousSong,
-    handleSeek: handleSeek,
+    handleSeek,
     handleTogglePlayPause,
     handleToggleRepeat,
     handleToggleShuffle,
@@ -67,15 +72,12 @@
     isFullScreenPlayerOpen,
     isLyricsOpen,
     isQueueOpen,
-    isSearchVisible,
     musicPlayerRef,
     playerStore,
-    searchQuery,
     toggleEqualizer,
     toggleFullScreenPlayer,
     toggleLyrics,
     toggleQueue,
-    toggleSearchVisibility,
   } = usePlayerControls()
 
   const {
@@ -98,17 +100,29 @@
     playlist,
     progress,
     repeatMode,
-    visualizerEnabled,
-    visualizerStyle,
   } = storeToRefs(playerStore)
 
-  // Compute navigation state locally like MusicPlayer does
   const hasNext = computed(() =>
     playlist.value.length > 1
     && playerStore.currentIndex > -1
     && playerStore.currentIndex < playlist.value.length - 1,
   )
   const hasPrevious = computed(() => playlist.value.length > 1 && playerStore.currentIndex > 0)
+
+  const playerState = computed(() => ({
+    currentSong: currentSong.value,
+    currentTime: currentTime.value,
+    duration:    duration.value,
+    hasNext:     hasNext.value,
+    hasPrevious: hasPrevious.value,
+    isMuted:     playerStore.isMuted,
+    isPlaying:   isPlaying.value,
+    isShuffled:  isShuffled.value,
+    playlist:    playlist.value,
+    progress:    progress.value,
+    repeatMode:  repeatMode.value,
+    volume:      playerStore.volume * 100,
+  }))
 
   const isSyncing = ref(false)
   const isClearing = ref(false)
@@ -125,8 +139,6 @@
   watch(authStatus, async newStatus => {
     if (newStatus === 'loggedIn' && credentials.value) {
       await libraryStore.loadLibrary(credentials.value)
-
-      await preloadRecentImages(credentials.value.serverUrl, credentials.value.token, 20)
     }
   })
 
@@ -202,7 +214,7 @@
     </div>
     <Login @login='handleLogin' v-else-if="authStatus === 'loggedOut'" />
     <MainLayout
-      @global-search='handleGlobalSearch'
+      @global-search='isSearchOpen = !isSearchOpen'
       @logout='handleLogout'
       @navigate='handleNavigation'
       @navigate-back='navigateBack'
@@ -238,22 +250,6 @@
           />
         </transition>
       </router-view>
-
-      <template #search-results='{ isSidebarCollapsed, onResultClick }'>
-        <SearchResults
-          @close='toggleSearchVisibility(false)'
-          @play-song='playSong'
-          @result-clicked='onResultClick'
-          :albums='libraryStore.allAlbums as any'
-          :artists='libraryStore.allArtistsWithSongs as any'
-          :is-sidebar-collapsed='isSidebarCollapsed'
-          :is-visible='isSearchVisible'
-          :query='searchQuery'
-          :server-url='credentials?.serverUrl'
-          :songs='libraryStore.allSongs as any'
-          :token='credentials?.token'
-        />
-      </template>
 
       <template #queue>
         <Queue
@@ -310,27 +306,16 @@
       @update:playlist='updatePlaylist'
       @volume-change='handleVolumeChange'
       :analyser-node='webAudioPlayer.getAnalyserNode()'
-      :current-time='currentTime'
-      :duration='duration'
-      :has-next='hasNext'
-      :has-previous='hasPrevious'
       :is-equalizer-open='isEqualizerOpen'
       :is-lyrics-open='isLyricsOpen'
-      :is-muted='playerStore.isMuted'
-      :is-playing='isPlaying'
       :is-queue-open='isQueueOpen'
-      :is-shuffled='isShuffled'
-      :playlist='playlist'
-      :progress='progress'
-      :repeat-mode='repeatMode'
+      :player-state='playerState'
       :server-url='credentials?.serverUrl'
       :show='isFullScreenPlayerOpen'
-      :song='currentSong as any'
       :token='credentials?.token'
-      :visualizer-enabled='visualizerEnabled'
-      :visualizer-style='visualizerStyle'
-      :volume='playerStore.volume * 100'
     />
+
+    <GlobalSearch v-model:open='isSearchOpen' />
 
     <WindowControls v-if='!isFullScreenPlayerOpen' class='fixed top-0 right-0 z-[100]' />
   </div>

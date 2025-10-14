@@ -17,14 +17,55 @@
   let dataArray: null | Uint8Array = null
   let bufferLength = 0
 
+  // Performance: Cache accent color and gradients
+  const accentColor = ref('#3b82f6')
+  const gradientBars = ref<CanvasGradient | null>(null)
+  const gradientMirrorTop = ref<CanvasGradient | null>(null)
+  const gradientMirrorBottom = ref<CanvasGradient | null>(null)
+  const gradientCurve = ref<CanvasGradient | null>(null)
+
+  const updateAccentColor = (): void => {
+    accentColor.value = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-accent')
+      .trim() || '#3b82f6'
+
+    // Re-create gradients when color changes
+    if (canvasRef.value) {
+      const ctx = canvasRef.value.getContext('2d')
+      if (ctx) {
+        const height = canvasRef.value.height
+        const centerY = height / 2
+
+        // For drawBars
+        gradientBars.value = ctx.createLinearGradient(0, height, 0, 0)
+        gradientBars.value.addColorStop(0, `${accentColor.value}80`)
+        gradientBars.value.addColorStop(1, `${accentColor.value}20`)
+
+        // For drawBarsMirror
+        gradientMirrorTop.value = ctx.createLinearGradient(0, centerY, 0, 0)
+        gradientMirrorTop.value.addColorStop(0, `${accentColor.value}60`)
+        gradientMirrorTop.value.addColorStop(1, `${accentColor.value}10`)
+
+        gradientMirrorBottom.value = ctx.createLinearGradient(0, centerY, 0, height)
+        gradientMirrorBottom.value.addColorStop(0, `${accentColor.value}60`)
+        gradientMirrorBottom.value.addColorStop(1, `${accentColor.value}10`)
+
+        // For drawCircular
+        gradientCurve.value = ctx.createLinearGradient(0, height, 0, 0)
+        gradientCurve.value.addColorStop(0, `${accentColor.value}70`)
+        gradientCurve.value.addColorStop(0.5, `${accentColor.value}40`)
+        gradientCurve.value.addColorStop(1, `${accentColor.value}15`)
+      }
+    }
+  }
+
   const initializeVisualizer = (): void => {
     if (!props.analyserNode) return
 
-    // Configure analyser for better frequency resolution - we don't mutate the prop, just use it
     const analyser = props.analyserNode
-    analyser.fftSize = 256 // 128 frequency bins
+    analyser.fftSize = 256
     bufferLength = analyser.frequencyBinCount
-    dataArray = new Uint8Array(bufferLength) as Uint8Array
+    dataArray = new Uint8Array(bufferLength)
   }
 
   const drawBars = (
@@ -32,32 +73,21 @@
     width: number,
     height: number,
   ): void => {
-    if (!props.analyserNode || !dataArray) return
+    if (!props.analyserNode || !dataArray || !gradientBars.value) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    props.analyserNode.getByteFrequencyData(dataArray as any)
-
+    props.analyserNode.getByteFrequencyData(dataArray)
     ctx.clearRect(0, 0, width, height)
 
-    const barCount = 64 // Use fewer bars for cleaner look
+    const barCount = 64
     const barWidth = width / barCount
     const heightScale = height / 255
+    const dataStep = bufferLength / barCount
+
+    ctx.fillStyle = gradientBars.value
 
     for (let i = 0; i < barCount; i++) {
-      // Sample data array evenly
-      const dataIndex = Math.floor((i * bufferLength) / barCount)
+      const dataIndex = Math.floor(i * dataStep)
       const barHeight = dataArray[dataIndex] * heightScale
-
-      // Create gradient from accent color
-      const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight)
-      const accentColor = getComputedStyle(document.documentElement)
-        .getPropertyValue('--color-accent')
-        .trim() || '#3b82f6'
-
-      gradient.addColorStop(0, `${accentColor}80`) // 50% opacity
-      gradient.addColorStop(1, `${accentColor}20`) // 12% opacity
-
-      ctx.fillStyle = gradient
       ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight)
     }
   }
@@ -67,40 +97,25 @@
     width: number,
     height: number,
   ): void => {
-    if (!props.analyserNode || !dataArray) return
+    if (!props.analyserNode || !dataArray || !gradientMirrorTop.value || !gradientMirrorBottom.value) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    props.analyserNode.getByteFrequencyData(dataArray as any)
-
+    props.analyserNode.getByteFrequencyData(dataArray)
     ctx.clearRect(0, 0, width, height)
 
     const barCount = 64
     const barWidth = width / barCount
     const centerY = height / 2
     const heightScale = centerY / 255
+    const dataStep = bufferLength / barCount
 
     for (let i = 0; i < barCount; i++) {
-      const dataIndex = Math.floor((i * bufferLength) / barCount)
+      const dataIndex = Math.floor(i * dataStep)
       const barHeight = dataArray[dataIndex] * heightScale
 
-      const accentColor = getComputedStyle(document.documentElement)
-        .getPropertyValue('--color-accent')
-        .trim() || '#3b82f6'
-
-      // Top half (upward)
-      const gradientTop = ctx.createLinearGradient(0, centerY, 0, centerY - barHeight)
-      gradientTop.addColorStop(0, `${accentColor}60`)
-      gradientTop.addColorStop(1, `${accentColor}10`)
-
-      ctx.fillStyle = gradientTop
+      ctx.fillStyle = gradientMirrorTop.value
       ctx.fillRect(i * barWidth, centerY - barHeight, barWidth - 2, barHeight)
 
-      // Bottom half (downward - mirror)
-      const gradientBottom = ctx.createLinearGradient(0, centerY, 0, centerY + barHeight)
-      gradientBottom.addColorStop(0, `${accentColor}60`)
-      gradientBottom.addColorStop(1, `${accentColor}10`)
-
-      ctx.fillStyle = gradientBottom
+      ctx.fillStyle = gradientMirrorBottom.value
       ctx.fillRect(i * barWidth, centerY, barWidth - 2, barHeight)
     }
   }
@@ -110,67 +125,43 @@
     width: number,
     height: number,
   ): void => {
-    if (!props.analyserNode || !dataArray) return
+    if (!props.analyserNode || !dataArray || !gradientCurve.value) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    props.analyserNode.getByteFrequencyData(dataArray as any)
-
+    props.analyserNode.getByteFrequencyData(dataArray)
     ctx.clearRect(0, 0, width, height)
 
     const sampleCount = 64
     const stepX = width / (sampleCount - 1)
     const heightScale = height / 255
+    const dataStep = bufferLength / sampleCount
 
-    const accentColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-accent')
-      .trim() || '#3b82f6'
-
-    // Get frequency data points
     const points: Array<{ x: number, y: number }> = []
     for (let i = 0; i < sampleCount; i++) {
-      const dataIndex = Math.floor((i * bufferLength) / sampleCount)
+      const dataIndex = Math.floor(i * dataStep)
       const value = dataArray[dataIndex] * heightScale
-      points.push({
-        x: i * stepX,
-        y: height - value,
-      })
+      points.push({ x: i * stepX, y: height - value })
     }
 
-    // Draw smooth curve using bezier curves
     ctx.beginPath()
     ctx.moveTo(0, height)
     ctx.lineTo(points[0].x, points[0].y)
 
-    // Use quadratic curves for smooth interpolation
     for (let i = 0; i < points.length - 1; i++) {
       const current = points[i]
       const next = points[i + 1]
-
-      // Calculate control point (midpoint between current and next)
       const controlX = (current.x + next.x) / 2
       const controlY = (current.y + next.y) / 2
-
       ctx.quadraticCurveTo(current.x, current.y, controlX, controlY)
     }
 
-    // Complete the last segment
     const lastPoint = points[points.length - 1]
     ctx.lineTo(lastPoint.x, lastPoint.y)
-
-    // Close the path to create filled area
     ctx.lineTo(width, height)
     ctx.closePath()
 
-    // Create gradient fill
-    const gradient = ctx.createLinearGradient(0, height, 0, 0)
-    gradient.addColorStop(0, `${accentColor}70`)
-    gradient.addColorStop(0.5, `${accentColor}40`)
-    gradient.addColorStop(1, `${accentColor}15`)
-
-    ctx.fillStyle = gradient
+    ctx.fillStyle = gradientCurve.value
     ctx.fill()
 
-    // Draw stroke for the curve
     ctx.beginPath()
     ctx.moveTo(points[0].x, points[0].y)
 
@@ -183,8 +174,7 @@
     }
 
     ctx.lineTo(lastPoint.x, lastPoint.y)
-
-    ctx.strokeStyle = `${accentColor}90`
+    ctx.strokeStyle = `${accentColor.value}90`
     ctx.lineWidth = 2
     ctx.stroke()
   }
@@ -196,16 +186,10 @@
   ): void => {
     if (!props.analyserNode || !dataArray) return
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    props.analyserNode.getByteTimeDomainData(dataArray as any)
-
+    props.analyserNode.getByteTimeDomainData(dataArray)
     ctx.clearRect(0, 0, width, height)
 
-    const accentColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-accent')
-      .trim() || '#3b82f6'
-
-    ctx.strokeStyle = `${accentColor}80`
+    ctx.strokeStyle = `${accentColor.value}80`
     ctx.lineWidth = 2
     ctx.beginPath()
 
@@ -215,12 +199,10 @@
     for (let i = 0; i < bufferLength; i++) {
       const v = dataArray[i] / 128.0
       const y = (v * height) / 2
-
       if (i === 0)
         ctx.moveTo(x, y)
       else
         ctx.lineTo(x, y)
-
       x += sliceWidth
     }
 
@@ -234,19 +216,18 @@
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Match canvas resolution to display size for crisp rendering
     const dpr = window.devicePixelRatio || 1
     const rect = canvas.getBoundingClientRect()
-
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
-
-    ctx.scale(dpr, dpr)
+    if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+      canvas.width = rect.width * dpr
+      canvas.height = rect.height * dpr
+      ctx.scale(dpr, dpr)
+      updateAccentColor() // Re-create gradients for new canvas size
+    }
 
     const width = rect.width
     const height = rect.height
 
-    // Only draw if playing
     if (props.isPlaying && props.analyserNode) {
       switch (props.style) {
         case 'bars':
@@ -263,7 +244,6 @@
           break
       }
     } else {
-      // Clear canvas when not playing
       ctx.clearRect(0, 0, width, height)
     }
 
@@ -273,6 +253,7 @@
   const startAnimation = (): void => {
     if (animationFrameId.value !== null) return
     initializeVisualizer()
+    updateAccentColor()
     animate()
   }
 
@@ -281,8 +262,6 @@
       cancelAnimationFrame(animationFrameId.value)
       animationFrameId.value = null
     }
-
-    // Clear canvas
     if (canvasRef.value) {
       const ctx = canvasRef.value.getContext('2d')
       if (ctx)
@@ -290,15 +269,31 @@
     }
   }
 
-  // Handle canvas resize
   const handleResize = (): void => {
-    if (canvasRef.value && props.isPlaying)
-      animate()
+    if (canvasRef.value && props.isPlaying) {
+      const canvas = canvasRef.value
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        const dpr = window.devicePixelRatio || 1
+        const rect = canvas.getBoundingClientRect()
+        canvas.width = rect.width * dpr
+        canvas.height = rect.height * dpr
+        ctx.scale(dpr, dpr)
+        updateAccentColor()
+      }
+    }
   }
 
   onMounted(() => {
     startAnimation()
     window.addEventListener('resize', handleResize)
+    // Watch for theme changes to update accent color
+    const observer = new MutationObserver(updateAccentColor)
+    observer.observe(document.documentElement, {
+      attributeFilter: ['style', 'class'],
+      attributes:      true,
+    })
+    onBeforeUnmount(() => observer.disconnect())
   })
 
   onBeforeUnmount(() => {
@@ -306,13 +301,11 @@
     window.removeEventListener('resize', handleResize)
   })
 
-  // Restart animation when analyser changes
   watch(() => props.analyserNode, () => {
     stopAnimation()
     startAnimation()
   })
 
-  // Update when playing state changes
   watch(() => props.isPlaying, isPlaying => {
     if (!isPlaying && canvasRef.value) {
       const ctx = canvasRef.value.getContext('2d')
@@ -327,5 +320,6 @@
     ref='canvasRef'
     aria-hidden='true'
     class='absolute inset-0 w-full h-full pointer-events-none'
+    style='will-change: transform;'
   />
 </template>

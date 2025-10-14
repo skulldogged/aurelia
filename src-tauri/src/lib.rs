@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod database;
 pub mod discord_rpc;
 pub mod error;
 pub mod handlers;
@@ -50,11 +51,6 @@ fn bunx_eslint_formatter(file: &std::path::Path) -> std::io::Result<()> {
 pub fn run() {
     init_logging();
     info!("Starting Tauri application");
-    tauri::async_runtime::block_on(async {
-        if let Err(e) = cache::init().await {
-            error!("Failed to initialize cache: {}", e);
-        }
-    });
 
     let builder = Builder::<tauri::Wry>::new().commands(collect_commands![
         handlers::appearance::get_blur_mode,
@@ -85,11 +81,10 @@ pub fn run() {
         handlers::music::get_album_share_urls,
         handlers::music::get_artist_share_urls,
         handlers::lyrics::get_lyrics,
-        handlers::images::get_cached_image_data_url,
-        handlers::images::cache_image_from_url,
+        handlers::images::get_image,
         handlers::images::clear_image_cache,
         handlers::images::get_image_cache_stats,
-        handlers::images::delete_cached_image,
+        handlers::images::clear_image_from_cache,
         handlers::playlists::get_playlists,
         handlers::playlists::create_playlist,
         handlers::playlists::update_playlist,
@@ -144,6 +139,12 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = cache::init().await {
+                    error!("Failed to initialize cache: {}", e);
+                }
+            });
 
             if let Err(e) = system_tray::setup_system_tray(app.handle()) {
                 error!("Failed to setup system tray: {}", e);

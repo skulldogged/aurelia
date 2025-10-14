@@ -29,7 +29,7 @@
     : '')
 
   const emit = defineEmits<{
-    'global-search':    [query: string]
+    'global-search':    []
     'logout':           []
     'navigate':         [view: string]
     'navigate-back':    []
@@ -62,7 +62,7 @@
   <div class='h-screen flex flex-col relative'>
     <!-- Sidebar positioned absolutely to extend full height -->
     <Sidebar
-      @global-search="(query: string) => emit('global-search', query)"
+      @global-search="$emit('global-search')"
       @navigate="(view: string) => emit('navigate', view)"
       :current-view='currentView'
       :is-collapsed='isSidebarCollapsed'

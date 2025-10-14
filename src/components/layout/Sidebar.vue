@@ -1,8 +1,7 @@
 <script setup lang="ts">
   import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
-  import { computed, ref } from 'vue'
+  import { computed } from 'vue'
 
-  import { Input } from '@/components/ui/input'
   import { useBlurStore } from '@/stores'
 
   defineProps<{
@@ -11,12 +10,11 @@
   }>()
 
   const emit = defineEmits<{
-    'global-search': [query: string]
+    'global-search': []
     navigate:        [view: string]
   }>()
 
   const blurStore = useBlurStore()
-  const globalSearchQuery = ref('')
 
   const sidebarBgClass = computed(
     () => blurStore.selectedBlurMode.name !== 'none'
@@ -24,14 +22,6 @@
       : 'bg-background-dark',
   )
 
-  const handleGlobalSearch = (): void => {
-    emit('global-search', globalSearchQuery.value)
-  }
-
-  const handleSearchFocus = (): void => {
-    if (globalSearchQuery.value.trim())
-      emit('global-search', globalSearchQuery.value)
-  }
 </script>
 
 <template>
@@ -42,21 +32,34 @@
       isCollapsed ? 'w-16' : 'w-48',
     ]"
   >
-    <!-- Search input -->
-    <div class='m-2 mb-2 relative'>
-      <Input
-        @focus='handleSearchFocus'
-        @input='handleGlobalSearch'
-        v-model='globalSearchQuery'
-        :class="[
-          'h-10 pl-10 transition-all duration-150 ease-in-out',
-          'focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent',
-          isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'
-        ]"
-        placeholder='Search music...'
-        type='text'
-      />
-      <Search class='absolute left-3.5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground' />
+    <!-- Search -->
+    <div class='m-2 mb-2'>
+      <button
+        @click="emit('global-search')"
+        class='flex items-center h-10 w-full rounded-md text-sm font-medium
+               bg-background border border-border hover:border-accent transition-colors'
+      >
+        <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+          <Search class='size-5 text-muted-foreground' />
+        </div>
+        <div
+          :class="[
+            'overflow-hidden transition-all duration-150 ease-in-out flex justify-between items-center w-full',
+            isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+          ]"
+        >
+          <span class='whitespace-nowrap text-muted-foreground'>Search...</span>
+          <kbd
+            class='
+              pointer-events-none mr-2 inline-flex h-5 select-none items-center
+              gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium
+              text-muted-foreground opacity-100
+            '
+          >
+            Ctrl+K
+          </kbd>
+        </div>
+      </button>
     </div>
     <nav class='flex flex-col flex-grow m-2 mt-0'>
       <div class='flex-grow space-y-2'>

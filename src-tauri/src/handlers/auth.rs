@@ -4,7 +4,7 @@ use crate::models::{Credentials, LoginResponse};
 use crate::services::JellyfinClient;
 use crate::utils;
 use crate::utils::error_handling;
-use std::fs;
+
 use tracing::error;
 
 /// Login to Jellyfin server
@@ -31,7 +31,7 @@ pub async fn login_to_jellyfin(
 /// Save user credentials to disk
 #[tauri::command]
 #[specta::specta]
-pub fn save_credentials(
+pub async fn save_credentials(
     server_url: String,
     username: String,
     token: String,
@@ -52,13 +52,15 @@ pub fn save_credentials(
         Err(e) => return Err(format!("Failed to serialize credentials: {e}")),
     };
 
-    fs::write(&credentials_path, json).map_err(|e| format!("Failed to save credentials: {e}"))
+    tokio::fs::write(&credentials_path, json)
+        .await
+        .map_err(|e| format!("Failed to save credentials: {e}"))
 }
 
 /// Load saved credentials from disk
 #[tauri::command]
 #[specta::specta]
-pub fn get_saved_credentials() -> Result<Option<Credentials>, String> {
+pub async fn get_saved_credentials() -> Result<Option<Credentials>, String> {
     let app_dir = match utils::get_app_data_dir() {
         Ok(dir) => dir,
         Err(e) => return Err(format!("Application data directory not accessible: {e}")),
@@ -69,7 +71,7 @@ pub fn get_saved_credentials() -> Result<Option<Credentials>, String> {
         return Ok(None);
     }
 
-    let json = match fs::read_to_string(&credentials_path) {
+    let json = match tokio::fs::read_to_string(&credentials_path).await {
         Ok(json) => json,
         Err(e) => return Err(format!("Failed to read saved credentials: {e}")),
     };
@@ -85,7 +87,7 @@ pub fn get_saved_credentials() -> Result<Option<Credentials>, String> {
 /// Save user volume preference
 #[tauri::command]
 #[specta::specta]
-pub fn save_volume(volume: f64) -> Result<(), String> {
+pub async fn save_volume(volume: f64) -> Result<(), String> {
     let app_dir = utils::ensure_app_data_dir()?;
     let volume_path = app_dir.join("volume.json");
 
@@ -94,13 +96,15 @@ pub fn save_volume(volume: f64) -> Result<(), String> {
         Err(e) => return Err(format!("Failed to serialize volume: {e}")),
     };
 
-    fs::write(&volume_path, json).map_err(|e| format!("Failed to save volume: {e}"))
+    tokio::fs::write(&volume_path, json)
+        .await
+        .map_err(|e| format!("Failed to save volume: {e}"))
 }
 
 /// Load saved volume preference
 #[tauri::command]
 #[specta::specta]
-pub fn get_saved_volume() -> Result<Option<f64>, String> {
+pub async fn get_saved_volume() -> Result<Option<f64>, String> {
     let app_dir = utils::get_app_data_dir()?;
     let volume_path = app_dir.join("volume.json");
 
@@ -108,7 +112,7 @@ pub fn get_saved_volume() -> Result<Option<f64>, String> {
         return Ok(None);
     }
 
-    let json = match fs::read_to_string(&volume_path) {
+    let json = match tokio::fs::read_to_string(&volume_path).await {
         Ok(json) => json,
         Err(e) => return Err(format!("Failed to read volume: {e}")),
     };
