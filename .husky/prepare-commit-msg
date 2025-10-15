@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# prepare-commit-msg hook to update version with git tree hash
+# This uses the tree hash (content hash) instead of commit hash to avoid circular dependencies
+
+# Exit if no Cargo.toml
+if [ ! -f "src-tauri/Cargo.toml" ]; then
+  echo "Warning: src-tauri/Cargo.toml not found. Skipping version update."
+  exit 0
+fi
+
+# Get the tree hash from current staging area
+TREE_HASH=$(git write-tree | cut -c1-8)
+
+if [ -z "$TREE_HASH" ]; then
+  echo "Error: Could not generate git tree hash. Aborting hook."
+  exit 1
+fi
+
+VERSION="0.1.0-unstable.$TREE_HASH"
+echo "Updating version to: $VERSION"
+
+# Update Cargo.toml - only the package version
+sed -i.bak "0,/^version = /s/^version = .*/version = \"$VERSION\"/" "src-tauri/Cargo.toml"
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to update src-tauri/Cargo.toml."
+    [ -f "src-tauri/Cargo.toml.bak" ] && mv "src-tauri/Cargo.toml.bak" "src-tauri/Cargo.toml"
+    exit 1
+fi
+rm -f "src-tauri/Cargo.toml.bak"
+
+# Update tauri.conf.json
+sed -i.bak 's/"version": "[^"]*"/"version": "'"$VERSION"'"/' "src-tauri/tauri.conf.json"
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to update src-tauri/tauri.conf.json."
+    [ -f "src-tauri/tauri.conf.json.bak" ] && mv "src-tauri/tauri.conf.json.bak" "src-tauri/tauri.conf.json"
+    exit 1
+fi
+rm -f "src-tauri/tauri.conf.json.bak"
+
+# Update Cargo.lock
+cargo check --quiet --manifest-path src-tauri/Cargo.toml
+
+# Add updated files to staging
+git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
+
+echo "Version updated and files staged for commit."
