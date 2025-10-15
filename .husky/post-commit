@@ -1,0 +1,18 @@
+# Skip if this commit was made by the version update hook (to avoid infinite loop)
+if git log --oneline -1 | grep -q "\[version-update\]"; then
+    echo "Skipping version update for version-update commit"
+    exit 0
+fi
+
+echo "Running post-commit version update..."
+
+# Run the version update script
+bun run post-commit-update-version
+
+# Stage the updated version files
+git add src-tauri/Cargo.toml src-tauri/tauri.conf.json
+
+# Amend the commit with a special marker to identify version updates
+git commit --amend --no-edit --no-verify -m "$(git log --format=%B -n1) [version-update]"
+
+echo "Commit amended with updated version containing commit hash."

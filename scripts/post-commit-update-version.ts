@@ -3,11 +3,11 @@
 import { execSync } from 'child_process'
 import fs from 'fs'
 
-const getGitCommitHash = (): string => {
+const getLatestCommitHash = (): string => {
   try {
-    return execSync('git rev-parse --short HEAD').toString().trim()
+    return execSync('git rev-parse HEAD').toString().trim()
   } catch {
-    console.warn('Could not get git commit hash, using fallback')
+    console.warn('Could not get latest commit hash')
     return 'unknown'
   }
 }
@@ -34,10 +34,10 @@ const updateTauriConfig = (version: string): void => {
 }
 
 const main = (): void => {
-  const commitHash = getGitCommitHash()
-  const version = `unstable-${commitHash}`
+  const commitHash = getLatestCommitHash()
+  const version = `0.1.0-unstable.${commitHash.substring(0, 8)}`
 
-  console.log(`Generating version: ${version}`)
+  console.log(`Updating version to: ${version}`)
 
   updateCargoToml(version)
   updateTauriConfig(version)
