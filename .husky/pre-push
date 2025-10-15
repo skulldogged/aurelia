@@ -1,35 +1,27 @@
-COMMIT_HASH=$(git rev-parse HEAD | cut -c1-8)
-VERSION="0.1.0-unstable.$COMMIT_HASH"
+#!/bin/bash
 
-if grep -q "$VERSION" src-tauri/Cargo.toml; then
-    echo "Version already up to date: $VERSION"
-    exit 0
-fi
+# Pre-push hook to update version before pushing
+# This ensures the pushed commit has the correct version
 
+# Skip if we're already in the middle of a version update
 if [ -f ".version-update-in-progress" ]; then
     echo "Version update already in progress, skipping"
     rm -f .version-update-in-progress
     exit 0
 fi
 
-echo "Running post-commit version update..."
+echo "Running pre-push version update..."
 
 touch .version-update-in-progress
 
 bun run post-commit-update-version
 
-echo "Updated version to $VERSION, updating Cargo.lock..."
-
 cargo check --quiet --manifest-path src-tauri/Cargo.toml
 
-echo "Staging updated files..."
-
 git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
-
-echo "Amending commit with updated version..."
 
 git commit --amend --no-edit --no-verify
 
 rm -f .version-update-in-progress
 
-echo "Done!"
+echo "Commit amended with updated version before push."
