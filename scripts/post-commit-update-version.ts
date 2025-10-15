@@ -35,7 +35,7 @@ const updateTauriConfig = (version: string): void => {
 
 const main = (): void => {
   const commitHash = getLatestCommitHash()
-  const version = `0.1.0-unstable.${commitHash.substring(0, 8)}`
+  const version = `0.1.0-unstable.${commitHash.substring(0, 7)}`
 
   console.log(`Updating version to: ${version}`)
 
