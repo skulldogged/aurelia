@@ -1,6 +1,6 @@
 [package]
 name = "aurelia"
-version = "unstable-e634e58"
+version = "unstable-5716ab5b"
 description = "A music player for Jellyfin"
 authors = ["pupbrained"]
 edition = "2024"
