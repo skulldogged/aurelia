@@ -8,17 +8,17 @@ if grep -q "$VERSION" src-tauri/Cargo.toml; then
     exit 0
 fi
 
-# Get the current commit hash
-COMMIT_HASH=$(git rev-parse HEAD | cut -c1-8)
-VERSION="0.1.0-unstable.$COMMIT_HASH"
-
-# Check if version is already up to date
-if grep -q "$VERSION" src-tauri/Cargo.toml; then
-    echo "Version already up to date: $VERSION"
+# Check if we're already in the middle of a version update
+if [ -f ".version-update-in-progress" ]; then
+    echo "Version update already in progress, skipping"
+    rm -f .version-update-in-progress
     exit 0
 fi
 
 echo "Running post-commit version update..."
+
+# Create flag file to prevent infinite loop
+touch .version-update-in-progress
 
 # Run the version update script
 bun run post-commit-update-version
@@ -31,5 +31,8 @@ git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json
 
 # Amend the commit without changing the message
 git commit --amend --no-edit --no-verify
+
+# Clean up flag file
+rm -f .version-update-in-progress
 
 echo "Commit amended with updated version containing commit hash."
