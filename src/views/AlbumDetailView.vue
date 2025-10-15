@@ -40,7 +40,7 @@
 
   const album = computed(() =>
     libraryLoaded.value && allAlbums.value.length > 0
-      ? allAlbums.value.find(a => a.name === decodeURIComponent(route.params.albumName as string)) || null
+      ? allAlbums.value.find(a => a.id === route.params.albumId as string) || null
       : null,
   )
 
@@ -50,7 +50,7 @@
       : [],
   )
 
-  // Unique album artists aggregated from tracks
+  // Unique album artists aggregated from songs
   const albumArtistPairs = computed<NameIdPair[]>(() => {
     const idToName = new Map<string, string>()
 
@@ -213,7 +213,7 @@
             </span>
             <span v-if='albumYear && albumSongs.length' class='mx-2 self-center'>•</span>
             <span v-if='albumSongs.length' class='inline-flex items-center'>
-              {{ albumSongs.length }} track{{ albumSongs.length > 1 ? 's' : '' }}
+              {{ albumSongs.length }} song{{ albumSongs.length > 1 ? 's' : '' }}
             </span>
             <span v-if='albumSongs.length' class='mx-2 self-center'>•</span>
             <span v-if='albumSongs.length' class='inline-flex items-center gap-1'>

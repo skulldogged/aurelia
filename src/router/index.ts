@@ -30,7 +30,7 @@ const routes = [
   {
     component: AlbumDetailView,
     name:      'album-detail',
-    path:      '/songs/album/:albumName',
+    path:      '/songs/album/:albumId',
   },
   {
     component: ArtistsView,

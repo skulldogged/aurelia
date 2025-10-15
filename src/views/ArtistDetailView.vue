@@ -1,10 +1,10 @@
 <script setup lang="ts">
   import { useBreakpoints } from '@vueuse/core'
   import { MoreHorizontal, Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
-  import { computed, ref } from 'vue'
+  import { computed, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
-  import { Album, Artist, Song } from '@/bindings'
+  import { Album, Artist, commands, Song } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import AlbumStack from '@/components/shared/AlbumStack.vue'
   import Carousel from '@/components/shared/Carousel.vue'
@@ -62,112 +62,28 @@
   )
 
   const artistSongs = computed(() =>
-    artist.value
-      ? allSongs.value.filter(song =>
-        song.artists
-        && song.artists.includes(artist.value!.name)).sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
+    artist.value && artist.value.songs
+      ? [...artist.value.songs].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
       : [],
   )
 
   const artistAlbums = computed(() => {
-    if (!artist.value) return []
-    const albumsMap = new Map<string, Album>()
-
-    artistSongs.value.forEach(song => {
-      if (song.album && song.albumId) {
-        if (!albumsMap.has(song.albumId)) {
-          albumsMap.set(song.albumId, {
-            albumArtUrl: song.albumArtUrl,
-            artist:      song.artists?.[0] || 'Unknown Artist',
-            artistId:    song.artistIds?.[0] || null,
-            dateCreated: song.dateCreated,
-            id:          song.albumId,
-            imageTags:   song.imageTags,
-            name:        song.album,
-            providerIds: null,
-            songCount:   BigInt(0),
-            songs:       [],
-          })
-        }
-        const album = albumsMap.get(song.albumId)!
-        album.songs!.push(song)
-        album.songCount = BigInt(album.songs!.length)
-      }
-    })
-
-    return Array.from(albumsMap.values())
+    if (!artist.value || !artist.value.songs) return []
+    const albumIds = new Set(artist.value.songs.map(s => s.albumId).filter(Boolean))
+    return libraryStore.allAlbums.filter(album => album.id && albumIds.has(album.id)) as Album[]
   })
 
-  const relatedArtists = computed(() => {
-    if (!artist.value) return []
-    // Configurable weights for scoring
-    const COLLABORATION_SCORE = 10
-    const SHARED_GENRE_SCORE = 5
-    const SHARED_ALBUM_SCORE = 2 // For artists on the same compilation/album
+  const relatedArtists = ref<Artist[]>([])
 
-    // 1. Get all data for the current artist
-    const currentArtistName = artist.value.name
-    const currentArtistSongs = allSongs.value.filter(s => s.artists?.includes(currentArtistName))
-    const currentArtistGenres = new Set(currentArtistSongs.flatMap(s => s.genres || []))
-    const currentArtistAlbums = new Set(currentArtistSongs.map(s => s.album).filter(Boolean))
-
-    const artistScores = new Map<string, number>()
-
-    // 2. Iterate over every *other* artist to calculate a similarity score
-    allArtists.value.forEach(otherArtist => {
-      if (otherArtist.name === currentArtistName) return
-
-      let score = 0
-      const otherArtistSongs = allSongs.value.filter(s => s.artists?.includes(otherArtist.name))
-      if (otherArtistSongs.length === 0) return
-
-      // 3. Calculate score based on collaborations, genres, and albums
-      // Score for direct collaborations
-      const collaborations = currentArtistSongs.filter(s => s.artists?.includes(otherArtist.name))
-      score += collaborations.length * COLLABORATION_SCORE
-
-      // Score for shared genres
-      const otherArtistGenres = new Set(otherArtistSongs.flatMap(s => s.genres || []))
-      for (const genre of otherArtistGenres)
-        if (currentArtistGenres.has(genre))
-          score += SHARED_GENRE_SCORE
-
-      // Score for shared albums (compilations)
-      const otherArtistAlbums = new Set(otherArtistSongs.map(s => s.album).filter(Boolean))
-      for (const album of otherArtistAlbums) {
-        if (currentArtistAlbums.has(album!) && collaborations.length === 0) {
-          // Only score shared albums if it's not a direct collaboration album
-          const songsOnAlbumByOther = otherArtistSongs.filter(s => s.album === album)
-          const songsOnAlbumByCurrent = currentArtistSongs.filter(s => s.album === album)
-          if (songsOnAlbumByOther.length > 0 && songsOnAlbumByCurrent.length > 0)
-            score += SHARED_ALBUM_SCORE
-        }
+  watch(artist, async newArtist => {
+    if (newArtist) {
+      console.time('getRelatedArtists')
+      const result = await commands.getRelatedArtists(newArtist.id)
+      if (result.status === 'ok') {
+        relatedArtists.value = result.data as Artist[]
       }
-
-      if (score > 0)
-        artistScores.set(otherArtist.name, score)
-    })
-
-    // 4. Sort artists by score and return the top 6
-    const sortedArtists = [...artistScores.entries()].sort((a, b) => b[1] - a[1])
-
-    const allArtistsMap = new Map(allArtists.value.map(a => [a.name, a]))
-
-    return sortedArtists.slice(0, 6).map(([name]) => {
-      const artistInfo = allArtistsMap.get(name)
-
-      return {
-        communityRating: null,
-        id:              artistInfo?.id || '',
-        imageTags:       null,
-        imageUrl:        artistInfo?.imageUrl,
-        name,
-        overview:        null,
-        providerIds:     null,
-        songCount:       BigInt(allSongs.value.filter(s => s.artists?.includes(name)).length),
-        songs:           null,
-      } as Artist
-    })
+      console.timeEnd('getRelatedArtists')
+    }
   })
 
   const primarySongs = computed(() => artistSongs.value.filter(song => song.artists?.[0] === artist.value?.name))
@@ -498,8 +414,8 @@
               >
                 <router-link
                   @click.stop
-                  v-if='song.album && !isSingle(song)'
-                  :to="{ name: 'album-detail', params: { albumName: song.album } }"
+                  v-if='song.album && song.albumId && !isSingle(song)'
+                  :to="{ name: 'album-detail', params: { albumId: song.albumId } }"
                   class='hover:underline'
                 >
                   {{ song.album }}
@@ -537,7 +453,7 @@
       >
         <div
           v-for='album in artistAlbums'
-          @click="$emit('select-album', album)"
+          @click="$emit('select-album', { ...album })"
           :key='album.name'
           class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
         >

@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Aurelia",
-  "version": "0.1.0",
+  "version": "unstable-e634e58",
   "identifier": "dev.pupbrained.aurelia",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "bun run build",
+    "beforeBuildCommand": "bun run update-version && bun run build",
     "frontendDist": "../dist"
   },
   "app": {

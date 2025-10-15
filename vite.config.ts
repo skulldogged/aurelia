@@ -8,6 +8,9 @@ import { VitePWA } from 'vite-plugin-pwa'
 const host = process.env.TAURI_DEV_HOST
 
 export default defineConfig(async () => ({
+  build: {
+    chunkSizeWarningLimit: 1000,
+  },
   clearScreen: false,
   css:         {
     lightningcss: {

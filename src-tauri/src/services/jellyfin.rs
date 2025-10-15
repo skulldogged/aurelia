@@ -923,7 +923,7 @@ impl JellyfinClient {
         Ok(artist)
     }
 
-    /// Get lyrics for a track
+    /// Get lyrics for a song
     pub async fn get_lyrics(&self, item_id: &str) -> AppResult<Option<JellyfinLyrics>> {
         let lyrics_url =
             utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{item_id}/Lyrics"));

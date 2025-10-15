@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "update-version": "node scripts/update-version.ts",
     "preview": "vite preview",
     "tauri": "tauri"
   },

@@ -107,23 +107,9 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Get single album by ID
- */
   getAlbum: async (albumId: string, includeSongs: boolean | null): Promise<Result<Album, string>> => {
     try {
       return { data: await TAURI_INVOKE('get_album', { albumId, includeSongs }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  /**
- * Get albums with optional filtering and song inclusion
- */
-  getAlbums: async (serverUrl: null | string, token: null | string, includeSongs: boolean | null, limit: null | number, offset: null | number): Promise<Result<Album[], string>> => {
-    try {
-      return { data: await TAURI_INVOKE('get_albums', { includeSongs, limit, offset, serverUrl, token }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -140,23 +126,9 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Get single artist by ID
- */
-  getArtist: async (artistId: string, includeSongs: boolean | null, albumArtistsOnly: boolean | null): Promise<Result<Artist, string>> => {
+  getArtist: async (artistId: string, includeSongs: boolean | null): Promise<Result<Artist, string>> => {
     try {
-      return { data: await TAURI_INVOKE('get_artist', { albumArtistsOnly, artistId, includeSongs }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  /**
- * Get artists with optional filtering and song inclusion
- */
-  getArtists: async (serverUrl: null | string, token: null | string, includeSongs: boolean | null, albumArtistsOnly: boolean | null, limit: null | number, offset: null | number): Promise<Result<Artist[], string>> => {
-    try {
-      return { data: await TAURI_INVOKE('get_artists', { albumArtistsOnly, includeSongs, limit, offset, serverUrl, token }), status: 'ok' }
+      return { data: await TAURI_INVOKE('get_artist', { artistId, includeSongs }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -187,8 +159,16 @@ export const commands = {
   /**
  * Get the current blur mode
  */
-  getBlurMode: async (): Promise<string> => await TAURI_INVOKE('get_blur_mode'),
-  getImage:    async (itemId: string, imageType: string, serverUrl: string, token: string): Promise<Result<null | string, string>> => {
+  getBlurMode:     async (): Promise<string> => await TAURI_INVOKE('get_blur_mode'),
+  getHomeViewData: async (): Promise<Result<HomeViewData, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('get_home_view_data'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  getImage: async (itemId: string, imageType: string, serverUrl: string, token: string): Promise<Result<null | string, string>> => {
     try {
       return { data: await TAURI_INVOKE('get_image', { imageType, itemId, serverUrl, token }), status: 'ok' }
     } catch (e) {
@@ -204,12 +184,17 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Get instant mix (similar songs) for a given item
- */
   getInstantMix: async (itemId: string): Promise<Result<Song[], string>> => {
     try {
       return { data: await TAURI_INVOKE('get_instant_mix', { itemId }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  getLibrary: async (): Promise<Result<LibraryData, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('get_library'), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -248,12 +233,17 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Get recently played songs
- */
   getRecentlyPlayed: async (serverUrl: string, token: string): Promise<Result<Song[], string>> => {
     try {
       return { data: await TAURI_INVOKE('get_recently_played', { serverUrl, token }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  getRelatedArtists: async (artistId: string): Promise<Result<Artist[], string>> => {
+    try {
+      return { data: await TAURI_INVOKE('get_related_artists', { artistId }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -281,23 +271,9 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Get single song by ID
- */
   getSong: async (songId: string): Promise<Result<Song, string>> => {
     try {
       return { data: await TAURI_INVOKE('get_song', { songId }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  /**
- * Get songs with optional filtering
- */
-  getSongs: async (serverUrl: null | string, token: null | string, limit: null | number, offset: null | number, albumId: null | string, artistId: null | string): Promise<Result<Song[], string>> => {
-    try {
-      return { data: await TAURI_INVOKE('get_songs', { albumId, artistId, limit, offset, serverUrl, token }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -708,8 +684,10 @@ export type Credentials = {
  * Username
  */
   username:  string; }
+export type HomeViewData = { featured_albums: Album[]; random_albums: Album[]; recently_added: Album[]; recently_played: Song[] }
 export type LastFmCredentials = { api_key: string; api_secret: string; session_key: null | string; username: null | string }
 export type LastFmScrobble = { album: null | string; artist: string; duration: bigint | null; timestamp: bigint; track: string; }
+export type LibraryData = { albums: Album[]; artists: Artist[]; songs: Song[]; }
 export type ListenBrainzCredentials = { user_token: string; username: null | string }
 export type ListenBrainzListen = { album: null | string; artist: string; duration: bigint | null; track: string; }
 /**

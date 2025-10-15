@@ -14,7 +14,7 @@
   const canvasRef = ref<HTMLCanvasElement | null>(null)
   const animationFrameId = ref<null | number>(null)
 
-  let dataArray: null | Uint8Array = null
+  let dataArray: null | Uint8Array<ArrayBuffer> = null
   let bufferLength = 0
 
   // Performance: Cache accent color and gradients

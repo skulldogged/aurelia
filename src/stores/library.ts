@@ -19,53 +19,67 @@ export const useLibraryStore = defineStore('library', () => {
   const isLoaded = ref(false)
 
   // Actions
-  const loadLibrary = async (credentials: Credentials): Promise<void> => {
-    if (isLoaded.value)
-      return
+  const loadLibrary = async (): Promise<void> => {
+    if (isLoaded.value) {
+      appLogger.info('Library already loaded, skipping.');
+      return;
+    }
 
-    // Load songs first
-    await withCustomState(
-      () => commands.getSongs(credentials.serverUrl, credentials.token, null, null, null, null),
-      {
-        onError: errorString => {
-          error.value = `Failed to load songs: ${errorString}`
-          appLogger.error('Failed to load songs:', errorString)
-          isLoading.value = false
-        },
-        onStart: () => {
-          isLoading.value = true
-          error.value = null
-          appLogger.info('Loading library data...')
-        },
-        onSuccess: songs => {
-          allSongs.value = songs
-        },
-      },
-    )
+    isLoading.value = true;
+    error.value = null;
+    appLogger.info('loadLibrary: Loading library data...');
+    console.time('loadLibrary');
 
-    // Then load artists and albums in parallel
-    await withMultipleResults(
-      [
-        () => commands.getArtists(credentials.serverUrl, credentials.token, true, false, null, null),
-        () => commands.getArtists(credentials.serverUrl, credentials.token, true, true, null, null),
-        () => commands.getAlbums(credentials.serverUrl, credentials.token, true, null, null),
-      ] as const,
-      {
-        onError: errors => {
-          error.value = `Failed to load library data: ${errors.join(', ')}`
-          isLoading.value = false
-          appLogger.error('Failed to load library data:', errors)
-        },
-        onSuccess: ([artistsWithSongs, albumArtists, albums]) => {
-          allArtistsWithSongs.value = artistsWithSongs
-          albumArtistsWithSongs.value = albumArtists
-          allAlbums.value = albums
-          isLoaded.value = true
-          isLoading.value = false
-          appLogger.info('Library data loaded successfully')
-        },
-      },
-    )
+    const result = await commands.getLibrary();
+
+    if (result.status === 'ok') {
+      const { songs, artists, albums } = result.data;
+      allSongs.value = songs;
+
+      // Post-process data to link songs to albums and artists
+      const albumMap = new Map<string, Song[]>();
+      for (const song of songs) {
+        if (song.albumId) {
+          if (!albumMap.has(song.albumId)) {
+            albumMap.set(song.albumId, []);
+          }
+          albumMap.get(song.albumId)!.push(song);
+        }
+      }
+      for (const album of albums) {
+        if (album.id) {
+          album.songs = albumMap.get(album.id) || [];
+        }
+      }
+
+      const artistMap = new Map<string, Song[]>();
+      for (const song of songs) {
+        if (song.artistIds) {
+          for (const artistId of song.artistIds) {
+            if (!artistMap.has(artistId)) {
+              artistMap.set(artistId, []);
+            }
+            artistMap.get(artistId)!.push(song);
+          }
+        }
+      }
+      for (const artist of artists) {
+        if (artist.id) {
+          artist.songs = artistMap.get(artist.id) || [];
+        }
+      }
+
+      allArtistsWithSongs.value = artists;
+      allAlbums.value = albums;
+      isLoaded.value = true;
+      appLogger.info(`loadLibrary: Loaded ${songs.length} songs, ${artists.length} artists, and ${albums.length} albums.`);
+    } else {
+      error.value = `Failed to load library: ${result.error}`;
+      appLogger.error('Failed to load library:', result.error);
+    }
+
+    isLoading.value = false;
+    console.timeEnd('loadLibrary');
   }
 
   const syncLibrary = async (credentials: Credentials): Promise<void> => {
@@ -82,7 +96,7 @@ export const useLibraryStore = defineStore('library', () => {
         onSuccess: async () => {
           // Reset loaded state to force reload
           isLoaded.value = false
-          await loadLibrary(credentials)
+          await loadLibrary()
           appLogger.info('Library sync completed successfully.')
         },
       },
@@ -103,7 +117,7 @@ export const useLibraryStore = defineStore('library', () => {
         onSuccess: async () => {
           // Reset loaded state to force reload
           isLoaded.value = false
-          await loadLibrary(credentials)
+          await loadLibrary()
           appLogger.info('Cache clear completed successfully.')
         },
       },

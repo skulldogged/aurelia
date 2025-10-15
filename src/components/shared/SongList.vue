@@ -277,8 +277,8 @@
                           <span v-if='showAlbum'>
                             <router-link
                               @click.stop
-                              v-if='song.album'
-                              :to="{ name: 'album-detail', params: { albumName: song.album } }"
+                              v-if='song.album && song.albumId'
+                              :to="{ name: 'album-detail', params: { albumId: song.albumId } }"
                               class='hover:underline'
                             >
                               {{ song.album }}

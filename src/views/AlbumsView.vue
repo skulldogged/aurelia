@@ -152,7 +152,9 @@
   }
 
   const selectAlbum = (album: Album): void => {
-    router.push(`/songs/album/${encodeURIComponent(album.name)}`)
+    if (album.id) {
+      router.push(`/songs/album/${album.id}`)
+    }
   }
 </script>
 

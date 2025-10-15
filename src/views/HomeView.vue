@@ -1,10 +1,9 @@
 <script setup lang="ts">
   import { ChevronLeft, ChevronRight, Play, Shuffle } from 'lucide-vue-next'
-  import { computed, onMounted, ref, watch } from 'vue'
+  import { computed, onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Album, NameIdPair, Song } from '@/bindings'
-  import { commands } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import AlbumStack from '@/components/shared/AlbumStack.vue'
   import Carousel from '@/components/shared/Carousel.vue'
@@ -17,16 +16,14 @@
     ContextMenuItem,
     ContextMenuTrigger,
   } from '@/components/ui/context-menu'
-  import { Skeleton } from '@/components/ui/skeleton'
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { uiLogger } from '@/lib/logger'
-  import { withCustomState } from '@/lib/result'
-  import { useAuthStore, useLibraryStore } from '@/stores'
+  import { sortSongsByTrackOrder } from '@/lib/transforms'
+  import { useAuthStore, useHomeStore } from '@/stores'
 
   const router = useRouter()
   const authStore = useAuthStore()
-  const libraryStore = useLibraryStore()
-  const { getRecentlyPlayed } = commands
+  const homeStore = useHomeStore()
 
   const credentials = computed(() => ({
     serverUrl: authStore.serverUrl,
@@ -34,6 +31,9 @@
     userId:    authStore.userId,
     username:  authStore.username,
   }))
+
+  const serverUrl = computed(() => credentials.value.serverUrl)
+  const token = computed(() => credentials.value.token)
 
   const { playInstantMix } = useSongInteractions(credentials)
 
@@ -46,78 +46,17 @@
     'select-album': [album: Album]
   }>()
 
-  const recentlyPlayedSongs = ref<Song[]>([])
-
-  const allAlbums = computed(() => libraryStore.allAlbums)
-  const libraryLoaded = computed(() => libraryStore.isLoaded)
-  const libraryLoading = computed(() => libraryStore.isLoading)
-  const serverUrl = computed(() => authStore.serverUrl)
-  const token = computed(() => authStore.token)
-
-  const fetchRecentlyPlayed = async (): Promise<void> => {
-    if (!serverUrl.value || !token.value) {
-      uiLogger.error('Missing serverUrl or token')
-      return
-    }
-
-    await withCustomState(
-      () => getRecentlyPlayed(serverUrl.value, token.value),
-      {
-        onError: error => {
-          uiLogger.error('Failed to fetch recently played:', error)
-        },
-        onSuccess: songs => {
-          recentlyPlayedSongs.value = songs
-        },
-      },
-    )
-  }
-
-  onMounted(fetchRecentlyPlayed)
-
-  // Refetch recently played songs when navigating back to this view
-  watch(() => libraryLoaded.value, loaded => {
-    if (loaded && serverUrl.value && token.value && recentlyPlayedSongs.value.length === 0)
-      fetchRecentlyPlayed()
-  })
-
-  const mostPlayed = computed(() =>
-    recentlyPlayedSongs.value.length > 0
-      ? [...recentlyPlayedSongs.value]
-        .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
-        .slice(0, 10)
-      : [],
-  )
-
-  const recentlyPlayed = computed(() => recentlyPlayedSongs.value)
-
-  const recentlyAdded = computed(() =>
-    [...allAlbums.value as Album[]]
-      .filter(album => album.name && album.name.trim().length > 0)
-      .sort((a, b) => {
-        // Sort by date created descending (most recent first)
-        const dateA = a.dateCreated ? new Date(a.dateCreated).getTime() : 0
-        const dateB = b.dateCreated ? new Date(b.dateCreated).getTime() : 0
-        return dateB - dateA
-      })
-      .slice(0, 10),
-  )
-
-  const randomAlbums = computed(() =>
-    [...allAlbums.value as Album[]]
-      .filter(album => album.name && album.name.trim().length > 0)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 10),
-  )
-
-  const featuredAlbums = ref<Album[]>([])
+  const isLoading = computed(() => homeStore.isLoading)
+  const recentlyPlayed = computed(() => homeStore.recentlyPlayedSongs)
+  const recentlyAdded = computed(() => homeStore.recentlyAddedAlbums)
+  const randomAlbums = computed(() => homeStore.randomLibraryAlbums)
+  const featuredAlbums = computed(() => homeStore.featuredLibraryAlbums)
   const currentFeaturedIndex = ref(0)
 
   const featuredAlbum = computed(() =>
     featuredAlbums.value[currentFeaturedIndex.value] || null,
   )
 
-  // Extract all unique album artists from the featured album's songs
   const featuredAlbumArtistPairs = computed<NameIdPair[]>(() => {
     const album = featuredAlbum.value
     if (!album) return []
@@ -146,20 +85,17 @@
     return Array.from(idToName, ([id, name]) => ({ id, name }))
   })
 
-  const isValidAlbumName = (name: null | string | undefined): boolean =>
-    !!(name && name.trim().length > 0)
+  onMounted(() => {
+    homeStore.loadHomeData()
+  })
 
-  const initializeFeaturedAlbums = (): void => {
-    featuredAlbums.value = [...allAlbums.value as Album[]].sort(() => 0.5 - Math.random())
-  }
-
-  const sortSongsByTrackOrder = (songs: Song[]): Song[] =>
-    [...songs].sort((a, b) => {
-      const trackA = a.trackNumber ?? Number.MAX_SAFE_INTEGER
-      const trackB = b.trackNumber ?? Number.MAX_SAFE_INTEGER
-      if (trackA !== trackB) return trackA - trackB
-      return a.name.localeCompare(b.name)
-    })
+  const mostPlayed = computed(() =>
+    recentlyPlayed.value.length > 0
+      ? [...recentlyPlayed.value]
+        .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+        .slice(0, 10)
+      : [],
+  )
 
   const nextFeaturedAlbum = (): void => {
     if (featuredAlbums.value.length > 1)
@@ -172,10 +108,6 @@
         ? featuredAlbums.value.length - 1
         : currentFeaturedIndex.value - 1
   }
-
-  watch(() => allAlbums.value, () => {
-    initializeFeaturedAlbums()
-  }, { immediate: true })
 
   const playSongs = (songs: Song[], startWith?: Song): void => {
     if (songs.length === 0) {
@@ -210,8 +142,8 @@
     const albumSongs = featuredAlbum.value.songs || []
     if (albumSongs.length > 0) {
       emit('play-songs', sortSongsByTrackOrder(albumSongs))
-      if (isValidAlbumName(featuredAlbum.value.name)) {
-        router.push(`/songs/album/${encodeURIComponent(featuredAlbum.value.name)}`)
+      if (featuredAlbum.value.id) {
+        router.push(`/songs/album/${featuredAlbum.value.id}`)
       }
     } else {
       uiLogger.warn('No songs found for featured album')
@@ -236,30 +168,23 @@
       </h1>
     </div>
 
-    <!-- Featured Album Section -->
-    <div
-      v-if='featuredAlbum || libraryLoading'
-      class='relative isolate bg-sidebar rounded-lg p-8 mb-8 overflow-hidden'
-    >
-      <!-- Blurred Background -->
-      <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-lg blur-md scale-105 overflow-hidden'>
-        <ImageLoader
-          v-if='featuredAlbum && !libraryLoading'
-          :item-id='featuredAlbum.id || featuredAlbum.name'
-          :server-url='serverUrl'
-          :token='token'
-          class='size-full object-cover'
-        />
-        <div class='absolute inset-0 bg-black/60 rounded-lg' />
-      </div>
+    <div class='space-y-8'>
+      <!-- Featured Album Section -->
+      <div v-if='featuredAlbum' class='relative isolate bg-sidebar rounded-lg p-8 mb-8 overflow-hidden'>
+        <!-- Blurred Background -->
+        <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-lg blur-md scale-105 overflow-hidden'>
+          <ImageLoader
+            :item-id='featuredAlbum.id || featuredAlbum.name'
+            :server-url='serverUrl'
+            :token='token'
+            class='size-full object-cover'
+          />
+          <div class='absolute inset-0 bg-black/60 rounded-lg' />
+        </div>
 
-      <!-- Content -->
-      <div class='relative z-10 flex items-center space-x-6'>
-        <div class='flex-shrink-0'>
-          <template v-if='libraryLoading'>
-            <Skeleton class='size-48 rounded-xl' />
-          </template>
-          <template v-else-if='featuredAlbum'>
+        <!-- Content -->
+        <div class='relative z-10 flex items-center space-x-6'>
+          <div class='flex-shrink-0'>
             <ImageLoader
               :alt='`${featuredAlbum.name} album art`'
               :item-id='featuredAlbum.id || featuredAlbum.name'
@@ -275,29 +200,12 @@
                 />
               </template>
             </ImageLoader>
-          </template>
-        </div>
-        <div class='flex-1 min-w-0'>
-          <template v-if='libraryLoading'>
-            <Skeleton class='h-10 w-3/4 mb-2' />
-            <Skeleton class='h-7 w-1/2 mb-4' />
-            <Skeleton class='h-5 w-1/4 mb-6' />
-            <button
-              class='
-                bg-white/20 backdrop-blur-sm text-white px-8
-                py-3 rounded-full font-semibold border
-                border-white/20 opacity-50 cursor-not-allowed
-              '
-              disabled
-            >
-              Play Album
-            </button>
-          </template>
-          <template v-else-if='featuredAlbum'>
+          </div>
+          <div class='flex-1 min-w-0'>
             <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate'>
               <router-link
-                v-if='isValidAlbumName(featuredAlbum.name)'
-                :to="{ name: 'album-detail', params: { albumName: featuredAlbum.name } }"
+                v-if='featuredAlbum.id'
+                :to="{ name: 'album-detail', params: { albumId: featuredAlbum.id } }"
               >
                 {{ featuredAlbum.name }}
               </router-link>
@@ -331,65 +239,34 @@
             </p>
             <button
               @click='playFeaturedAlbum'
-              :disabled='libraryLoading'
-              class='
-                  bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8
-                  py-3 rounded-full font-semibold transition-colors border
-                  border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
-                '
+              class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8 py-3
+                     rounded-full font-semibold transition-colors border border-white/20'
             >
               Play Album
             </button>
-          </template>
-        </div>
-      </div>
-
-      <!-- Navigation Arrows -->
-      <div v-if='featuredAlbums.length > 1' class='absolute bottom-4 right-4 z-20 flex space-x-2'>
-        <button
-          @click='prevFeaturedAlbum'
-          :disabled='libraryLoading'
-          class='
-              flex items-center justify-center bg-white/20 p-2 text-white
-              backdrop-blur-sm transition-colors hover:bg-white/30
-              border border-white/20 rounded-full disabled:opacity-50 disabled:cursor-not-allowed
-            '
-        >
-          <ChevronLeft class='h-5 w-5' />
-        </button>
-        <button
-          @click='nextFeaturedAlbum'
-          :disabled='libraryLoading'
-          class='
-            flex items-center justify-center bg-white/20 p-2 text-white
-            backdrop-blur-sm transition-colors hover:bg-white/30
-            border border-white/20 rounded-full disabled:opacity-50 disabled:cursor-not-allowed
-          '
-        >
-          <ChevronRight class='h-5 w-5' />
-        </button>
-      </div>
-    </div>
-
-    <Carousel
-      :disabled='libraryLoading || !libraryLoaded || recentlyPlayedSongs.length === 0'
-      class='mb-8'
-      title='Most Played'
-    >
-      <template v-if='libraryLoading || !libraryLoaded || recentlyPlayedSongs.length === 0'>
-        <div
-          v-for='n in 10'
-          :key='`most-played-skeleton-${n}`'
-          class='cursor-pointer group'
-        >
-          <div class='relative mb-2'>
-            <Skeleton class='album-art-image' />
           </div>
-          <Skeleton class='h-6 w-3/4 mb-1' />
-          <Skeleton class='h-4 w-1/2' />
         </div>
-      </template>
-      <template v-else>
+
+        <!-- Navigation Arrows -->
+        <div v-if='featuredAlbums.length > 1' class='absolute bottom-4 right-4 z-20 flex space-x-2'>
+          <button
+            @click='prevFeaturedAlbum'
+            class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
+                   transition-colors hover:bg-white/30 border border-white/20 rounded-full'
+          >
+            <ChevronLeft class='h-5 w-5' />
+          </button>
+          <button
+            @click='nextFeaturedAlbum'
+            class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
+                   transition-colors hover:bg-white/30 border border-white/20 rounded-full'
+          >
+            <ChevronRight class='h-5 w-5' />
+          </button>
+        </div>
+      </div>
+
+      <Carousel :disabled='isLoading' class='mb-8' title='Most Played'>
         <ContextMenu v-for='song in mostPlayed' :key='song.id'>
           <ContextMenuTrigger as-child>
             <div
@@ -405,29 +282,18 @@
                   class='album-art-image'
                 >
                   <template #fallback>
-                    <ImagePlaceholder
-                      class='album-art-image'
-                      size='large'
-                      type='album-art'
-                    />
+                    <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
                   </template>
                 </ImageLoader>
 
                 <!-- Play button overlay -->
                 <div
-                  class='
-                         absolute inset-0 bg-black/50 rounded-lg opacity-0
-                         group-hover:opacity-100 transition-opacity flex items-center
-                         justify-center
-                       '
+                  class='absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100
+                         transition-opacity flex items-center justify-center'
                 >
                   <Button
                     @click.stop='playSongs(mostPlayed, song)'
-                    :disabled='libraryLoading'
-                    class='
-                           bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
-                           border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
-                         '
+                    class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20'
                     size='icon'
                   >
                     <Play class='h-4 w-4' />
@@ -458,37 +324,16 @@
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem @click='playSongs([song])'>
-              <Play class='size-4 mr-2' />
-              Play
+              <Play class='size-4 mr-2' />Play
             </ContextMenuItem>
             <ContextMenuItem @click='playInstantMix(song)'>
-              <Shuffle class='size-4 mr-2' />
-              Instant Mix
+              <Shuffle class='size-4 mr-2' />Instant Mix
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
-      </template>
-    </Carousel>
+      </Carousel>
 
-    <Carousel
-      :disabled='libraryLoading || !libraryLoaded || recentlyPlayedSongs.length === 0'
-      class='mb-8'
-      title='Recently Played'
-    >
-      <template v-if='libraryLoading || !libraryLoaded || recentlyPlayedSongs.length === 0'>
-        <div
-          v-for='n in 10'
-          :key='`recently-played-skeleton-${n}`'
-          class='cursor-pointer group'
-        >
-          <div class='relative mb-2'>
-            <Skeleton class='album-art-image' />
-          </div>
-          <Skeleton class='h-6 w-3/4 mb-1' />
-          <Skeleton class='h-4 w-1/2' />
-        </div>
-      </template>
-      <template v-else>
+      <Carousel :disabled='isLoading' class='mb-8' title='Recently Played'>
         <ContextMenu v-for='song in recentlyPlayed' :key='song.id'>
           <ContextMenuTrigger as-child>
             <div
@@ -504,29 +349,18 @@
                   class='album-art-image'
                 >
                   <template #fallback>
-                    <ImagePlaceholder
-                      class='album-art-image'
-                      size='large'
-                      type='album-art'
-                    />
+                    <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
                   </template>
                 </ImageLoader>
 
                 <!-- Play button overlay -->
                 <div
-                  class='
-                      absolute inset-0 bg-black/50 rounded-lg opacity-0
-                      group-hover:opacity-100 transition-opacity flex items-center
-                      justify-center
-                    '
+                  class='absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100
+                         transition-opacity flex items-center justify-center'
                 >
                   <Button
                     @click.stop='playSongs(recentlyPlayed, song)'
-                    :disabled='libraryLoading'
-                    class='
-                        bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
-                        border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
-                      '
+                    class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20'
                     size='icon'
                   >
                     <Play class='h-4 w-4' />
@@ -557,35 +391,16 @@
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem @click='playSongs([song])'>
-              <Play class='size-4 mr-2' />
-              Play
+              <Play class='size-4 mr-2' />Play
             </ContextMenuItem>
             <ContextMenuItem @click='playInstantMix(song)'>
-              <Shuffle class='size-4 mr-2' />
-              Instant Mix
+              <Shuffle class='size-4 mr-2' />Instant Mix
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
-      </template>
-    </Carousel>
+      </Carousel>
 
-    <Carousel :disabled='libraryLoading || !libraryLoaded' class='mb-8' title='Recently Added'>
-      <template v-if='libraryLoading || !libraryLoaded'>
-        <div
-          v-for='n in 10'
-          :key='`recently-added-skeleton-${n}`'
-          class='cursor-pointer group'
-        >
-          <div class='relative mb-2 album-stack-container'>
-            <Skeleton class='album-stack-layer album-stack-layer-3 album-art-image' />
-            <Skeleton class='album-stack-layer album-stack-layer-2 album-art-image' />
-            <Skeleton class='album-stack-layer album-stack-layer-1 album-art-image' />
-          </div>
-          <Skeleton class='h-6 w-3/4 mb-1' />
-          <Skeleton class='h-4 w-1/2' />
-        </div>
-      </template>
-      <template v-else>
+      <Carousel :disabled='isLoading' class='mb-8' title='Recently Added'>
         <ContextMenu v-for='album in recentlyAdded' :key='album.name'>
           <ContextMenuTrigger as-child>
             <div
@@ -596,9 +411,9 @@
                 <AlbumStack
                   @play='playAlbumSongs'
                   :album='album'
-                  :disabled='libraryLoading'
+                  :disabled='isLoading'
                   :server-url='serverUrl'
-                  :size='"responsive"'
+                  :size="'responsive'"
                   :token='token'
                 />
               </div>
@@ -620,8 +435,7 @@
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem @click='playAlbumSongs(album)'>
-              <Play class='size-4 mr-2' />
-              Play Album
+              <Play class='size-4 mr-2' />Play Album
             </ContextMenuItem>
             <AddToPlaylistMenu
               :songs='album.songs ? [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
@@ -629,26 +443,9 @@
             />
           </ContextMenuContent>
         </ContextMenu>
-      </template>
-    </Carousel>
+      </Carousel>
 
-    <Carousel :disabled='libraryLoading || !libraryLoaded' class='mb-8' title='From Your Library'>
-      <template v-if='libraryLoading || !libraryLoaded'>
-        <div
-          v-for='n in 10'
-          :key='`library-skeleton-${n}`'
-          class='cursor-pointer group'
-        >
-          <div class='relative mb-2 album-stack-container'>
-            <Skeleton class='album-stack-layer album-stack-layer-3 album-art-image' />
-            <Skeleton class='album-stack-layer album-stack-layer-2 album-art-image' />
-            <Skeleton class='album-stack-layer album-stack-layer-1 album-art-image' />
-          </div>
-          <Skeleton class='h-6 w-3/4 mb-1' />
-          <Skeleton class='h-4 w-1/2' />
-        </div>
-      </template>
-      <template v-else>
+      <Carousel :disabled='isLoading' class='mb-8' title='From Your Library'>
         <ContextMenu v-for='album in randomAlbums' :key='album.name'>
           <ContextMenuTrigger as-child>
             <div
@@ -659,9 +456,9 @@
                 <AlbumStack
                   @play='playAlbumSongs'
                   :album='album'
-                  :disabled='libraryLoading'
+                  :disabled='isLoading'
                   :server-url='serverUrl'
-                  :size='"responsive"'
+                  :size="'responsive'"
                   :token='token'
                 />
               </div>
@@ -683,8 +480,7 @@
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem @click='playAlbumSongs(album)'>
-              <Play class='size-4 mr-2' />
-              Play Album
+              <Play class='size-4 mr-2' />Play Album
             </ContextMenuItem>
             <AddToPlaylistMenu
               :songs='album.songs ? [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
@@ -692,8 +488,8 @@
             />
           </ContextMenuContent>
         </ContextMenu>
-      </template>
-    </Carousel>
+      </Carousel>
+    </div>
   </div>
 </template>
 

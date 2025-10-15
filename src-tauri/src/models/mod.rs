@@ -5,6 +5,7 @@
 
 pub mod auth;
 pub mod jellyfin;
+pub mod library;
 pub mod lrclib;
 pub mod music;
 

@@ -19,7 +19,7 @@ const getRoutePath = (view: string): string | undefined => ROUTE_MAP[view]
 
 const createArtistPath = (artist: Artist): string => `/songs/artist/${artist.id}`
 
-const createAlbumPath = (album: Album): string => `/songs/album/${encodeURIComponent(album.name)}`
+const createAlbumPath = (album: Album): string => `/songs/album/${album.id}`
 
 const updateNavState = (): void => {
   canGoBack.value = window.history.state.position > 0
@@ -46,13 +46,11 @@ const handleNavigation = (router: ReturnType<typeof useRouter>) => (view: string
 }
 
 const navigateToArtist = (router: ReturnType<typeof useRouter>) => (artist: Artist): void => {
-  const path = createArtistPath(artist)
-  navigateToPath(router, path)
+  navigateToPath(router, createArtistPath(artist))
 }
 
 const navigateToAlbum = (router: ReturnType<typeof useRouter>) => (album: Album): void => {
-  const path = createAlbumPath(album)
-  navigateToPath(router, path)
+  navigateToPath(router, createAlbumPath(album))
 }
 
 export interface Navigation {

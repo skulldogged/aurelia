@@ -138,7 +138,7 @@
 
   watch(authStatus, async newStatus => {
     if (newStatus === 'loggedIn' && credentials.value) {
-      await libraryStore.loadLibrary(credentials.value)
+      await libraryStore.loadLibrary()
     }
   })
 
@@ -237,7 +237,7 @@
             @play-instant-mix='playInstantMix'
             @play-song='playSong'
             @play-songs='playSongs'
-            @reload-library='() => credentials && libraryStore.loadLibrary(credentials)'
+            @reload-library='() => libraryStore.loadLibrary()'
             @select-album='navigateToAlbum'
             @select-artist='navigateToArtist'
             @sync-library='handleSyncLibrary'

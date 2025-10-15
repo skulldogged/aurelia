@@ -7,15 +7,17 @@ pub mod lastfm;
 pub mod listenbrainz;
 pub mod models;
 pub mod services;
+pub mod state;
 pub mod system_tray;
 pub mod utils;
 
 pub use anyhow::Result;
 
 #[cfg(debug_assertions)]
-use specta_typescript::BigIntExportBehavior;
-use specta_typescript::Typescript;
+use specta_typescript::{BigIntExportBehavior, Typescript};
+#[cfg(debug_assertions)]
 use std::process::Command;
+use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -60,11 +62,9 @@ pub fn run() {
         handlers::auth::get_saved_credentials,
         handlers::auth::save_volume,
         handlers::auth::get_saved_volume,
-        handlers::music::get_songs,
+        handlers::music::get_library,
         handlers::music::get_song,
-        handlers::music::get_artists,
         handlers::music::get_artist,
-        handlers::music::get_albums,
         handlers::music::get_album,
         handlers::music::get_audio_stream_url,
         handlers::music::toggle_favorite_status,
@@ -73,6 +73,8 @@ pub fn run() {
         handlers::music::get_recently_played,
         handlers::music::register_client_capabilities,
         handlers::music::get_instant_mix,
+        handlers::music::get_related_artists,
+        handlers::music::get_home_view_data,
         handlers::music::report_playback_start,
         handlers::music::report_playback_progress,
         handlers::music::report_playback_stop,
@@ -136,14 +138,35 @@ pub fn run() {
         .manage(discord_rpc::DiscordRpcState::new())
         .manage(lastfm::LastFmState::new())
         .manage(listenbrainz::ListenBrainzState::new())
+        .manage(state::AppState::new())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
+            info!("Setting up application...");
             builder.mount_events(app);
 
+            info!("Initializing database...");
+            if let Err(e) = database::init() {
+                error!("Failed to initialize database: {}", e);
+            }
+            info!("Database initialized.");
+
+            let app_state = app.state::<state::AppState>();
+            let songs = app_state.songs.clone();
+            let artists = app_state.artists.clone();
+            let albums = app_state.albums.clone();
+
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = cache::init().await {
-                    error!("Failed to initialize cache: {}", e);
+                info!("Starting background library load...");
+                if let Ok(s) = database::songs::get_all() {
+                    *songs.lock().unwrap() = s;
                 }
+                if let Ok(a) = database::artists::get_all() {
+                    *artists.lock().unwrap() = a;
+                }
+                if let Ok(a) = database::albums::get_all() {
+                    *albums.lock().unwrap() = a;
+                }
+                info!("Background library load finished.");
             });
 
             if let Err(e) = system_tray::setup_system_tray(app.handle()) {
@@ -152,6 +175,7 @@ pub fn run() {
 
             system_tray::setup_window_behavior(app.handle());
 
+            info!("Application setup finished.");
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -904,8 +904,8 @@
               </template>
               •
               <router-link
-                v-if='playerStore.currentSong.album'
-                :to="{ name: 'album-detail', params: { albumName: playerStore.currentSong.album } }"
+                v-if='playerStore.currentSong.album && playerStore.currentSong.albumId'
+                :to="{ name: 'album-detail', params: { albumId: playerStore.currentSong.albumId } }"
                 class='hover:underline'
               >
                 {{ playerStore.currentSong.album }}
