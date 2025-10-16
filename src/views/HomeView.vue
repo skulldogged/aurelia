@@ -153,11 +153,10 @@
 
   const playAlbumSongs = (album: Album): void => {
     // Use the album's songs array if available (more efficient)
-    if (album.songs && album.songs.length > 0) {
+    if (album.songs && album.songs.length > 0)
       emit('play-songs', sortSongsByTrackOrder(album.songs))
-    } else {
+    else
       logger.warn('No songs found for album', album.name)
-    }
   }
 </script>
 

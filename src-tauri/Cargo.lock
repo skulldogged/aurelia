@@ -236,7 +236,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "aurelia"
-version = "0.1.0-unstable.1583bc3"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -264,6 +264,7 @@ dependencies = [
  "tauri-specta",
  "thiserror 2.0.17",
  "tokio",
+ "toml_edit 0.23.7",
  "tracing",
  "tracing-subscriber",
  "urlencoding",
@@ -5059,6 +5060,7 @@ dependencies = [
  "indexmap 2.11.4",
  "toml_datetime 0.7.3",
  "toml_parser",
+ "toml_writer",
  "winnow 0.7.13",
 ]
 
