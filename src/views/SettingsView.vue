@@ -2,6 +2,7 @@
   import { ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
 
+  import AboutSettings from '@/components/settings/AboutSettings.vue'
   import AppearanceSettings from '@/components/settings/AppearanceSettings.vue'
   import IntegrationsSettings from '@/components/settings/IntegrationsSettings.vue'
   import LibrarySettings from '@/components/settings/LibrarySettings.vue'
@@ -68,6 +69,9 @@
         <TabsTrigger value='library'>
           Library
         </TabsTrigger>
+        <TabsTrigger value='about'>
+          About
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value='appearance'>
@@ -89,6 +93,10 @@
           :is-clearing='isClearing'
           :is-syncing='isSyncing'
         />
+      </TabsContent>
+
+      <TabsContent value='about'>
+        <AboutSettings />
       </TabsContent>
     </Tabs>
   </div>
