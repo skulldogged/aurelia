@@ -40,11 +40,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": [
-      "nsis",
-      "app",
-      "dmg"
-    ]
+    "targets": "all"
   },
   "identifier": "dev.pupbrained.aurelia",
   "productName": "Aurelia",

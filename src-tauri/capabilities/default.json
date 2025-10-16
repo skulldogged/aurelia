@@ -36,6 +36,9 @@
         },
         {
           "url": "https://listenbrainz.org/*"
+        },
+        {
+          "url": "https://github.com/*"
         }
       ]
     }
