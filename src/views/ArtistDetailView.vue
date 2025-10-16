@@ -19,6 +19,7 @@
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { logger } from '@/lib/logger'
   import { usePlayerStore } from '@/stores'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
@@ -77,12 +78,13 @@
 
   watch(artist, async newArtist => {
     if (newArtist) {
-      console.time('getRelatedArtists')
+      logger.info('Starting to get related artists')
+      const start = Date.now()
       const result = await commands.getRelatedArtists(newArtist.id)
       if (result.status === 'ok') {
         relatedArtists.value = result.data as Artist[]
       }
-      console.timeEnd('getRelatedArtists')
+      logger.info(`Got related artists in ${Date.now() - start}ms`)
     }
   })
 

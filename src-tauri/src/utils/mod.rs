@@ -7,16 +7,16 @@ pub mod error_handling;
 /// Application constants
 pub mod constants {
     /// Jellyfin client information
-    pub const JELLYFIN_CLIENT: &str = "JellyfinMusicPlayer";
+    pub const JELLYFIN_CLIENT: &str = "Aurelia";
     pub const JELLYFIN_DEVICE: &str = "Desktop";
-    pub const JELLYFIN_VERSION: &str = "1.0.0";
+    pub const JELLYFIN_VERSION: &str = "0.1.0";
     pub const JELLYFIN_DEVICE_ID: &str = "1";
 
     /// `LrcLib` API endpoint
     pub const LRCLIB_SEARCH_URL: &str = "https://lrclib.net/api/search";
 
     /// Application directory name
-    pub const APP_DIR_NAME: &str = "JellyfinMusicPlayer";
+    pub const APP_DIR_NAME: &str = "Aurelia";
 
     /// Audio containers that support seeking
     pub const SEEKABLE_CONTAINERS: &[&str] = &["flac", "mp3", "aac", "ogg"];

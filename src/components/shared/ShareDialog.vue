@@ -28,6 +28,7 @@
     DialogHeader,
     DialogTitle,
   } from '@/components/ui/dialog'
+  import { logger } from '@/lib/logger'
 
   interface Props {
     itemId:   string
@@ -150,7 +151,7 @@
 
       shareUrls.value = urls
     } catch (error) {
-      console.error('Failed to load share URLs:', error)
+      logger.error('Failed to load share URLs:', error)
     } finally {
       isLoading.value = false
     }
@@ -164,7 +165,7 @@
         copiedUrl.value = null
       }, 2000)
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error)
+      logger.error('Failed to copy to clipboard:', error)
     }
   }
 
@@ -172,7 +173,7 @@
     try {
       await openUrl(url)
     } catch (error) {
-      console.error('Failed to open URL:', error)
+      logger.error('Failed to open URL:', error)
     }
   }
 

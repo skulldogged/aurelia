@@ -15,6 +15,7 @@
     DropdownMenuSubContent,
     DropdownMenuSubTrigger,
   } from '@/components/ui/dropdown-menu'
+  import { logger } from '@/lib/logger'
   import { usePlaylistStore } from '@/stores'
 
   const props = defineProps<{
@@ -30,7 +31,7 @@
   const addToPlaylist = async (playlistId: string): Promise<void> => {
     if (await playlistStore.addSongsToPlaylist(playlistId, props.songs)) {
       await playlistStore.loadPlaylists()
-      console.log(`Added ${props.songs.length} song(s) to playlist`)
+      logger.info(`Added ${props.songs.length} song(s) to playlist`)
     }
   }
 

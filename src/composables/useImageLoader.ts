@@ -1,6 +1,7 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
 
 import { commands, type Result } from '@/bindings'
+import { logger } from '@/lib/logger'
 import { err, ok } from '@/lib/result'
 
 // In-memory cache for asset URLs to avoid flicker
@@ -22,7 +23,7 @@ const getImageUrl = async (
   const result = await commands.getImage(itemId, imageType, serverUrl, token)
   if (result.status === 'error' || !result.data) {
     if (result.status === 'error') {
-      console.warn(`Failed to get image for ${itemId}: ${result.error}`)
+      logger.warn(`Failed to get image for ${itemId}: ${result.error}`)
     }
     return null
   }

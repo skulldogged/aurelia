@@ -32,7 +32,7 @@
   import Button from '@/components/ui/Button.vue'
   import { Slider } from '@/components/ui/slider'
   import { useImageLoader } from '@/composables/useImageLoader'
-  import { playerLogger } from '@/lib/logger'
+  import { logger } from '@/lib/logger'
   import { formatDuration, getSongFormatInfo } from '@/lib/utils'
   import { PlayerState, usePlayerStore } from '@/stores'
 
@@ -120,7 +120,7 @@
           backgroundImageData.value = imageData
         }
       } catch (error) {
-        playerLogger.error('Failed to load background image:', error)
+        logger.error('Failed to load background image:', error)
         backgroundImageData.value = null
       }
     } else {

@@ -1,8 +1,7 @@
-<script setup lang="ts">
+<script setup lang='ts'>
   import { useColorMode, useMagicKeys } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
-  import { computed, onMounted, watch } from 'vue'
-  import { ref } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
 
   import type { Credentials, Song } from '@/bindings'
 

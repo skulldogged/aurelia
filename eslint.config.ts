@@ -71,6 +71,7 @@ export default defineConfig(
   {
     rules: {
       'arrow-body-style': ['warn', 'as-needed'],
+      'prefer-template':  'warn',
     },
   },
 

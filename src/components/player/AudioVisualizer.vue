@@ -4,11 +4,11 @@
   interface VisualizerProps {
     analyserNode: AnalyserNode | null
     isPlaying:    boolean
-    style?:       'bars' | 'bars-mirror' | 'curve' | 'wave'
+    style?:       'bars' | 'curve' | 'wave'
   }
 
   const props = withDefaults(defineProps<VisualizerProps>(), {
-    style: 'bars-mirror',
+    style: 'bars',
   })
 
   const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -89,34 +89,6 @@
       const dataIndex = Math.floor(i * dataStep)
       const barHeight = dataArray[dataIndex] * heightScale
       ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight)
-    }
-  }
-
-  const drawBarsMirror = (
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-  ): void => {
-    if (!props.analyserNode || !dataArray || !gradientMirrorTop.value || !gradientMirrorBottom.value) return
-
-    props.analyserNode.getByteFrequencyData(dataArray)
-    ctx.clearRect(0, 0, width, height)
-
-    const barCount = 64
-    const barWidth = width / barCount
-    const centerY = height / 2
-    const heightScale = centerY / 255
-    const dataStep = bufferLength / barCount
-
-    for (let i = 0; i < barCount; i++) {
-      const dataIndex = Math.floor(i * dataStep)
-      const barHeight = dataArray[dataIndex] * heightScale
-
-      ctx.fillStyle = gradientMirrorTop.value
-      ctx.fillRect(i * barWidth, centerY - barHeight, barWidth - 2, barHeight)
-
-      ctx.fillStyle = gradientMirrorBottom.value
-      ctx.fillRect(i * barWidth, centerY, barWidth - 2, barHeight)
     }
   }
 
@@ -232,9 +204,6 @@
       switch (props.style) {
         case 'bars':
           drawBars(ctx, width, height)
-          break
-        case 'bars-mirror':
-          drawBarsMirror(ctx, width, height)
           break
         case 'curve':
           drawCircular(ctx, width, height)

@@ -18,6 +18,7 @@
   import Switch from '@/components/ui/Switch.vue'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { AccentColorName } from '@/lib/colorSchemes'
+  import { logger } from '@/lib/logger'
   import { getPlatform } from '@/lib/platform'
   import { useAccentColorStore, useBlurStore, usePlayerStore, useSystemTrayStore, useThemeStore } from '@/stores'
 
@@ -88,7 +89,7 @@
         // Apply the blur mode to the window (Windows/macOS only)
         await commands.setBlurMode(value)
       } catch (error) {
-        console.error('Failed to set blur mode:', error)
+        logger.error('Failed to set blur mode:', error)
       }
     }
   }
@@ -106,9 +107,9 @@
   }
 
   const handleVisualizerStyleChange = (value: unknown): void => {
-    const validStyles = ['bars', 'bars-mirror', 'curve', 'wave'] as const
+    const validStyles = ['bars', 'curve', 'wave'] as const
     if (value && typeof value === 'string' && validStyles.includes(value as typeof validStyles[number])) {
-      const style = value as 'bars' | 'bars-mirror' | 'curve' | 'wave'
+      const style = value as 'bars' | 'curve' | 'wave'
       playerStore.setVisualizerStyle(style)
       selectedVisualizerStyle.value = style
     }
@@ -137,7 +138,7 @@
       // Apply initial blur mode
       await commands.setBlurMode(selectedBlurMode.value.name)
     } catch (error) {
-      console.error('Failed to apply initial blur mode:', error)
+      logger.error('Failed to apply initial blur mode:', error)
     }
   })
 

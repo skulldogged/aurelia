@@ -20,7 +20,7 @@
   } from '@/components/ui/command'
   import { DialogDescription, DialogTitle } from '@/components/ui/dialog'
   import { useSongInteractions } from '@/composables/useSongInteractions'
-  import { searchLogger } from '@/lib/logger'
+  import { logger } from '@/lib/logger'
   import { useAuthStore, useLibraryStore } from '@/stores'
 
   const props = defineProps<{
@@ -60,10 +60,10 @@
     filteredAlbums.value.length > 0,
   )
 
-  searchLogger.info('Component mounted')
-  searchLogger.debug('Initial data - allSongs:', allSongs.value.length)
-  searchLogger.debug('Initial data - allArtists:', allArtistsWithSongs.value.length)
-  searchLogger.debug('Initial data - allAlbums:', allAlbums.value.length)
+  logger.info('Component mounted')
+  logger.debug('Initial data - allSongs:', allSongs.value.length)
+  logger.debug('Initial data - allArtists:', allArtistsWithSongs.value.length)
+  logger.debug('Initial data - allAlbums:', allAlbums.value.length)
 
   const filteredSongs = computed(() => {
     if (!debouncedSearchTerm.value) return []
@@ -100,20 +100,20 @@
 
   watch(searchTerm, (newTerm, oldTerm) => {
     if (newTerm !== oldTerm)
-      searchLogger.debug('searchTerm changed:', newTerm)
+      logger.debug('searchTerm changed:', newTerm)
   })
 
   watch(debouncedSearchTerm, newTerm => {
     if (newTerm) {
-      searchLogger.debug('debounced search triggered:', newTerm)
-      searchLogger.debug('results - songs:', filteredSongs.value.length,
-                         'artists:', filteredArtists.value.length,
-                         'albums:', filteredAlbums.value.length)
+      logger.debug('debounced search triggered:', newTerm)
+      logger.debug('results - songs:', filteredSongs.value.length,
+                   'artists:', filteredArtists.value.length,
+                   'albums:', filteredAlbums.value.length)
     }
   })
 
   watch(() => props.open, async isOpen => {
-    searchLogger.debug('dialog open state changed:', isOpen)
+    logger.debug('dialog open state changed:', isOpen)
 
     if (isOpen)
       setTimeout(((): void => searchInput.value?.focus()), 5)

@@ -1,4 +1,4 @@
-import { playerLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { usePlayerStore } from '@/stores/player'
 
 export interface EQBand {
@@ -151,11 +151,11 @@ const initializeWebAudio = async (): Promise<boolean> => {
         await audioContext.resume()
       }
 
-      playerLogger.debug('WebAudio API initialized successfully')
+      logger.debug('WebAudio API initialized successfully')
     }
     return true
   } catch (error) {
-    playerLogger.error('Failed to initialize WebAudio API:', error)
+    logger.error('Failed to initialize WebAudio API:', error)
     return false
   }
 }
@@ -176,7 +176,7 @@ const isWebAudioAvailable = (): boolean => {
 const initializeEQ = (): boolean => {
   try {
     if (!audioContext) {
-      playerLogger.error('Cannot initialize EQ: AudioContext not available')
+      logger.error('Cannot initialize EQ: AudioContext not available')
       return false
     }
 
@@ -190,15 +190,15 @@ const initializeEQ = (): boolean => {
       filter.gain.value = band.gain
       filter.Q.value = band.Q
 
-      playerLogger.debug(`Created EQ filter: ${band.type} @ ${band.frequency}Hz, Q=${band.Q}, gain=${band.gain}dB`)
+      logger.debug(`Created EQ filter: ${band.type} @ ${band.frequency}Hz, Q=${band.Q}, gain=${band.gain}dB`)
 
       return filter
     })
 
-    playerLogger.debug('EQ initialized with 5 bands')
+    logger.debug('EQ initialized with 5 bands')
     return true
   } catch (error) {
-    playerLogger.error('Failed to initialize EQ:', error)
+    logger.error('Failed to initialize EQ:', error)
     return false
   }
 }
@@ -206,19 +206,19 @@ const initializeEQ = (): boolean => {
 const loadStoredEQBands = (): boolean => {
   try {
     if (!eqNodes) {
-      playerLogger.error('Cannot load EQ bands: EQ not initialized')
+      logger.error('Cannot load EQ bands: EQ not initialized')
       return false
     }
 
     const stored = localStorage.getItem('player-eq-bands')
     if (!stored) {
-      playerLogger.debug('No stored EQ bands found, using defaults')
+      logger.debug('No stored EQ bands found, using defaults')
       return true
     }
 
     const parsed = JSON.parse(stored) as EQBand[]
     if (!Array.isArray(parsed) || parsed.length !== 5) {
-      playerLogger.warn('Invalid stored EQ bands format, using defaults')
+      logger.warn('Invalid stored EQ bands format, using defaults')
       return true
     }
 
@@ -231,7 +231,7 @@ const loadStoredEQBands = (): boolean => {
 
     return true
   } catch (error) {
-    playerLogger.error('Failed to load stored EQ bands:', error)
+    logger.error('Failed to load stored EQ bands:', error)
     return false
   }
 }
@@ -239,7 +239,7 @@ const loadStoredEQBands = (): boolean => {
 const updateAudioGraph = (): boolean => {
   try {
     if (!audioContext || !mediaSource || !gainNode || !analyserNode) {
-      playerLogger.error('Cannot update audio graph: missing nodes')
+      logger.error('Cannot update audio graph: missing nodes')
       return false
     }
 
@@ -260,7 +260,7 @@ const updateAudioGraph = (): boolean => {
           currentNode.connect(eqNode)
           currentNode = eqNode
         } catch (error) {
-          playerLogger.error(`Failed to connect EQ band ${index}:`, error)
+          logger.error(`Failed to connect EQ band ${index}:`, error)
         }
       })
     }
@@ -270,7 +270,7 @@ const updateAudioGraph = (): boolean => {
 
     return true
   } catch (error) {
-    playerLogger.error('Failed to update audio graph:', error)
+    logger.error('Failed to update audio graph:', error)
     return false
   }
 }
@@ -282,7 +282,7 @@ const loadAudio = async (url: string): Promise<boolean> => {
 
     stop()
 
-    playerLogger.debug(`Loading streaming audio via WebAudio API: ${url}`)
+    logger.debug(`Loading streaming audio via WebAudio API: ${url}`)
 
     if (!mediaElement) {
       mediaElement = new Audio()
@@ -319,19 +319,19 @@ const loadAudio = async (url: string): Promise<boolean> => {
       const onMetadataLoaded = (): void => {
         mediaElement?.removeEventListener('loadedmetadata', onMetadataLoaded)
         mediaElement?.removeEventListener('error', onError)
-        playerLogger.debug(`Streaming audio metadata loaded, duration: ${mediaElement?.duration || 0}s`)
+        logger.debug(`Streaming audio metadata loaded, duration: ${mediaElement?.duration || 0}s`)
         resolve(true)
       }
 
       const onError = (e: Event): void => {
         mediaElement?.removeEventListener('loadedmetadata', onMetadataLoaded)
         mediaElement?.removeEventListener('error', onError)
-        playerLogger.error('Failed to load streaming audio metadata:', e)
+        logger.error('Failed to load streaming audio metadata:', e)
         resolve(false)
       }
 
       if (mediaElement && mediaElement.readyState >= 1) {
-        playerLogger.debug(`Streaming audio metadata already loaded, duration: ${mediaElement.duration}s`)
+        logger.debug(`Streaming audio metadata already loaded, duration: ${mediaElement.duration}s`)
         resolve(true)
       } else {
         mediaElement?.addEventListener('loadedmetadata', onMetadataLoaded)
@@ -341,7 +341,7 @@ const loadAudio = async (url: string): Promise<boolean> => {
       }
     })
   } catch (error) {
-    playerLogger.error('Failed to load streaming audio via WebAudio API:', error)
+    logger.error('Failed to load streaming audio via WebAudio API:', error)
     return false
   }
 }
@@ -357,10 +357,10 @@ const play = async (): Promise<boolean> => {
     await mediaElement.play()
     isPlaying = true
 
-    playerLogger.debug('WebAudio streaming playback started')
+    logger.debug('WebAudio streaming playback started')
     return true
   } catch (error) {
-    playerLogger.error('Failed to start WebAudio streaming playback:', error)
+    logger.error('Failed to start WebAudio streaming playback:', error)
     isPlaying = false
     return false
   }
@@ -371,12 +371,12 @@ const pause = (): boolean => {
     if (mediaElement && !mediaElement.paused) {
       mediaElement.pause()
       isPlaying = false
-      playerLogger.debug(`WebAudio streaming playback paused at ${mediaElement.currentTime}s`)
+      logger.debug(`WebAudio streaming playback paused at ${mediaElement.currentTime}s`)
       return true
     }
     return false
   } catch (error) {
-    playerLogger.error('Failed to pause WebAudio streaming playback:', error)
+    logger.error('Failed to pause WebAudio streaming playback:', error)
     isPlaying = false
     return false
   }
@@ -389,10 +389,10 @@ const stop = (): boolean => {
       mediaElement.currentTime = 0
     }
     isPlaying = false
-    playerLogger.debug('WebAudio streaming playback stopped')
+    logger.debug('WebAudio streaming playback stopped')
     return true
   } catch (error) {
-    playerLogger.error('Failed to stop WebAudio streaming playback:', error)
+    logger.error('Failed to stop WebAudio streaming playback:', error)
     isPlaying = false
     return false
   }
@@ -407,10 +407,10 @@ const seek = async (time: number): Promise<boolean> => {
 
     mediaElement.currentTime = clampedTime
 
-    playerLogger.debug(`WebAudio streaming seeked to ${clampedTime}s`)
+    logger.debug(`WebAudio streaming seeked to ${clampedTime}s`)
     return true
   } catch (error) {
-    playerLogger.error('Failed to seek WebAudio streaming playback:', error)
+    logger.error('Failed to seek WebAudio streaming playback:', error)
     return false
   }
 }
@@ -422,15 +422,15 @@ const setVolume = (volume: number): boolean => {
 
     if (gainNode) {
       gainNode.gain.value = clampedVolume
-      playerLogger.debug(`WebAudio volume set to ${clampedVolume}`)
+      logger.debug(`WebAudio volume set to ${clampedVolume}`)
       return true
     }
 
     // Gain node not ready yet, volume will be applied when it's created
-    playerLogger.debug(`WebAudio volume stored for later: ${clampedVolume}`)
+    logger.debug(`WebAudio volume stored for later: ${clampedVolume}`)
     return true
   } catch (error) {
-    playerLogger.error('Failed to set WebAudio volume:', error)
+    logger.error('Failed to set WebAudio volume:', error)
     return false
   }
 }
@@ -457,7 +457,7 @@ const setupEventListeners = (): void => {
 
   mediaElement.addEventListener('ended', () => {
     isPlaying = false
-    playerLogger.debug('Streaming audio ended, advancing to next song')
+    logger.debug('Streaming audio ended, advancing to next song')
 
     const playerStore = usePlayerStore()
     playerStore.nextSong()
@@ -465,24 +465,24 @@ const setupEventListeners = (): void => {
 
   mediaElement.addEventListener('play', () => {
     isPlaying = true
-    playerLogger.debug('Streaming audio started playing')
+    logger.debug('Streaming audio started playing')
   })
 
   mediaElement.addEventListener('pause', () => {
     isPlaying = false
-    playerLogger.debug('Streaming audio paused')
+    logger.debug('Streaming audio paused')
   })
 
   mediaElement.addEventListener('loadedmetadata', () => {
     if (mediaElement)
-      playerLogger.debug(`Metadata loaded, duration: ${mediaElement.duration}s`)
+      logger.debug(`Metadata loaded, duration: ${mediaElement.duration}s`)
   })
 
   mediaElement.addEventListener('durationchange', () => {
     if (mediaElement) {
       const duration = mediaElement.duration
       if (duration && !isNaN(duration) && isFinite(duration) && duration > 0) {
-        playerLogger.debug(`Duration updated to: ${duration}s`)
+        logger.debug(`Duration updated to: ${duration}s`)
         if (onDurationChange)
           onDurationChange(duration)
       }
@@ -490,7 +490,7 @@ const setupEventListeners = (): void => {
   })
 
   mediaElement.addEventListener('error', e => {
-    playerLogger.error('Streaming audio error:', e)
+    logger.error('Streaming audio error:', e)
     isPlaying = false
   })
 }
@@ -512,12 +512,12 @@ const setEQEnabled = (enabled: boolean): boolean => {
       if (!updateAudioGraph())
         return false
     } else if (!updateAudioGraph()){
-      playerLogger.error('Failed to update audio graph when disabling EQ')
+      logger.error('Failed to update audio graph when disabling EQ')
     }
 
     return true
   } catch (error) {
-    playerLogger.error('Failed to toggle EQ:', error)
+    logger.error('Failed to toggle EQ:', error)
     return false
   }
 }
@@ -527,7 +527,7 @@ const getEQEnabled = (): boolean => eqEnabled
 const setEQBandGain = (bandIndex: number, gain: number): boolean => {
   try {
     if (!eqNodes || bandIndex < 0 || bandIndex >= eqNodes.length) {
-      playerLogger.error(`Invalid EQ band index: ${bandIndex}`)
+      logger.error(`Invalid EQ band index: ${bandIndex}`)
       return false
     }
 
@@ -539,7 +539,7 @@ const setEQBandGain = (bandIndex: number, gain: number): boolean => {
 
     return true
   } catch (error) {
-    playerLogger.error(`Failed to set EQ band ${bandIndex} gain:`, error)
+    logger.error(`Failed to set EQ band ${bandIndex} gain:`, error)
     return false
   }
 }
@@ -561,7 +561,7 @@ const applyEQPreset = (presetName: string): boolean => {
   try {
     const preset = EQ_PRESETS.find(p => p.name === presetName)
     if (!preset) {
-      playerLogger.error(`EQ preset not found: ${presetName}`)
+      logger.error(`EQ preset not found: ${presetName}`)
       return false
     }
 
@@ -569,10 +569,10 @@ const applyEQPreset = (presetName: string): boolean => {
       setEQBandGain(index, band.gain)
     })
 
-    playerLogger.debug(`EQ preset applied: ${presetName}`)
+    logger.debug(`EQ preset applied: ${presetName}`)
     return true
   } catch (error) {
-    playerLogger.error(`Failed to apply EQ preset ${presetName}:`, error)
+    logger.error(`Failed to apply EQ preset ${presetName}:`, error)
     return false
   }
 }
@@ -585,11 +585,11 @@ const resetEQ = (): boolean => {
       setEQBandGain(index, 0)
     })
 
-    playerLogger.debug('EQ reset to flat')
+    logger.debug('EQ reset to flat')
 
     return true
   } catch (error) {
-    playerLogger.error('Failed to reset EQ:', error)
+    logger.error('Failed to reset EQ:', error)
     return false
   }
 }
@@ -636,9 +636,9 @@ const cleanup = (): void => {
     pendingVolume = 1.0
     eqEnabled = false
     onDurationChange = null
-    playerLogger.debug('WebAudio streaming resources cleaned up')
+    logger.debug('WebAudio streaming resources cleaned up')
   } catch (error) {
-    playerLogger.error('Failed to cleanup WebAudio streaming resources:', error)
+    logger.error('Failed to cleanup WebAudio streaming resources:', error)
   }
 }
 

@@ -26,6 +26,7 @@
   import { Input } from '@/components/ui/input'
   import { Skeleton } from '@/components/ui/skeleton'
   import { useSongInteractions } from '@/composables/useSongInteractions'
+  import { logger } from '@/lib/logger'
   import { useAuthStore, usePlaylistStore } from '@/stores'
 
   const route = useRoute()
@@ -79,38 +80,38 @@
 
   const loadPlaylist = async (): Promise<void> => {
     if (!playlistId.value) {
-      console.error('No playlist ID provided')
+      logger.error('No playlist ID provided')
       return
     }
 
-    console.log('Loading playlist with ID:', playlistId.value)
+    logger.info('Loading playlist with ID:', playlistId.value)
     isLoading.value = true
 
     try {
       // Make sure playlists are loaded first
       if (playlistStore.playlists.length === 0) {
-        console.log('No playlists in store, loading them first...')
+        logger.info('No playlists in store, loading them first...')
         await playlistStore.loadPlaylists()
       }
 
-      console.log('Available playlists:', playlistStore.playlists.map(p => ({ id: p.id, name: p.name })))
+      logger.info('Available playlists:', playlistStore.playlists.map(p => ({ id: p.id, name: p.name })))
 
       // Find playlist in store
       const foundPlaylist = playlistStore.playlists.find(p => p.id === playlistId.value)
       if (!foundPlaylist) {
-        console.error(`Playlist with ID ${playlistId.value} not found in store`)
+        logger.error(`Playlist with ID ${playlistId.value} not found in store`)
         throw new Error('Playlist not found')
       }
 
-      console.log('Found playlist:', foundPlaylist)
+      logger.info('Found playlist:', foundPlaylist)
       playlist.value = foundPlaylist
 
       // Load playlist songs
-      console.log('Loading playlist songs...')
+      logger.info('Loading playlist songs...')
       songs.value = await playlistStore.getPlaylistItems(playlistId.value)
-      console.log('Loaded songs:', songs.value.length)
+      logger.info('Loaded songs:', songs.value.length)
     } catch (error) {
-      console.error('Failed to load playlist:', error)
+      logger.error('Failed to load playlist:', error)
       router.push('/playlists')
     } finally {
       isLoading.value = false

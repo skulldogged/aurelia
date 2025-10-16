@@ -22,6 +22,7 @@
   } from '@/components/ui/dialog'
   import { Input } from '@/components/ui/input'
   import Label from '@/components/ui/Label.vue'
+  import { logger } from '@/lib/logger'
   import { useAuthStore, useLibraryStore, usePlaylistStore } from '@/stores'
 
   const route = useRoute()
@@ -71,7 +72,7 @@
 
     if (songsToAdd.length > 0) {
       selectedSongs.value = [...selectedSongs.value, ...songsToAdd]
-      console.log('Added', songsToAdd.length, 'songs. Total:', selectedSongs.value.length)
+      logger.info('Added', songsToAdd.length, 'songs. Total:', selectedSongs.value.length)
     }
   }
 
@@ -110,7 +111,7 @@
       // Load playlist songs
       selectedSongs.value = await playlistStore.getPlaylistItems(playlistId.value)
     } catch (error) {
-      console.error('Failed to load playlist:', error)
+      logger.error('Failed to load playlist:', error)
       router.push('/playlists')
     }
   }
@@ -157,7 +158,7 @@
         }
       }
     } catch (error) {
-      console.error('Failed to save playlist:', error)
+      logger.error('Failed to save playlist:', error)
       showSaveErrorDialog.value = true
     } finally {
       isSaving.value = false

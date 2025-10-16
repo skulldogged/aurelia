@@ -66,10 +66,7 @@ pub fn discord_rpc_start(app_id: String, state: State<DiscordRpcState>) -> Resul
     }
 
     // Create new client
-    let mut client = DiscordIpcClient::new(&app_id).map_err(|e| {
-        error!("Failed to create Discord IPC client: {}", e);
-        format!("Failed to create Discord IPC client: {}", e)
-    })?;
+    let mut client = DiscordIpcClient::new(&app_id);
 
     // Connect to Discord
     client.connect().map_err(|e| {

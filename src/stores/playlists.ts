@@ -5,7 +5,7 @@ import type { Playlist, PlaylistCreateData, PlaylistUpdateData, Song } from '@/b
 
 import { commands } from '@/bindings'
 import { useImageLoader } from '@/composables/useImageLoader'
-import { appLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
 
 import { usePlayerStore } from './player'
@@ -41,7 +41,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
       initializeCurrentPlaylist()
       isInitialized.value = true
     } catch (error) {
-      appLogger.error('Failed to initialize playlist store:', error)
+      logger.error('Failed to initialize playlist store:', error)
     }
   }
 
@@ -61,13 +61,13 @@ export const usePlaylistStore = defineStore('playlists', () => {
       {
         onError: errorString => {
           error.value = `Failed to load playlists: ${errorString}`
-          appLogger.error('Failed to load playlists:', errorString)
+          logger.error('Failed to load playlists:', errorString)
           isLoading.value = false
         },
         onStart: () => {
           isLoading.value = true
           error.value = null
-          appLogger.info('Loading playlists...')
+          logger.info('Loading playlists...')
         },
         onSuccess: loadedPlaylists => {
           playlists.value = loadedPlaylists.map(p => ({
@@ -77,9 +77,9 @@ export const usePlaylistStore = defineStore('playlists', () => {
             updatedAt: new Date(p.dateLastSaved || p.dateCreated || Date.now()),
           }))
           isLoading.value = false
-          appLogger.info(`Playlists loaded successfully: ${playlists.value.length} playlists`)
+          logger.info(`Playlists loaded successfully: ${playlists.value.length} playlists`)
           playlists.value.forEach(p => {
-            appLogger.debug(`Playlist: ${p.name} (ID: ${p.id}, Songs: ${p.childCount || 0})`)
+            logger.debug(`Playlist: ${p.name} (ID: ${p.id}, Songs: ${p.childCount || 0})`)
           })
         },
       },
@@ -94,11 +94,11 @@ export const usePlaylistStore = defineStore('playlists', () => {
       {
         onError: errorString => {
           error.value = `Failed to create playlist: ${errorString}`
-          appLogger.error('Failed to create playlist:', errorString)
+          logger.error('Failed to create playlist:', errorString)
         },
         onStart: () => {
           error.value = null
-          appLogger.info('Creating playlist:', data.name)
+          logger.info('Creating playlist:', data.name)
         },
         onSuccess: createdPlaylist => {
           newPlaylist = {
@@ -108,7 +108,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
             updatedAt: new Date(createdPlaylist.dateLastSaved || createdPlaylist.dateCreated || Date.now()),
           }
           playlists.value.push(newPlaylist)
-          appLogger.info('Playlist created successfully:', newPlaylist.name)
+          logger.info('Playlist created successfully:', newPlaylist.name)
         },
       },
     )
@@ -133,11 +133,11 @@ export const usePlaylistStore = defineStore('playlists', () => {
       {
         onError: errorString => {
           error.value = `Failed to update playlist: ${errorString}`
-          appLogger.error('Failed to update playlist:', errorString)
+          logger.error('Failed to update playlist:', errorString)
         },
         onStart: () => {
           error.value = null
-          appLogger.info('Updating playlist:', id)
+          logger.info('Updating playlist:', id)
         },
         onSuccess: updatedPlaylist => {
           const index = playlists.value.findIndex(p => p.id === id)
@@ -151,7 +151,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
             }
           }
           success = true
-          appLogger.info('Playlist updated successfully:', updatedPlaylist.name)
+          logger.info('Playlist updated successfully:', updatedPlaylist.name)
         },
       },
     )
@@ -167,11 +167,11 @@ export const usePlaylistStore = defineStore('playlists', () => {
       {
         onError: errorString => {
           error.value = `Failed to delete playlist: ${errorString}`
-          appLogger.error('Failed to delete playlist:', errorString)
+          logger.error('Failed to delete playlist:', errorString)
         },
         onStart: () => {
           error.value = null
-          appLogger.info('Deleting playlist:', id)
+          logger.info('Deleting playlist:', id)
         },
         onSuccess: async () => {
           const index = playlists.value.findIndex(p => p.id === id)
@@ -182,14 +182,14 @@ export const usePlaylistStore = defineStore('playlists', () => {
             if (currentPlaylistId.value === id) {
               setCurrentPlaylist(null)
             }
-            appLogger.info('Playlist deleted successfully:', deletedName)
-            appLogger.info('Clearing image cache for playlist ID:', id)
+            logger.info('Playlist deleted successfully:', deletedName)
+            logger.info('Clearing image cache for playlist ID:', id)
           }
 
           // Clear the image from frontend cache
           const imageLoader = useImageLoader()
           await imageLoader.clearImageFromCache(id, 'Primary')
-          appLogger.info('Frontend image cache cleared for:', id)
+          logger.info('Frontend image cache cleared for:', id)
 
           success = true
         },
@@ -270,15 +270,15 @@ export const usePlaylistStore = defineStore('playlists', () => {
       {
         onError: errorString => {
           error.value = `Failed to get playlist items: ${errorString}`
-          appLogger.error('Failed to get playlist items:', errorString)
+          logger.error('Failed to get playlist items:', errorString)
         },
         onStart: () => {
           error.value = null
-          appLogger.info('Getting playlist items for:', playlistId)
+          logger.info('Getting playlist items for:', playlistId)
         },
         onSuccess: songs => {
           items = songs
-          appLogger.info('Retrieved playlist items successfully')
+          logger.info('Retrieved playlist items successfully')
         },
       },
     )
@@ -305,7 +305,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
       playerStore.play()
       setCurrentPlaylist(playlistId)
 
-      appLogger.info(`Started playing playlist: ${playlistId}`)
+      logger.info(`Started playing playlist: ${playlistId}`)
     }
   }
 

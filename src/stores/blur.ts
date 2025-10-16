@@ -32,7 +32,7 @@ export const BLUR_MODES: BlurMode[] = [
 ]
 
 export const useBlurStore = defineStore('blur', () => {
-  const selectedBlurModeName = useLocalStorage('blur-mode', 'acrylic')
+  const selectedBlurModeName = useLocalStorage('blur-mode', 'none')
 
   const blurModes = computed(() => BLUR_MODES)
 

@@ -3,6 +3,8 @@ import { ref } from 'vue'
 
 import type { ListenBrainzCredentials } from '@/bindings'
 
+import { logger } from '@/lib/logger'
+
 export const useListenBrainzStore = defineStore('listenbrainz', () => {
   const credentials = ref<ListenBrainzCredentials | null>(null)
   const isEnabled = ref(false)
@@ -15,7 +17,7 @@ export const useListenBrainzStore = defineStore('listenbrainz', () => {
       credentials.value = JSON.parse(storedCreds)
       isEnabled.value = true
     } catch (error) {
-      console.error('Failed to parse stored ListenBrainz credentials:', error)
+      logger.error('Failed to parse stored ListenBrainz credentials:', error)
     }
   }
 

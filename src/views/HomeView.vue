@@ -16,8 +16,9 @@
     ContextMenuItem,
     ContextMenuTrigger,
   } from '@/components/ui/context-menu'
+  import { Skeleton } from '@/components/ui/skeleton'
   import { useSongInteractions } from '@/composables/useSongInteractions'
-  import { uiLogger } from '@/lib/logger'
+  import { logger } from '@/lib/logger'
   import { sortSongsByTrackOrder } from '@/lib/transforms'
   import { useAuthStore, useHomeStore } from '@/stores'
 
@@ -111,14 +112,14 @@
 
   const playSongs = (songs: Song[], startWith?: Song): void => {
     if (songs.length === 0) {
-      uiLogger.warn('No songs to play')
+      logger.warn('No songs to play')
       return
     }
 
     const invalidSongs = songs.filter(song => !song || !song.id)
 
     if (invalidSongs.length > 0)
-      uiLogger.error('Found songs with invalid IDs:', invalidSongs)
+      logger.error('Found songs with invalid IDs:', invalidSongs)
 
     if (startWith) {
       const startIndex = songs.findIndex(song => song.id === startWith.id)
@@ -135,7 +136,7 @@
 
   const playFeaturedAlbum = (): void => {
     if (!featuredAlbum.value) {
-      uiLogger.warn('No featured album available')
+      logger.warn('No featured album available')
       return
     }
 
@@ -146,7 +147,7 @@
         router.push(`/songs/album/${featuredAlbum.value.id}`)
       }
     } else {
-      uiLogger.warn('No songs found for featured album')
+      logger.warn('No songs found for featured album')
     }
   }
 
@@ -155,7 +156,7 @@
     if (album.songs && album.songs.length > 0) {
       emit('play-songs', sortSongsByTrackOrder(album.songs))
     } else {
-      uiLogger.warn('No songs found for album', album.name)
+      logger.warn('No songs found for album', album.name)
     }
   }
 </script>
@@ -170,10 +171,11 @@
 
     <div class='space-y-8'>
       <!-- Featured Album Section -->
-      <div v-if='featuredAlbum' class='relative isolate bg-sidebar rounded-lg p-8 mb-8 overflow-hidden'>
+      <div v-if='featuredAlbum || isLoading' class='relative isolate bg-sidebar rounded-lg p-8 mb-8 overflow-hidden'>
         <!-- Blurred Background -->
         <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-lg blur-md scale-105 overflow-hidden'>
           <ImageLoader
+            v-if='featuredAlbum && !isLoading'
             :item-id='featuredAlbum.id || featuredAlbum.name'
             :server-url='serverUrl'
             :token='token'
@@ -185,65 +187,87 @@
         <!-- Content -->
         <div class='relative z-10 flex items-center space-x-6'>
           <div class='flex-shrink-0'>
-            <ImageLoader
-              :alt='`${featuredAlbum.name} album art`'
-              :item-id='featuredAlbum.id || featuredAlbum.name'
-              :server-url='serverUrl'
-              :token='token'
-              class='size-48 rounded-xl shadow-2xl object-cover'
-            >
-              <template #fallback>
-                <ImagePlaceholder
-                  class='size-48 rounded-xl shadow-2xl'
-                  size='large'
-                  type='album'
-                />
-              </template>
-            </ImageLoader>
+            <template v-if='isLoading'>
+              <Skeleton class='size-48 rounded-xl' />
+            </template>
+            <template v-else-if='featuredAlbum'>
+              <ImageLoader
+                :alt='`${featuredAlbum.name} album art`'
+                :item-id='featuredAlbum.id || featuredAlbum.name'
+                :server-url='serverUrl'
+                :token='token'
+                class='size-48 rounded-xl shadow-2xl object-cover'
+              >
+                <template #fallback>
+                  <ImagePlaceholder
+                    class='size-48 rounded-xl shadow-2xl'
+                    size='large'
+                    type='album'
+                  />
+                </template>
+              </ImageLoader>
+            </template>
           </div>
           <div class='flex-1 min-w-0'>
-            <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate'>
-              <router-link
-                v-if='featuredAlbum.id'
-                :to="{ name: 'album-detail', params: { albumId: featuredAlbum.id } }"
+            <template v-if='isLoading'>
+              <Skeleton class='h-10 w-3/4 mb-2' />
+              <Skeleton class='h-7 w-1/2 mb-4' />
+              <Skeleton class='h-5 w-1/4 mb-6' />
+              <button
+                class='
+                  bg-white/20 backdrop-blur-sm text-white px-8
+                  py-3 rounded-full font-semibold border
+                  border-white/20 opacity-50 cursor-not-allowed
+                '
+                disabled
               >
-                {{ featuredAlbum.name }}
-              </router-link>
-              <span v-else>{{ featuredAlbum.name }}</span>
-            </h1>
-            <p class='text-xl text-white/90 mb-4 drop-shadow-md'>
-              <template v-if='featuredAlbumArtistPairs.length'>
-                <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
+                Play Album
+              </button>
+            </template>
+            <template v-else-if='featuredAlbum'>
+              <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate'>
+                <router-link
+                  v-if='featuredAlbum.id'
+                  :to="{ name: 'album-detail', params: { albumId: featuredAlbum.id } }"
+                >
+                  {{ featuredAlbum.name }}
+                </router-link>
+                <span v-else>{{ featuredAlbum.name }}</span>
+              </h1>
+              <p class='text-xl text-white/90 mb-4 drop-shadow-md'>
+                <template v-if='featuredAlbumArtistPairs.length'>
+                  <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
+                    <router-link
+                      :to="{ name: 'artist-detail', params: { artistId: pair.id } }"
+                      class='hover:underline'
+                    >
+                      {{ pair.name }}
+                    </router-link>
+                    <span v-if='index < featuredAlbumArtistPairs.length - 1'>, </span>
+                  </template>
+                </template>
+                <template v-else>
                   <router-link
-                    :to="{ name: 'artist-detail', params: { artistId: pair.id } }"
+                    v-if='featuredAlbum.artistId'
+                    :to="{ name: 'artist-detail', params: { artistId: featuredAlbum.artistId } }"
                     class='hover:underline'
                   >
-                    {{ pair.name }}
+                    {{ featuredAlbum.artist }}
                   </router-link>
-                  <span v-if='index < featuredAlbumArtistPairs.length - 1'>, </span>
+                  <span v-else>{{ featuredAlbum.artist }}</span>
                 </template>
-              </template>
-              <template v-else>
-                <router-link
-                  v-if='featuredAlbum.artistId'
-                  :to="{ name: 'artist-detail', params: { artistId: featuredAlbum.artistId } }"
-                  class='hover:underline'
-                >
-                  {{ featuredAlbum.artist }}
-                </router-link>
-                <span v-else>{{ featuredAlbum.artist }}</span>
-              </template>
-            </p>
-            <p class='text-sm text-white/80 mb-6 drop-shadow-md'>
-              {{ featuredAlbum.songs?.length || 0 }} songs
-            </p>
-            <button
-              @click='playFeaturedAlbum'
-              class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8 py-3
-                     rounded-full font-semibold transition-colors border border-white/20'
-            >
-              Play Album
-            </button>
+              </p>
+              <p class='text-sm text-white/80 mb-6 drop-shadow-md'>
+                {{ featuredAlbum.songs?.length || 0 }} songs
+              </p>
+              <button
+                @click='playFeaturedAlbum'
+                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8 py-3
+                       rounded-full font-semibold transition-colors border border-white/20'
+              >
+                Play Album
+              </button>
+            </template>
           </div>
         </div>
 
@@ -251,15 +275,19 @@
         <div v-if='featuredAlbums.length > 1' class='absolute bottom-4 right-4 z-20 flex space-x-2'>
           <button
             @click='prevFeaturedAlbum'
+            :disabled='isLoading'
             class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
-                   transition-colors hover:bg-white/30 border border-white/20 rounded-full'
+                   transition-colors hover:bg-white/30 border border-white/20 rounded-full
+                   disabled:opacity-50 disabled:cursor-not-allowed'
           >
             <ChevronLeft class='h-5 w-5' />
           </button>
           <button
             @click='nextFeaturedAlbum'
+            :disabled='isLoading'
             class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
-                   transition-colors hover:bg-white/30 border border-white/20 rounded-full'
+                   transition-colors hover:bg-white/30 border border-white/20 rounded-full
+                   disabled:opacity-50 disabled:cursor-not-allowed'
           >
             <ChevronRight class='h-5 w-5' />
           </button>
@@ -267,227 +295,291 @@
       </div>
 
       <Carousel :disabled='isLoading' class='mb-8' title='Most Played'>
-        <ContextMenu v-for='song in mostPlayed' :key='song.id'>
-          <ContextMenuTrigger as-child>
-            <div
-              @click='playSongs(mostPlayed, song)'
-              class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
-            >
-              <div class='relative mb-2'>
-                <ImageLoader
-                  :item-id='song.albumId || song.id'
-                  :server-url='serverUrl'
-                  :token='token'
-                  alt='Album art'
-                  class='album-art-image'
-                >
-                  <template #fallback>
-                    <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
-                  </template>
-                </ImageLoader>
-
-                <!-- Play button overlay -->
-                <div
-                  class='absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100
-                         transition-opacity flex items-center justify-center'
-                >
-                  <Button
-                    @click.stop='playSongs(mostPlayed, song)'
-                    class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20'
-                    size='icon'
-                  >
-                    <Play class='h-4 w-4' />
-                  </Button>
-                </div>
-              </div>
-              <p class='font-semibold truncate'>
-                {{ song.name }}
-              </p>
-              <p class='text-sm text-muted-foreground truncate'>
-                <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
-                  <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
-                    <router-link
-                      @click.stop
-                      :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
-                      class='hover:underline'
-                    >
-                      {{ artist }}
-                    </router-link>
-                    <span v-if='index < song.artists.length - 1'>, </span>
-                  </template>
-                </template>
-                <template v-else>
-                  {{ song.artists?.join(', ') }}
-                </template>
-              </p>
+        <template v-if='isLoading || mostPlayed.length === 0'>
+          <div
+            v-for='n in 10'
+            :key='`most-played-skeleton-${n}`'
+            class='cursor-pointer group'
+          >
+            <div class='relative mb-2'>
+              <Skeleton class='album-art-image' />
             </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem @click='playSongs([song])'>
-              <Play class='size-4 mr-2' />Play
-            </ContextMenuItem>
-            <ContextMenuItem @click='playInstantMix(song)'>
-              <Shuffle class='size-4 mr-2' />Instant Mix
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
+            <Skeleton class='h-6 w-3/4 mb-1' />
+            <Skeleton class='h-4 w-1/2' />
+          </div>
+        </template>
+        <template v-for='song in mostPlayed' v-else :key='song.id'>
+          <ContextMenu>
+            <ContextMenuTrigger as-child>
+              <div
+                @click='playSongs(mostPlayed, song)'
+                class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
+              >
+                <div class='relative mb-2'>
+                  <ImageLoader
+                    :item-id='song.albumId || song.id'
+                    :server-url='serverUrl'
+                    :token='token'
+                    alt='Album art'
+                    class='album-art-image'
+                  >
+                    <template #fallback>
+                      <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
+                    </template>
+                  </ImageLoader>
+
+                  <!-- Play button overlay -->
+                  <div
+                    class='absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100
+                           transition-opacity flex items-center justify-center'
+                  >
+                    <Button
+                      @click.stop='playSongs(mostPlayed, song)'
+                      class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20'
+                      size='icon'
+                    >
+                      <Play class='h-4 w-4' />
+                    </Button>
+                  </div>
+                </div>
+                <p class='font-semibold truncate'>
+                  {{ song.name }}
+                </p>
+                <p class='text-sm text-muted-foreground truncate'>
+                  <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
+                    <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
+                      <router-link
+                        @click.stop
+                        :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
+                        class='hover:underline'
+                      >
+                        {{ artist }}
+                      </router-link>
+                      <span v-if='index < song.artists.length - 1'>, </span>
+                    </template>
+                  </template>
+                  <template v-else>
+                    {{ song.artists?.join(', ') }}
+                  </template>
+                </p>
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem @click='playSongs([song])'>
+                <Play class='size-4 mr-2' />Play
+              </ContextMenuItem>
+              <ContextMenuItem @click='playInstantMix(song)'>
+                <Shuffle class='size-4 mr-2' />Instant Mix
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </template>
       </Carousel>
 
       <Carousel :disabled='isLoading' class='mb-8' title='Recently Played'>
-        <ContextMenu v-for='song in recentlyPlayed' :key='song.id'>
-          <ContextMenuTrigger as-child>
-            <div
-              @click='playSongs(recentlyPlayed, song)'
-              class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
-            >
-              <div class='relative mb-2'>
-                <ImageLoader
-                  :item-id='song.albumId || song.id'
-                  :server-url='serverUrl'
-                  :token='token'
-                  alt='Album art'
-                  class='album-art-image'
-                >
-                  <template #fallback>
-                    <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
-                  </template>
-                </ImageLoader>
-
-                <!-- Play button overlay -->
-                <div
-                  class='absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100
-                         transition-opacity flex items-center justify-center'
-                >
-                  <Button
-                    @click.stop='playSongs(recentlyPlayed, song)'
-                    class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20'
-                    size='icon'
-                  >
-                    <Play class='h-4 w-4' />
-                  </Button>
-                </div>
-              </div>
-              <p class='font-semibold truncate'>
-                {{ song.name }}
-              </p>
-              <p class='text-sm text-muted-foreground truncate'>
-                <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
-                  <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
-                    <router-link
-                      @click.stop
-                      :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
-                      class='hover:underline'
-                    >
-                      {{ artist }}
-                    </router-link>
-                    <span v-if='index < song.artists.length - 1'>, </span>
-                  </template>
-                </template>
-                <template v-else>
-                  {{ song.artists?.join(', ') }}
-                </template>
-              </p>
+        <template v-if='isLoading || recentlyPlayed.length === 0'>
+          <div
+            v-for='n in 10'
+            :key='`recently-played-skeleton-${n}`'
+            class='cursor-pointer group'
+          >
+            <div class='relative mb-2'>
+              <Skeleton class='album-art-image' />
             </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem @click='playSongs([song])'>
-              <Play class='size-4 mr-2' />Play
-            </ContextMenuItem>
-            <ContextMenuItem @click='playInstantMix(song)'>
-              <Shuffle class='size-4 mr-2' />Instant Mix
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
+            <Skeleton class='h-6 w-3/4 mb-1' />
+            <Skeleton class='h-4 w-1/2' />
+          </div>
+        </template>
+        <template v-for='song in recentlyPlayed' v-else :key='song.id'>
+          <ContextMenu>
+            <ContextMenuTrigger as-child>
+              <div
+                @click='playSongs(recentlyPlayed, song)'
+                class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
+              >
+                <div class='relative mb-2'>
+                  <ImageLoader
+                    :item-id='song.albumId || song.id'
+                    :server-url='serverUrl'
+                    :token='token'
+                    alt='Album art'
+                    class='album-art-image'
+                  >
+                    <template #fallback>
+                      <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
+                    </template>
+                  </ImageLoader>
+
+                  <!-- Play button overlay -->
+                  <div
+                    class='absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100
+                           transition-opacity flex items-center justify-center'
+                  >
+                    <Button
+                      @click.stop='playSongs(recentlyPlayed, song)'
+                      class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20'
+                      size='icon'
+                    >
+                      <Play class='h-4 w-4' />
+                    </Button>
+                  </div>
+                </div>
+                <p class='font-semibold truncate'>
+                  {{ song.name }}
+                </p>
+                <p class='text-sm text-muted-foreground truncate'>
+                  <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
+                    <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
+                      <router-link
+                        @click.stop
+                        :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
+                        class='hover:underline'
+                      >
+                        {{ artist }}
+                      </router-link>
+                      <span v-if='index < song.artists.length - 1'>, </span>
+                    </template>
+                  </template>
+                  <template v-else>
+                    {{ song.artists?.join(', ') }}
+                  </template>
+                </p>
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem @click='playSongs([song])'>
+                <Play class='size-4 mr-2' />Play
+              </ContextMenuItem>
+              <ContextMenuItem @click='playInstantMix(song)'>
+                <Shuffle class='size-4 mr-2' />Instant Mix
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </template>
       </Carousel>
 
       <Carousel :disabled='isLoading' class='mb-8' title='Recently Added'>
-        <ContextMenu v-for='album in recentlyAdded' :key='album.name'>
-          <ContextMenuTrigger as-child>
-            <div
-              @click="$emit('select-album', album)"
-              class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
-            >
-              <div class='relative mb-2'>
-                <AlbumStack
-                  @play='playAlbumSongs'
-                  :album='album'
-                  :disabled='isLoading'
-                  :server-url='serverUrl'
-                  :size="'responsive'"
-                  :token='token'
-                />
-              </div>
-              <p class='font-semibold truncate'>
-                {{ album.name }}
-              </p>
-              <p class='text-sm text-muted-foreground truncate'>
-                <router-link
-                  @click.stop
-                  v-if='album.artistId'
-                  :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
-                  class='hover:underline'
-                >
-                  {{ album.artist }}
-                </router-link>
-                <span v-else>{{ album.artist }}</span>
-              </p>
+        <template v-if='isLoading || recentlyAdded.length === 0'>
+          <div
+            v-for='n in 10'
+            :key='`recently-added-skeleton-${n}`'
+            class='cursor-pointer group'
+          >
+            <div class='relative mb-2 album-stack-container'>
+              <Skeleton class='album-stack-layer album-stack-layer-3 album-art-image' />
+              <Skeleton class='album-stack-layer album-stack-layer-2 album-art-image' />
+              <Skeleton class='album-stack-layer album-stack-layer-1 album-art-image' />
             </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem @click='playAlbumSongs(album)'>
-              <Play class='size-4 mr-2' />Play Album
-            </ContextMenuItem>
-            <AddToPlaylistMenu
-              :songs='album.songs ? [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
-              type='context'
-            />
-          </ContextMenuContent>
-        </ContextMenu>
+            <Skeleton class='h-6 w-3/4 mb-1' />
+            <Skeleton class='h-4 w-1/2' />
+          </div>
+        </template>
+        <template v-else>
+          <ContextMenu v-for='album in recentlyAdded' :key='album.name'>
+            <ContextMenuTrigger as-child>
+              <div
+                @click="$emit('select-album', album)"
+                class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
+              >
+                <div class='relative mb-2'>
+                  <AlbumStack
+                    @play='playAlbumSongs'
+                    :album='album'
+                    :disabled='isLoading'
+                    :server-url='serverUrl'
+                    :size="'responsive'"
+                    :token='token'
+                  />
+                </div>
+                <p class='font-semibold truncate'>
+                  {{ album.name }}
+                </p>
+                <p class='text-sm text-muted-foreground truncate'>
+                  <router-link
+                    @click.stop
+                    v-if='album.artistId'
+                    :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
+                    class='hover:underline'
+                  >
+                    {{ album.artist }}
+                  </router-link>
+                  <span v-else>{{ album.artist }}</span>
+                </p>
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem @click='playAlbumSongs(album)'>
+                <Play class='size-4 mr-2' />Play Album
+              </ContextMenuItem>
+              <AddToPlaylistMenu
+                :songs='album.songs ? [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
+                type='context'
+              />
+            </ContextMenuContent>
+          </ContextMenu>
+        </template>
       </Carousel>
 
       <Carousel :disabled='isLoading' class='mb-8' title='From Your Library'>
-        <ContextMenu v-for='album in randomAlbums' :key='album.name'>
-          <ContextMenuTrigger as-child>
-            <div
-              @click="$emit('select-album', album)"
-              class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
-            >
-              <div class='relative mb-2'>
-                <AlbumStack
-                  @play='playAlbumSongs'
-                  :album='album'
-                  :disabled='isLoading'
-                  :server-url='serverUrl'
-                  :size="'responsive'"
-                  :token='token'
-                />
-              </div>
-              <p class='font-semibold truncate'>
-                {{ album.name }}
-              </p>
-              <p class='text-sm text-muted-foreground truncate'>
-                <router-link
-                  @click.stop
-                  v-if='album.artistId'
-                  :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
-                  class='hover:underline'
-                >
-                  {{ album.artist }}
-                </router-link>
-                <span v-else>{{ album.artist }}</span>
-              </p>
+        <template v-if='isLoading || randomAlbums.length === 0'>
+          <div
+            v-for='n in 10'
+            :key='`library-skeleton-${n}`'
+            class='cursor-pointer group'
+          >
+            <div class='relative mb-2 album-stack-container'>
+              <Skeleton class='album-stack-layer album-stack-layer-3 album-art-image' />
+              <Skeleton class='album-stack-layer album-stack-layer-2 album-art-image' />
+              <Skeleton class='album-stack-layer album-stack-layer-1 album-art-image' />
             </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem @click='playAlbumSongs(album)'>
-              <Play class='size-4 mr-2' />Play Album
-            </ContextMenuItem>
-            <AddToPlaylistMenu
-              :songs='album.songs ? [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
-              type='context'
-            />
-          </ContextMenuContent>
-        </ContextMenu>
+            <Skeleton class='h-6 w-3/4 mb-1' />
+            <Skeleton class='h-4 w-1/2' />
+          </div>
+        </template>
+        <template v-else>
+          <ContextMenu v-for='album in randomAlbums' :key='album.name'>
+            <ContextMenuTrigger as-child>
+              <div
+                @click="$emit('select-album', album)"
+                class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
+              >
+                <div class='relative mb-2'>
+                  <AlbumStack
+                    @play='playAlbumSongs'
+                    :album='album'
+                    :disabled='isLoading'
+                    :server-url='serverUrl'
+                    :size="'responsive'"
+                    :token='token'
+                  />
+                </div>
+                <p class='font-semibold truncate'>
+                  {{ album.name }}
+                </p>
+                <p class='text-sm text-muted-foreground truncate'>
+                  <router-link
+                    @click.stop
+                    v-if='album.artistId'
+                    :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
+                    class='hover:underline'
+                  >
+                    {{ album.artist }}
+                  </router-link>
+                  <span v-else>{{ album.artist }}</span>
+                </p>
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem @click='playAlbumSongs(album)'>
+                <Play class='size-4 mr-2' />Play Album
+              </ContextMenuItem>
+              <AddToPlaylistMenu
+                :songs='album.songs ? [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
+                type='context'
+              />
+            </ContextMenuContent>
+          </ContextMenu>
+        </template>
       </Carousel>
     </div>
   </div>

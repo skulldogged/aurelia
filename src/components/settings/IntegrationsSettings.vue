@@ -11,7 +11,7 @@
   import Switch from '@/components/ui/Switch.vue'
   import { useLastFm } from '@/composables/useLastFm'
   import { useListenBrainz } from '@/composables/useListenBrainz'
-  import { lastfmLogger, listenbrainzLogger } from '@/lib/logger'
+  import { logger } from '@/lib/logger'
   import { useLastFmStore, useListenBrainzStore } from '@/stores'
 
   const lastfmStore = useLastFmStore()
@@ -48,7 +48,7 @@
 
     try {
       unlisten = await listen<string>('lastfm://token-received', async event => {
-        lastfmLogger.info('Received token from callback event')
+        logger.info('Received token from callback event')
         isWaitingForCallback.value = false
         isLastFmAuthenticating.value = true
 
@@ -75,7 +75,7 @@
         return
       }
 
-      lastfmLogger.info('Started Last.fm callback server')
+      logger.info('Started Last.fm callback server')
 
       const callbackUrl = encodeURIComponent('http://127.0.0.1:3000')
       const url = `https://www.last.fm/api/auth/?api_key=${apiKey.value}&cb=${callbackUrl}`
@@ -123,10 +123,10 @@
     try {
       await validateToken(userToken.value.trim())
       userToken.value = ''
-      listenbrainzLogger.info('Successfully connected')
+      logger.info('Successfully connected')
     } catch (err) {
       listenbrainzError.value = err instanceof Error ? err.message : 'Failed to validate token'
-      listenbrainzLogger.error('Connection failed:', err)
+      logger.error('Connection failed:', err)
     } finally {
       isValidating.value = false
     }
@@ -138,7 +138,7 @@
       listenbrainzError.value = null
     } catch (err) {
       listenbrainzError.value = err instanceof Error ? err.message : 'Failed to disconnect'
-      listenbrainzLogger.error('Disconnect failed:', err)
+      logger.error('Disconnect failed:', err)
     }
   }
 

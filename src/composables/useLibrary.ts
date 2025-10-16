@@ -3,7 +3,7 @@ import { readonly, ref, type Ref } from 'vue'
 import type { Album, Artist, Credentials, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
-import { appLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
 
 const albumArtistsWithSongs = ref<Artist[]>([])
@@ -38,7 +38,7 @@ const loadLibrary = async (_credentials: Credentials): Promise<void> => {
 }
 
 const syncLibrary = async (credentials: Credentials): Promise<void> => {
-  appLogger.info('Starting library sync...')
+  logger.info('Starting library sync...')
 
   await withCustomState(
     () => commands.syncLibrary(credentials.serverUrl, credentials.token),
@@ -46,18 +46,18 @@ const syncLibrary = async (credentials: Credentials): Promise<void> => {
       onError: error => {
         const errorMessage = `Failed to sync library: ${error}`
         libraryError.value = errorMessage
-        appLogger.error('Failed to sync library:', error)
+        logger.error('Failed to sync library:', error)
       },
       onSuccess: async () => {
         await loadLibrary(credentials)
-        appLogger.info('Library sync completed successfully.')
+        logger.info('Library sync completed successfully.')
       },
     },
   )
 }
 
 const clearCache = async (credentials: Credentials): Promise<void> => {
-  appLogger.info('Starting cache clear...')
+  logger.info('Starting cache clear...')
 
   await withCustomState(
     () => commands.clearCache(credentials.serverUrl, credentials.token),
@@ -65,11 +65,11 @@ const clearCache = async (credentials: Credentials): Promise<void> => {
       onError: error => {
         const errorMessage = `Failed to clear cache: ${error}`
         libraryError.value = errorMessage
-        appLogger.error('Failed to clear cache:', error)
+        logger.error('Failed to clear cache:', error)
       },
       onSuccess: async () => {
         await loadLibrary(credentials)
-        appLogger.info('Cache cleared and library reloaded successfully.')
+        logger.info('Cache cleared and library reloaded successfully.')
       },
     },
   )

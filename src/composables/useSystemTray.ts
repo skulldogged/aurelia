@@ -1,6 +1,7 @@
 import { onMounted } from 'vue'
 
 import { commands } from '@/bindings'
+import { logger } from '@/lib/logger'
 import { useSystemTrayStore } from '@/stores'
 
 export const useSystemTray = (): {
@@ -16,7 +17,7 @@ export const useSystemTray = (): {
     try {
       await commands.showMainWindow()
     } catch (error) {
-      console.error('Failed to show main window:', error)
+      logger.error('Failed to show main window:', error)
     }
   }
 
@@ -24,7 +25,7 @@ export const useSystemTray = (): {
     try {
       await commands.hideMainWindow()
     } catch (error) {
-      console.error('Failed to hide main window:', error)
+      logger.error('Failed to hide main window:', error)
     }
   }
 
@@ -32,7 +33,7 @@ export const useSystemTray = (): {
     try {
       await commands.quitApplication()
     } catch (error) {
-      console.error('Failed to quit application:', error)
+      logger.error('Failed to quit application:', error)
     }
   }
 
@@ -41,7 +42,7 @@ export const useSystemTray = (): {
       systemTrayStore.setMinimizeToTray(minimizeToTray)
       await commands.setMinimizeToTray(minimizeToTray)
     } catch (error) {
-      console.error('Failed to set minimize to tray:', error)
+      logger.error('Failed to set minimize to tray:', error)
       // Revert store change on failure
       systemTrayStore.setMinimizeToTray(!minimizeToTray)
     }
@@ -52,7 +53,7 @@ export const useSystemTray = (): {
       systemTrayStore.setCloseToTray(closeToTray)
       await commands.setCloseToTray(closeToTray)
     } catch (error) {
-      console.error('Failed to set close to tray:', error)
+      logger.error('Failed to set close to tray:', error)
       // Revert store change on failure
       systemTrayStore.setCloseToTray(!closeToTray)
     }
@@ -64,7 +65,7 @@ export const useSystemTray = (): {
       await setMinimizeToTray(systemTrayStore.minimizeToTray)
       await setCloseToTray(systemTrayStore.closeToTray)
     } catch (error) {
-      console.error('Failed to initialize system tray settings:', error)
+      logger.error('Failed to initialize system tray settings:', error)
     }
   })
 

@@ -34,7 +34,7 @@
   } from '@/components/ui/dropdown-menu'
   import { Slider } from '@/components/ui/slider'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
-  import { playerLogger } from '@/lib/logger'
+  import { logger } from '@/lib/logger'
   import { getSongFormatInfo } from '@/lib/utils'
   import { usePlayerStore } from '@/stores'
 
@@ -348,13 +348,13 @@
       playerStore.setAudioReady(true)
     } else {
       nextSongReady.value = true
-      playerLogger.debug(`Next song ready (player ${playerIndex})`)
+      logger.debug(`Next song ready (player ${playerIndex})`)
     }
   }
 
   const onError = (playerIndex: number): void => {
     const player = players[playerIndex].value
-    playerLogger.error(`Audio playback error on player ${playerIndex}:`, player?.error)
+    logger.error(`Audio playback error on player ${playerIndex}:`, player?.error)
 
     if (playerIndex === activePlayerIndex.value) {
       playerStore.setAudioReady(false)
@@ -375,7 +375,7 @@
   const onEnded = async (playerIndex: number): Promise<void> => {
     if (playerIndex !== activePlayerIndex.value) return
 
-    playerLogger.debug(`Track ended - next ready: ${nextSongReady.value}`)
+    logger.debug(`Track ended - next ready: ${nextSongReady.value}`)
 
     if (playerStore.repeatMode === 'one') {
       if (activePlayer.value) {
@@ -383,7 +383,7 @@
         activePlayer.value.play()
       }
     } else if (nextSongReady.value && nextSongInQueue.value) {
-      playerLogger.debug('Using gapless playback')
+      logger.debug('Using gapless playback')
       await fallbackToGapless()
     } else if (playerStore.repeatMode === 'all' || hasNext.value) {
       nextSong()
@@ -393,16 +393,16 @@
   }
 
   const fallbackToGapless = async (): Promise<void> => {
-    playerLogger.debug('Performing gapless fallback')
+    logger.debug('Performing gapless fallback')
 
     const nextPlayerElement = nextPlayer.value
     if (nextPlayerElement && nextPlayerElement.paused && nextSongReady.value) {
       try {
         nextPlayerElement.currentTime = 0
         await nextPlayerElement.play()
-        playerLogger.debug('Next player started for gapless transition')
+        logger.debug('Next player started for gapless transition')
       } catch (error) {
-        playerLogger.error('Failed to start next player in gapless fallback:', error)
+        logger.error('Failed to start next player in gapless fallback:', error)
       }
     }
 
@@ -415,7 +415,7 @@
     playerStore.setDuration(nextSongInQueue.value?.duration || 0)
     playerStore.setCurrentSong(nextSongInQueue.value)
 
-    playerLogger.debug('Gapless fallback complete')
+    logger.debug('Gapless fallback complete')
   }
 
   const togglePlayPause = async (): Promise<void> => {
@@ -444,7 +444,7 @@
         }
       }
     } catch (error) {
-      playerLogger.error('Playback error:', error)
+      logger.error('Playback error:', error)
     }
   }
 
@@ -511,7 +511,7 @@
       )
 
       if (streamResult.status === 'error') {
-        playerLogger.error('Failed to get audio stream URL:', streamResult.error)
+        logger.error('Failed to get audio stream URL:', streamResult.error)
         throw new Error(streamResult.error)
       }
 
@@ -523,16 +523,16 @@
         let loaded = await webAudioPlayer.loadAudio(initialUrl)
 
         if (!loaded && initialUrl.includes('/stream?')) {
-          playerLogger.warn('Initial stream failed, attempting fallback with .aac container')
+          logger.warn('Initial stream failed, attempting fallback with .aac container')
           try {
             const fallbackUrl = new URL(initialUrl)
             fallbackUrl.pathname = fallbackUrl.pathname.replace('/stream', '/stream.aac')
             fallbackUrl.searchParams.delete('static') // This param seems to be part of the redirect URL
             const finalUrl = fallbackUrl.toString()
-            playerLogger.debug(`Fallback URL: ${finalUrl}`)
+            logger.debug(`Fallback URL: ${finalUrl}`)
             loaded = await webAudioPlayer.loadAudio(finalUrl)
           } catch (e) {
-            playerLogger.error('Failed to construct fallback URL:', e)
+            logger.error('Failed to construct fallback URL:', e)
           }
         }
 
@@ -561,7 +561,7 @@
         }
       }
     } catch (error) {
-      playerLogger.error(`Failed to load audio for song ${song.name} (ID: ${song.id}):`, error)
+      logger.error(`Failed to load audio for song ${song.name} (ID: ${song.id}):`, error)
       playerStore.setAudioReady(false)
       playerStore.setBuffering(false)
     }
@@ -581,7 +581,7 @@
           playerStore.play()
           startWebAudioTimeUpdates()
         } else {
-          playerLogger.error('Failed to start WebAudio playback')
+          logger.error('Failed to start WebAudio playback')
           playerStore.pause()
         }
         playerStore.setBuffering(false)
@@ -589,7 +589,7 @@
         try {
           await activePlayer.value.play()
         } catch (error) {
-          playerLogger.error('Failed to play audio:', error)
+          logger.error('Failed to play audio:', error)
           playerStore.pause()
         } finally {
           playerStore.setBuffering(false)
@@ -599,7 +599,7 @@
       }
 
       if (nextSongInQueue.value && !useWebAudio.value) {
-        playerLogger.debug(`Loading next song: ${nextSongInQueue.value.name}`)
+        logger.debug(`Loading next song: ${nextSongInQueue.value.name}`)
         await loadSong(nextSongInQueue.value, nextPlayer.value)
       }
     }
@@ -623,12 +623,12 @@
                 playerStore.play()
                 startWebAudioTimeUpdates()
               } else {
-                playerLogger.error('Failed to play WebAudio in gapless transition')
+                logger.error('Failed to play WebAudio in gapless transition')
                 playerStore.pause()
               }
             })
             .catch(error => {
-              playerLogger.error('Failed to play WebAudio in gapless transition:', error)
+              logger.error('Failed to play WebAudio in gapless transition:', error)
               playerStore.pause()
             })
             .finally(() => {
@@ -640,7 +640,7 @@
             .then(() => {
             })
             .catch(error => {
-              playerLogger.error('Failed to play audio:', error)
+              logger.error('Failed to play audio:', error)
               playerStore.pause()
             })
             .finally(() => {
@@ -681,7 +681,7 @@
   )
 
   const advanceToNextSong = (): void => {
-    playerLogger.debug('WebAudio track ended, advancing to next song')
+    logger.debug('WebAudio track ended, advancing to next song')
 
     if (playerStore.repeatMode === 'one') {
       playerStore.setCurrentTime(0)
@@ -714,14 +714,14 @@
       const initialized = await webAudioPlayer.initializeWebAudio()
       if (initialized) {
         playerType.value = 'webaudio'
-        playerLogger.info('Using WebAudio API with streaming support')
+        logger.info('Using WebAudio API with streaming support')
       } else {
         playerType.value = 'html5'
-        playerLogger.warn('WebAudio API available but failed to initialize, falling back to HTML5')
+        logger.warn('WebAudio API available but failed to initialize, falling back to HTML5')
       }
     } else {
       playerType.value = 'html5'
-      playerLogger.info('WebAudio API not available, using HTML5 Audio Player')
+      logger.info('WebAudio API not available, using HTML5 Audio Player')
     }
 
     if (useWebAudio.value) {
@@ -734,8 +734,8 @@
 
   onMounted(async () => {
     const webAudioAvailable = webAudioPlayer.isWebAudioAvailable()
-    playerLogger.info(`Audio APIs available - WebAudio: ${webAudioAvailable}`)
-    playerLogger.info(`HTML5 Audio available: ${typeof Audio !== 'undefined'}`)
+    logger.info(`Audio APIs available - WebAudio: ${webAudioAvailable}`)
+    logger.info(`HTML5 Audio available: ${typeof Audio !== 'undefined'}`)
 
     await initializePlayer()
 

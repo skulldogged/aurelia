@@ -3,7 +3,7 @@ import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 import type { LastFmCredentials, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
-import { lastfmLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { useLastFmStore, usePlayerStore } from '@/stores'
 
 const SCROBBLE_THRESHOLD_SECONDS = 240 // 4 minutes
@@ -23,7 +23,7 @@ export const useLastFm = (): {
   const isEnabled = ref(hasTauri && lastfmStore.isAuthenticated())
 
   if (!hasTauri) {
-    lastfmLogger.info('Last.fm disabled: Tauri runtime not detected')
+    logger.info('Last.fm disabled: Tauri runtime not detected')
     const noop = async (): Promise<void> => {}
     const noopAuth = async (): Promise<LastFmCredentials> => ({
       api_key:     '',
@@ -44,9 +44,9 @@ export const useLastFm = (): {
   if (lastfmStore.credentials) {
     void commands.lastfmSetCredentials(lastfmStore.credentials).then(result => {
       if (result.status === 'error') {
-        lastfmLogger.error('Failed to restore credentials to backend:', result.error)
+        logger.error('Failed to restore credentials to backend:', result.error)
       } else {
-        lastfmLogger.debug('Loaded Last.fm credentials from localStorage')
+        logger.debug('Loaded Last.fm credentials from localStorage')
       }
     })
   }
@@ -69,7 +69,7 @@ export const useLastFm = (): {
       return
 
     if (hasScrobbled) {
-      lastfmLogger.debug('Track already scrobbled, skipping')
+      logger.debug('Track already scrobbled, skipping')
       return
     }
 
@@ -94,17 +94,17 @@ export const useLastFm = (): {
     }
 
     try {
-      lastfmLogger.info('Scrobbling track:', { artist, timestamp, track })
+      logger.info('Scrobbling track:', { artist, timestamp, track })
       const result = await commands.lastfmScrobble(scrobble)
       if (result.status === 'error') {
-        lastfmLogger.error('Failed to scrobble track:', result.error)
+        logger.error('Failed to scrobble track:', result.error)
         // Reset flag on error so we can retry
         hasScrobbled = false
       } else {
-        lastfmLogger.debug('Successfully scrobbled track')
+        logger.debug('Successfully scrobbled track')
       }
     } catch (error) {
-      lastfmLogger.error('Failed to scrobble track:', error)
+      logger.error('Failed to scrobble track:', error)
       // Reset flag on error so we can retry
       hasScrobbled = false
     }
@@ -120,9 +120,9 @@ export const useLastFm = (): {
 
     const result = await commands.lastfmUpdateNowPlaying(artist, track, album ?? null)
     if (result.status === 'error') {
-      lastfmLogger.warn('Failed to update now playing:', result.error)
+      logger.warn('Failed to update now playing:', result.error)
     } else {
-      lastfmLogger.debug('Successfully updated now playing')
+      logger.debug('Successfully updated now playing')
     }
   }
 
@@ -175,7 +175,7 @@ export const useLastFm = (): {
     token: string,
   ): Promise<LastFmCredentials> => {
     try {
-      lastfmLogger.info('Authenticating with Last.fm')
+      logger.info('Authenticating with Last.fm')
       const result = await commands.lastfmAuthenticate(apiKey, apiSecret, token)
       if (result.status === 'error') {
         throw new Error(result.error)
@@ -186,10 +186,10 @@ export const useLastFm = (): {
       lastfmStore.setEnabled(true)
       isEnabled.value = true
 
-      lastfmLogger.info('Successfully authenticated with Last.fm')
+      logger.info('Successfully authenticated with Last.fm')
       return credentials
     } catch (error) {
-      lastfmLogger.error('Failed to authenticate with Last.fm:', error)
+      logger.error('Failed to authenticate with Last.fm:', error)
       throw error
     }
   }
@@ -203,9 +203,9 @@ export const useLastFm = (): {
       lastfmStore.setCredentials(credentials)
       lastfmStore.setEnabled(true)
       isEnabled.value = true
-      lastfmLogger.info('Last.fm credentials set')
+      logger.info('Last.fm credentials set')
     } catch (error) {
-      lastfmLogger.error('Failed to set Last.fm credentials:', error)
+      logger.error('Failed to set Last.fm credentials:', error)
       throw error
     }
   }
@@ -219,9 +219,9 @@ export const useLastFm = (): {
       lastfmStore.clearCredentials()
       isEnabled.value = false
       hasScrobbled = false
-      lastfmLogger.info('Last.fm session cleared')
+      logger.info('Last.fm session cleared')
     } catch (error) {
-      lastfmLogger.error('Failed to clear Last.fm session:', error)
+      logger.error('Failed to clear Last.fm session:', error)
       throw error
     }
   }
@@ -229,7 +229,7 @@ export const useLastFm = (): {
   // Initialize credentials on load if they exist
   if (lastfmStore.credentials) {
     void setCredentials(lastfmStore.credentials).catch(error => {
-      lastfmLogger.warn('Failed to initialize Last.fm credentials:', error)
+      logger.warn('Failed to initialize Last.fm credentials:', error)
     })
   }
 

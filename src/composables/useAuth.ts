@@ -3,7 +3,7 @@ import { readonly, ref, type Ref } from 'vue'
 import type { Credentials } from '@/bindings'
 
 import { commands } from '@/bindings'
-import { authLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
 import { useAuthStore } from '@/stores'
 
@@ -69,13 +69,13 @@ const credentials = ref<Credentials | null>(null)
 const error = ref<AuthError | null>(null)
 
 const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promise<void> => {
-  authLogger.debug('Checking for saved credentials...')
+  logger.debug('Checking for saved credentials...')
 
   await withCustomState(
     () => commands.getSavedCredentials(),
     {
       onError: errorString => {
-        authLogger.error('Failed to load saved credentials:', errorString)
+        logger.error('Failed to load saved credentials:', errorString)
         error.value = categorizeAuthError(errorString)
         authStatus.value = 'error'
       },
@@ -83,22 +83,22 @@ const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promi
         authStatus.value = 'pending'
       },
       onSuccess: savedCredentials => {
-        authLogger.debug('Got saved credentials:', savedCredentials)
+        logger.debug('Got saved credentials:', savedCredentials)
 
         if (savedCredentials && savedCredentials.token) {
-          authLogger.debug('Found saved credentials:', savedCredentials)
+          logger.debug('Found saved credentials:', savedCredentials)
           credentials.value = savedCredentials
           authStore.setCredentials(savedCredentials)
           authStatus.value = 'loggedIn'
           error.value = null
-          authLogger.debug('Auth store populated:', {
+          logger.debug('Auth store populated:', {
             hasToken:  !!authStore.token,
             serverUrl: authStore.serverUrl,
             userId:    authStore.userId,
             username:  authStore.username,
           })
         } else {
-          authLogger.debug('No saved credentials found')
+          logger.debug('No saved credentials found')
           authStatus.value = 'loggedOut'
           error.value = null
         }

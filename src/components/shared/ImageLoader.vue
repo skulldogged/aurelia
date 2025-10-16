@@ -2,6 +2,7 @@
   import { ref, watch } from 'vue'
 
   import { useImageLoader } from '@/composables/useImageLoader'
+  import { logger } from '@/lib/logger'
 
   interface Props {
     alt?:       string
@@ -42,7 +43,7 @@
         const url = await getImageUrl(props.itemId, props.serverUrl, props.token, props.imageType)
         imageUrl.value = url
       } catch (error) {
-        console.error('Failed to get image URL:', error)
+        logger.error('Failed to get image URL:', error)
         hasError.value = true
       } finally {
         isLoading.value = false

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 import type { LastFmCredentials } from '@/bindings'
 
-import { lastfmLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 
 const STORAGE_KEY = 'lastfm-credentials'
 
@@ -14,10 +14,10 @@ const getStoredCredentials = (): LastFmCredentials | null => {
       return null
 
     const parsed = JSON.parse(stored)
-    lastfmLogger.debug('Loaded Last.fm credentials from localStorage')
+    logger.debug('Loaded Last.fm credentials from localStorage')
     return parsed
   } catch (error) {
-    lastfmLogger.warn('Failed to load Last.fm credentials from localStorage:', error)
+    logger.warn('Failed to load Last.fm credentials from localStorage:', error)
     return null
   }
 }
@@ -25,14 +25,14 @@ const getStoredCredentials = (): LastFmCredentials | null => {
 const setStoredCredentials = (credentials: LastFmCredentials | null): void => {
   try {
     if (credentials) {
-      lastfmLogger.debug('Saving Last.fm credentials to localStorage')
+      logger.debug('Saving Last.fm credentials to localStorage')
       localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials))
     } else {
-      lastfmLogger.debug('Removing Last.fm credentials from localStorage')
+      logger.debug('Removing Last.fm credentials from localStorage')
       localStorage.removeItem(STORAGE_KEY)
     }
   } catch (error) {
-    lastfmLogger.warn('Failed to save Last.fm credentials to localStorage:', error)
+    logger.warn('Failed to save Last.fm credentials to localStorage:', error)
   }
 }
 

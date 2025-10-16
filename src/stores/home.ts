@@ -4,7 +4,7 @@ import { readonly, ref } from 'vue'
 import type { Album, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
-import { appLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 
 export const useHomeStore = defineStore('home', () => {
   // State
@@ -25,13 +25,13 @@ export const useHomeStore = defineStore('home', () => {
   // Actions
   const loadHomeData = async (): Promise<void> => {
     if (isLoaded.value) {
-      appLogger.info('Home data already loaded, skipping.')
+      logger.info('Home data already loaded, skipping.')
       return
     }
 
     isLoading.value = true
     error.value = null
-    appLogger.info('Loading home data...')
+    logger.info('Loading home data...')
 
     const result = await commands.getHomeViewData()
 
@@ -41,10 +41,10 @@ export const useHomeStore = defineStore('home', () => {
       randomAlbums.value = result.data.random_albums
       featuredAlbums.value = result.data.featured_albums
       isLoaded.value = true
-      appLogger.info('Home data loaded successfully')
+      logger.info('Home data loaded successfully')
     } else {
       error.value = 'Failed to load home data'
-      appLogger.error('Failed to load home data:', result.error)
+      logger.error('Failed to load home data:', result.error)
     }
 
     isLoading.value = false

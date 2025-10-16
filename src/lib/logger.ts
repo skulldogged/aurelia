@@ -8,11 +8,10 @@ const replacer = (key: string, value: unknown): unknown =>
     '******' : value
 
 const levelColors: Record<string, string> = {
-  debug: '#89b4fa',
-  error: '#f38ba8',
-  info:  '#a6e3a1',
-  log:   '#cdd6f4',
-  warn:  '#f9e2af',
+  debug: 'dodgerblue',
+  error: 'crimson',
+  info:  'limegreen',
+  warn:  'gold',
 }
 
 export const logger = createConsola({
@@ -20,10 +19,29 @@ export const logger = createConsola({
   reporters: [
     {
       log: logObj => {
-        const prefix = logObj.type === 'info' ? '[INFO]' :
-          logObj.type === 'warn' ? '[WARN]' :
-            logObj.type === 'error' ? '[ERROR]' :
-              logObj.type === 'debug' ? '[DEBUG]' : '[LOG]'
+        const timestamp = new Date().toISOString()
+        const level = logObj.type.toUpperCase()
+
+        const error = new Error()
+        const stackLines = error.stack?.split('\n') || []
+        let tag = logObj.tag || 'unknown'
+
+        // Find the caller line that contains 'src/'
+        let callerLine = ''
+        for (const line of stackLines.slice(2)) { // Skip Error and log function
+          if (line.includes('src/')) {
+            callerLine = line
+            break
+          }
+        }
+
+        // Parse file path from caller line
+        const match = callerLine.match(/(src\/[^:]+)/)
+        if (match) {
+          const filePath = match[1]
+          const extension = `[${filePath.split('.')[1]?.split('?')[0]}]`
+          tag = `${filePath.replace(/^src\//, '').replace(/\..*/, '').replace(/\//g, '::')} ${extension}`
+        }
 
         const args = logObj.args?.map((arg: unknown) =>
           arg instanceof Error
@@ -33,51 +51,22 @@ export const logger = createConsola({
               : arg,
         ) || []
 
-        const color = levelColors[logObj.type] || levelColors.log
-        const style = `color: ${color}; font-weight: bold;`
-        const tag = `[${logObj.tag || 'app'}]`
+        const message = args.join(' ')
+        const color = levelColors[level.toLowerCase()] || '#cdd6f4'
+        const levelStr = level === 'DEBUG' || level === 'ERROR' ? `${level}` : ` ${level}`
+        const logLine = `%c${timestamp}%c %c${levelStr}%c %caurelia::${tag}:%c ${message}`
 
-        switch (logObj.type) {
-          case 'debug':
-            console.debug(`%c${prefix}`, style, tag, ...args)
-            break
-          case 'error':
-            console.error(`%c${prefix}`, style, tag, ...args)
-            break
-          case 'info':
-            console.info(`%c${prefix}`, style, tag, ...args)
-            break
-          case 'warn':
-            console.warn(`%c${prefix}`, style, tag, ...args)
-            break
-          default:
-            console.log(`%c${prefix}`, style, tag, ...args)
-        }
+        console.log(
+          logLine,
+          'color: gray',
+          '',
+          `color: ${color}`,
+          '',
+          'color: gray',
+          '',
+        )
       },
     },
   ],
 })
 
-// Convenience methods with context
-export const createLogger = (tag: string): {
-  debug: (...args: unknown[]) => void
-  error: (...args: unknown[]) => void
-  info:  (...args: unknown[]) => void
-  warn:  (...args: unknown[]) => void
-} => ({
-  debug: logger.withTag(tag).debug.bind(logger.withTag(tag)),
-  error: logger.withTag(tag).error.bind(logger.withTag(tag)),
-  info:  logger.withTag(tag).info.bind(logger.withTag(tag)),
-  warn:  logger.withTag(tag).warn.bind(logger.withTag(tag)),
-})
-
-// Pre-configured loggers for different modules
-export const playerLogger = createLogger('player')
-export const apiLogger = createLogger('api')
-export const uiLogger = createLogger('ui')
-export const appLogger = createLogger('app')
-export const authLogger = createLogger('auth')
-export const presenceLogger = createLogger('presence')
-export const lastfmLogger = createLogger('lastfm')
-export const listenbrainzLogger = createLogger('listenbrainz')
-export const searchLogger = createLogger('search')

@@ -5,7 +5,18 @@ import { computed, watch } from 'vue'
 import { COLOR_SCHEMES } from '@/lib/colorSchemes'
 
 export const useThemeStore = defineStore('theme', () => {
-  const selectedSchemeName = useLocalStorage('color-scheme', 'default-light')
+  // Determine default theme based on system preference if no saved preference exists
+  const getDefaultTheme = (): string => {
+    if (typeof window === 'undefined') return 'default-light'
+
+    const saved = localStorage.getItem('color-scheme')
+    if (saved) return saved
+
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    return prefersDark ? 'default-dark' : 'default-light'
+  }
+
+  const selectedSchemeName = useLocalStorage('color-scheme', getDefaultTheme())
 
   const selectedScheme = computed(() =>
     COLOR_SCHEMES.find(s => s.name === selectedSchemeName.value) || COLOR_SCHEMES[0],

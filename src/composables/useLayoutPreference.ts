@@ -1,5 +1,7 @@
 import { computed, type ComputedRef, ref, type Ref, watch } from 'vue'
 
+import { logger } from '@/lib/logger'
+
 export type LayoutMode = 'comfy' | 'compact'
 
 const safeGetLocalStorage = <T>(key: string, fallback: T, validator?: (value: unknown) => boolean): T => {
@@ -12,7 +14,7 @@ const safeGetLocalStorage = <T>(key: string, fallback: T, validator?: (value: un
 
     return parsed as T
   } catch (error) {
-    console.warn(`Failed to read ${key} from localStorage:`, error)
+    logger.warn(`Failed to read ${key} from localStorage:`, error)
     return fallback
   }
 }
@@ -21,7 +23,7 @@ const safeSetLocalStorage = (key: string, value: unknown): void => {
   try {
     localStorage.setItem(key, JSON.stringify(value))
   } catch (error) {
-    console.warn(`Failed to save ${key} to localStorage:`, error)
+    logger.warn(`Failed to save ${key} to localStorage:`, error)
   }
 }
 

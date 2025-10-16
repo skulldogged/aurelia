@@ -3,13 +3,13 @@ import { type Ref } from 'vue'
 import type { Credentials, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
-import { playerLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
 import { useLibraryStore, usePlayerStore } from '@/stores'
 
 const playSong = (playerStore: ReturnType<typeof usePlayerStore>, song: Song): void => {
   if (!song || !song.id) {
-    playerLogger.error('Invalid song passed to playSong:', song)
+    logger.error('Invalid song passed to playSong:', song)
     return
   }
 
@@ -25,13 +25,13 @@ const playSong = (playerStore: ReturnType<typeof usePlayerStore>, song: Song): v
 
 const playSongs = (playerStore: ReturnType<typeof usePlayerStore>, songs: Song[]): void => {
   if (songs.length === 0) {
-    playerLogger.warn('No songs to play')
+    logger.warn('No songs to play')
     return
   }
 
   const invalidSongs = songs.filter(song => !song || !song.id)
   if (invalidSongs.length > 0)
-    playerLogger.error('Found songs with invalid IDs:', invalidSongs)
+    logger.error('Found songs with invalid IDs:', invalidSongs)
 
   playerStore.setPlaylist(songs)
   if (songs.length > 0) {
@@ -68,10 +68,10 @@ const toggleFavorite = async (
   credentials: Ref<Credentials | null>,
   song: Song,
 ): Promise<void> => {
-  playerLogger.debug('toggleFavorite called', { hasCredentials: !!credentials.value, songId: song.id })
+  logger.debug('toggleFavorite called', { hasCredentials: !!credentials.value, songId: song.id })
 
   if (!credentials.value) {
-    playerLogger.error('Cannot toggle favorite: no credentials')
+    logger.error('Cannot toggle favorite: no credentials')
     return
   }
 
@@ -91,32 +91,32 @@ const toggleFavorite = async (
       onError: error => {
         // Revert optimistic update on error
         song.isFavorite = oldFavoriteStatus
-        playerLogger.error('Failed to toggle favorite status:', error)
+        logger.error('Failed to toggle favorite status:', error)
       },
       onSuccess: newStatus => {
-        playerLogger.debug('Successfully toggled favorite status', { newStatus, songId: song.id })
+        logger.debug('Successfully toggled favorite status', { newStatus, songId: song.id })
 
         // Update all references to ensure consistency
         song.isFavorite = newStatus
 
         if (playerStore.currentSong && playerStore.currentSong.id === song.id) {
           playerStore.currentSong.isFavorite = newStatus
-          playerLogger.debug('Updated current song favorite status')
+          logger.debug('Updated current song favorite status')
         }
 
         const playlistSong = playerStore.playlist.find((s: Song) => s.id === song.id)
         if (playlistSong) {
           playlistSong.isFavorite = newStatus
-          playerLogger.debug('Updated playlist song favorite status')
+          logger.debug('Updated playlist song favorite status')
         }
 
         const librarySong = libraryStore.allSongs.find((s: Song) => s.id === song.id)
         if (librarySong) {
           librarySong.isFavorite = newStatus
-          playerLogger.debug('Updated library song favorite status')
+          logger.debug('Updated library song favorite status')
         } else {
           const count = libraryStore.allSongs.length
-          playerLogger.debug('Library song not found', { count, songId: song.id })
+          logger.debug('Library song not found', { count, songId: song.id })
         }
       },
     },
@@ -125,20 +125,20 @@ const toggleFavorite = async (
 
 const playInstantMix = async (playerStore: ReturnType<typeof usePlayerStore>, song: Song): Promise<void> => {
   if (!song || !song.id) {
-    playerLogger.error('Invalid song passed to playInstantMix:', song)
+    logger.error('Invalid song passed to playInstantMix:', song)
     return
   }
 
   try {
     const result = await commands.getInstantMix(song.id)
     if (result.status === 'error') {
-      playerLogger.error('Failed to get instant mix:', result.error)
+      logger.error('Failed to get instant mix:', result.error)
       return
     }
 
     const instantMixSongs = result.data
     if (instantMixSongs.length === 0) {
-      playerLogger.warn('No songs found in instant mix')
+      logger.warn('No songs found in instant mix')
       return
     }
 
@@ -148,9 +148,9 @@ const playInstantMix = async (playerStore: ReturnType<typeof usePlayerStore>, so
       : [song, ...instantMixSongs]
 
     playSongs(playerStore, songsToPlay)
-    playerLogger.info(`Started instant mix with ${songsToPlay.length} songs`)
+    logger.info(`Started instant mix with ${songsToPlay.length} songs`)
   } catch (error) {
-    playerLogger.error('Error playing instant mix:', error)
+    logger.error('Error playing instant mix:', error)
   }
 }
 

@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import type { Song } from '@/bindings'
 
 import { setIn } from '@/lib/immutable'
-import { playerLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { fromNullable, map, unwrapOr } from '@/lib/option'
 
 export interface EQBand {
@@ -63,17 +63,17 @@ const getStoredValue = <T>(key: string, defaultValue: T): T => {
       defaultValue,
     )
   } catch (error) {
-    playerLogger.warn(`Failed to load ${key} from localStorage:`, error)
+    logger.warn(`Failed to load ${key} from localStorage:`, error)
     return defaultValue
   }
 }
 
 const setStoredValue = <T>(key: string, value: T): void => {
   try {
-    playerLogger.debug(`Saving ${key} to localStorage:`, value)
+    logger.debug(`Saving ${key} to localStorage:`, value)
     localStorage.setItem(key, String(value))
   } catch (error) {
-    playerLogger.warn(`Failed to save ${key} to localStorage:`, error)
+    logger.warn(`Failed to save ${key} to localStorage:`, error)
   }
 }
 
@@ -94,7 +94,7 @@ const getStoredEQBands = (): EQBand[] => {
         return parsed as EQBand[]
     }
   } catch (error) {
-    playerLogger.warn('Failed to load EQ bands from localStorage:', error)
+    logger.warn('Failed to load EQ bands from localStorage:', error)
   }
 
   return DEFAULT_EQ_BANDS
@@ -126,8 +126,8 @@ export const usePlayerStore = defineStore('player', () => {
 
   // Visualizer settings
   const visualizerEnabled = ref(getStoredValue(STORAGE_KEYS.VISUALIZER_ENABLED, true))
-  const visualizerStyle = ref<'bars' | 'bars-mirror' | 'curve' | 'wave'>(
-    getStoredValue(STORAGE_KEYS.VISUALIZER_STYLE, 'bars-mirror') as 'bars' | 'bars-mirror' | 'curve' | 'wave',
+  const visualizerStyle = ref<'bars'  | 'curve' | 'wave'>(
+    getStoredValue(STORAGE_KEYS.VISUALIZER_STYLE, 'bars') as 'bars' | 'curve' | 'wave',
   )
 
   const currentSong = ref<null | Song>(null)
@@ -332,7 +332,7 @@ export const usePlayerStore = defineStore('player', () => {
     setStoredValue(STORAGE_KEYS.VISUALIZER_ENABLED, enabled)
   }
 
-  const setVisualizerStyle = (style: 'bars' | 'bars-mirror' | 'curve' | 'wave'): void => {
+  const setVisualizerStyle = (style: 'bars' | 'curve' | 'wave'): void => {
     visualizerStyle.value = style
     setStoredValue(STORAGE_KEYS.VISUALIZER_STYLE, style)
   }

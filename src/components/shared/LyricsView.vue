@@ -3,7 +3,7 @@
   import { computed, nextTick, ref, watch } from 'vue'
 
   import { commands, Song } from '@/bindings'
-  import { apiLogger } from '@/lib/logger'
+  import { logger } from '@/lib/logger'
   import { withCustomState } from '@/lib/result'
 
   interface LyricLine {
@@ -83,7 +83,7 @@
             onError: errorString => {
               if (currentLyricsRequestToken.value !== requestToken) return
               error.value = errorString
-              apiLogger.error('Failed to fetch lyrics:', errorString)
+              logger.error('Failed to fetch lyrics:', errorString)
               isLoading.value = false
               emit('lyrics-loaded', false)
             },
@@ -104,7 +104,7 @@
         )
       } else {
         error.value = 'Artist not available'
-        apiLogger.error('Lyrics loading error: Artist not available')
+        logger.error('Lyrics loading error: Artist not available')
         isLoading.value = false
         emit('lyrics-loaded', false)
       }

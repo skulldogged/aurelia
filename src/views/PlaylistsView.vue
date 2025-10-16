@@ -34,6 +34,7 @@
   } from '@/components/ui/select'
   import { Skeleton } from '@/components/ui/skeleton'
   import { usePagination } from '@/composables/useLayoutPreference'
+  import { logger } from '@/lib/logger'
   import { useAuthStore, usePlaylistStore } from '@/stores'
 
   const router = useRouter()
@@ -86,9 +87,9 @@
   }
 
   const selectPlaylist = (playlist: Playlist): void => {
-    console.log('Selecting playlist:', playlist)
+    logger.info('Selecting playlist:', playlist)
     if (!playlist.id) {
-      console.error('Playlist has no ID:', playlist)
+      logger.error('Playlist has no ID:', playlist)
       return
     }
     router.push(`/playlists/${playlist.id}`)

@@ -3,7 +3,7 @@ import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 import type { RpcActivity, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
-import { presenceLogger } from '@/lib/logger'
+import { logger } from '@/lib/logger'
 import { usePlayerStore } from '@/stores'
 
 const DISCORD_APP_ID =
@@ -41,7 +41,7 @@ export const useDiscordPresence = (): {
     const reason = !hasTauri
       ? 'Tauri runtime not detected'
       : 'Discord application ID not configured'
-    presenceLogger.info('Discord Rich Presence disabled', { reason })
+    logger.info('Discord Rich Presence disabled', { reason })
 
     return {
       isEnabled,
@@ -50,7 +50,7 @@ export const useDiscordPresence = (): {
     }
   }
 
-  presenceLogger.info('Discord Rich Presence enabled with app ID: ' + DISCORD_APP_ID)
+  logger.info(`Discord Rich Presence enabled with app ID: ${  DISCORD_APP_ID}`)
 
   let hasStartedThread = false
   let lastSignature = ''
@@ -66,7 +66,7 @@ export const useDiscordPresence = (): {
       const timeSinceLastSuccess = Date.now() - lastSuccessfulUpdate
       if (timeSinceLastSuccess > 60000) {
         const seconds = Math.round(timeSinceLastSuccess / 1000)
-        presenceLogger.warn(`No successful updates in ${seconds}s, attempting reconnection`)
+        logger.warn(`No successful updates in ${seconds}s, attempting reconnection`)
         hasStartedThread = false
       } else {
         return true
@@ -76,29 +76,29 @@ export const useDiscordPresence = (): {
     try {
       const result = await commands.discordRpcIsRunning()
       if (result.status === 'error') {
-        presenceLogger.error('Failed to check Discord RPC status:', result.error)
+        logger.error('Failed to check Discord RPC status:', result.error)
         return false
       }
       const running = result.data
-      presenceLogger.debug('Discord RPC thread status before start:', { running })
+      logger.debug('Discord RPC thread status before start:', { running })
 
       if (!running) {
-        presenceLogger.info('Starting Discord RPC thread with app ID:', DISCORD_APP_ID)
+        logger.info('Starting Discord RPC thread with app ID:', DISCORD_APP_ID)
         const startResult = await commands.discordRpcStart(DISCORD_APP_ID)
         if (startResult.status === 'error') {
-          presenceLogger.error('Failed to start Discord RPC:', startResult.error)
+          logger.error('Failed to start Discord RPC:', startResult.error)
           return false
         }
-        presenceLogger.info('Discord RPC thread started successfully')
+        logger.info('Discord RPC thread started successfully')
         await sleep(500)
       } else {
-        presenceLogger.debug('Discord RPC thread already running')
+        logger.debug('Discord RPC thread already running')
       }
 
       hasStartedThread = true
       return true
     } catch (error) {
-      presenceLogger.error('Failed to start Discord RPC thread', error)
+      logger.error('Failed to start Discord RPC thread', error)
       hasStartedThread = false
       return false
     }
@@ -107,14 +107,14 @@ export const useDiscordPresence = (): {
   const stopThread = async (): Promise<void> => {
     const clearResult = await commands.discordRpcClearActivity()
     if (clearResult.status === 'error') {
-      presenceLogger.debug('Failed to clear Discord activity on shutdown', clearResult.error)
+      logger.debug('Failed to clear Discord activity on shutdown', clearResult.error)
     }
 
     const stopResult = await commands.discordRpcStop()
     if (stopResult.status === 'error') {
-      presenceLogger.debug('Failed to stop Discord RPC thread', stopResult.error)
+      logger.debug('Failed to stop Discord RPC thread', stopResult.error)
     } else {
-      presenceLogger.debug('Stopped Discord RPC thread')
+      logger.debug('Stopped Discord RPC thread')
     }
 
     hasStartedThread = false
@@ -138,12 +138,12 @@ export const useDiscordPresence = (): {
 
       const clearResult = await commands.discordRpcClearActivity()
       if (clearResult.status === 'error') {
-        presenceLogger.error('Failed to clear Discord activity', clearResult.error)
+        logger.error('Failed to clear Discord activity', clearResult.error)
         hasStartedThread = false
         return
       }
       lastSuccessfulUpdate = Date.now()
-      presenceLogger.debug('Cleared Discord activity (no active song)')
+      logger.debug('Cleared Discord activity (no active song)')
       return
     }
 
@@ -199,7 +199,7 @@ export const useDiscordPresence = (): {
       }
     }
 
-    presenceLogger.debug('Updated Discord activity', {
+    logger.debug('Updated Discord activity', {
       artists,
       durationSeconds: duration ? Math.round(duration) : null,
       positionSeconds: Math.round(position),
@@ -207,7 +207,7 @@ export const useDiscordPresence = (): {
       title:           song.name,
     })
 
-    presenceLogger.debug('Activity payload details', {
+    logger.debug('Activity payload details', {
       details:       song.name,
       hasLargeImage: !!song.albumArtUrl,
       hasSmallImage: !!artistImageUrl,
@@ -219,12 +219,12 @@ export const useDiscordPresence = (): {
 
     const activityResult = await commands.discordRpcSetActivity(activity)
     if (activityResult.status === 'error') {
-      presenceLogger.error('Failed to set Discord activity', activityResult.error)
+      logger.error('Failed to set Discord activity', activityResult.error)
       hasStartedThread = false
       return
     }
     lastSuccessfulUpdate = Date.now()
-    presenceLogger.debug('Discord activity set successfully')
+    logger.debug('Discord activity set successfully')
   }
 
   const updatePresence = async (): Promise<void> => {
@@ -240,7 +240,7 @@ export const useDiscordPresence = (): {
         await pushActivity()
       } while (pendingUpdate)
     } catch (error) {
-      presenceLogger.error('Failed to update Discord activity', error)
+      logger.error('Failed to update Discord activity', error)
     } finally {
       isUpdating = false
     }
@@ -267,7 +267,7 @@ export const useDiscordPresence = (): {
     watch(() => playerStore.isSeeking, isSeeking => {
       if (isSeeking && playerStore.currentSong && playerStore.isPlaying) {
         currentSongStartTime = Date.now() - (playerStore.currentTime * 1000)
-        presenceLogger.debug('Detected seeking via isSeeking flag, updated song start time', {
+        logger.debug('Detected seeking via isSeeking flag, updated song start time', {
           newStartTime: currentSongStartTime,
           position:     playerStore.currentTime,
         })

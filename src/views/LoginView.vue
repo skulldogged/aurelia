@@ -6,6 +6,7 @@
   import Button from '@/components/ui/Button.vue'
   import { Input } from '@/components/ui/input'
   import Label from '@/components/ui/Label.vue'
+  import { logger } from '@/lib/logger'
   import { withCustomState } from '@/lib/result'
 
   const { getSavedCredentials, loginToJellyfin, saveCredentials } = commands
@@ -84,7 +85,7 @@
       () => getSavedCredentials(),
       {
         onError: error => {
-          console.error('Failed to get saved credentials:', error)
+          logger.error('Failed to get saved credentials:', error)
         },
         onSuccess: savedCredentials => {
           if (savedCredentials) {

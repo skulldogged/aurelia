@@ -3,7 +3,7 @@ import { ref, type Ref, watch } from 'vue'
 import type { ListenBrainzCredentials, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
-import { listenbrainzLogger as logger } from '@/lib/logger'
+import { logger as logger } from '@/lib/logger'
 import { useListenBrainzStore, usePlayerStore } from '@/stores'
 
 const SCROBBLE_THRESHOLD_SECONDS = 240
