@@ -1,0 +1,14 @@
+{
+  "app": {
+    "windows": [
+      {
+        "decorations": true,
+        "devtools": false,
+        "fullscreen": false,
+        "resizable": true,
+        "title": "Aurelia",
+        "transparent": false
+      }
+    ]
+  }
+}

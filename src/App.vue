@@ -1,5 +1,5 @@
 <script setup lang='ts'>
-  import { useColorMode, useMagicKeys } from '@vueuse/core'
+  import { useColorMode, useMagicKeys, useMediaQuery } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
   import { computed, onMounted, ref, watch } from 'vue'
 
@@ -46,6 +46,8 @@
     if (v)
       isSearchOpen.value = !isSearchOpen.value
   })
+
+  const isMobile = useMediaQuery('(max-width: 768px)')
 
   const webAudioPlayer = useWebAudioPlayer()
 
@@ -316,6 +318,6 @@
 
     <GlobalSearch v-model:open='isSearchOpen' />
 
-    <WindowControls v-if='!isFullScreenPlayerOpen' class='fixed top-0 right-0 z-[100]' />
+    <WindowControls v-if='!isFullScreenPlayerOpen && !isMobile' class='fixed top-0 right-0 z-[100]' />
   </div>
 </template>
