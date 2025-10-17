@@ -6,9 +6,9 @@ use crate::services::JellyfinClient;
 /// Get all playlists from Jellyfin server
 #[tauri::command]
 #[specta::specta]
-pub async fn get_playlists() -> Result<Vec<Playlist>, String> {
-    let client = get_jellyfin_client().await?;
-    let user_id = get_current_user_id().await?;
+pub async fn get_playlists(app: tauri::AppHandle) -> Result<Vec<Playlist>, String> {
+    let client = get_jellyfin_client(&app).await?;
+    let user_id = get_current_user_id(&app).await?;
 
     client
         .get_playlists(&user_id)
@@ -19,8 +19,8 @@ pub async fn get_playlists() -> Result<Vec<Playlist>, String> {
 /// Create a new playlist on Jellyfin server
 #[tauri::command]
 #[specta::specta]
-pub async fn create_playlist(data: PlaylistCreateData) -> Result<Playlist, String> {
-    let client = get_jellyfin_client().await?;
+pub async fn create_playlist(app: tauri::AppHandle, data: PlaylistCreateData) -> Result<Playlist, String> {
+    let client = get_jellyfin_client(&app).await?;
 
     client
         .create_playlist(&data)
@@ -32,10 +32,11 @@ pub async fn create_playlist(data: PlaylistCreateData) -> Result<Playlist, Strin
 #[tauri::command]
 #[specta::specta]
 pub async fn update_playlist(
+    app: tauri::AppHandle,
     playlist_id: String,
     updates: PlaylistUpdateData,
 ) -> Result<Playlist, String> {
-    let client = get_jellyfin_client().await?;
+    let client = get_jellyfin_client(&app).await?;
 
     client
         .update_playlist(&playlist_id, &updates)
@@ -47,7 +48,7 @@ pub async fn update_playlist(
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_playlist(app: tauri::AppHandle, playlist_id: String) -> Result<(), String> {
-    let client = get_jellyfin_client().await?;
+    let client = get_jellyfin_client(&app).await?;
 
     // Delete the playlist from the server
     client
@@ -72,8 +73,8 @@ pub async fn delete_playlist(app: tauri::AppHandle, playlist_id: String) -> Resu
 /// Add items to a playlist
 #[tauri::command]
 #[specta::specta]
-pub async fn add_playlist_items(playlist_id: String, item_ids: Vec<String>) -> Result<(), String> {
-    let client = get_jellyfin_client().await?;
+pub async fn add_playlist_items(app: tauri::AppHandle, playlist_id: String, item_ids: Vec<String>) -> Result<(), String> {
+    let client = get_jellyfin_client(&app).await?;
 
     client
         .add_playlist_items(&playlist_id, &item_ids)
@@ -85,10 +86,11 @@ pub async fn add_playlist_items(playlist_id: String, item_ids: Vec<String>) -> R
 #[tauri::command]
 #[specta::specta]
 pub async fn remove_playlist_items(
+    app: tauri::AppHandle,
     playlist_id: String,
     item_ids: Vec<String>,
 ) -> Result<(), String> {
-    let client = get_jellyfin_client().await?;
+    let client = get_jellyfin_client(&app).await?;
 
     client
         .remove_playlist_items(&playlist_id, &item_ids)
@@ -100,9 +102,10 @@ pub async fn remove_playlist_items(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_playlist_items(
+    app: tauri::AppHandle,
     playlist_id: String,
 ) -> Result<Vec<crate::models::music::Song>, String> {
-    let client = get_jellyfin_client().await?;
+    let client = get_jellyfin_client(&app).await?;
 
     client
         .get_playlist_items(&playlist_id)
@@ -111,8 +114,8 @@ pub async fn get_playlist_items(
 }
 
 /// Helper function to get authenticated Jellyfin client
-pub async fn get_jellyfin_client() -> Result<JellyfinClient, String> {
-    let creds = crate::handlers::auth::get_saved_credentials().await
+pub async fn get_jellyfin_client(app: &tauri::AppHandle) -> Result<JellyfinClient, String> {
+    let creds = crate::handlers::auth::get_saved_credentials(app.clone()).await
         .map_err(|e| format!("No saved credentials found: {}", e))?
         .ok_or("No saved credentials found")?;
 
@@ -120,8 +123,8 @@ pub async fn get_jellyfin_client() -> Result<JellyfinClient, String> {
 }
 
 /// Helper function to get current user ID
-pub async fn get_current_user_id() -> Result<String, String> {
-    let creds = crate::handlers::auth::get_saved_credentials().await
+pub async fn get_current_user_id(app: &tauri::AppHandle) -> Result<String, String> {
+    let creds = crate::handlers::auth::get_saved_credentials(app.clone()).await
         .map_err(|e| format!("No saved credentials found: {}", e))?
         .ok_or("No saved credentials found")?;
 

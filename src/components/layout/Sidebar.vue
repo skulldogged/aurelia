@@ -4,9 +4,10 @@
 
   import { useBlurStore } from '@/stores'
 
-  defineProps<{
-    currentView: string
-    isCollapsed: boolean
+  const props = defineProps<{
+    currentView:       string
+    isCollapsed:       boolean
+    isMobilePortrait?: boolean
   }>()
 
   const emit = defineEmits<{
@@ -22,18 +23,43 @@
       : 'bg-background-dark',
   )
 
+  const navItemClass = computed(() => (view: string) => [
+    props.isMobilePortrait
+      ? [
+        'flex items-center justify-center rounded-md text-sm font-medium flex-1 h-10',
+        props.currentView === view
+          ? 'bg-accent text-accent-foreground'
+          : 'hover:bg-accent/20',
+      ]
+      : [
+        'flex items-center h-10 rounded-md text-sm font-medium',
+        props.currentView === view
+          ? 'bg-accent text-accent-foreground'
+          : 'hover:bg-accent/20',
+      ],
+  ])
+
+  const navIconClass = computed(() =>
+    props.isMobilePortrait
+      ? 'flex justify-center items-center'
+      : 'w-12 flex-shrink-0 flex justify-center items-center',
+  )
+
 </script>
 
 <template>
   <div
     :class="[
       sidebarBgClass,
-      'flex flex-col flex-shrink-0 ease-in-out',
-      isCollapsed ? 'w-16' : 'w-48',
+      'flex flex-shrink-0 ease-in-out',
+      isMobilePortrait
+        ? 'flex-row w-full justify-around items-center px-4'
+        : 'flex-col h-full',
+      !(isMobilePortrait) && (isCollapsed ? 'w-16' : 'w-48'),
     ]"
   >
     <!-- Search -->
-    <div class='m-2 mb-2'>
+    <div v-if='!isMobilePortrait' class='m-2 mb-2'>
       <button
         @click="emit('global-search')"
         class='flex items-center h-10 w-full rounded-md text-sm font-medium
@@ -61,21 +87,17 @@
         </div>
       </button>
     </div>
-    <nav class='flex flex-col flex-grow m-2 mt-0'>
-      <div class='flex-grow space-y-2'>
+    <nav :class="isMobilePortrait ? 'flex flex-1' : 'flex flex-col flex-grow m-2 mt-0'">
+      <div v-if='!isMobilePortrait' :class="'flex-grow space-y-2'">
         <router-link
-          :class="[
-            'flex items-center h-10 rounded-md text-sm font-medium',
-            currentView === 'home'
-              ? 'bg-accent text-accent-foreground'
-              : 'hover:bg-accent/20',
-          ]"
+          :class="navItemClass('home')"
           to='/'
         >
-          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+          <div :class='navIconClass'>
             <Home class='size-5' />
           </div>
           <div
+            v-if='!isMobilePortrait'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
@@ -85,18 +107,14 @@
           </div>
         </router-link>
         <router-link
-          :class="[
-            'flex items-center h-10 rounded-md text-sm font-medium',
-            currentView === 'songs'
-              ? 'bg-accent text-accent-foreground'
-              : 'hover:bg-accent/20',
-          ]"
+          :class="navItemClass('songs')"
           to='/songs'
         >
-          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+          <div :class='navIconClass'>
             <Music class='size-5' />
           </div>
           <div
+            v-if='!isMobilePortrait'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
@@ -106,18 +124,14 @@
           </div>
         </router-link>
         <router-link
-          :class="[
-            'flex items-center h-10 rounded-md text-sm font-medium',
-            currentView === 'artists'
-              ? 'bg-accent text-accent-foreground'
-              : 'hover:bg-accent/20',
-          ]"
+          :class="navItemClass('artists')"
           to='/artists'
         >
-          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+          <div :class='navIconClass'>
             <Users class='size-5' />
           </div>
           <div
+            v-if='!isMobilePortrait'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
@@ -127,18 +141,14 @@
           </div>
         </router-link>
         <router-link
-          :class="[
-            'flex items-center h-10 rounded-md text-sm font-medium',
-            currentView === 'albums'
-              ? 'bg-accent text-accent-foreground'
-              : 'hover:bg-accent/20',
-          ]"
+          :class="navItemClass('albums')"
           to='/albums'
         >
-          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+          <div :class='navIconClass'>
             <Disc class='size-5' />
           </div>
           <div
+            v-if='!isMobilePortrait'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
@@ -148,18 +158,14 @@
           </div>
         </router-link>
         <router-link
-          :class="[
-            'flex items-center h-10 rounded-md text-sm font-medium',
-            currentView === 'playlists'
-              ? 'bg-accent text-accent-foreground'
-              : 'hover:bg-accent/20',
-          ]"
+          :class="navItemClass('playlists')"
           to='/playlists'
         >
-          <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+          <div :class='navIconClass'>
             <ListMusic class='size-5' />
           </div>
           <div
+            v-if='!isMobilePortrait'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
               isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
@@ -170,15 +176,11 @@
         </router-link>
       </div>
       <router-link
-        :class="[
-          'flex items-center h-10 rounded-md text-sm font-medium',
-          currentView === 'settings'
-            ? 'bg-accent text-accent-foreground'
-            : 'hover:bg-accent/20',
-        ]"
+        v-if='!isMobilePortrait'
+        :class="navItemClass('settings')"
         to='/settings'
       >
-        <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+        <div :class='navIconClass'>
           <Settings class='size-5' />
         </div>
         <div
@@ -190,6 +192,57 @@
           <span class='whitespace-nowrap'>Settings</span>
         </div>
       </router-link>
+      <!-- Mobile portrait navigation -->
+      <template v-if='isMobilePortrait'>
+        <router-link
+          :class="navItemClass('home')"
+          to='/'
+        >
+          <div :class='navIconClass'>
+            <Home class='size-5' />
+          </div>
+        </router-link>
+        <router-link
+          :class="navItemClass('songs')"
+          to='/songs'
+        >
+          <div :class='navIconClass'>
+            <Music class='size-5' />
+          </div>
+        </router-link>
+        <router-link
+          :class="navItemClass('artists')"
+          to='/artists'
+        >
+          <div :class='navIconClass'>
+            <Users class='size-5' />
+          </div>
+        </router-link>
+        <router-link
+          :class="navItemClass('albums')"
+          to='/albums'
+        >
+          <div :class='navIconClass'>
+            <Disc class='size-5' />
+          </div>
+        </router-link>
+        <router-link
+          :class="navItemClass('playlists')"
+          to='/playlists'
+        >
+          <div :class='navIconClass'>
+            <ListMusic class='size-5' />
+          </div>
+        </router-link>
+        <router-link
+          :class="navItemClass('settings')"
+          to='/settings'
+        >
+          <div :class='navIconClass'>
+            <Settings class='size-5' />
+          </div>
+        </router-link>
+      </template>
     </nav>
   </div>
 </template>

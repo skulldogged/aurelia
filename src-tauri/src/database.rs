@@ -1,24 +1,40 @@
 use crate::models::{Album, Artist, Song};
-use crate::utils;
 use anyhow::Result;
 use bincode::config::standard;
 use bincode::{Decode, Encode};
-use once_cell::sync::Lazy;
+use once_cell::sync::OnceCell;
 use serde::{Serialize, de::DeserializeOwned};
 use sled::{Db, Tree};
+use tauri::{AppHandle, Manager};
 use tracing::info;
 
-static DB: Lazy<Db> = Lazy::new(|| {
-    let cache_dir = utils::get_app_data_dir().expect("Failed to get app data dir");
-    let db_path = cache_dir.join("sled_db");
-    sled::open(db_path).expect("Failed to open sled database")
-});
+static DB: OnceCell<Db> = OnceCell::new();
 
 fn open_tree(name: &str) -> Result<Tree> {
-    Ok(DB.open_tree(name)?)
+    let db = DB.get().ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
+    Ok(db.open_tree(name)?)
 }
 
-pub fn init() -> Result<()> {
+pub fn init(app: &AppHandle) -> Result<()> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| anyhow::anyhow!("Failed to get app data directory: {}", e))?;
+
+    info!("Database path: {:?}", app_data_dir);
+
+    let db_path = app_data_dir.join("sled_db");
+
+    // Ensure the directory exists
+    std::fs::create_dir_all(&app_data_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to create app data directory: {}", e))?;
+
+    let db = sled::open(db_path)
+        .map_err(|e| anyhow::anyhow!("Failed to open sled database: {}", e))?;
+
+    DB.set(db)
+        .map_err(|_| anyhow::anyhow!("Database already initialized"))?;
+
     open_tree("songs")?;
     open_tree("artists")?;
     open_tree("albums")?;

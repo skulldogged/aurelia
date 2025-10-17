@@ -35,6 +35,7 @@
   import { Slider } from '@/components/ui/slider'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { logger } from '@/lib/logger'
+  import { isMobilePortrait } from '@/lib/platform'
   import { getSongFormatInfo } from '@/lib/utils'
   import { usePlayerStore } from '@/stores'
 
@@ -213,6 +214,8 @@
   )
 
   const songFormatInfo = computed(() => getSongFormatInfo(playerStore.currentSong))
+
+  const isMobilePortraitMode = computed(() => isMobilePortrait())
 
   const toggleVolumePopup = (): void => {
     isVolumePopupVisible.value = !isVolumePopupVisible.value
@@ -828,7 +831,7 @@
     </div>
 
     <div ref='containerRef' class='mx-auto max-w-full relative' style='z-index: 1;'>
-      <div class='grid grid-cols-3 items-center px-2'>
+      <div :class="isMobilePortraitMode ? 'flex items-center px-2' : 'grid grid-cols-3 items-center px-2'">
         <div
           @mouseenter='onTitleMouseEnter'
           @mouseleave='onTitleMouseLeave'
@@ -918,7 +921,7 @@
           </div>
         </div>
 
-        <div class='flex-grow px-4'>
+        <div v-if='!isMobilePortraitMode' class='flex-grow px-4'>
           <div class='flex justify-center'>
             <div class='flex items-center space-x-2'>
               <button
@@ -999,8 +1002,23 @@
           </div>
         </div>
 
-        <div class='flex justify-end'>
-          <div class='flex items-center space-x-2'>
+        <div :class="isMobilePortraitMode ? 'flex justify-end flex-1' : 'flex justify-end'">
+          <!-- Mobile portrait: only play button -->
+          <Button
+            @click='togglePlayPause'
+            v-if='isMobilePortraitMode'
+            :disabled='!playerStore.audioReady || playerStore.isBuffering'
+            class='!rounded-full size-12'
+            size='icon'
+            variant='default'
+          >
+            <Loader2 v-if='playerStore.isBuffering' class='size-5 animate-spin' />
+            <Play v-else-if='!playerStore.isPlaying' class='size-5' />
+            <Pause v-else class='size-5' />
+          </Button>
+
+          <!-- Desktop: all buttons -->
+          <div v-else class='flex items-center space-x-2'>
             <!-- Queue button -->
             <Button
               @click="$emit('toggle-queue')"

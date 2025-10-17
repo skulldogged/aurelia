@@ -90,10 +90,9 @@
         <h3 class='text-sm font-medium text-muted-foreground'>
           Links
         </h3>
-        <div class='flex gap-3 w-full'>
+        <div class='grid md:grid-cols-2 gap-3'>
           <Button
             @click='openLink("https://github.com/pupbrained/aurelia")'
-            class='flex-1'
             variant='outline'
           >
             <span class='flex items-center space-x-2'>
@@ -104,7 +103,6 @@
           </Button>
           <Button
             @click='openLink("https://github.com/pupbrained/aurelia/issues")'
-            class='flex-1'
             variant='outline'
           >
             <span class='flex items-center space-x-2'>

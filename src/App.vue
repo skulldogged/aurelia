@@ -19,6 +19,7 @@
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
+  import { isMobile } from '@/lib/platform'
   import { useBlurStore, useLibraryStore } from '@/stores'
 
   import MainLayout from './components/layout/MainLayout.vue'
@@ -316,6 +317,6 @@
 
     <GlobalSearch v-model:open='isSearchOpen' />
 
-    <WindowControls v-if='!isFullScreenPlayerOpen' class='fixed top-0 right-0 z-[100]' />
+    <WindowControls v-if='!isFullScreenPlayerOpen && !isMobile()' class='fixed top-0 right-0 z-[100]' />
   </div>
 </template>

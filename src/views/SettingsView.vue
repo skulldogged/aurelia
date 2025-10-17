@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import { BookOpen, Info, Palette, Plug, Server } from 'lucide-vue-next'
   import { ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
 
@@ -8,6 +9,7 @@
   import LibrarySettings from '@/components/settings/LibrarySettings.vue'
   import ServerSettings from '@/components/settings/ServerSettings.vue'
   import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+  import { isMobile } from '@/lib/platform'
 
   interface Credentials {
     serverUrl: string
@@ -48,7 +50,7 @@
 </script>
 
 <template>
-  <div class='mx-auto max-w-7xl p-4'>
+  <div class='mx-auto p-4'>
     <div class='mb-8'>
       <h1 class='mb-2 text-4xl font-bold text-foreground'>
         Settings
@@ -56,21 +58,26 @@
     </div>
 
     <Tabs v-model='activeTab' default-value='appearance'>
-      <TabsList class='mb-6'>
-        <TabsTrigger value='appearance'>
-          Appearance
+      <TabsList :class="['mb-6', isMobile() ? 'w-full h-16 grid grid-cols-5 gap-1 p-2' : '']">
+        <TabsTrigger :class="[isMobile() ? 'h-12 px-3' : '']" value='appearance'>
+          <Palette v-if='isMobile()' class='h-6 w-6' />
+          <span v-if='!isMobile()'>Appearance</span>
         </TabsTrigger>
-        <TabsTrigger value='integrations'>
-          Integrations
+        <TabsTrigger :class="[isMobile() ? 'h-12 px-3' : '']" value='integrations'>
+          <Plug v-if='isMobile()' class='h-6 w-6' />
+          <span v-if='!isMobile()'>Integrations</span>
         </TabsTrigger>
-        <TabsTrigger value='server'>
-          Server
+        <TabsTrigger :class="[isMobile() ? 'h-12 px-3' : '']" value='server'>
+          <Server v-if='isMobile()' class='h-6 w-6' />
+          <span v-if='!isMobile()'>Server</span>
         </TabsTrigger>
-        <TabsTrigger value='library'>
-          Library
+        <TabsTrigger :class="[isMobile() ? 'h-12 px-3' : '']" value='library'>
+          <BookOpen v-if='isMobile()' class='h-6 w-6' />
+          <span v-if='!isMobile()'>Library</span>
         </TabsTrigger>
-        <TabsTrigger value='about'>
-          About
+        <TabsTrigger :class="[isMobile() ? 'h-12 px-3' : '']" value='about'>
+          <Info v-if='isMobile()' class='h-6 w-6' />
+          <span v-if='!isMobile()'>About</span>
         </TabsTrigger>
       </TabsList>
 

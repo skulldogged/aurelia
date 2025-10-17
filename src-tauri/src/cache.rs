@@ -2,9 +2,7 @@ use crate::database;
 use crate::models::{Album, Artist, Song};
 use anyhow::Result;
 
-pub async fn init() -> Result<()> {
-    database::init()
-}
+
 
 pub async fn sync_library(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<()> {
     database::songs::sync(songs)?;

@@ -35,6 +35,8 @@ export const useHomeStore = defineStore('home', () => {
 
     const result = await commands.getHomeViewData()
 
+    console.log(result)
+
     if (result.status === 'ok') {
       recentlyPlayed.value = result.data.recently_played
       recentlyAdded.value = result.data.recently_added

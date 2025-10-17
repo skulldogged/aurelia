@@ -5,6 +5,7 @@
   import { useRoute } from 'vue-router'
 
   import Button from '@/components/ui/Button.vue'
+  import { isMobilePortrait } from '@/lib/platform'
   import { useBlurStore } from '@/stores'
 
   import Sidebar from './Sidebar.vue'
@@ -27,6 +28,14 @@
   const mainContentBgClass = computed(() => blurStore.selectedBlurMode.name === 'acrylic'
     ? 'bg-sidebar/60'
     : '')
+
+  const rightPanelBgClass = computed(
+    () => blurStore.selectedBlurMode.name !== 'none'
+      ? 'bg-transparent'
+      : 'bg-background-dark',
+  )
+
+  const isMobilePortraitMode = computed(() => isMobilePortrait())
 
   const emit = defineEmits<{
     'global-search':    []
@@ -59,24 +68,21 @@
 </script>
 
 <template>
-  <div class='h-screen flex flex-col relative'>
-    <!-- Sidebar positioned absolutely to extend full height -->
-    <Sidebar
-      @global-search="$emit('global-search')"
-      @navigate="(view: string) => emit('navigate', view)"
-      :current-view='currentView'
-      :is-collapsed='isSidebarCollapsed'
-      class='absolute left-0 top-0 h-full z-30 border-r border-border/50'
-    />
-
+  <div :class="['h-screen flex flex-col', isMobilePortraitMode ? rightPanelBgClass : '']">
     <!-- Search results overlay -->
     <slot :is-sidebar-collapsed='isSidebarCollapsed' :on-result-click='() => {}' name='search-results' />
 
-    <div :class="[mainContentBgClass, { 'pb-[88px]': hasPlayer }]" class='flex flex-grow min-h-0'>
+    <div
+      :class="[
+        mainContentBgClass,
+        'flex flex-grow min-h-0',
+        { 'pb-[88px]': hasPlayer }
+      ]"
+    >
       <div
         :class="[
           'flex flex-1 min-w-0',
-          {
+          isMobilePortraitMode ? {} : {
             'ml-[64px]': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
             'ml-[192px]': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
             'ml-[64px] mr-[256px] lg:mr-[320px] xl:mr-[384px] 2xl:mr-[448px]':
@@ -88,15 +94,18 @@
       >
         <!-- Draggable top area -->
         <div
-          class='absolute top-0 left-0 right-0 z-5 h-12'
+          :style='{ top: `calc(env(safe-area-inset-top))` }'
+          class='absolute left-0 right-0 z-5 h-12'
           data-tauri-drag-region
         />
         <!-- Navigation buttons positioned relative to sidebar -->
         <div
+          v-if='!isMobilePortraitMode'
           :class="[
-            'absolute top-2 z-10 flex items-center gap-2',
+            'absolute z-10 flex items-center gap-2',
             isSidebarCollapsed ? 'left-[72px]' : 'left-[200px]'
           ]"
+          :style='{ top: `calc(0.5rem + env(safe-area-inset-top))` }'
         >
           <Button
             @click="emit('navigate-back')"
@@ -123,7 +132,10 @@
           </Button>
         </div>
         <main
-          class='flex-1 min-w-0 bg-background pt-12'
+          :style='isMobilePortraitMode
+            ? { paddingTop: `env(safe-area-inset-top)` }
+            : { paddingTop: `calc(3rem + env(safe-area-inset-top))` }'
+          class='flex-1 min-w-0 bg-background'
         >
           <OverlayScrollbarsComponent
             ref='scrollbarsRef'
@@ -137,12 +149,40 @@
       </div>
     </div>
 
+    <!-- Mobile portrait bottom bar -->
+    <Sidebar
+      @global-search="$emit('global-search')"
+      @navigate="(view: string) => emit('navigate', view)"
+      v-if='isMobilePortraitMode'
+      :current-view='currentView'
+      :is-collapsed='true'
+      :is-mobile-portrait='true'
+      :style='{ marginBottom: `env(safe-area-inset-bottom)` }'
+      class='flex-shrink-0 h-16 border-t border-border/50'
+    />
+
+    <!-- Desktop sidebar -->
+    <Sidebar
+      @global-search="$emit('global-search')"
+      @navigate="(view: string) => emit('navigate', view)"
+      v-else
+      :class="[
+        'absolute left-0 top-0 h-full z-30 border-r border-border/50'
+      ]"
+      :current-view='currentView'
+      :is-collapsed='isSidebarCollapsed'
+      :is-mobile-portrait='false'
+      :style='{ paddingTop: `env(safe-area-inset-top)` }'
+    />
+
     <!-- Queue/Equalizer/Lyrics positioned absolutely on the right -->
     <div
       :class="[
         'absolute right-0 top-0 h-full z-20',
+        rightPanelBgClass,
         (isQueueOpen || isEqualizerOpen || isLyricsOpen) ? 'border-l border-border/50' : ''
       ]"
+      :style='{ paddingTop: `env(safe-area-inset-top)` }'
     >
       <slot name='queue' />
     </div>
@@ -151,16 +191,21 @@
     <div
       v-if='hasPlayer'
       :class="[
-        'absolute bottom-0 z-30 border-t border-border/50 bg-sidebar',
+        'absolute z-30 border-t border-border/50 bg-sidebar',
+        isMobilePortraitMode ? 'bottom-[4rem]' : 'bottom-0',
         {
-          'left-[64px] right-0': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
-          'left-[192px] right-0': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
-          'left-[64px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px]':
-            isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
-          'left-[192px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px]':
-            !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+          'left-0 right-0': isMobilePortraitMode,
+          'left-[64px] right-0':
+            !isMobilePortraitMode && isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+          'left-[192px] right-0':
+            !isMobilePortraitMode && !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+          'left-[64px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px] border-r border-border/50':
+            !isMobilePortraitMode && isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+          'left-[192px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px] border-r border-border/50':
+            !isMobilePortraitMode && !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
         }
       ]"
+      :style='isMobilePortraitMode ? { bottom: `calc(4rem + env(safe-area-inset-bottom))` } : {}'
     >
       <slot name='player' />
     </div>

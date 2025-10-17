@@ -31,7 +31,10 @@ pub async fn get_library(app_state: State<'_, AppState>) -> Result<LibraryData, 
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_home_view_data(app_state: State<'_, AppState>) -> Result<HomeViewData, String> {
+pub async fn get_home_view_data(
+    app: tauri::AppHandle,
+    app_state: State<'_, AppState>
+) -> Result<HomeViewData, String> {
     info!("get_home_view_data command called");
     let all_albums = app_state.albums.lock().unwrap().clone();
     let all_songs = app_state.songs.lock().unwrap().clone();
@@ -96,11 +99,11 @@ pub async fn get_home_view_data(app_state: State<'_, AppState>) -> Result<HomeVi
         }
     }
 
-    let (server_url, token) = match crate::handlers::auth::get_saved_credentials().await {
-        Ok(Some(creds)) => (creds.server_url, creds.token),
+    let (server_url, token, user_id) = match crate::handlers::auth::get_saved_credentials(app).await {
+        Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
         _ => return Err("No saved credentials found".to_string()),
     };
-    let recently_played = get_recently_played(server_url, token).await?;
+    let recently_played = get_recently_played(server_url, token, user_id).await?;
 
     Ok(HomeViewData {
         recently_added: recently_added.into_iter().take(10).collect(),
@@ -302,12 +305,8 @@ pub async fn get_related_artists(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_recently_played(server_url: String, token: String) -> Result<Vec<Song>, String> {
+pub async fn get_recently_played(server_url: String, token: String, user_id: String) -> Result<Vec<Song>, String> {
     let client = JellyfinClient::with_auth(server_url, token);
-    let user_id = match crate::handlers::auth::get_saved_credentials().await {
-        Ok(Some(creds)) => creds.user_id,
-        _ => return Err("No saved credentials found".to_string()),
-    };
 
     client
         .get_recently_played(&user_id)
@@ -317,8 +316,8 @@ pub async fn get_recently_played(server_url: String, token: String) -> Result<Ve
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_instant_mix(item_id: String) -> Result<Vec<Song>, String> {
-    let (server_url, token) = match crate::handlers::auth::get_saved_credentials().await {
+pub async fn get_instant_mix(app: tauri::AppHandle, item_id: String) -> Result<Vec<Song>, String> {
+    let (server_url, token) = match crate::handlers::auth::get_saved_credentials(app).await {
         Ok(Some(creds)) => (creds.server_url, creds.token),
         _ => return Err("No saved credentials found".to_string()),
     };
@@ -377,16 +376,20 @@ pub async fn toggle_favorite_status(
 #[tauri::command]
 #[specta::specta]
 pub async fn sync_library(
+    app: tauri::AppHandle,
     app_state: State<'_, AppState>,
     server_url: String,
     token: String,
 ) -> Result<(), String> {
     info!("Starting library sync...");
-    let client = JellyfinClient::with_auth(server_url.clone(), token.clone());
-    let user_id = match crate::handlers::auth::get_saved_credentials().await {
+
+    // Get user_id from saved credentials
+    let user_id = match crate::handlers::auth::get_saved_credentials(app).await {
         Ok(Some(creds)) => creds.user_id,
         _ => return Err("No saved credentials found".to_string()),
     };
+
+    let client = JellyfinClient::with_auth(server_url.clone(), token.clone());
 
     // Fetch in parallel
     let songs_fut = client.get_music_library(&user_id);
@@ -457,12 +460,12 @@ pub async fn clear_cache(
 
     // Clear image cache
     info!("Clearing image cache...");
-    if let Err(e) = crate::handlers::images::clear_image_cache(app).await {
+    if let Err(e) = crate::handlers::images::clear_image_cache(app.clone()).await {
         warn!("Failed to clear image cache: {}", e);
     }
 
     // Re-fetch and cache library
-    sync_library(app_state, server_url, token).await?;
+    sync_library(app.clone(), app_state, server_url, token).await?;
 
     info!("Cache cleared and library re-cached successfully.");
     Ok(())

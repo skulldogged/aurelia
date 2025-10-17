@@ -19,7 +19,7 @@
   import { useSystemTray } from '@/composables/useSystemTray'
   import { AccentColorName } from '@/lib/colorSchemes'
   import { logger } from '@/lib/logger'
-  import { getPlatform } from '@/lib/platform'
+  import { getPlatform, isMobile } from '@/lib/platform'
   import { useAccentColorStore, useBlurStore, usePlayerStore, useSystemTrayStore, useThemeStore } from '@/stores'
 
   const accentColorStore = useAccentColorStore()
@@ -230,7 +230,7 @@
         </div>
 
         <!-- Window Effects -->
-        <div>
+        <div v-if='!isMobile()'>
           <Label class='text-sm font-medium mb-3 block'>
             {{ isLinuxPlatform ? 'Window Transparency' : 'Window Blur' }}
           </Label>
@@ -317,7 +317,7 @@
       </div>
 
       <!-- System Tray -->
-      <div>
+      <div v-if='!isMobile()'>
         <Label class='text-sm font-medium mb-4 block'>
           System Tray
         </Label>

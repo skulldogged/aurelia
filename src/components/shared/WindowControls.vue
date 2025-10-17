@@ -4,7 +4,7 @@
   import { onMounted, ref } from 'vue'
 
   import { useSystemTray } from '@/composables/useSystemTray'
-  import { getPlatform } from '@/lib/platform'
+  import { getPlatform, isMobile } from '@/lib/platform'
   import { useSystemTrayStore } from '@/stores'
 
   const isMaximized = ref(false)
@@ -18,10 +18,10 @@
   }
 
   const handleMinimize = (): Promise<void> =>
-    minimizeToTray.value ? hideMainWindow() : appWindow.minimize()
+    minimizeToTray.value && !isMobile() ? hideMainWindow() : appWindow.minimize()
 
   const handleClose = (): Promise<void> =>
-    closeToTray.value ? hideMainWindow() : appWindow.close()
+    closeToTray.value && !isMobile() ? hideMainWindow() : appWindow.close()
 
   appWindow.onResized(checkMaximized)
 

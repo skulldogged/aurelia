@@ -9,12 +9,13 @@ use tracing::{debug, info, warn};
 #[tauri::command]
 #[specta::specta]
 pub async fn get_lyrics(
+    app: tauri::AppHandle,
     id: String,
     artist: String,
     title: String,
     _path: Option<String>,
 ) -> Result<String, String> {
-    if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials().await {
+    if let Ok(Some(creds)) = crate::handlers::auth::get_saved_credentials(app).await {
         let client = JellyfinClient::with_auth(creds.server_url, creds.token);
 
         if let Ok(Some(jellyfin_lyrics)) = client.get_lyrics(&id).await

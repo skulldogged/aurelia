@@ -35,6 +35,8 @@
 
 :root {
   --radius: 0.625rem;
+  --vh: 100vh;
+  --safe-vh: calc(var(--vh) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
 @layer base {
@@ -55,6 +57,10 @@
 
   .blur-card {
     @apply backdrop-blur-md bg-card/80 border border-border/50;
+  }
+
+  .safe-height {
+    height: var(--safe-vh);
   }
 }
 

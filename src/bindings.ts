@@ -233,9 +233,9 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  getRecentlyPlayed: async (serverUrl: string, token: string): Promise<Result<Song[], string>> => {
+  getRecentlyPlayed: async (serverUrl: string, token: string, userId: string): Promise<Result<Song[], string>> => {
     try {
-      return { data: await TAURI_INVOKE('get_recently_played', { serverUrl, token }), status: 'ok' }
+      return { data: await TAURI_INVOKE('get_recently_played', { serverUrl, token, userId }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }
@@ -517,11 +517,6 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Set the window blur mode
- * On Linux, blur effects are not supported
- * On Windows/macOS, this applies the appropriate vibrancy effect
- */
   setBlurMode: async (mode: string): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('set_blur_mode', { mode }), status: 'ok' }

@@ -2,8 +2,8 @@
 
 use crate::models::{Credentials, LoginResponse};
 use crate::services::JellyfinClient;
-use crate::utils;
 use crate::utils::error_handling;
+use tauri::Manager;
 
 use tracing::error;
 
@@ -32,12 +32,16 @@ pub async fn login_to_jellyfin(
 #[tauri::command]
 #[specta::specta]
 pub async fn save_credentials(
+    app: tauri::AppHandle,
     server_url: String,
     username: String,
     token: String,
     user_id: String,
 ) -> Result<(), String> {
-    let app_dir = utils::ensure_app_data_dir()?;
+    let app_dir = app.path().app_data_dir()
+        .map_err(|e| format!("Application data directory not accessible: {e}"))?;
+    std::fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("Failed to create app directory: {e}"))?;
     let credentials_path = app_dir.join("credentials.json");
 
     let credentials = Credentials {
@@ -60,8 +64,8 @@ pub async fn save_credentials(
 /// Load saved credentials from disk
 #[tauri::command]
 #[specta::specta]
-pub async fn get_saved_credentials() -> Result<Option<Credentials>, String> {
-    let app_dir = match utils::get_app_data_dir() {
+pub async fn get_saved_credentials(app: tauri::AppHandle) -> Result<Option<Credentials>, String> {
+    let app_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
         Err(e) => return Err(format!("Application data directory not accessible: {e}")),
     };
@@ -87,8 +91,11 @@ pub async fn get_saved_credentials() -> Result<Option<Credentials>, String> {
 /// Save user volume preference
 #[tauri::command]
 #[specta::specta]
-pub async fn save_volume(volume: f64) -> Result<(), String> {
-    let app_dir = utils::ensure_app_data_dir()?;
+pub async fn save_volume(app: tauri::AppHandle, volume: f64) -> Result<(), String> {
+    let app_dir = app.path().app_data_dir()
+        .map_err(|e| format!("Application data directory not accessible: {e}"))?;
+    std::fs::create_dir_all(&app_dir)
+        .map_err(|e| format!("Failed to create app directory: {e}"))?;
     let volume_path = app_dir.join("volume.json");
 
     let json = match serde_json::to_string(&volume) {
@@ -104,8 +111,9 @@ pub async fn save_volume(volume: f64) -> Result<(), String> {
 /// Load saved volume preference
 #[tauri::command]
 #[specta::specta]
-pub async fn get_saved_volume() -> Result<Option<f64>, String> {
-    let app_dir = utils::get_app_data_dir()?;
+pub async fn get_saved_volume(app: tauri::AppHandle) -> Result<Option<f64>, String> {
+    let app_dir = app.path().app_data_dir()
+        .map_err(|e| format!("Application data directory not accessible: {e}"))?;
     let volume_path = app_dir.join("volume.json");
 
     if !volume_path.exists() {
