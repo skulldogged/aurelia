@@ -5,7 +5,8 @@
   import { useRoute } from 'vue-router'
 
   import Button from '@/components/ui/Button.vue'
-  import { isMobile, isMobilePortrait } from '@/lib/platform'
+  import { useOrientation } from '@/composables/useOrientation'
+  import { isMobile } from '@/lib/platform'
   import { useBlurStore } from '@/stores'
 
   import Sidebar from './Sidebar.vue'
@@ -25,6 +26,8 @@
   const scrollbarsRef = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
   const blurStore = useBlurStore()
 
+  const { isLandscape, isPortrait } = useOrientation()
+
   const mainContentBgClass = computed(() => blurStore.selectedBlurMode.name === 'acrylic'
     ? 'bg-sidebar/60'
     : '')
@@ -35,8 +38,8 @@
       : 'bg-background-dark',
   )
 
-  const isMobilePortraitMode = computed(() => isMobilePortrait())
-  const isMobileLandscapeMode = computed(() => isMobile() && !isMobilePortrait())
+  const isMobilePortraitMode = computed(() => isPortrait.value)
+  const isMobileLandscapeMode = computed(() => isLandscape.value)
 
   const emit = defineEmits<{
     'global-search':    []
@@ -164,7 +167,7 @@
         : 'absolute left-0 top-0 h-full w-16 z-30 border-l border-border/50'"
       :current-view='currentView'
       :is-collapsed='true'
-      :is-mobile-portrait='true'
+      :is-mobile-portrait='isMobilePortraitMode'
       :style='isMobilePortraitMode ? { marginBottom: `env(safe-area-inset-bottom)` } : {}'
     />
 

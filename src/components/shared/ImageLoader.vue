@@ -22,11 +22,11 @@
     token:     undefined,
   })
 
-  const { getImageUrl } = useImageLoader()
+  const { getImageUrl, getImageUrlFromCache } = useImageLoader()
   const imageUrl = ref<null | string>(null)
   const hasError = ref(false)
   const isLoaded = ref(false)
-  const isLoading = ref(false)
+  const isLoading = ref(true)
 
   const resetState = (): void => {
     isLoading.value = true
@@ -36,6 +36,16 @@
   }
 
   const updateImageUrl = async (): Promise<void> => {
+    if (props.itemId) {
+      const cachedUrl = getImageUrlFromCache(props.itemId, props.imageType)
+      if (cachedUrl) {
+        imageUrl.value = cachedUrl
+        isLoaded.value = true
+        isLoading.value = false
+        return
+      }
+    }
+
     if (props.itemId && props.serverUrl && props.token) {
       resetState()
 

@@ -9,6 +9,7 @@ use crate::services::JellyfinClient;
 use crate::state::AppState;
 use rand::seq::SliceRandom;
 
+use crate::database;
 use std::collections::HashMap;
 use tauri::{AppHandle, State};
 use tracing::{error, info, warn};
@@ -387,7 +388,7 @@ pub async fn toggle_favorite_status(
         .map_err(|e| e.to_string())?;
 
     // Update the database
-    crate::database::songs::update_favorite_status(&item_id, is_favorite)
+    database::songs::update_favorite_status(&item_id, is_favorite)
         .map_err(|e| format!("Failed to update database: {}", e))?;
 
     // Update the in-memory state
@@ -450,11 +451,15 @@ pub async fn sync_library(
 
     // Update database
     info!("Syncing {} songs to database", songs.len());
-    crate::database::songs::sync(&songs).map_err(|e| e.to_string())?;
+    database::songs::sync(&songs).map_err(|e| e.to_string())?;
     info!("Syncing {} artists to database", artists.len());
-    crate::database::artists::sync(&artists).map_err(|e| e.to_string())?;
+    database::artists::sync(&artists).map_err(|e| e.to_string())?;
     info!("Syncing {} albums to database", albums.len());
-    crate::database::albums::sync(&albums).map_err(|e| e.to_string())?;
+    database::albums::sync(&albums).map_err(|e| e.to_string())?;
+
+    if let Err(e) = database::flush_db() {
+        warn!("Failed to flush database: {}", e);
+    }
 
     // Update app state
     *app_state.songs.lock().unwrap() = songs;
@@ -477,9 +482,13 @@ pub async fn clear_cache(
     info!("Clearing all caches...");
 
     // Clear database
-    crate::database::songs::clear().map_err(|e| e.to_string())?;
-    crate::database::artists::clear().map_err(|e| e.to_string())?;
-    crate::database::albums::clear().map_err(|e| e.to_string())?;
+    database::songs::clear().map_err(|e| e.to_string())?;
+    database::artists::clear().map_err(|e| e.to_string())?;
+    database::albums::clear().map_err(|e| e.to_string())?;
+
+    if let Err(e) = database::flush_db() {
+        warn!("Failed to flush database: {}", e);
+    }
 
     // Clear app state
     *app_state.songs.lock().unwrap() = vec![];

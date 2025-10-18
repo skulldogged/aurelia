@@ -7,6 +7,11 @@ import { err, ok } from '@/lib/result'
 // In-memory cache for asset URLs to avoid flicker
 const assetUrlCache = new Map<string, string>()
 
+const getImageUrlFromCache = (itemId: string, imageType: string = 'Primary'): string | undefined => {
+  const cacheKey = `${itemId}_${imageType}`
+  return assetUrlCache.get(cacheKey)
+}
+
 const getImageUrl = async (
   itemId: string,
   serverUrl: string,
@@ -65,10 +70,12 @@ export interface ImageLoader {
     total_size: number
   }, string>>
   getImageUrl: (itemId: string, serverUrl: string, token: string, imageType?: string) => Promise<null | string>
+  getImageUrlFromCache: (itemId: string, imageType?: string) => string | undefined
 }
 
 export const useImageLoader = (): ImageLoader => ({
   clearImageFromCache,
   getImageCacheStats,
   getImageUrl,
+  getImageUrlFromCache,
 })

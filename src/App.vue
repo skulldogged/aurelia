@@ -253,7 +253,6 @@
             @select-artist='navigateToArtist'
             @sync-library='handleSyncLibrary'
             @toggle-favorite='toggleFavorite'
-            :key='$route.path'
             :credentials='credentials'
             :current-song='currentSong'
             :is-clearing='isClearing'

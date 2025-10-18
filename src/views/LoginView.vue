@@ -141,6 +141,7 @@
             placeholder='Enter your password'
             type='password'
             required
+            autocomplete='current-password'
           />
         </div>
 

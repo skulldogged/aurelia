@@ -50,8 +50,8 @@ pub struct LastFmScrobble {
     pub artist: String,
     pub track: String,
     pub album: Option<String>,
-    pub timestamp: i64,
-    pub duration: Option<i64>,
+    pub timestamp: f64,
+    pub duration: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

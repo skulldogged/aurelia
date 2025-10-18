@@ -396,7 +396,7 @@ export const commands = {
   /**
  * Submit a scrobble (past listen) to ListenBrainz
  */
-  listenbrainzSubmitListen: async (listen: ListenBrainzListen, timestamp: bigint): Promise<Result<null, string>> => {
+  listenbrainzSubmitListen: async (listen: ListenBrainzListen, timestamp: number): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('listenbrainz_submit_listen', { listen, timestamp }), status: 'ok' }
     } catch (e) {
@@ -681,10 +681,10 @@ export type Credentials = {
   username:  string; }
 export type HomeViewData = { featured_albums: Album[]; random_albums: Album[]; recently_added: Album[]; recently_played: Song[] }
 export type LastFmCredentials = { api_key: string; api_secret: string; session_key: null | string; username: null | string }
-export type LastFmScrobble = { album: null | string; artist: string; duration: bigint | null; timestamp: bigint; track: string; }
+export type LastFmScrobble = { album: null | string; artist: string; duration: null | number; timestamp: number; track: string; }
 export type LibraryData = { albums: Album[]; artists: Artist[]; songs: Song[]; }
 export type ListenBrainzCredentials = { user_token: string; username: null | string }
-export type ListenBrainzListen = { album: null | string; artist: string; duration: bigint | null; track: string; }
+export type ListenBrainzListen = { album: null | string; artist: string; duration: null | number; track: string; }
 /**
  * Response from successful Jellyfin login
  */
