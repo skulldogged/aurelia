@@ -18,6 +18,8 @@
         "dragDropEnabled": false,
         "fullscreen": false,
         "height": 720,
+        "minWidth": 450,
+        "minHeight": 350,
         "resizable": true,
         "title": "Aurelia",
         "transparent": true,

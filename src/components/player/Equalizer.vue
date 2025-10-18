@@ -17,6 +17,7 @@
   import { Slider } from '@/components/ui/slider'
   import { usePlayerControls } from '@/composables/usePlayerControls'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
+  import { isMobile } from '@/lib/platform'
 
   // Get player store
   const { playerStore } = usePlayerControls()
@@ -94,7 +95,10 @@
   >
     <!-- Header -->
     <div
-      class='h-12 flex items-center justify-between pl-4 pr-[142px] flex-shrink-0'
+      :class="[
+        'h-12 flex items-center justify-between flex-shrink-0',
+        isMobile() ? 'px-4' : 'pl-4 pr-[142px]'
+      ]"
       data-tauri-drag-region
     >
       <div class='flex items-center gap-3'>

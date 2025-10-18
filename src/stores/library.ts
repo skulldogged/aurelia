@@ -6,6 +6,7 @@ import type { Album, Artist, Credentials, Song } from '@/bindings'
 import { commands } from '@/bindings'
 import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
+import { useHomeStore } from './home'
 
 export const useLibraryStore = defineStore('library', () => {
   // State
@@ -102,6 +103,10 @@ export const useLibraryStore = defineStore('library', () => {
 
   const clearCache = async (credentials: Credentials): Promise<void> => {
     logger.info('Starting cache clear...')
+
+    // Reset home data when clearing cache
+    const homeStore = useHomeStore()
+    homeStore.resetHomeData()
 
     await withCustomState(
       () => commands.clearCache(credentials.serverUrl, credentials.token),

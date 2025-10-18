@@ -91,6 +91,7 @@ const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promi
           authStore.setCredentials(savedCredentials)
           authStatus.value = 'loggedIn'
           error.value = null
+          logger.info('Authentication successful - credentials loaded from disk')
           logger.debug('Auth store populated:', {
             hasToken:  !!authStore.token,
             serverUrl: authStore.serverUrl,

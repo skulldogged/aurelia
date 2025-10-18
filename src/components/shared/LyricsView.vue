@@ -15,7 +15,7 @@
     currentTime:  number
     duration:     number
     isInSidebar?: boolean
-    size?:        'large' | 'normal'
+    size?:        'large' | 'normal' | 'small'
     song:         null | Song
     visible:      boolean
   }>()
@@ -225,7 +225,8 @@
           :class="['lyric-line', {
             'active': index === currentLineIndex,
             'sidebar': isInSidebar,
-            'large': size === 'large'
+            'large': size === 'large',
+            'small': size === 'small'
           }]"
         >
           {{ line.text }}
@@ -240,7 +241,10 @@
         <p
           v-for='(line, index) in plainLyrics'
           :key='`${index}-${line}`'
-          :class="['lyric-line lyric-line--static', { 'sidebar': isInSidebar, 'large': size === 'large' }]"
+          :class="[
+            'lyric-line lyric-line--static',
+            { 'sidebar': isInSidebar, 'large': size === 'large', 'small': size === 'small' }
+          ]"
         >
           {{ line }}
         </p>
@@ -305,6 +309,10 @@
 
 .lyric-line.large:not(.sidebar) {
   font-size: 2.5rem;
+}
+
+.lyric-line.small:not(.sidebar) {
+  font-size: 1.5rem;
 }
 
 .lyric-line.sidebar.active {

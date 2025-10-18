@@ -35,13 +35,21 @@ export const useHomeStore = defineStore('home', () => {
 
     const result = await commands.getHomeViewData()
 
-    console.log(result)
+    console.log('Home data result:', result)
 
     if (result.status === 'ok') {
-      recentlyPlayed.value = result.data.recently_played
-      recentlyAdded.value = result.data.recently_added
-      randomAlbums.value = result.data.random_albums
-      featuredAlbums.value = result.data.featured_albums
+      const data = result.data
+      recentlyPlayed.value = data.recently_played || []
+      recentlyAdded.value = data.recently_added || []
+      randomAlbums.value = data.random_albums || []
+      featuredAlbums.value = data.featured_albums || []
+
+      logger.info(
+        `Home data loaded: ${recentlyPlayed.value.length} recently played, ` +
+        `${recentlyAdded.value.length} recently added, ` +
+        `${randomAlbums.value.length} random, ${featuredAlbums.value.length} featured`,
+      )
+
       isLoaded.value = true
       logger.info('Home data loaded successfully')
     } else {
@@ -55,6 +63,16 @@ export const useHomeStore = defineStore('home', () => {
   const refreshHomeData = async (): Promise<void> => {
     isLoaded.value = false
     await loadHomeData()
+  }
+
+  const resetHomeData = (): void => {
+    recentlyPlayed.value = []
+    recentlyAdded.value = []
+    randomAlbums.value = []
+    featuredAlbums.value = []
+    isLoaded.value = false
+    error.value = null
+    logger.info('Home data reset')
   }
 
   return {
@@ -72,5 +90,6 @@ export const useHomeStore = defineStore('home', () => {
 
     recentlyPlayedSongs,
     refreshHomeData,
+    resetHomeData,
   }
 })

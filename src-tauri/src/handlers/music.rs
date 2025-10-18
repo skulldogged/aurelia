@@ -38,6 +38,7 @@ pub async fn get_home_view_data(
     info!("get_home_view_data command called");
     let all_albums = app_state.albums.lock().unwrap().clone();
     let all_songs = app_state.songs.lock().unwrap().clone();
+    info!("get_home_view_data: working with {} albums and {} songs", all_albums.len(), all_songs.len());
 
     // Create album-to-songs mapping
     let mut album_map: std::collections::HashMap<String, Vec<Song>> =
@@ -105,12 +106,15 @@ pub async fn get_home_view_data(
     };
     let recently_played = get_recently_played(server_url, token, user_id).await?;
 
-    Ok(HomeViewData {
+    let result = HomeViewData {
         recently_added: recently_added.into_iter().take(10).collect(),
         random_albums: random_albums.into_iter().take(10).collect(),
         featured_albums: featured_albums.into_iter().take(10).collect(),
         recently_played,
-    })
+    };
+    info!("get_home_view_data: returning {} recently_added, {} random_albums, {} featured_albums, {} recently_played",
+        result.recently_added.len(), result.random_albums.len(), result.featured_albums.len(), result.recently_played.len());
+    Ok(result)
 }
 
 #[tauri::command]
@@ -422,8 +426,11 @@ pub async fn sync_library(
     artists.extend(user_artists_map.into_values());
 
     // Update database
+    info!("Syncing {} songs to database", songs.len());
     crate::database::songs::sync(&songs).map_err(|e| e.to_string())?;
+    info!("Syncing {} artists to database", artists.len());
     crate::database::artists::sync(&artists).map_err(|e| e.to_string())?;
+    info!("Syncing {} albums to database", albums.len());
     crate::database::albums::sync(&albums).map_err(|e| e.to_string())?;
 
     // Update app state
@@ -474,7 +481,7 @@ pub async fn clear_cache(
 /// Register client capabilities with Jellyfin server
 #[tauri::command]
 #[specta::specta]
-pub async fn register_client_capabilities(server_url: String, token: String) -> Result<(), String> {
+pub async fn register_client_capabilities(server_url: String, token: String, device_id: String) -> Result<(), String> {
     let client = JellyfinClient::with_auth(server_url, token);
 
     let capabilities = ClientCapabilities {
@@ -494,7 +501,7 @@ pub async fn register_client_capabilities(server_url: String, token: String) -> 
         supports_persistent_identifier: true,
         device_profile: DeviceProfile {
             name: Some("Tauri Music Player".to_string()),
-            id: None,
+            id: Some(device_id),
             max_streaming_bitrate: Some(320000),
             max_static_bitrate: Some(320000),
             music_streaming_transcoding_bitrate: Some(128000),

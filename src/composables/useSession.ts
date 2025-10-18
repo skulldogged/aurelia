@@ -1,5 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { v4 as uuidv4 } from 'uuid'
 import { readonly, ref, type Ref } from 'vue'
 
 import { commands } from '@/bindings'
@@ -30,7 +31,13 @@ const initializeSession = async (): Promise<void> => {
     const label = webview.label
     const version = await getVersion()
 
-    sessionState.value.deviceId = `tauri-music-player-${label}-${Date.now()}`
+    let deviceId = localStorage.getItem('aurelia-device-id')
+    if (!deviceId) {
+      deviceId = uuidv4()
+      localStorage.setItem('aurelia-device-id', deviceId)
+    }
+
+    sessionState.value.deviceId = `tauri-music-player-${label}-${deviceId}`
     sessionState.value.deviceName = `Tauri Music Player (${label})`
     sessionState.value.appVersion = version
 
@@ -51,8 +58,20 @@ const registerCapabilities = async (authStore: ReturnType<typeof useAuthStore>):
   if (!authStore.serverUrl || !authStore.token || sessionState.value.isRegistered)
     return
 
+  logger.debug(
+    'Registering client capabilities with server:',
+    authStore.serverUrl,
+    'token length:',
+    authStore.token.length,
+  )
+
   try {
-    const result = await commands.registerClientCapabilities(authStore.serverUrl, authStore.token)
+    const result =
+      await commands.registerClientCapabilities(
+        authStore.serverUrl,
+        authStore.token,
+        sessionState.value.deviceId,
+      )
     if (result.status === 'error') {
       logger.error('Failed to register client capabilities:', result.error)
       return

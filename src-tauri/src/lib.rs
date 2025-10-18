@@ -215,6 +215,7 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             info!("Setting up application...");
+            info!("DEBUG: Setup function called successfully");
             builder.mount_events(app);
 
             info!("Initializing database...");
@@ -230,14 +231,26 @@ pub fn run() {
 
             tauri::async_runtime::spawn(async move {
                 info!("Starting background library load...");
-                if let Ok(s) = database::songs::get_all() {
-                    *songs.lock().unwrap() = s;
+                match database::songs::get_all() {
+                    Ok(s) => {
+                        info!("Loaded {} songs from database", s.len());
+                        *songs.lock().unwrap() = s;
+                    }
+                    Err(e) => error!("Failed to load songs from database: {}", e),
                 }
-                if let Ok(a) = database::artists::get_all() {
-                    *artists.lock().unwrap() = a;
+                match database::artists::get_all() {
+                    Ok(a) => {
+                        info!("Loaded {} artists from database", a.len());
+                        *artists.lock().unwrap() = a;
+                    }
+                    Err(e) => error!("Failed to load artists from database: {}", e),
                 }
-                if let Ok(a) = database::albums::get_all() {
-                    *albums.lock().unwrap() = a;
+                match database::albums::get_all() {
+                    Ok(a) => {
+                        info!("Loaded {} albums from database", a.len());
+                        *albums.lock().unwrap() = a;
+                    }
+                    Err(e) => error!("Failed to load albums from database: {}", e),
                 }
                 info!("Background library load finished.");
             });

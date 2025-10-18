@@ -5,7 +5,7 @@
   import { useRoute } from 'vue-router'
 
   import Button from '@/components/ui/Button.vue'
-  import { isMobilePortrait } from '@/lib/platform'
+  import { isMobile, isMobilePortrait } from '@/lib/platform'
   import { useBlurStore } from '@/stores'
 
   import Sidebar from './Sidebar.vue'
@@ -36,6 +36,7 @@
   )
 
   const isMobilePortraitMode = computed(() => isMobilePortrait())
+  const isMobileLandscapeMode = computed(() => isMobile() && !isMobilePortrait())
 
   const emit = defineEmits<{
     'global-search':    []
@@ -83,12 +84,16 @@
         :class="[
           'flex flex-1 min-w-0',
           isMobilePortraitMode ? {} : {
-            'ml-[64px]': isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
-            'ml-[192px]': !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+            'ml-[64px]': (isSidebarCollapsed || isMobileLandscapeMode) &&
+              !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+            'ml-[192px]': !isSidebarCollapsed && !isMobileLandscapeMode &&
+              !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
             'ml-[64px] mr-[256px] lg:mr-[320px] xl:mr-[384px] 2xl:mr-[448px]':
-              isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+              (isSidebarCollapsed || isMobileLandscapeMode) &&
+              (isQueueOpen || isEqualizerOpen || isLyricsOpen),
             'ml-[192px] mr-[256px] lg:mr-[320px] xl:mr-[384px] 2xl:mr-[448px]':
-              !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+              !isSidebarCollapsed && !isMobileLandscapeMode &&
+              (isQueueOpen || isEqualizerOpen || isLyricsOpen),
           }
         ]"
       >
@@ -100,7 +105,7 @@
         />
         <!-- Navigation buttons positioned relative to sidebar -->
         <div
-          v-if='!isMobilePortraitMode'
+          v-if='!isMobile()'
           :class="[
             'absolute z-10 flex items-center gap-2',
             isSidebarCollapsed ? 'left-[72px]' : 'left-[200px]'
@@ -132,9 +137,9 @@
           </Button>
         </div>
         <main
-          :style='isMobilePortraitMode
-            ? { paddingTop: `env(safe-area-inset-top)` }
-            : { paddingTop: `calc(3rem + env(safe-area-inset-top))` }'
+          :style='!isMobile()
+            ? { paddingTop: `calc(3rem + env(safe-area-inset-top))` }
+            : { paddingTop: `env(safe-area-inset-top)` }'
           class='flex-1 min-w-0 bg-background'
         >
           <OverlayScrollbarsComponent
@@ -149,23 +154,25 @@
       </div>
     </div>
 
-    <!-- Mobile portrait bottom bar -->
+    <!-- Mobile bottom bar (portrait) or left bar (landscape) -->
     <Sidebar
       @global-search="$emit('global-search')"
       @navigate="(view: string) => emit('navigate', view)"
-      v-if='isMobilePortraitMode'
+      v-if='isMobile()'
+      :class="isMobilePortraitMode
+        ? 'flex-shrink-0 h-16 border-t border-border/50'
+        : 'absolute left-0 top-0 h-full w-16 z-30 border-l border-border/50'"
       :current-view='currentView'
       :is-collapsed='true'
       :is-mobile-portrait='true'
-      :style='{ marginBottom: `env(safe-area-inset-bottom)` }'
-      class='flex-shrink-0 h-16 border-t border-border/50'
+      :style='isMobilePortraitMode ? { marginBottom: `env(safe-area-inset-bottom)` } : {}'
     />
 
     <!-- Desktop sidebar -->
     <Sidebar
       @global-search="$emit('global-search')"
       @navigate="(view: string) => emit('navigate', view)"
-      v-else
+      v-if='!isMobile()'
       :class="[
         'absolute left-0 top-0 h-full z-30 border-r border-border/50'
       ]"
@@ -196,13 +203,17 @@
         {
           'left-0 right-0': isMobilePortraitMode,
           'left-[64px] right-0':
-            !isMobilePortraitMode && isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+            (!isMobilePortraitMode && isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen) ||
+            (isMobileLandscapeMode && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen),
           'left-[192px] right-0':
-            !isMobilePortraitMode && !isSidebarCollapsed && !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
+            !isMobilePortraitMode && !isSidebarCollapsed && !isMobileLandscapeMode &&
+            !isQueueOpen && !isEqualizerOpen && !isLyricsOpen,
           'left-[64px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px] border-r border-border/50':
-            !isMobilePortraitMode && isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+            (!isMobilePortraitMode && isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen)) ||
+            (isMobileLandscapeMode && (isQueueOpen || isEqualizerOpen || isLyricsOpen)),
           'left-[192px] right-[256px] lg:right-[320px] xl:right-[384px] 2xl:right-[448px] border-r border-border/50':
-            !isMobilePortraitMode && !isSidebarCollapsed && (isQueueOpen || isEqualizerOpen || isLyricsOpen),
+            !isMobilePortraitMode && !isSidebarCollapsed && !isMobileLandscapeMode &&
+            (isQueueOpen || isEqualizerOpen || isLyricsOpen),
         }
       ]"
       :style='isMobilePortraitMode ? { bottom: `calc(4rem + env(safe-area-inset-bottom))` } : {}'

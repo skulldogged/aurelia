@@ -90,8 +90,11 @@
   watch(
     () => libraryStore.isLoaded,
     isLoaded => {
-      if (isLoaded)
-        homeStore.loadHomeData()
+      logger.info(`HomeView: library isLoaded changed to ${isLoaded}`)
+      if (isLoaded) {
+        logger.info('HomeView: refreshing home data')
+        homeStore.refreshHomeData()
+      }
     },
     { immediate: true },
   )
@@ -524,7 +527,7 @@
         </template>
       </Carousel>
 
-      <Carousel :disabled='isLoading' class='mb-8' title='From Your Library'>
+      <Carousel :disabled='isLoading' title='From Your Library'>
         <template v-if='isLoading || randomAlbums.length === 0'>
           <div
             v-for='n in 10'

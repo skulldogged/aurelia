@@ -2,6 +2,7 @@
   import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
   import { computed } from 'vue'
 
+  import { isMobile, isMobilePortrait as isPortrait } from '@/lib/platform'
   import { useBlurStore } from '@/stores'
 
   const props = defineProps<{
@@ -17,6 +18,8 @@
 
   const blurStore = useBlurStore()
 
+  const isMobileLandscape = computed(() => isMobile() && !isPortrait())
+
   const sidebarBgClass = computed(
     () => blurStore.selectedBlurMode.name !== 'none'
       ? 'bg-transparent'
@@ -24,23 +27,30 @@
   )
 
   const navItemClass = computed(() => (view: string) => [
-    props.isMobilePortrait
+    isMobileLandscape.value
       ? [
-        'flex items-center justify-center rounded-md text-sm font-medium flex-1 h-10',
+        'flex items-center justify-center rounded-md text-sm font-medium px-3 py-4',
         props.currentView === view
           ? 'bg-accent text-accent-foreground'
           : 'hover:bg-accent/20',
       ]
-      : [
-        'flex items-center h-10 rounded-md text-sm font-medium',
-        props.currentView === view
-          ? 'bg-accent text-accent-foreground'
-          : 'hover:bg-accent/20',
-      ],
+      : props.isMobilePortrait
+        ? [
+          'flex items-center justify-center rounded-md text-sm font-medium flex-1 h-10',
+          props.currentView === view
+            ? 'bg-accent text-accent-foreground'
+            : 'hover:bg-accent/20',
+        ]
+        : [ // This is the desktop case
+          'flex items-center h-10 rounded-md text-sm font-medium pl-3 gap-x-3',
+          props.currentView === view
+            ? 'bg-accent text-accent-foreground'
+            : 'hover:bg-accent/20',
+        ],
   ])
 
   const navIconClass = computed(() =>
-    props.isMobilePortrait
+    props.isMobilePortrait || isMobileLandscape
       ? 'flex justify-center items-center'
       : 'w-12 flex-shrink-0 flex justify-center items-center',
   )
@@ -52,14 +62,16 @@
     :class="[
       sidebarBgClass,
       'flex flex-shrink-0 ease-in-out',
-      isMobilePortrait
-        ? 'flex-row w-full justify-around items-center px-4'
-        : 'flex-col h-full',
-      !(isMobilePortrait) && (isCollapsed ? 'w-16' : 'w-48'),
+      isMobileLandscape
+        ? 'flex-col h-full justify-around items-center py-4'
+        : props.isMobilePortrait
+          ? 'flex-row w-full justify-around items-center px-4'
+          : 'flex-col h-full',
+      !(props.isMobilePortrait || isMobileLandscape) && (props.isCollapsed ? 'w-16' : 'w-48'),
     ]"
   >
     <!-- Search -->
-    <div v-if='!isMobilePortrait' class='m-2 mb-2'>
+    <div v-if='!(props.isMobilePortrait || isMobileLandscape)' class='m-2 mb-2'>
       <button
         @click="emit('global-search')"
         class='flex items-center h-10 w-full rounded-md text-sm font-medium
@@ -87,8 +99,14 @@
         </div>
       </button>
     </div>
-    <nav :class="isMobilePortrait ? 'flex flex-1' : 'flex flex-col flex-grow m-2 mt-0'">
-      <div v-if='!isMobilePortrait' :class="'flex-grow space-y-2'">
+    <nav
+      :class="isMobileLandscape
+        ? 'flex flex-col flex-1 justify-around'
+        : props.isMobilePortrait
+          ? 'flex flex-1'
+          : 'flex flex-col flex-grow m-2 mt-0'"
+    >
+      <div v-if='!(props.isMobilePortrait || isMobileLandscape)' :class="'flex-grow space-y-2'">
         <router-link
           :class="navItemClass('home')"
           to='/'
@@ -97,10 +115,10 @@
             <Home class='size-5' />
           </div>
           <div
-            v-if='!isMobilePortrait'
+            v-if='!(props.isMobilePortrait || isMobileLandscape)'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
-              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+              props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
             ]"
           >
             <span class='whitespace-nowrap'>Home</span>
@@ -131,10 +149,10 @@
             <Users class='size-5' />
           </div>
           <div
-            v-if='!isMobilePortrait'
+            v-if='!(props.isMobilePortrait || isMobileLandscape)'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
-              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+              props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
             ]"
           >
             <span class='whitespace-nowrap'>Artists</span>
@@ -148,10 +166,10 @@
             <Disc class='size-5' />
           </div>
           <div
-            v-if='!isMobilePortrait'
+            v-if='!(props.isMobilePortrait || isMobileLandscape)'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
-              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+              props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
             ]"
           >
             <span class='whitespace-nowrap'>Albums</span>
@@ -165,10 +183,10 @@
             <ListMusic class='size-5' />
           </div>
           <div
-            v-if='!isMobilePortrait'
+            v-if='!(props.isMobilePortrait || isMobileLandscape)'
             :class="[
               'overflow-hidden transition-all duration-150 ease-in-out',
-              isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+              props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
             ]"
           >
             <span class='whitespace-nowrap'>Playlists</span>
@@ -176,7 +194,7 @@
         </router-link>
       </div>
       <router-link
-        v-if='!isMobilePortrait'
+        v-if='!(props.isMobilePortrait || isMobileLandscape)'
         :class="navItemClass('settings')"
         to='/settings'
       >
@@ -193,7 +211,7 @@
         </div>
       </router-link>
       <!-- Mobile portrait navigation -->
-      <template v-if='isMobilePortrait'>
+      <template v-if='props.isMobilePortrait || isMobileLandscape'>
         <router-link
           :class="navItemClass('home')"
           to='/'

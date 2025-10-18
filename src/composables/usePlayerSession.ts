@@ -19,8 +19,12 @@ let progressReportTimer: null | ReturnType<typeof setInterval> = null
 let isInitialized = false
 
 const initialize = async (sessionManager: ReturnType<typeof useSession>): Promise<void> => {
-  if (isInitialized) return
+  if (isInitialized) {
+    logger.debug('Player session already initialized, skipping')
+    return
+  }
 
+  logger.info('Initializing player session...')
   await sessionManager.initializeSession()
   await sessionManager.registerCapabilities()
   isInitialized = true
@@ -129,6 +133,7 @@ const setupWatchers = (
   const unwatchAuth = watch(
     () => authStore.isAuthenticated(),
     async isAuthenticated => {
+      logger.debug('Auth status changed:', isAuthenticated)
       if (isAuthenticated)
         await initialize(sessionManager)
     },
@@ -154,10 +159,7 @@ export const usePlayerSession = (): PlayerSession => {
   const authStore = useAuthStore()
   const sessionManager = useSession()
 
-  // Initialize auth check
-  if (authStore.isAuthenticated()) {
-    initialize(sessionManager)
-  }
+  // Session initialization is handled by the auth status watcher below
 
   // Set up watchers
   const cleanupWatchers = setupWatchers(playerStore, authStore, sessionManager)

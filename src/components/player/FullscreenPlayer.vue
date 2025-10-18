@@ -200,26 +200,32 @@
   })
 
   const isMobilePortraitMode = computed(() => isMobilePortrait())
+  const isMobileLandscapeMode = computed(() => {
+    const platform = getPlatform()
+    return (platform === Platform.Android || platform === Platform.IOS) &&
+      !isMobilePortrait() &&
+      window.innerWidth > window.innerHeight
+  })
 </script>
 
 <template>
   <div
     v-if='show'
     :class="[
-      'fullscreen-player fixed inset-0 bg-background z-50 flex flex-col justify-center',
-      { 'lyrics-active': isLyricsOpen }
+      'fullscreen-player fixed inset-0 bg-background z-50 flex flex-col',
+      { 'lyrics-active': isLyricsOpen, 'justify-center': isMobilePortraitMode, 'mobile': !isDesktop }
     ]"
   >
     <!-- Draggable Top Bar -->
     <div
-      :style='{ top: `env(safe-area-inset-top)` }'
+      :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
       class='fixed left-0 right-0 z-[100] h-16'
       data-tauri-drag-region
     />
 
     <!-- Top Bar Controls -->
     <div
-      :style='{ top: `env(safe-area-inset-top)` }'
+      :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
       class='fixed left-0 right-0 z-[101] h-16 pointer-events-none'
     >
       <div class='p-4 h-full flex items-center'>
@@ -251,7 +257,7 @@
     <!-- Window Controls -->
     <WindowControls
       v-if='isDesktop'
-      :style='{ top: `env(safe-area-inset-top)` }'
+      :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
       class='absolute right-0 z-[110]'
     />
 
@@ -267,16 +273,14 @@
       v-if='visualizerEnabled && analyserNode && playerState.isPlaying'
       class='absolute bottom-0 left-0 right-0 h-[150px] z-0 opacity-30'
     >
-      <AudioVisualizer
-        :analyser-node='analyserNode'
-        :is-playing='playerState.isPlaying'
-        :style='visualizerStyle'
-      />
+      <AudioVisualizer :analyser-node='analyserNode' :is-playing='playerState.isPlaying' :style='visualizerStyle' />
     </div>
 
     <div
-      :style='{ paddingTop: `calc(4rem + env(safe-area-inset-top))` }'
-      class='relative z-10 flex flex-col h-full justify-center'
+      :class="[
+        'relative z-10 flex flex-col h-full',
+        isMobilePortraitMode ? 'justify-center pt-safe-top pb-20' : 'pt-16'
+      ]"
     >
       <!-- Floating EQ/Queue Panel -->
       <div
@@ -287,10 +291,7 @@
           class='w-[400px] max-h-[80vh] bg-background/90 backdrop-blur-md border border-border/50
                  rounded-xl shadow-2xl overflow-hidden'
         >
-          <FullscreenEqualizer
-            v-if='showEqualizer'
-            class='h-full'
-          />
+          <FullscreenEqualizer v-if='showEqualizer' class='h-full' />
           <FullscreenQueue
             @remove-song='$emit("remove-song", $event)'
             @update:playlist='$emit("update:playlist", $event)'
@@ -301,21 +302,32 @@
       </div>
 
       <!-- Main Content -->
-      <div class='flex overflow-hidden'>
+      <div :class="['flex overflow-hidden flex-1']">
         <!-- Center - Player controls and album art -->
         <div
-          :class="['flex flex-col items-center flex-1', isMobilePortraitMode ? 'p-4 gap-4' : 'p-8 gap-8']"
+          :class="[
+            'flex flex-col items-center overflow-y-auto flex-1',
+            isMobilePortraitMode
+              ? 'p-4 gap-4'
+              : isSmallScreen
+                ? 'p-4 gap-4 justify-center'
+                : 'p-8 gap-8 justify-center'
+          ]"
         >
           <div
             :class="[
-              'relative w-full flex flex-col items-center gap-6',
+              'relative w-full flex flex-col items-center',
+              isMobileLandscapeMode ? 'gap-4 justify-start' : 'gap-6',
               isSmallScreen ? 'mt-auto' : 'max-w-4xl',
-              isSmallScreen && (!isLyricsOpen || !isMobilePortraitMode) ? 'max-w-md' : '',
+              isSmallScreen && !isLyricsOpen ? 'max-w-md' : '',
               isMobilePortraitMode ? 'gap-4' : ''
             ]"
           >
-            <!-- Album Art (when not showing lyrics) -->
-            <div v-if='isLargeScreen || !isLyricsOpen' class='album-art-container aspect-square'>
+            <!-- Album Art (when not showing lyrics and not mobile landscape) -->
+            <div
+              v-if='(isLargeScreen || !isLyricsOpen) && !isMobileLandscapeMode'
+              class='album-art-container aspect-square'
+            >
               <ImageLoader
                 v-if='playerState.currentSong'
                 :item-id='playerState.currentSong.albumId || undefined'
@@ -346,12 +358,12 @@
               />
             </div>
 
-            <!-- Constrained Lyrics on small screens in landscape/other modes -->
+            <!-- Constrained Lyrics on small screens in landscape/other modes (but not mobile landscape) -->
             <div
-              v-if='!isLargeScreen && isLyricsOpen && !isMobilePortraitMode'
-              class='album-art-container aspect-square'
+              v-if='!isLargeScreen && isLyricsOpen && !isMobilePortraitMode && !isMobileLandscapeMode'
+              class='w-full h-[24rem]'
             >
-              <div class='size-full p-4'>
+              <div class='w-full h-full p-4'>
                 <LyricsView
                   @lyrics-loaded='onLyricsLoaded'
                   @seek='handleLyricsSeek'
@@ -385,7 +397,7 @@
           <!-- Progress Bar & Controls -->
           <div class='w-full flex flex-col gap-4'>
             <!-- Progress Bar -->
-            <div class='w-96 mx-auto'>
+            <div :class="isMobilePortraitMode ? 'w-full' : 'w-full max-w-96 mx-auto'">
               <Slider
                 @update:model-value='$event && $emit("seek", $event[0])'
                 :max='100'
@@ -400,59 +412,135 @@
             </div>
 
             <!-- Main Controls -->
-            <div :class="['flex items-center justify-center', isMobilePortraitMode ? 'space-x-4' : 'space-x-2']">
-              <Button
-                @click="$emit('toggle-shuffle')"
-                :class="[playerState.isShuffled ? 'text-primary' : 'text-white hover:text-black']"
-                :size="isMobilePortraitMode ? 'lg' : 'icon'"
-                variant='ghost'
-              >
-                <Shuffle class='size-4' />
-              </Button>
-              <Button
-                @click="$emit('previous-song')"
-                :disabled='!playerState.hasPrevious'
-                :size="isMobilePortraitMode ? 'lg' : 'icon'"
-                variant='ghost'
-              >
-                <SkipBack :class="isMobilePortraitMode ? 'size-6' : 'size-5'" />
-              </Button>
+            <div :class="['flex items-center justify-center w-full']">
+              <div :class="['flex items-center', isMobilePortraitMode ? 'space-x-4' : 'space-x-2']">
+                <!-- Favorite and Volume on desktop -->
+                <template v-if='!isMobilePortraitMode'>
+                  <Button
+                    @click="$emit('toggle-favorite', playerState.currentSong)"
+                    v-if='playerState.currentSong'
+                    :class="[playerState.currentSong.isFavorite ? 'text-white' : 'text-white hover:text-black']"
+                    size='icon'
+                    variant='ghost'
+                  >
+                    <Heart :class="['size-4', playerState.currentSong.isFavorite ? 'fill-current' : '']" />
+                  </Button>
+                  <div class='relative'>
+                    <Button
+                      @click='toggleVolumePopup'
+                      :class="isVolumePopupVisible ? 'bg-accent/20' : ''"
+                      size='icon'
+                      variant='ghost'
+                      data-volume-button
+                    >
+                      <Volume2 v-if='effectiveVolume > 0.5' class='size-4' />
+                      <Volume1 v-else-if='effectiveVolume > 0' class='size-4' />
+                      <VolumeX v-else class='size-4' />
+                    </Button>
+                    <div
+                      v-if='isVolumePopupVisible'
+                      ref='volumePopupRef'
+                      class='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3
+                             bg-card border border-border rounded-md shadow-lg z-50'
+                    >
+                      <div class='flex flex-col items-center gap-2'>
+                        <span class='text-xs text-muted-foreground font-medium'>
+                          {{ Math.round(effectiveVolume * 100) }}%
+                        </span>
+                        <Slider
+                          @update:model-value="$event && $emit('volume-change', $event[0])"
+                          :max='100'
+                          :model-value='[effectiveVolume * 100]'
+                          :step='1'
+                          class='h-16 w-1.5'
+                          orientation='vertical'
+                        />
+                        <button
+                          @click.stop="$emit('toggle-mute')"
+                          class='text-muted-foreground hover:text-foreground transition-colors p-1 rounded'
+                        >
+                          <Volume2 v-if='effectiveVolume > 0.5' class='size-4' />
+                          <Volume1 v-else-if='effectiveVolume > 0' class='size-4' />
+                          <VolumeX v-else class='size-4' />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <Button
+                  @click="$emit('toggle-shuffle')"
+                  :class="[playerState.isShuffled ? 'text-primary' : 'text-white hover:text-black']"
+                  :size="isMobilePortraitMode ? 'lg' : 'icon'"
+                  variant='ghost'
+                >
+                  <Shuffle class='size-4' />
+                </Button>
+                <Button
+                  @click="$emit('previous-song')"
+                  :disabled='!playerState.hasPrevious'
+                  :size="isMobilePortraitMode ? 'lg' : 'icon'"
+                  variant='ghost'
+                >
+                  <SkipBack :class="isMobilePortraitMode ? 'size-6' : 'size-5'" />
+                </Button>
 
-              <Button
-                @click="$emit('toggle-play-pause')"
-                :class="['!rounded-full', isMobilePortraitMode ? 'size-16' : 'size-14']"
-                size='icon'
-                variant='default'
-              >
-                <Pause v-if='playerState.isPlaying' :class="isMobilePortraitMode ? 'size-7' : 'size-6'" />
-                <Play v-else :class="isMobilePortraitMode ? 'size-7' : 'size-6'" />
-              </Button>
+                <Button
+                  @click="$emit('toggle-play-pause')"
+                  :class="['!rounded-full', isMobilePortraitMode ? 'size-16' : 'size-14']"
+                  size='icon'
+                  variant='default'
+                >
+                  <Pause v-if='playerState.isPlaying' :class="isMobilePortraitMode ? 'size-7' : 'size-6'" />
+                  <Play v-else :class="isMobilePortraitMode ? 'size-7' : 'size-6'" />
+                </Button>
 
-              <Button
-                @click="$emit('next-song')"
-                :disabled='!playerState.hasNext'
-                :size="isMobilePortraitMode ? 'lg' : 'icon'"
-                variant='ghost'
-              >
-                <SkipForward :class="isMobilePortraitMode ? 'size-6' : 'size-5'" />
-              </Button>
-              <Button
-                @click="$emit('toggle-repeat')"
-                :class="[playerState.repeatMode !== 'none' ? 'text-primary' : 'text-white hover:text-black']"
-                :size="isMobilePortraitMode ? 'lg' : 'icon'"
-                variant='ghost'
-              >
-                <Repeat1 v-if="playerState.repeatMode === 'one'" class='size-4' />
-                <Repeat v-else class='size-4' />
-              </Button>
+                <Button
+                  @click="$emit('next-song')"
+                  :disabled='!playerState.hasNext'
+                  :size="isMobilePortraitMode ? 'lg' : 'icon'"
+                  variant='ghost'
+                >
+                  <SkipForward :class="isMobilePortraitMode ? 'size-6' : 'size-5'" />
+                </Button>
+                <Button
+                  @click="$emit('toggle-repeat')"
+                  :class="[playerState.repeatMode !== 'none' ? 'text-primary' : 'text-white hover:text-black']"
+                  :size="isMobilePortraitMode ? 'lg' : 'icon'"
+                  variant='ghost'
+                >
+                  <Repeat1 v-if="playerState.repeatMode === 'one'" class='size-4' />
+                  <Repeat v-else class='size-4' />
+                </Button>
+
+                <!-- Queue and EQ on desktop -->
+                <template v-if='!isMobilePortraitMode'>
+                  <Button @click="$emit('toggle-queue')" :variant="isQueueOpen ? 'default' : 'ghost'" size='icon'>
+                    <ListMusic class='size-4' />
+                  </Button>
+                  <Button
+                    @click="$emit('toggle-equalizer')"
+                    :variant="isEqualizerOpen ? 'default' : 'ghost'"
+                    size='icon'
+                  >
+                    <Sliders class='size-4' />
+                  </Button>
+                </template>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Right side - Lyrics (when active) -->
-        <div v-if='showLyrics && isLargeScreen' class='flex-1 flex justify-center items-center p-8'>
+        <div
+          v-if='showLyrics && (isLargeScreen || isMobileLandscapeMode)'
+          class='flex-1 flex justify-center items-center p-8'
+        >
           <div
-            class='w-[600px] xl:w-[700px] 2xl:w-[800px]'
+            :class="
+              isMobileLandscapeMode
+                ? 'w-[300px] h-full'
+                : 'w-[600px] xl:w-[700px] 2xl:w-[800px] h-full max-h-[56rem]'
+            "
           >
             <LyricsView
               @lyrics-loaded='onLyricsLoaded'
@@ -460,18 +548,20 @@
               :current-time='playerState.currentTime'
               :duration='playerState.duration'
               :is-in-sidebar='false'
+              :size='isMobileLandscapeMode ? "small" : "large"'
               :song='playerState.currentSong'
               :visible='showLyrics'
-              size='large'
+              class='h-full'
             />
           </div>
         </div>
       </div>
 
       <div
+        v-if='isMobilePortraitMode'
         :class="[
-          'absolute bottom-0 left-0 right-0 flex items-center justify-center p-4 z-50',
-          isMobilePortraitMode ? 'space-x-4' : 'space-x-2'
+          'absolute bottom-0 left-0 right-0 flex items-center justify-center p-4 z-50 pb-safe-bottom',
+          'space-x-4'
         ]"
       >
         <Button
@@ -547,50 +637,72 @@
 </template>
 
 <style scoped>
-.album-art-container {
-  /* Always maintain square aspect ratio */
-  aspect-ratio: 1;
-  /* Size based on available space, responsive */
-  width: min(60vw, 60vh, 50rem);
-  height: min(60vw, 60vh, 50rem);
-  max-width: 50rem;
-  max-height: 50rem;
-}
-
-/* Responsive adjustments for smaller screens */
-@media (max-width: 1024px) {
   .album-art-container {
-    width: min(45vw, 45vh, 30rem);
-    height: min(45vw, 45vh, 30rem);
-    max-width: 30rem;
-    max-height: 30rem;
+    /* Always maintain square aspect ratio */
+    aspect-ratio: 1;
+    /* Size based on available space, responsive */
+    width: min(40vw, 40vh, 35rem);
+    height: min(40vw, 40vh, 35rem);
+    max-width: 35rem;
+    max-height: 35rem;
   }
-}
 
-@media (max-width: 768px) {
-  /* On smaller screens, hide the main album art and show the background */
-  .album-art-container {
-    display: none;
+  /* Responsive adjustments for mobile portrait */
+  @media (max-width: 1024px) and (orientation: portrait) {
+    .mobile .album-art-container {
+      width: min(35vw, 35vh, 20rem);
+      height: min(35vw, 35vh, 20rem);
+      max-width: 20rem;
+      max-height: 20rem;
+    }
   }
-}
 
-@media (max-width: 640px) {
-  .album-art-container {
-    width: min(50vw, 50vh, 15rem);
-    height: min(50vw, 50vh, 15rem);
-    max-width: 15rem;
-    max-height: 15rem;
+  @media (max-width: 640px) and (orientation: portrait) {
+    .mobile .album-art-container {
+      width: min(50vw, 50vh, 15rem);
+      height: min(50vw, 50vh, 15rem);
+      max-width: 15rem;
+      max-height: 15rem;
+    }
   }
-}
 
-/* Mobile portrait adjustments */
-@media (max-width: 768px) and (orientation: portrait) {
-  .album-art-container {
-    display: block;
-    width: min(70vw, 50vh, 18rem);
-    height: min(70vw, 50vh, 18rem);
-    max-width: 18rem;
-    max-height: 18rem;
+  /* Safe area padding for mobile */
+  .pt-safe-top {
+    padding-top: calc(4rem + env(safe-area-inset-top));
   }
-}
+
+  /* Mobile portrait specific adjustments */
+  @media (max-width: 768px) and (orientation: portrait) {
+    .fullscreen-player.mobile {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .fullscreen-player.mobile .relative.z-10 {
+      max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    }
+
+    .album-art-container {
+      width: min(60vw, 60vh, 20rem);
+      height: min(60vw, 60vh, 20rem);
+      max-width: 20rem;
+      max-height: 20rem;
+    }
+
+    /* Bottom controls safe area */
+    .pb-safe-bottom {
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    }
+  }
+
+  /* Mobile portrait adjustments */
+  @media (max-width: 768px) and (orientation: portrait) {
+    .mobile .album-art-container {
+      display: block;
+      width: min(70vw, 50vh, 18rem);
+      height: min(70vw, 50vh, 18rem);
+      max-width: 18rem;
+      max-height: 18rem;
+    }
+  }
 </style>
