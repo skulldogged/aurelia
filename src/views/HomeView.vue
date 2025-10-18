@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { ChevronLeft, ChevronRight, Play, Shuffle } from 'lucide-vue-next'
-  import { computed, ref, watch } from 'vue'
+  import { computed, ref } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Album, NameIdPair, Song } from '@/bindings'
@@ -20,12 +20,11 @@
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { logger } from '@/lib/logger'
   import { sortSongsByTrackOrder } from '@/lib/transforms'
-  import { useAuthStore, useHomeStore, useLibraryStore } from '@/stores'
+  import { useAuthStore, useHomeStore } from '@/stores'
 
   const router = useRouter()
   const authStore = useAuthStore()
   const homeStore = useHomeStore()
-  const libraryStore = useLibraryStore()
 
   const credentials = computed(() => ({
     serverUrl: authStore.serverUrl,
@@ -86,18 +85,6 @@
 
     return Array.from(idToName, ([id, name]) => ({ id, name }))
   })
-
-  watch(
-    () => libraryStore.isLoaded,
-    isLoaded => {
-      logger.info(`HomeView: library isLoaded changed to ${isLoaded}`)
-      if (isLoaded) {
-        logger.info('HomeView: refreshing home data')
-        homeStore.refreshHomeData()
-      }
-    },
-    { immediate: true },
-  )
 
   const mostPlayed = computed(() =>
     recentlyPlayed.value.length > 0

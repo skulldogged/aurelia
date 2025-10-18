@@ -61,7 +61,7 @@ export const useHomeStore = defineStore('home', () => {
   }
 
   const refreshHomeData = async (): Promise<void> => {
-    isLoaded.value = false
+    resetHomeData()
     await loadHomeData()
   }
 

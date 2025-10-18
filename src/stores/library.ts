@@ -6,6 +6,7 @@ import type { Album, Artist, Credentials, Song } from '@/bindings'
 import { commands } from '@/bindings'
 import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
+
 import { useHomeStore } from './home'
 
 export const useLibraryStore = defineStore('library', () => {
