@@ -33,17 +33,24 @@ pub async fn get_library(app_state: State<'_, AppState>) -> Result<LibraryData, 
 #[specta::specta]
 pub async fn get_home_view_data(
     app: tauri::AppHandle,
-    app_state: State<'_, AppState>
+    app_state: State<'_, AppState>,
 ) -> Result<HomeViewData, String> {
     info!("get_home_view_data command called");
     let all_albums = app_state.albums.lock().unwrap().clone();
     let all_songs = app_state.songs.lock().unwrap().clone();
-    info!("get_home_view_data: working with {} albums and {} songs", all_albums.len(), all_songs.len());
-    
+    info!(
+        "get_home_view_data: working with {} albums and {} songs",
+        all_albums.len(),
+        all_songs.len()
+    );
+
     // If albums are empty, library hasn't been loaded yet
     if all_albums.is_empty() {
         warn!("get_home_view_data: albums list is empty, library may not be loaded yet");
-        return Err("Library not loaded yet. Please wait for library to load before requesting home data.".to_string());
+        return Err(
+            "Library not loaded yet. Please wait for library to load before requesting home data."
+                .to_string(),
+        );
     }
 
     // Create album-to-songs mapping
@@ -106,7 +113,8 @@ pub async fn get_home_view_data(
         }
     }
 
-    let (server_url, token, user_id) = match crate::handlers::auth::get_saved_credentials(app).await {
+    let (server_url, token, user_id) = match crate::handlers::auth::get_saved_credentials(app).await
+    {
         Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
         _ => return Err("No saved credentials found".to_string()),
     };
@@ -118,8 +126,13 @@ pub async fn get_home_view_data(
         featured_albums: featured_albums.into_iter().take(10).collect(),
         recently_played,
     };
-    info!("get_home_view_data: returning {} recently_added, {} random_albums, {} featured_albums, {} recently_played",
-        result.recently_added.len(), result.random_albums.len(), result.featured_albums.len(), result.recently_played.len());
+    info!(
+        "get_home_view_data: returning {} recently_added, {} random_albums, {} featured_albums, {} recently_played",
+        result.recently_added.len(),
+        result.random_albums.len(),
+        result.featured_albums.len(),
+        result.recently_played.len()
+    );
     Ok(result)
 }
 
@@ -315,7 +328,11 @@ pub async fn get_related_artists(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn get_recently_played(server_url: String, token: String, user_id: String) -> Result<Vec<Song>, String> {
+pub async fn get_recently_played(
+    server_url: String,
+    token: String,
+    user_id: String,
+) -> Result<Vec<Song>, String> {
     let client = JellyfinClient::with_auth(server_url, token);
 
     client
@@ -487,7 +504,11 @@ pub async fn clear_cache(
 /// Register client capabilities with Jellyfin server
 #[tauri::command]
 #[specta::specta]
-pub async fn register_client_capabilities(server_url: String, token: String, device_id: String) -> Result<(), String> {
+pub async fn register_client_capabilities(
+    server_url: String,
+    token: String,
+    device_id: String,
+) -> Result<(), String> {
     let client = JellyfinClient::with_auth(server_url, token);
 
     let capabilities = ClientCapabilities {

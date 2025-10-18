@@ -11,7 +11,9 @@ use tracing::info;
 static DB: OnceCell<Db> = OnceCell::new();
 
 fn open_tree(name: &str) -> Result<Tree> {
-    let db = DB.get().ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
+    let db = DB
+        .get()
+        .ok_or_else(|| anyhow::anyhow!("Database not initialized"))?;
     Ok(db.open_tree(name)?)
 }
 
@@ -29,8 +31,8 @@ pub fn init(app: &AppHandle) -> Result<()> {
     std::fs::create_dir_all(&app_data_dir)
         .map_err(|e| anyhow::anyhow!("Failed to create app data directory: {}", e))?;
 
-    let db = sled::open(db_path)
-        .map_err(|e| anyhow::anyhow!("Failed to open sled database: {}", e))?;
+    let db =
+        sled::open(db_path).map_err(|e| anyhow::anyhow!("Failed to open sled database: {}", e))?;
 
     DB.set(db)
         .map_err(|_| anyhow::anyhow!("Database already initialized"))?;
@@ -139,13 +141,32 @@ pub mod artists {
 
 pub mod albums {
     use super::*;
+    use tracing::{info, warn};
+
     pub fn sync(albums: &[Album]) -> Result<()> {
-        sync_items("albums", albums, |a| a.id.clone().unwrap_or_default())
+        info!("Syncing {} albums to database", albums.len());
+
+        // Check for albums without IDs
+        let albums_without_ids = albums.iter().filter(|a| a.id.is_none()).count();
+        if albums_without_ids > 0 {
+            warn!(
+                "{} albums have no ID and will be skipped",
+                albums_without_ids
+            );
+        }
+
+        // Only sync albums that have an ID
+        let albums_with_ids: Vec<Album> =
+            albums.iter().filter(|a| a.id.is_some()).cloned().collect();
+
+        sync_items("albums", &albums_with_ids, |a| a.id.clone().unwrap())
     }
 
     pub fn get_all() -> Result<Vec<Album>> {
         let tree = open_tree("albums")?;
-        get_all_items(&tree)
+        let albums = get_all_items(&tree)?;
+        info!("Retrieved {} albums from database", albums.len());
+        Ok(albums)
     }
 
     pub fn clear() -> Result<()> {
