@@ -139,6 +139,8 @@
 
   const loadLibraryAndHomeData = async (): Promise<void> => {
     await libraryStore.loadLibrary()
+    if (!libraryStore.isLoaded)
+      return
     await homeStore.refreshHomeData()
   }
 
