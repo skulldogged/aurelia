@@ -33,28 +33,55 @@ export const useHomeStore = defineStore('home', () => {
     error.value = null
     logger.info('Loading home data...')
 
-    const result = await commands.getHomeViewData()
+    const maxRetries = 5
+    let retryDelay = 200
 
-    console.log('Home data result:', result)
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const result = await commands.getHomeViewData()
 
-    if (result.status === 'ok') {
-      const data = result.data
-      recentlyPlayed.value = data.recently_played || []
-      recentlyAdded.value = data.recently_added || []
-      randomAlbums.value = data.random_albums || []
-      featuredAlbums.value = data.featured_albums || []
+      if (result.status === 'ok') {
+        const data = result.data
+        recentlyPlayed.value = data.recently_played || []
+        recentlyAdded.value = data.recently_added || []
+        randomAlbums.value = data.random_albums || []
+        featuredAlbums.value = data.featured_albums || []
 
-      logger.info(
-        `Home data loaded: ${recentlyPlayed.value.length} recently played, ` +
-        `${recentlyAdded.value.length} recently added, ` +
-        `${randomAlbums.value.length} random, ${featuredAlbums.value.length} featured`,
+        logger.info(
+          `Home data loaded: ${recentlyPlayed.value.length} recently played, ` +
+          `${recentlyAdded.value.length} recently added, ` +
+          `${randomAlbums.value.length} random, ${featuredAlbums.value.length} featured`,
+        )
+
+        isLoaded.value = true
+        logger.info('Home data loaded successfully')
+        isLoading.value = false
+        return
+      }
+
+      const errorMessage = result.error ?? 'Failed to load home data'
+      const isWaitingForLibrary = errorMessage.includes('Library not loaded')
+
+      if (!isWaitingForLibrary) {
+        error.value = errorMessage
+        logger.error('Failed to load home data:', errorMessage)
+        isLoading.value = false
+        return
+      }
+
+      const attemptNumber = attempt + 1
+
+      if (attemptNumber >= maxRetries) {
+        error.value = 'Library not loaded yet. Please try again shortly.'
+        logger.error('Max retries reached while waiting for library to load for home data')
+        isLoading.value = false
+        return
+      }
+
+      logger.warn(
+        `Home data not ready yet (attempt ${attemptNumber}/${maxRetries}). Retrying in ${retryDelay}ms`,
       )
-
-      isLoaded.value = true
-      logger.info('Home data loaded successfully')
-    } else {
-      error.value = 'Failed to load home data'
-      logger.error('Failed to load home data:', result.error)
+      await new Promise(resolve => setTimeout(resolve, retryDelay))
+      retryDelay *= 2
     }
 
     isLoading.value = false

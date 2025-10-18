@@ -39,6 +39,12 @@ pub async fn get_home_view_data(
     let all_albums = app_state.albums.lock().unwrap().clone();
     let all_songs = app_state.songs.lock().unwrap().clone();
     info!("get_home_view_data: working with {} albums and {} songs", all_albums.len(), all_songs.len());
+    
+    // If albums are empty, library hasn't been loaded yet
+    if all_albums.is_empty() {
+        warn!("get_home_view_data: albums list is empty, library may not be loaded yet");
+        return Err("Library not loaded yet. Please wait for library to load before requesting home data.".to_string());
+    }
 
     // Create album-to-songs mapping
     let mut album_map: std::collections::HashMap<String, Vec<Song>> =
