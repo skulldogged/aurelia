@@ -8,10 +8,13 @@ const canGoBack = ref(false)
 const canGoForward = ref(false)
 
 const ROUTE_MAP: Record<string, string> = {
-  'albums':  '/albums',
-  'artists': '/artists',
-  'home':    '/',
-  'library': '/songs',
+  'albums':    '/albums',
+  'artists':   '/artists',
+  'home':      '/',
+  'library':   '/songs',
+  'playlists': '/playlists',
+  'settings':  '/settings',
+  'songs':     '/songs',
 }
 
 // Pure functions for navigation logic
@@ -68,11 +71,21 @@ export const useNavigation = (): Navigation => {
   const router = useRouter()
   const route = useRoute()
 
-  // Set up route watcher
-  watch(() => route.name, newName => {
-    if (newName)
-      currentView.value = newName as string
-  }, { immediate: true })
+  // Set up route watcher to keep UI nav state in sync with current path
+  watch(
+    () => route.path,
+    newPath => {
+      if (!newPath) return
+      if (newPath === '/') currentView.value = 'home'
+      else if (newPath.startsWith('/songs')) currentView.value = 'songs'
+      else if (newPath.startsWith('/artists')) currentView.value = 'artists'
+      else if (newPath.startsWith('/albums')) currentView.value = 'albums'
+      else if (newPath.startsWith('/playlists')) currentView.value = 'playlists'
+      else if (newPath.startsWith('/settings')) currentView.value = 'settings'
+      else currentView.value = 'home'
+    },
+
+  )
 
   // Set up navigation state management
   updateNavState()

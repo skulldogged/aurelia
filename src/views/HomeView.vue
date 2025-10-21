@@ -205,7 +205,7 @@
               <h1 class='text-4xl md:text-5xl font-bold mb-3 text-white drop-shadow-lg truncate'>
                 <router-link
                   v-if='featuredAlbum.id'
-                  :to="{ name: 'album-detail', params: { albumId: featuredAlbum.id } }"
+                  :to="`/songs/album/${featuredAlbum.id}`"
                 >
                   {{ featuredAlbum.name }}
                 </router-link>
@@ -215,7 +215,7 @@
                 <template v-if='featuredAlbumArtistPairs.length'>
                   <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
                     <router-link
-                      :to="{ name: 'artist-detail', params: { artistId: pair.id } }"
+                      :to="`/songs/artist/${pair.id}`"
                       class='hover:underline'
                     >
                       {{ pair.name }}
@@ -226,7 +226,7 @@
                 <template v-else>
                   <router-link
                     v-if='featuredAlbum.artistId'
-                    :to="{ name: 'artist-detail', params: { artistId: featuredAlbum.artistId } }"
+                    :to="`/songs/artist/${featuredAlbum.artistId}`"
                     class='hover:underline'
                   >
                     {{ featuredAlbum.artist }}
@@ -350,7 +350,7 @@
                     <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
                       <router-link
                         @click.stop
-                        :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
+                        :to="`/songs/artist/${song.artistIds[index]}`"
                         class='hover:underline'
                       >
                         {{ artist }}
@@ -432,7 +432,7 @@
                     <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
                       <router-link
                         @click.stop
-                        :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
+                        :to="`/songs/artist/${song.artistIds[index]}`"
                         class='hover:underline'
                       >
                         {{ artist }}
@@ -498,7 +498,7 @@
                   <router-link
                     @click.stop
                     v-if='album.artistId'
-                    :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
+                    :to="`/songs/artist/${album.artistId}`"
                     class='hover:underline'
                   >
                     {{ album.artist }}
@@ -560,7 +560,7 @@
                   <router-link
                     @click.stop
                     v-if='album.artistId'
-                    :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
+                    :to="`/songs/artist/${album.artistId}`"
                     class='hover:underline'
                   >
                     {{ album.artist }}

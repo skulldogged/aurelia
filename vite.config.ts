@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
+import VueRouter from 'unplugin-vue-router/vite'
 import path from 'path'
 import { defineConfig } from 'vite'
 
@@ -19,6 +20,8 @@ export default defineConfig(async () => ({
   },
 
   plugins: [
+    // VueRouter must be before vue()
+    VueRouter({}),
     vue(),
     tailwindcss(),
   ],
