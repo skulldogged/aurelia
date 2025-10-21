@@ -19,7 +19,7 @@ pub struct ListenBrainzListen {
     pub artist: String,
     pub track: String,
     pub album: Option<String>,
-    pub duration: Option<i64>,
+    pub duration: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,7 +31,7 @@ struct ListenPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PayloadItem {
     #[serde(skip_serializing_if = "Option::is_none")]
-    listened_at: Option<i64>,
+    listened_at: Option<f64>,
     track_metadata: TrackMetadata,
 }
 
@@ -47,7 +47,7 @@ struct TrackMetadata {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AdditionalInfo {
-    duration_ms: Option<i64>,
+    duration_ms: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,7 +134,7 @@ pub async fn listenbrainz_validate_token(
 #[specta::specta]
 pub async fn listenbrainz_submit_listen(
     listen: ListenBrainzListen,
-    timestamp: i64,
+    timestamp: f64,
     state: State<'_, ListenBrainzState>,
 ) -> Result<(), String> {
     let credentials = state
@@ -161,7 +161,7 @@ pub async fn listenbrainz_submit_listen(
                 track_name: listen.track.clone(),
                 release_name: listen.album.clone(),
                 additional_info: listen.duration.map(|d| AdditionalInfo {
-                    duration_ms: Some(d * 1000), // Convert seconds to milliseconds
+                    duration_ms: Some(d * 1000.0), // Convert seconds to milliseconds
                 }),
             },
         }],

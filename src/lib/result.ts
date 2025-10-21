@@ -1,5 +1,7 @@
 import type { Result } from '@/bindings'
 
+import { useAuth } from '@/composables/useAuth'
+
 /**
  * Rust-inspired Result utilities for better error handling
  *
@@ -200,7 +202,13 @@ export const withCustomState = async <T, E>(
     handlers.onStart?.()
     const result = await operation()
     await handleResult(result, {
-      onError:   handlers.onError,
+      onError: error => {
+        if (typeof error === 'string' && error.toLowerCase().includes('unauthorized')) {
+          const { logout } = useAuth()
+          logout()
+        }
+        handlers.onError(error)
+      },
       onSuccess: handlers.onSuccess,
     })
   } finally {

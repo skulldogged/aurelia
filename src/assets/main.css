@@ -37,6 +37,33 @@
   --radius: 0.625rem;
   --vh: 100vh;
   --safe-vh: calc(var(--vh) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  --font-family: "Rubik", sans-serif;
+  --button-radius: 0.5rem;
+  /* 8px - matches rounded-md */
+
+  /* Material You fallback theme */
+  --primary: #bb86fc;
+  --onPrimary: #000000;
+  --primaryContainer: #3700b3;
+  --onPrimaryContainer: #ffffff;
+  --inversePrimary: #6200ee;
+  --secondary: #03dac6;
+  --onSecondary: #000000;
+  --secondaryContainer: #00574b;
+  --onSecondaryContainer: #ffffff;
+  --tertiary: #03a9f4;
+  --onTertiary: #000000;
+  --tertiaryContainer: #014d73;
+  --onTertiaryContainer: #ffffff;
+  --background: #121212;
+  --onBackground: #e0e0e0;
+  --surface: #1e1e1e;
+  --onSurface: #e0e0e0;
+  --surfaceVariant: #2c2c2c;
+  --onSurfaceVariant: #e0e0e0;
+  --inverseSurface: #ffffff;
+  --inverseOnSurface: #000000;
+  --outline: #a0a0a0;
 }
 
 @layer base {
@@ -46,8 +73,13 @@
 
   body {
     @apply text-foreground;
-    font-family: "Rubik", sans-serif;
+    font-family: var(--font-family);
     user-select: none;
+  }
+
+  /* Custom button rounding for Material You */
+  .rounded-button {
+    border-radius: var(--button-radius);
   }
 
   /* Transparency disabled - opaque background */

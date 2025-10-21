@@ -18,16 +18,28 @@
   let bufferLength = 0
 
   // Performance: Cache accent color and gradients
-  const accentColor = ref('#3b82f6')
+  const accentColor = ref<string>('#3b82f6')
+  const accentRgb = ref<{ b: number; g: number; r: number; }>({ b: 246, g: 130, r: 59 })
   const gradientBars = ref<CanvasGradient | null>(null)
   const gradientMirrorTop = ref<CanvasGradient | null>(null)
   const gradientMirrorBottom = ref<CanvasGradient | null>(null)
   const gradientCurve = ref<CanvasGradient | null>(null)
 
   const updateAccentColor = (): void => {
-    accentColor.value = getComputedStyle(document.documentElement)
+    const accentColorHex = getComputedStyle(document.documentElement)
       .getPropertyValue('--color-accent')
       .trim() || '#3b82f6'
+
+    // Convert hex color to RGB values for proper alpha handling
+    const hex = accentColorHex.replace('#', '')
+    const r = parseInt(hex.substr(0, 2), 16)
+    const g = parseInt(hex.substr(2, 2), 16)
+    const b = parseInt(hex.substr(4, 2), 16)
+
+    accentColor.value = `rgb(${r}, ${g}, ${b})`
+
+    // Store RGB values for reuse
+    accentRgb.value = { b, g, r }
 
     // Re-create gradients when color changes
     if (canvasRef.value) {
@@ -38,23 +50,23 @@
 
         // For drawBars
         gradientBars.value = ctx.createLinearGradient(0, height, 0, 0)
-        gradientBars.value.addColorStop(0, `${accentColor.value}80`)
-        gradientBars.value.addColorStop(1, `${accentColor.value}20`)
+        gradientBars.value.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.5)`)
+        gradientBars.value.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.13)`)
 
         // For drawBarsMirror
         gradientMirrorTop.value = ctx.createLinearGradient(0, centerY, 0, 0)
-        gradientMirrorTop.value.addColorStop(0, `${accentColor.value}60`)
-        gradientMirrorTop.value.addColorStop(1, `${accentColor.value}10`)
+        gradientMirrorTop.value.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.38)`)
+        gradientMirrorTop.value.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.06)`)
 
         gradientMirrorBottom.value = ctx.createLinearGradient(0, centerY, 0, height)
-        gradientMirrorBottom.value.addColorStop(0, `${accentColor.value}60`)
-        gradientMirrorBottom.value.addColorStop(1, `${accentColor.value}10`)
+        gradientMirrorBottom.value.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.38)`)
+        gradientMirrorBottom.value.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.06)`)
 
         // For drawCircular
         gradientCurve.value = ctx.createLinearGradient(0, height, 0, 0)
-        gradientCurve.value.addColorStop(0, `${accentColor.value}70`)
-        gradientCurve.value.addColorStop(0.5, `${accentColor.value}40`)
-        gradientCurve.value.addColorStop(1, `${accentColor.value}15`)
+        gradientCurve.value.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.44)`)
+        gradientCurve.value.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, 0.25)`)
+        gradientCurve.value.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0.09)`)
       }
     }
   }
@@ -146,7 +158,8 @@
     }
 
     ctx.lineTo(lastPoint.x, lastPoint.y)
-    ctx.strokeStyle = `${accentColor.value}90`
+    const rgb = accentRgb.value
+    ctx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.56)`
     ctx.lineWidth = 2
     ctx.stroke()
   }
@@ -161,7 +174,7 @@
     props.analyserNode.getByteTimeDomainData(dataArray)
     ctx.clearRect(0, 0, width, height)
 
-    ctx.strokeStyle = `${accentColor.value}80`
+    ctx.strokeStyle = `rgba(${accentRgb.value.r}, ${accentRgb.value.g}, ${accentRgb.value.b}, 0.5)`
     ctx.lineWidth = 2
     ctx.beginPath()
 

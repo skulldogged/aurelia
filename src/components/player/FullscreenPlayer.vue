@@ -445,12 +445,12 @@
                     >
                       <div class='flex flex-col items-center gap-2'>
                         <span class='text-xs text-muted-foreground font-medium'>
-                          {{ Math.round(effectiveVolume * 100) }}%
+                          {{ Math.round(effectiveVolume) }}%
                         </span>
                         <Slider
                           @update:model-value="$event && $emit('volume-change', $event[0])"
                           :max='100'
-                          :model-value='[effectiveVolume * 100]'
+                          :model-value='[effectiveVolume]'
                           :step='1'
                           class='h-16 w-1.5'
                           orientation='vertical'
@@ -595,12 +595,12 @@
           >
             <div class='flex flex-col items-center gap-2'>
               <span class='text-xs text-muted-foreground font-medium'>
-                {{ Math.round(effectiveVolume * 100) }}%
+                {{ Math.round(effectiveVolume) }}%
               </span>
               <Slider
                 @update:model-value="$event && $emit('volume-change', $event[0])"
                 :max='100'
-                :model-value='[effectiveVolume * 100]'
+                :model-value='[effectiveVolume]'
                 :step='1'
                 class='h-16 w-1.5'
                 orientation='vertical'

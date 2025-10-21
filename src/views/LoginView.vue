@@ -138,6 +138,7 @@
           <Input
             id='password'
             v-model='form.password'
+            autocomplete='current-password'
             placeholder='Enter your password'
             type='password'
             required

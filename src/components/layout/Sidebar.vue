@@ -2,7 +2,7 @@
   import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
   import { computed } from 'vue'
 
-  import { isMobile, isMobilePortrait as isPortrait } from '@/lib/platform'
+  import { useOrientation } from '@/composables/useOrientation'
   import { useBlurStore } from '@/stores'
 
   const props = defineProps<{
@@ -18,7 +18,9 @@
 
   const blurStore = useBlurStore()
 
-  const isMobileLandscape = computed(() => isMobile() && !isPortrait())
+  const { isLandscape } = useOrientation()
+
+  const isMobileLandscape = computed(() => isLandscape.value)
 
   const sidebarBgClass = computed(
     () => blurStore.selectedBlurMode.name !== 'none'

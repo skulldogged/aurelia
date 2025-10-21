@@ -41,6 +41,11 @@ pub async fn get_image(
     };
     let cache_key = generate_cache_key(&item_id, &image_type);
     let cache_path = cache_dir.join(format!("{cache_key}.jpg"));
+    let marker_path = cache_dir.join(format!("{cache_key}.404"));
+
+    if marker_path.exists() {
+        return Ok(None);
+    }
 
     if cache_path.exists() {
         let asset_url = cache_path.to_string_lossy().to_string();
@@ -63,13 +68,20 @@ pub async fn get_image(
     {
         Ok(resp) => resp,
         Err(e) => {
-            tracing::warn!("Failed to download image: {}", e);
+            tracing::debug!("Failed to download image: {}", e);
             return Ok(None);
         }
     };
 
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        if let Err(e) = fs::write(&marker_path, "").await {
+            tracing::warn!("Failed to write 404 marker to cache: {}", e);
+        }
+        return Ok(None);
+    }
+
     if !response.status().is_success() {
-        tracing::warn!("Failed to download image, status: {}", response.status());
+        tracing::debug!("Failed to download image, status: {}", response.status());
         return Ok(None);
     }
 
@@ -121,6 +133,7 @@ pub async fn get_image_cache_stats(app: AppHandle) -> Result<String, String> {
 
     let mut total_size = 0u64;
     let mut file_count = 0u64;
+    let mut marker_count = 0u64;
 
     if cache_dir.exists() {
         let mut entries = match fs::read_dir(&cache_dir).await {
@@ -131,11 +144,18 @@ pub async fn get_image_cache_stats(app: AppHandle) -> Result<String, String> {
             Ok(entry) => entry,
             Err(e) => return Err(format!("Failed to read directory entry: {e}")),
         } {
-            if entry.path().is_file()
-                && let Ok(metadata) = entry.metadata().await
+            let path = entry.path();
+            if path.is_file()
+                && let Some(ext) = path.extension()
             {
-                total_size += metadata.len();
-                file_count += 1;
+                if ext == "jpg" {
+                    if let Ok(metadata) = entry.metadata().await {
+                        total_size += metadata.len();
+                        file_count += 1;
+                    }
+                } else if ext == "404" {
+                    marker_count += 1;
+                }
             }
         }
     }
@@ -143,6 +163,7 @@ pub async fn get_image_cache_stats(app: AppHandle) -> Result<String, String> {
     let stats = serde_json::json!({
         "total_size": total_size,
         "file_count": file_count,
+        "marker_count": marker_count,
         "cache_dir": cache_dir.to_string_lossy()
     });
 
@@ -163,6 +184,7 @@ pub async fn clear_image_from_cache(
     };
     let cache_key = generate_cache_key(&item_id, &image_type);
     let cache_path = cache_dir.join(format!("{cache_key}.jpg"));
+    let marker_path = cache_dir.join(format!("{cache_key}.404"));
 
     tracing::info!("Attempting to delete cached image: {:?}", cache_path);
 
@@ -173,6 +195,16 @@ pub async fn clear_image_from_cache(
         tracing::info!("Successfully deleted cached image: {:?}", cache_path);
     } else {
         tracing::info!("Cached image does not exist: {:?}", cache_path);
+    }
+
+    if marker_path.exists() {
+        fs::remove_file(&marker_path)
+            .await
+            .map_err(|e| format!("Failed to delete cached image marker: {e}"))?;
+        tracing::info!(
+            "Successfully deleted cached image marker: {:?}",
+            marker_path
+        );
     }
 
     Ok(())

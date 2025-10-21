@@ -19,24 +19,24 @@ pub use anyhow::Result;
 use specta_typescript::{BigIntExportBehavior, Typescript};
 #[cfg(debug_assertions)]
 use std::process::Command;
+use std::sync::Once;
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+static INIT_LOGGING: Once = Once::new();
+
 fn init_logging() {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                if cfg!(debug_assertions) {
-                    "tauri_app=debug".into()
-                } else {
-                    "tauri_app=info".into()
-                }
-            }),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    INIT_LOGGING.call_once(|| {
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "debug".into()),
+            )
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    });
 }
 
 #[cfg(debug_assertions)]
@@ -206,6 +206,11 @@ pub fn run() {
         .manage(listenbrainz::ListenBrainzState::new())
         .manage(state::AppState::new());
 
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        tauri_builder = tauri_builder.plugin(tauri_plugin_m3::init());
+    }
+
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         tauri_builder = tauri_builder.manage(discord_rpc::DiscordRpcState::new());
@@ -214,53 +219,55 @@ pub fn run() {
     tauri_builder
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
+            let handle = app.handle();
             info!("Setting up application...");
             info!("DEBUG: Setup function called successfully");
             builder.mount_events(app);
 
             info!("Initializing database...");
-            if let Err(e) = database::init(app.handle()) {
+            if let Err(e) = database::init(handle) {
                 error!("Failed to initialize database: {}", e);
             }
             info!("Database initialized.");
 
-            let app_state = app.state::<state::AppState>();
+            let app_state = handle.state::<state::AppState>();
             let songs = app_state.songs.clone();
             let artists = app_state.artists.clone();
             let albums = app_state.albums.clone();
 
             tauri::async_runtime::spawn(async move {
                 info!("Starting background library load...");
-                match database::songs::get_all() {
-                    Ok(s) => {
-                        info!("Loaded {} songs from database", s.len());
-                        *songs.lock().unwrap() = s;
+                tauri::async_runtime::spawn_blocking(move || {
+                    let songs_res = database::songs::get_all();
+                    let artists_res = database::artists::get_all();
+                    let albums_res = database::albums::get_all();
+
+                    match (songs_res, artists_res, albums_res) {
+                        (Ok(s), Ok(ar), Ok(al)) => {
+                            info!(
+                                "Loaded {} songs, {} artists, and {} albums from database",
+                                s.len(),
+                                ar.len(),
+                                al.len()
+                            );
+                            *songs.lock().unwrap() = s;
+                            *artists.lock().unwrap() = ar;
+                            *albums.lock().unwrap() = al;
+                        }
+                        (Err(e), _, _) => error!("Failed to load songs from database: {}", e),
+                        (_, Err(e), _) => error!("Failed to load artists from database: {}", e),
+                        (_, _, Err(e)) => error!("Failed to load albums from database: {}", e),
                     }
-                    Err(e) => error!("Failed to load songs from database: {}", e),
-                }
-                match database::artists::get_all() {
-                    Ok(a) => {
-                        info!("Loaded {} artists from database", a.len());
-                        *artists.lock().unwrap() = a;
-                    }
-                    Err(e) => error!("Failed to load artists from database: {}", e),
-                }
-                match database::albums::get_all() {
-                    Ok(a) => {
-                        info!("Loaded {} albums from database", a.len());
-                        *albums.lock().unwrap() = a;
-                    }
-                    Err(e) => error!("Failed to load albums from database: {}", e),
-                }
-                info!("Background library load finished.");
+                    info!("Background library load finished.");
+                });
             });
 
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             {
-                if let Err(e) = system_tray::setup_system_tray(app.handle()) {
+                if let Err(e) = system_tray::setup_system_tray(handle) {
                     error!("Failed to setup system tray: {}", e);
                 }
-                system_tray::setup_window_behavior(app.handle());
+                system_tray::setup_window_behavior(handle);
             }
 
             info!("Application setup finished.");

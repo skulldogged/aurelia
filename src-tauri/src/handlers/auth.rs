@@ -38,7 +38,9 @@ pub async fn save_credentials(
     token: String,
     user_id: String,
 ) -> Result<(), String> {
-    let app_dir = app.path().app_data_dir()
+    let app_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Application data directory not accessible: {e}"))?;
     std::fs::create_dir_all(&app_dir)
         .map_err(|e| format!("Failed to create app directory: {e}"))?;
@@ -92,7 +94,9 @@ pub async fn get_saved_credentials(app: tauri::AppHandle) -> Result<Option<Crede
 #[tauri::command]
 #[specta::specta]
 pub async fn save_volume(app: tauri::AppHandle, volume: f64) -> Result<(), String> {
-    let app_dir = app.path().app_data_dir()
+    let app_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Application data directory not accessible: {e}"))?;
     std::fs::create_dir_all(&app_dir)
         .map_err(|e| format!("Failed to create app directory: {e}"))?;
@@ -112,7 +116,9 @@ pub async fn save_volume(app: tauri::AppHandle, volume: f64) -> Result<(), Strin
 #[tauri::command]
 #[specta::specta]
 pub async fn get_saved_volume(app: tauri::AppHandle) -> Result<Option<f64>, String> {
-    let app_dir = app.path().app_data_dir()
+    let app_dir = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Application data directory not accessible: {e}"))?;
     let volume_path = app_dir.join("volume.json");
 

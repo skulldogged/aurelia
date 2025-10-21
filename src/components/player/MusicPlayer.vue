@@ -33,7 +33,7 @@
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Slider } from '@/components/ui/slider'
-  import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
+  import { useAudioEngine } from '@/composables/useAudioEngine'
   import { logger } from '@/lib/logger'
   import { isMobilePortrait } from '@/lib/platform'
   import { getSongFormatInfo } from '@/lib/utils'
@@ -47,7 +47,7 @@
     token:            string
   }>()
 
-  defineEmits<{
+  const emit = defineEmits<{
     'toggle-equalizer':  []
     'toggle-favorite':   [song: Song]
     'toggle-fullscreen': []
@@ -56,37 +56,35 @@
   }>()
 
   const playerStore = usePlayerStore()
-  const { getAudioStreamUrl } = commands
 
-  const webAudioPlayer = useWebAudioPlayer()
+  const {
+    activePlayer,
+    audioPlayer1,
+    audioPlayer2,
+    initializePlayer,
+    isGaplessTransition,
+    loadSong,
+    nextPlayer,
+    nextSong,
+    nextSongInQueue,
+    onCanPlay,
+    onEnded,
+    onError,
+    onLoadedMetadata,
+    onPause,
+    onPlay,
+    onTimeUpdate,
+    playManuallyChangedSong,
+    startWebAudioTimeUpdates,
+    stopWebAudioTimeUpdates,
+    useWebAudio,
+    webAudioPlayer,
+  } = useAudioEngine(props)
 
-  webAudioPlayer.setOnDurationChange((duration: number) => {
-    if (
-      isFinite(duration)
-      && duration > 0
-      && duration !== Infinity
-      && duration !== playerStore.duration
-    )
-      playerStore.setDuration(duration)
-  })
-
-  const audioPlayer1 = ref<HTMLAudioElement | null>(null)
-  const audioPlayer2 = ref<HTMLAudioElement | null>(null)
   const containerRef = ref<HTMLDivElement | null>(null)
   const resizeObserver = ref<null | ResizeObserver>(null)
   const volumePopupRef = ref<HTMLDivElement | null>(null)
   const isVolumePopupVisible = ref(false)
-  const activePlayerIndex = ref(0)
-  const players = [audioPlayer1, audioPlayer2]
-  const activePlayer = computed(() => players[activePlayerIndex.value].value)
-  const nextPlayer = computed(() => players[1 - activePlayerIndex.value].value)
-
-  const playerType = ref<'html5' | 'webaudio'>('html5')
-  const useWebAudio = computed(() => playerType.value === 'webaudio')
-
-  const nextSongReady = ref(false)
-  const isGaplessTransition = ref(false)
-  const webAudioTimeUpdateInterval = ref<null | number>(null)
 
   const hasPrevious = computed(() => playerStore.playlist.length > 1 && playerStore.currentIndex > 0)
   const hasNext = computed(() =>
@@ -135,18 +133,6 @@
         activePlayer.value.currentTime = 0
       }
     }
-  })
-
-  const nextSongInQueue = computed(() => {
-    if (!hasNext.value) return null
-
-    let nextIndex
-    if (playerStore.isShuffled)
-      nextIndex = Math.floor(Math.random() * playerStore.playlist.length)
-    else
-      nextIndex = playerStore.currentIndex + 1
-
-    return playerStore.playlist[nextIndex]
   })
 
   const visibleIcons = ref<string[]>([
@@ -308,118 +294,8 @@
     isMarqueePaused.value = true
   }
 
-  const startWebAudioTimeUpdates = (): void => {
-    if (webAudioTimeUpdateInterval.value) {
-      clearInterval(webAudioTimeUpdateInterval.value)
-    }
-    webAudioTimeUpdateInterval.value = window.setInterval(() => {
-      if (useWebAudio.value && webAudioPlayer.getIsPlaying()) {
-        const currentTime = webAudioPlayer.getCurrentTime()
-        playerStore.setCurrentTime(currentTime)
-      }
-    }, 100)
-  }
-
-  const stopWebAudioTimeUpdates = (): void => {
-    if (webAudioTimeUpdateInterval.value) {
-      clearInterval(webAudioTimeUpdateInterval.value)
-      webAudioTimeUpdateInterval.value = null
-    }
-  }
-
   const formatTime = (seconds: number): string =>
     `${Math.floor(seconds / 60)}:${(Math.floor(seconds % 60)).toString().padStart(2, '0')}`
-
-  const onLoadedMetadata = (playerIndex: number): void => {
-    if (players[playerIndex].value && playerIndex === activePlayerIndex.value) {
-      if (playerStore.currentSong?.duration)
-        playerStore.setDuration(playerStore.currentSong.duration)
-      else
-        playerStore.setDuration(players[playerIndex].value.duration || 0)
-
-      playerStore.setCurrentTime(0)
-    }
-  }
-
-  const onTimeUpdate = (playerIndex: number): void => {
-    if (playerIndex === activePlayerIndex.value && players[playerIndex].value)
-      playerStore.setCurrentTime(players[playerIndex].value.currentTime)
-  }
-
-  const onCanPlay = (playerIndex: number): void => {
-    if (playerIndex === activePlayerIndex.value) {
-      playerStore.setAudioReady(true)
-    } else {
-      nextSongReady.value = true
-      logger.debug(`Next song ready (player ${playerIndex})`)
-    }
-  }
-
-  const onError = (playerIndex: number): void => {
-    const player = players[playerIndex].value
-    logger.error(`Audio playback error on player ${playerIndex}:`, player?.error)
-
-    if (playerIndex === activePlayerIndex.value) {
-      playerStore.setAudioReady(false)
-      playerStore.setBuffering(false)
-    }
-  }
-
-  const onPlay = (playerIndex: number): void     => {
-    if (playerIndex === activePlayerIndex.value)
-      playerStore.play()
-  }
-
-  const onPause = (playerIndex: number): void => {
-    if (playerIndex === activePlayerIndex.value)
-      playerStore.pause()
-  }
-
-  const onEnded = async (playerIndex: number): Promise<void> => {
-    if (playerIndex !== activePlayerIndex.value) return
-
-    logger.debug(`Track ended - next ready: ${nextSongReady.value}`)
-
-    if (playerStore.repeatMode === 'one') {
-      if (activePlayer.value) {
-        activePlayer.value.currentTime = 0
-        activePlayer.value.play()
-      }
-    } else if (nextSongReady.value && nextSongInQueue.value) {
-      logger.debug('Using gapless playback')
-      await fallbackToGapless()
-    } else if (playerStore.repeatMode === 'all' || hasNext.value) {
-      nextSong()
-    } else {
-      activePlayer.value?.pause()
-    }
-  }
-
-  const fallbackToGapless = async (): Promise<void> => {
-    logger.debug('Performing gapless fallback')
-
-    const nextPlayerElement = nextPlayer.value
-    if (nextPlayerElement && nextPlayerElement.paused && nextSongReady.value) {
-      try {
-        nextPlayerElement.currentTime = 0
-        await nextPlayerElement.play()
-        logger.debug('Next player started for gapless transition')
-      } catch (error) {
-        logger.error('Failed to start next player in gapless fallback:', error)
-      }
-    }
-
-    activePlayer.value?.pause()
-
-    isGaplessTransition.value = true
-    activePlayerIndex.value = 1 - activePlayerIndex.value
-
-    playerStore.setCurrentTime(0)
-    playerStore.setDuration(nextSongInQueue.value?.duration || 0)
-    playerStore.setCurrentSong(nextSongInQueue.value)
-
-    logger.debug('Gapless fallback complete')
-  }
 
   const togglePlayPause = async (): Promise<void> => {
     if (!playerStore.audioReady) return
@@ -476,137 +352,6 @@
   const previousSong = (): void => {
     if (hasPrevious.value)
       playerStore.previousSong()
-  }
-
-  const nextSong = (): void =>
-    hasNext.value
-      ? playerStore.nextSong()
-      : playerStore.repeatMode === 'all'
-        ? playSongAtIndex(0)
-        : void(0)
-
-  const playSongAtIndex = (index: number): void => {
-    if (index < 0 || index >= playerStore.playlist.length) return
-
-    playerStore.playSongAtIndex(index)
-
-    loadSong(playerStore.playlist[index], activePlayer.value)
-  }
-
-  const loadSong = async (song: null | Song, player: HTMLAudioElement | null): Promise<void> => {
-    if (!song) {
-      if (useWebAudio.value) {
-        webAudioPlayer.stop()
-        playerStore.setAudioReady(false)
-      } else if (player && player.src && player.src !== '') {
-        player.src = ''
-      }
-
-      return
-    }
-
-    try {
-      const streamResult = await getAudioStreamUrl(
-        props.serverUrl,
-        props.token,
-        song.id,
-        song.container,
-      )
-
-      if (streamResult.status === 'error') {
-        logger.error('Failed to get audio stream URL:', streamResult.error)
-        throw new Error(streamResult.error)
-      }
-
-      if (useWebAudio.value) {
-        playerStore.setAudioReady(false)
-        playerStore.setBuffering(true)
-
-        const initialUrl = streamResult.data
-        let loaded = await webAudioPlayer.loadAudio(initialUrl)
-
-        if (!loaded && initialUrl.includes('/stream?')) {
-          logger.warn('Initial stream failed, attempting fallback with .aac container')
-          try {
-            const fallbackUrl = new URL(initialUrl)
-            fallbackUrl.pathname = fallbackUrl.pathname.replace('/stream', '/stream.aac')
-            fallbackUrl.searchParams.delete('static') // This param seems to be part of the redirect URL
-            const finalUrl = fallbackUrl.toString()
-            logger.debug(`Fallback URL: ${finalUrl}`)
-            loaded = await webAudioPlayer.loadAudio(finalUrl)
-          } catch (e) {
-            logger.error('Failed to construct fallback URL:', e)
-          }
-        }
-
-        if (loaded) {
-          playerStore.setAudioReady(true)
-          playerStore.setBuffering(false)
-          const webAudioDuration = webAudioPlayer.getDuration()
-          // For streaming, WebAudio initially reports Infinity, so keep the song duration
-          // Only update if we get a finite duration
-          if (isFinite(webAudioDuration) && webAudioDuration > 0) {
-            playerStore.setDuration(webAudioDuration)
-          }
-          playerStore.setCurrentTime(0)
-        } else {
-          throw new Error('Failed to load audio via WebAudio API')
-        }
-      } else {
-        if (!player) return
-
-        player.src = streamResult.data
-        player.load()
-
-        if (player === activePlayer.value) {
-          playerStore.setAudioReady(false)
-          playerStore.setBuffering(true)
-        }
-      }
-    } catch (error) {
-      logger.error(`Failed to load audio for song ${song.name} (ID: ${song.id}):`, error)
-      playerStore.setAudioReady(false)
-      playerStore.setBuffering(false)
-    }
-  }
-
-  const playManuallyChangedSong = (song: Song): void => {
-    playerStore.setAudioReady(false)
-    nextSongReady.value = false
-    playerStore.setBuffering(true)
-
-    const execute = async (): Promise<void> => {
-      await loadSong(song, activePlayer.value)
-
-      if (useWebAudio.value) {
-        const success = await webAudioPlayer.play()
-        if (success) {
-          playerStore.play()
-          startWebAudioTimeUpdates()
-        } else {
-          logger.error('Failed to start WebAudio playback')
-          playerStore.pause()
-        }
-        playerStore.setBuffering(false)
-      } else if (activePlayer.value) {
-        try {
-          await activePlayer.value.play()
-        } catch (error) {
-          logger.error('Failed to play audio:', error)
-          playerStore.pause()
-        } finally {
-          playerStore.setBuffering(false)
-        }
-      } else {
-        playerStore.setBuffering(false)
-      }
-
-      if (nextSongInQueue.value && !useWebAudio.value) {
-        logger.debug(`Loading next song: ${nextSongInQueue.value.name}`)
-        await loadSong(nextSongInQueue.value, nextPlayer.value)
-      }
-    }
-    execute()
   }
 
   watch(() => playerStore.currentSong?.id, (newSongId, oldSongId) => {
@@ -683,63 +428,7 @@
     },
   )
 
-  const advanceToNextSong = (): void => {
-    logger.debug('WebAudio track ended, advancing to next song')
-
-    if (playerStore.repeatMode === 'one') {
-      playerStore.setCurrentTime(0)
-      if (useWebAudio.value) {
-        webAudioPlayer.seek(0)
-        webAudioPlayer.play()
-          .then(success => {
-            if (success) {
-              playerStore.play()
-              startWebAudioTimeUpdates()
-            }
-          })
-      }
-    } else if (playerStore.repeatMode === 'all' || hasNext.value) {
-      nextSong()
-    } else {
-      playerStore.pause()
-    }
-  }
-
-  if (typeof window !== 'undefined') {
-    const w = window as typeof window & { advanceToNextSong?: () => void }
-    w.advanceToNextSong = advanceToNextSong
-  }
-
-  const initializePlayer = async (): Promise<void> => {
-    const webAudioAvailable = webAudioPlayer.isWebAudioAvailable()
-
-    if (webAudioAvailable) {
-      const initialized = await webAudioPlayer.initializeWebAudio()
-      if (initialized) {
-        playerType.value = 'webaudio'
-        logger.info('Using WebAudio API with streaming support')
-      } else {
-        playerType.value = 'html5'
-        logger.warn('WebAudio API available but failed to initialize, falling back to HTML5')
-      }
-    } else {
-      playerType.value = 'html5'
-      logger.info('WebAudio API not available, using HTML5 Audio Player')
-    }
-
-    if (useWebAudio.value) {
-      webAudioPlayer.setVolume(playerStore.volume)
-    } else {
-      if (audioPlayer1.value) audioPlayer1.value.volume = playerStore.volume
-      if (audioPlayer2.value) audioPlayer2.value.volume = playerStore.volume
-    }
-  }
-
   onMounted(async () => {
-    const webAudioAvailable = webAudioPlayer.isWebAudioAvailable()
-    logger.info(`Audio APIs available - WebAudio: ${webAudioAvailable}`)
-    logger.info(`HTML5 Audio available: ${typeof Audio !== 'undefined'}`)
-
     await initializePlayer()
 
     if (playerStore.currentSong) {
@@ -837,7 +526,7 @@
           @mouseleave='onTitleMouseLeave'
           :class="['flex items-center space-x-4 min-w-0', shouldMarquee ? 'marquee-enabled' : '']"
         >
-          <div @click="$emit('toggle-fullscreen')" class='flex-shrink-0'>
+          <div @click="emit('toggle-fullscreen')" class='flex-shrink-0'>
             <ImageLoader
               v-if='playerStore.currentSong'
               :item-id='playerStore.currentSong.albumId || playerStore.currentSong.id'
@@ -927,7 +616,8 @@
               <button
                 @click='playerStore.toggleShuffle'
                 :class="[
-                  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-8 w-8',
+                  'inline-flex items-center justify-center rounded-button text-sm font-medium',
+                  'transition-colors h-8 w-8',
                   playerStore.isShuffled
                     ? 'bg-accent text-accent-foreground hover:bg-accent/90'
                     : 'hover:bg-accent/20',
@@ -969,7 +659,8 @@
               <button
                 @click='playerStore.cycleRepeatMode'
                 :class="[
-                  'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors h-8 w-8',
+                  'inline-flex items-center justify-center rounded-button text-sm font-medium',
+                  'transition-colors h-8 w-8',
                   playerStore.repeatMode !== 'none'
                     ? 'bg-accent text-accent-foreground hover:bg-accent/90'
                     : 'hover:bg-accent/20',
@@ -1021,7 +712,7 @@
           <div v-else class='flex items-center space-x-2'>
             <!-- Queue button -->
             <Button
-              @click="$emit('toggle-queue')"
+              @click="emit('toggle-queue')"
               v-if="visibleIcons.includes('queue')"
               :variant="activeView === 'queue' ? 'default' : 'ghost'"
               size='icon'
@@ -1031,7 +722,7 @@
 
             <!-- Lyrics button -->
             <Button
-              @click="$emit('toggle-lyrics')"
+              @click="emit('toggle-lyrics')"
               v-if="visibleIcons.includes('lyrics')"
               :disabled='!hasLyrics'
               :variant="activeView === 'lyrics' ? 'default' : 'ghost'"
@@ -1042,7 +733,7 @@
 
             <!-- Favorite button -->
             <Button
-              @click="$emit('toggle-favorite', playerStore.currentSong)"
+              @click="emit('toggle-favorite', playerStore.currentSong)"
               v-if="visibleIcons.includes('favorite')"
               size='icon'
               variant='ghost'
@@ -1059,7 +750,7 @@
 
             <!-- Fullscreen button -->
             <Button
-              @click="$emit('toggle-fullscreen')"
+              @click="emit('toggle-fullscreen')"
               v-if="visibleIcons.includes('fullscreen')"
               size='icon'
               variant='ghost'
@@ -1069,7 +760,7 @@
 
             <!-- Equalizer button -->
             <Button
-              @click="$emit('toggle-equalizer')"
+              @click="emit('toggle-equalizer')"
               v-if="visibleIcons.includes('equalizer') && useWebAudio"
               :variant="activeView === 'equalizer' ? 'default' : 'ghost'"
               size='icon'
@@ -1148,21 +839,21 @@
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  @click="$emit('toggle-equalizer')"
+                  @click="emit('toggle-equalizer')"
                   v-if="!visibleIcons.includes('equalizer') && useWebAudio"
                 >
                   <Sliders class='size-4 mr-2' />
                   Equalizer
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  @click="$emit('toggle-fullscreen')"
+                  @click="emit('toggle-fullscreen')"
                   v-if="!visibleIcons.includes('fullscreen')"
                 >
                   <Expand class='size-4 mr-2' />
                   Fullscreen
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  @click="$emit('toggle-favorite', playerStore.currentSong)"
+                  @click="emit('toggle-favorite', playerStore.currentSong)"
                   v-if="!visibleIcons.includes('favorite')"
                 >
                   <Heart
@@ -1176,7 +867,7 @@
                   Favorite
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  @click="$emit('toggle-lyrics')"
+                  @click="emit('toggle-lyrics')"
                   v-if="!visibleIcons.includes('lyrics')"
                   :disabled='!hasLyrics'
                 >
@@ -1184,7 +875,7 @@
                   Lyrics
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  @click="$emit('toggle-queue')"
+                  @click="emit('toggle-queue')"
                   v-if="!visibleIcons.includes('queue')"
                 >
                   <ListMusic class='size-4 mr-2' />
@@ -1225,7 +916,6 @@
     />
   </div>
 </template>
-
 <style scoped>
 .slider::-webkit-slider-thumb {
   appearance: none;

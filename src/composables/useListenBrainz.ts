@@ -67,15 +67,13 @@ export const useListenBrainz = (): {
     const album = song.album ?? null
     const duration = song.duration ? Math.floor(song.duration) : null
 
-    const listen = {
+    const result = await commands.listenbrainzSubmitListen({
       album,
       artist,
-      duration: duration !== null ? BigInt(duration) : null,
+      duration,
       track,
-    }
-    const timestamp = BigInt(trackStartTimestamp)
+    }, trackStartTimestamp)
 
-    const result = await commands.listenbrainzSubmitListen(listen, timestamp)
     if (result.status === 'error') {
       logger.error('Failed to submit listen:', result.error)
       hasScrobbled = false

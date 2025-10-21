@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
+import { ref, type Ref, watch } from 'vue'
 
 import type { LastFmCredentials, Song } from '@/bindings'
 
@@ -84,12 +84,11 @@ export const useLastFm = (): {
     // Use the timestamp when the track started, not when we're scrobbling
     const timestamp = trackStartTimestamp
 
-    // Tauri can't serialize BigInt, so we pass numbers directly
     const scrobble = {
       album,
       artist,
-      duration:  duration !== null ? BigInt(duration) : null,
-      timestamp: BigInt(timestamp),
+      duration,
+      timestamp,
       track,
     }
 
@@ -163,11 +162,6 @@ export const useLastFm = (): {
         void scrobbleTrack(song)
     },
   )
-
-  // Cleanup on unmount
-  onBeforeUnmount(() => {
-    // No timer to clean up anymore
-  })
 
   const authenticate = async (
     apiKey: string,

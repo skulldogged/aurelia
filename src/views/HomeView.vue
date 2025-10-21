@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { ChevronLeft, ChevronRight, Play, Shuffle } from 'lucide-vue-next'
-  import { computed, ref, watch } from 'vue'
+  import { computed, ref } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Album, NameIdPair, Song } from '@/bindings'
@@ -20,12 +20,11 @@
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { logger } from '@/lib/logger'
   import { sortSongsByTrackOrder } from '@/lib/transforms'
-  import { useAuthStore, useHomeStore, useLibraryStore } from '@/stores'
+  import { useAuthStore, useHomeStore } from '@/stores'
 
   const router = useRouter()
   const authStore = useAuthStore()
   const homeStore = useHomeStore()
-  const libraryStore = useLibraryStore()
 
   const credentials = computed(() => ({
     serverUrl: authStore.serverUrl,
@@ -86,18 +85,6 @@
 
     return Array.from(idToName, ([id, name]) => ({ id, name }))
   })
-
-  watch(
-    () => libraryStore.isLoaded,
-    isLoaded => {
-      logger.info(`HomeView: library isLoaded changed to ${isLoaded}`)
-      if (isLoaded) {
-        logger.info('HomeView: refreshing home data')
-        homeStore.refreshHomeData()
-      }
-    },
-    { immediate: true },
-  )
 
   const mostPlayed = computed(() =>
     recentlyPlayed.value.length > 0
@@ -170,7 +157,7 @@
 
 <template>
   <div class='p-4 max-w-7xl mx-auto'>
-    <div class='mb-8'>
+    <div class='mb-8 hidden md:block'>
       <h1 class='text-4xl font-bold'>
         Home
       </h1>
@@ -178,9 +165,19 @@
 
     <div class='space-y-8'>
       <!-- Featured Album Section -->
-      <div v-if='featuredAlbum || isLoading' class='relative isolate bg-sidebar rounded-lg p-8 mb-8 overflow-hidden'>
-        <!-- Blurred Background -->
-        <div class='absolute inset-0 bg-cover bg-center bg-no-repeat rounded-lg blur-md scale-105 overflow-hidden'>
+      <div
+        v-if='featuredAlbum || isLoading'
+        :style="{
+          marginBottom: 'calc(-3rem - env(safe-area-inset-top) + 2rem)',
+          minHeight: '400px',
+          position: 'relative',
+          top: 'calc(-3rem - env(safe-area-inset-top))'
+        }"
+        class='relative isolate bg-sidebar rounded-t-none md:rounded-lg p-4 md:p-8 mb-8 overflow-hidden
+               -mx-4 md:mx-0 -mt-4 md:mt-0 md:mb-8'
+      >
+        <!-- Background Image (extends to top on mobile) -->
+        <div class='absolute -top-4 md:top-0 left-0 right-0 bottom-0 bg-cover bg-center bg-no-repeat md:rounded-lg'>
           <ImageLoader
             v-if='featuredAlbum && !isLoading'
             :item-id='featuredAlbum.id || featuredAlbum.name'
@@ -188,51 +185,24 @@
             :token='token'
             class='size-full object-cover'
           />
-          <div class='absolute inset-0 bg-black/60 rounded-lg' />
+          <!-- Dark overlay with gradient fade -->
+          <div class='absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-background md:rounded-lg' />
         </div>
 
         <!-- Content -->
-        <div class='relative z-10 flex items-center space-x-6'>
-          <div class='flex-shrink-0'>
+        <div
+          class='absolute bottom-0 left-0 right-0 z-10 flex flex-col md:flex-row md:items-center
+                 md:space-x-6 space-y-2 md:space-y-0 p-4 md:p-8'
+        >
+          <!-- Album Info - Left Side -->
+          <div class='flex-1 min-w-0 text-left px-4 md:px-0'>
             <template v-if='isLoading'>
-              <Skeleton class='size-48 rounded-xl' />
+              <Skeleton class='h-12 md:h-14 w-3/4 mb-3' />
+              <Skeleton class='h-8 md:h-9 w-1/2 mb-4' />
+              <Skeleton class='h-6 md:h-6 w-1/4 mb-6' />
             </template>
             <template v-else-if='featuredAlbum'>
-              <ImageLoader
-                :alt='`${featuredAlbum.name} album art`'
-                :item-id='featuredAlbum.id || featuredAlbum.name'
-                :server-url='serverUrl'
-                :token='token'
-                class='size-48 rounded-xl shadow-2xl object-cover'
-              >
-                <template #fallback>
-                  <ImagePlaceholder
-                    class='size-48 rounded-xl shadow-2xl'
-                    size='large'
-                    type='album'
-                  />
-                </template>
-              </ImageLoader>
-            </template>
-          </div>
-          <div class='flex-1 min-w-0'>
-            <template v-if='isLoading'>
-              <Skeleton class='h-10 w-3/4 mb-2' />
-              <Skeleton class='h-7 w-1/2 mb-4' />
-              <Skeleton class='h-5 w-1/4 mb-6' />
-              <button
-                class='
-                  bg-white/20 backdrop-blur-sm text-white px-8
-                  py-3 rounded-full font-semibold border
-                  border-white/20 opacity-50 cursor-not-allowed
-                '
-                disabled
-              >
-                Play Album
-              </button>
-            </template>
-            <template v-else-if='featuredAlbum'>
-              <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate'>
+              <h1 class='text-4xl md:text-5xl font-bold mb-3 text-white drop-shadow-lg truncate'>
                 <router-link
                   v-if='featuredAlbum.id'
                   :to="{ name: 'album-detail', params: { albumId: featuredAlbum.id } }"
@@ -241,7 +211,7 @@
                 </router-link>
                 <span v-else>{{ featuredAlbum.name }}</span>
               </h1>
-              <p class='text-xl text-white/90 mb-4 drop-shadow-md'>
+              <p class='text-2xl md:text-2xl text-white/90 mb-3 drop-shadow-md'>
                 <template v-if='featuredAlbumArtistPairs.length'>
                   <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
                     <router-link
@@ -264,39 +234,62 @@
                   <span v-else>{{ featuredAlbum.artist }}</span>
                 </template>
               </p>
-              <p class='text-sm text-white/80 mb-6 drop-shadow-md'>
+              <p class='text-lg md:text-lg text-white/80 mb-6 drop-shadow-md'>
                 {{ featuredAlbum.songs?.length || 0 }} songs
               </p>
+            </template>
+          </div>
+
+          <!-- Play Button - Right Side -->
+          <div class='flex-shrink-0 px-4 md:px-0'>
+            <template v-if='isLoading'>
+              <button
+                class='
+                  bg-white/20 backdrop-blur-sm text-white px-6 md:px-8
+                  py-3 md:py-3 rounded-full font-semibold border
+                  border-white/20 opacity-50 cursor-not-allowed
+                '
+                disabled
+              >
+                <Play class='h-5 w-5 md:hidden' />
+                <span class='hidden md:inline'>Play Album</span>
+              </button>
+            </template>
+            <template v-else-if='featuredAlbum'>
               <button
                 @click='playFeaturedAlbum'
-                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8 py-3
-                       rounded-full font-semibold transition-colors border border-white/20'
+                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-6 md:px-8 py-3 md:py-3
+                       rounded-full font-semibold transition-colors border border-white/20 flex items-center gap-2'
               >
-                Play Album
+                <Play class='h-5 w-5 md:hidden' />
+                <span class='hidden md:inline'>Play Album</span>
               </button>
             </template>
           </div>
         </div>
 
         <!-- Navigation Arrows -->
-        <div v-if='featuredAlbums.length > 1' class='absolute bottom-4 right-4 z-20 flex space-x-2'>
+        <div
+          v-if='featuredAlbums.length > 1'
+          class='absolute bottom-4 right-4 z-20 flex space-x-2'
+        >
           <button
             @click='prevFeaturedAlbum'
             :disabled='isLoading'
-            class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
+            class='flex items-center justify-center bg-white/20 p-3 md:p-2 text-white backdrop-blur-sm
                    transition-colors hover:bg-white/30 border border-white/20 rounded-full
                    disabled:opacity-50 disabled:cursor-not-allowed'
           >
-            <ChevronLeft class='h-5 w-5' />
+            <ChevronLeft class='h-6 w-6 md:h-5 md:w-5' />
           </button>
           <button
             @click='nextFeaturedAlbum'
             :disabled='isLoading'
-            class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
+            class='flex items-center justify-center bg-white/20 p-3 md:p-2 text-white backdrop-blur-sm
                    transition-colors hover:bg-white/30 border border-white/20 rounded-full
                    disabled:opacity-50 disabled:cursor-not-allowed'
           >
-            <ChevronRight class='h-5 w-5' />
+            <ChevronRight class='h-6 w-6 md:h-5 md:w-5' />
           </button>
         </div>
       </div>

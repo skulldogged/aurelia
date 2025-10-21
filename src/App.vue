@@ -20,7 +20,7 @@
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { isMobile } from '@/lib/platform'
-  import { useBlurStore, useLibraryStore } from '@/stores'
+  import { useBlurStore, useHomeStore, useLibraryStore } from '@/stores'
 
   import MainLayout from './components/layout/MainLayout.vue'
   import Equalizer from './components/player/Equalizer.vue'
@@ -34,6 +34,7 @@
 
   const { authStatus, clearError: clearAuthError, credentials, error: authError, login, logout } = useAuth()
   const libraryStore = useLibraryStore()
+  const homeStore = useHomeStore()
   const blurStore = useBlurStore()
   useSystemTray()
   useDiscordPresence()
@@ -110,18 +111,22 @@
   const hasPrevious = computed(() => playlist.value.length > 1 && playerStore.currentIndex > 0)
 
   const playerState = computed(() => ({
-    currentSong: currentSong.value,
-    currentTime: currentTime.value,
-    duration:    duration.value,
-    hasNext:     hasNext.value,
-    hasPrevious: hasPrevious.value,
-    isMuted:     playerStore.isMuted,
-    isPlaying:   isPlaying.value,
-    isShuffled:  isShuffled.value,
-    playlist:    playlist.value,
-    progress:    progress.value,
-    repeatMode:  repeatMode.value,
-    volume:      playerStore.volume * 100,
+    currentSong:     currentSong.value,
+    currentTime:     currentTime.value,
+    duration:        duration.value,
+    hasNext:         hasNext.value,
+    hasPlayer:       !!currentSong.value,
+    hasPrevious:     hasPrevious.value,
+    isEqualizerOpen: isEqualizerOpen.value,
+    isLyricsOpen:    isLyricsOpen.value,
+    isMuted:         playerStore.isMuted,
+    isPlaying:       isPlaying.value,
+    isQueueOpen:     isQueueOpen.value,
+    isShuffled:      isShuffled.value,
+    playlist:        playlist.value,
+    progress:        progress.value,
+    repeatMode:      repeatMode.value,
+    volume:          playerStore.volume * 100,
   }))
 
   const isSyncing = ref(false)
@@ -136,15 +141,23 @@
     await commands.setBlurMode(blurStore.selectedBlurMode.name)
   })
 
+  const loadLibraryAndHomeData = async (): Promise<void> => {
+    await libraryStore.loadLibrary()
+    if (!libraryStore.isLoaded)
+      return
+    await homeStore.refreshHomeData()
+  }
+
   watch(authStatus, async newStatus => {
-    if (newStatus === 'loggedIn' && credentials.value) {
-      await libraryStore.loadLibrary()
-    }
+    if (newStatus === 'loggedIn' && credentials.value)
+      await loadLibraryAndHomeData()
   })
 
   watch(authStatus, newStatus => {
-    if (newStatus === 'loggedOut')
+    if (newStatus === 'loggedOut') {
       libraryStore.clearData()
+      homeStore.resetHomeData()
+    }
   })
 
   const handleLogin = async (loginCredentials: Credentials): Promise<void> => {
@@ -170,6 +183,7 @@
     if (!credentials.value) return
     isSyncing.value = true
     await libraryStore.syncLibrary(credentials.value)
+    await homeStore.refreshHomeData()
     isSyncing.value = false
   }
 
@@ -177,6 +191,7 @@
     if (!credentials.value) return
     isClearing.value = true
     await libraryStore.clearCache(credentials.value)
+    await homeStore.refreshHomeData()
     isClearing.value = false
   }
 
@@ -220,13 +235,17 @@
       @navigate-back='navigateBack'
       @navigate-forward='navigateForward'
       v-else
-      :can-go-back='canGoBack'
-      :can-go-forward='canGoForward'
-      :current-view='currentView'
-      :has-player='!!currentSong'
-      :is-equalizer-open='isEqualizerOpen'
-      :is-lyrics-open='isLyricsOpen'
-      :is-queue-open='isQueueOpen'
+      :navigation-state='{
+        canGoBack,
+        canGoForward,
+        currentView,
+      }'
+      :player-state='{
+        hasPlayer: !!currentSong,
+        isEqualizerOpen,
+        isLyricsOpen,
+        isQueueOpen,
+      }'
     >
       <router-view v-slot='{ Component }'>
         <transition mode='out-in' name='page-fade'>
@@ -237,12 +256,11 @@
             @play-instant-mix='playInstantMix'
             @play-song='playSong'
             @play-songs='playSongs'
-            @reload-library='() => libraryStore.loadLibrary()'
+            @reload-library='loadLibraryAndHomeData'
             @select-album='navigateToAlbum'
             @select-artist='navigateToArtist'
             @sync-library='handleSyncLibrary'
             @toggle-favorite='toggleFavorite'
-            :key='$route.path'
             :credentials='credentials'
             :current-song='currentSong'
             :is-clearing='isClearing'

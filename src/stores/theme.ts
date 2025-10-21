@@ -3,6 +3,10 @@ import { defineStore } from 'pinia'
 import { computed, watch } from 'vue'
 
 import { COLOR_SCHEMES } from '@/lib/colorSchemes'
+import { logger } from '@/lib/logger'
+import { getPlatform, Platform } from '@/lib/platform'
+
+import { useMaterialYouStore } from './materialYou'
 
 export const useThemeStore = defineStore('theme', () => {
   // Determine default theme based on system preference if no saved preference exists
@@ -24,41 +28,81 @@ export const useThemeStore = defineStore('theme', () => {
 
   const colorSchemes = computed(() => COLOR_SCHEMES)
 
-  const isDarkMode = computed(() =>
-    selectedScheme.value?.name.includes('dark') || false,
-  )
+  const materialYouStore = useMaterialYouStore()
+
+  const isDarkMode = computed(() => {
+    if (materialYouStore.useMaterialYou) return true // Material You is always dark for now
+    return selectedScheme.value?.name.includes('dark') || false
+  })
 
   const setColorScheme = (schemeName: string): void => {
     selectedSchemeName.value = schemeName
   }
 
-  watch(selectedScheme, newScheme => {
-    if (typeof window !== 'undefined' && newScheme) {
-      const root = document.documentElement
-      const colors = newScheme.colors
+  watch(
+    [selectedScheme, () => materialYouStore.useMaterialYou, () => materialYouStore.materialYouColors],
+    async ([newScheme, useM3, m3colors]) => {
+      if (typeof window === 'undefined') return
 
-      root.style.setProperty('--background', colors.background)
-      root.style.setProperty('--background-dark', colors.backgroundDark)
-      root.style.setProperty('--foreground', colors.foreground)
-      root.style.setProperty('--card', colors.card)
-      root.style.setProperty('--card-foreground', colors.cardForeground)
-      root.style.setProperty('--popover', colors.popover)
-      root.style.setProperty('--popover-foreground', colors.popoverForeground)
-      root.style.setProperty('--primary', colors.primary)
-      root.style.setProperty('--primary-foreground', colors.primaryForeground)
-      root.style.setProperty('--secondary', colors.secondary)
-      root.style.setProperty('--secondary-foreground', colors.secondaryForeground)
-      root.style.setProperty('--muted', colors.muted)
-      root.style.setProperty('--muted-foreground', colors.mutedForeground)
-      root.style.setProperty('--destructive', colors.destructive)
-      root.style.setProperty('--destructive-foreground', colors.destructiveForeground)
-      root.style.setProperty('--border', colors.border)
-      root.style.setProperty('--input', colors.input)
-      root.style.setProperty('--ring', colors.ring)
-      root.style.setProperty('--success', colors.success)
-      root.style.setProperty('--sidebar', colors.sidebar)
-    }
-  }, { immediate: true })
+      const root = document.documentElement
+
+      if (useM3 && getPlatform() === Platform.Android && m3colors) {
+        logger.info('Applying Material You colors:', m3colors)
+        root.style.setProperty('--background', m3colors.background || '')
+        root.style.setProperty('--background-dark', m3colors.background || '')
+        root.style.setProperty('--foreground', m3colors.onBackground || '')
+        root.style.setProperty('--card', m3colors.surface || '')
+        root.style.setProperty('--card-foreground', m3colors.onSurfaceVariant || '')
+        root.style.setProperty('--popover', m3colors.surfaceVariant || '')
+        root.style.setProperty('--popover-foreground', m3colors.onSurfaceVariant || '')
+        root.style.setProperty('--primary', m3colors.primary || '')
+        root.style.setProperty('--primary-foreground', m3colors.onPrimary || '')
+        root.style.setProperty('--secondary', m3colors.secondary || '')
+        root.style.setProperty('--secondary-foreground', m3colors.onSecondary || '')
+        root.style.setProperty('--muted', m3colors.surfaceVariant || '')
+        root.style.setProperty('--muted-foreground', m3colors.onSurfaceVariant || '')
+        root.style.setProperty('--destructive', m3colors.tertiary || '')
+        root.style.setProperty('--destructive-foreground', m3colors.onTertiary || '')
+        root.style.setProperty('--border', m3colors.outline || '')
+        root.style.setProperty('--input', m3colors.surfaceVariant || '')
+        root.style.setProperty('--ring', m3colors.primary || '')
+        root.style.setProperty('--success', m3colors.secondary || '')
+        root.style.setProperty('--sidebar', m3colors.surfaceVariant || '')
+        root.style.setProperty('--accent', m3colors.primary || '')
+        root.style.setProperty('--accent-foreground', m3colors.onPrimary || '')
+        // Use system font when Material You is active on Android
+        root.style.setProperty('--font-family', 'system-ui, sans-serif')
+        // Use Material You button styling (20px border radius)
+        root.style.setProperty('--button-radius', '20px')
+        // Use Material You card styling (16px border radius)
+        root.style.setProperty('--card-radius', '16px')
+      } else if (newScheme) {
+        const colors = newScheme.colors
+        root.style.setProperty('--background', colors.background)
+        root.style.setProperty('--background-dark', colors.backgroundDark)
+        root.style.setProperty('--foreground', colors.foreground)
+        root.style.setProperty('--card', colors.card)
+        root.style.setProperty('--card-foreground', colors.cardForeground)
+        root.style.setProperty('--popover', colors.popover)
+        root.style.setProperty('--popover-foreground', colors.popoverForeground)
+        root.style.setProperty('--primary', colors.primary)
+        root.style.setProperty('--primary-foreground', colors.primaryForeground)
+        root.style.setProperty('--secondary', colors.secondary)
+        root.style.setProperty('--secondary-foreground', colors.secondaryForeground)
+        root.style.setProperty('--muted', colors.muted)
+        root.style.setProperty('--muted-foreground', colors.mutedForeground)
+        root.style.setProperty('--destructive', colors.destructive)
+        root.style.setProperty('--destructive-foreground', colors.destructiveForeground)
+        root.style.setProperty('--border', colors.border)
+        root.style.setProperty('--input', colors.input)
+        root.style.setProperty('--ring', colors.ring)
+        root.style.setProperty('--success', colors.success)
+        root.style.setProperty('--sidebar', colors.sidebar)
+        root.style.setProperty('--font-family', '"Rubik", sans-serif')
+      }
+    },
+    { deep: true, immediate: true },
+  )
 
   return {
     colorSchemes,
