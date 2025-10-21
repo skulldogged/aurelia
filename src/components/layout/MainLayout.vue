@@ -12,7 +12,7 @@
   import Sidebar from './Sidebar.vue'
   import 'overlayscrollbars/overlayscrollbars.css'
 
-  defineProps<{
+  const props = defineProps<{
     navigationState: {
       canGoBack:    boolean
       canGoForward: boolean
@@ -24,6 +24,8 @@
       isLyricsOpen:    boolean
       isQueueOpen:     boolean
     }
+    transitionAfterLeave?:  boolean
+    transitionBeforeEnter?: boolean
   }>()
 
   const route = useRoute()
@@ -53,6 +55,9 @@
     'navigate-forward': []
   }>()
 
+  const mobilePaddingTop = ref('0px')
+  const pendingPaddingChange = ref<null | string>(null)
+
   const storedState = localStorage.getItem('sidebarCollapsed')
   const isSidebarCollapsed = ref(storedState ? JSON.parse(storedState) : false)
 
@@ -60,10 +65,24 @@
     localStorage.setItem('sidebarCollapsed', JSON.stringify(newState))
   })
 
-  // Scroll to top when route changes
+  // Update padding with delay to match transition midpoint
+  watch(() => route.path, newPath => {
+    if (!isMobile()) return
+
+    // Don't update immediately - wait for transition event
+    pendingPaddingChange.value = newPath === '/' ? '0px' : 'env(safe-area-inset-top)'
+  }, { immediate: true })
+
+  // Apply pending padding change when old page finishes leaving (invisible window)
+  watch(() => props.transitionAfterLeave, () => {
+    if (pendingPaddingChange.value) {
+      mobilePaddingTop.value = pendingPaddingChange.value
+      pendingPaddingChange.value = null
+    }
+  })
+
   watch(() => route.path, async () => {
     await nextTick()
-    // Wait for the page transition animation to complete (0.1s + small buffer)
     setTimeout(() => {
       const osInstance = scrollbarsRef.value?.osInstance?.()
       if (osInstance) {
@@ -71,7 +90,7 @@
         if (elements.scrollOffsetElement)
           elements.scrollOffsetElement.scrollTop = 0
       }
-    }, 100) // 150ms to account for 0.1s transition + buffer
+    }, 100)
   })
 </script>
 
@@ -83,7 +102,7 @@
     <div
       :class="[
         mainContentBgClass,
-        'flex flex-grow min-h-0',
+        'flex grow min-h-0',
         { 'pb-[88px]': playerState.hasPlayer }
       ]"
     >
@@ -110,6 +129,7 @@
           class='absolute left-0 right-0 z-5 h-12'
           data-tauri-drag-region
         />
+
         <!-- Navigation buttons positioned relative to sidebar -->
         <div
           v-if='!isMobile()'
@@ -145,8 +165,10 @@
         </div>
         <main
           :style='!isMobile()
-            ? { paddingTop: `calc(3rem + env(safe-area-inset-top))` }
-            : { paddingTop: `env(safe-area-inset-top)` }'
+            ? {
+              paddingTop: `calc(3rem + env(safe-area-inset-top))`
+            }
+            : { paddingTop: mobilePaddingTop }'
           class='flex-1 min-w-0 bg-background'
         >
           <OverlayScrollbarsComponent
@@ -167,7 +189,7 @@
       @navigate="(view: string) => emit('navigate', view)"
       v-if='isMobile()'
       :class="isMobilePortraitMode
-        ? 'flex-shrink-0 h-16 border-t border-border/50'
+        ? 'shrink-0 h-16 border-t border-border/50'
         : 'absolute left-0 top-0 h-full w-16 z-30 border-l border-border/50'"
       :current-view='navigationState.currentView'
       :is-collapsed='true'
@@ -208,7 +230,7 @@
       v-if='playerState.hasPlayer'
       :class="[
         'absolute z-30 border-t border-border/50 bg-sidebar',
-        isMobilePortraitMode ? 'bottom-[4rem]' : 'bottom-0',
+        isMobilePortraitMode ? 'bottom-16' : 'bottom-0',
         {
           'left-0 right-0': isMobilePortraitMode,
           'left-[64px] right-0':
