@@ -30,13 +30,16 @@
     "src/**/*.ts",
     "src/**/*.d.ts",
     "src/**/*.tsx",
-    "src/**/*.vue"
+    "src/**/*.vue",
+    "./typed-router.d.ts"
   ],
+
   "references": [
     {
       "path": "./tsconfig.node.json"
     }
   ],
+
   "exclude": [
     "src/bindings.ts"
   ]

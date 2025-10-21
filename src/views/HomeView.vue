@@ -17,6 +17,7 @@
     ContextMenuTrigger,
   } from '@/components/ui/context-menu'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { useOrientation } from '@/composables/useOrientation'
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { logger } from '@/lib/logger'
   import { sortSongsByTrackOrder } from '@/lib/transforms'
@@ -37,6 +38,8 @@
   const token = computed(() => credentials.value.token)
 
   const { playInstantMix } = useSongInteractions(credentials)
+
+  const { isPortrait } = useOrientation()
 
   defineProps<{
     currentSong: null | Song
@@ -167,17 +170,28 @@
       <!-- Featured Album Section -->
       <div
         v-if='featuredAlbum || isLoading'
-        :style="{
-          marginBottom: 'calc(-3rem - env(safe-area-inset-top) + 2rem)',
+        :class="[
+          'relative isolate bg-sidebar mb-8 overflow-hidden',
+          isPortrait
+            ? 'rounded-none -mx-4 -mt-4'
+            : 'rounded-lg p-8'
+        ]"
+        :style="isPortrait ? {
           minHeight: '400px',
+          marginBottom: 'calc(-env(safe-area-inset-top) + 2rem)',
           position: 'relative',
-          top: 'calc(-3rem - env(safe-area-inset-top))'
-        }"
-        class='relative isolate bg-sidebar rounded-t-none md:rounded-lg p-4 md:p-8 mb-8 overflow-hidden
-               -mx-4 md:mx-0 -mt-4 md:mt-0 md:mb-8'
+          top: '-env(safe-area-inset-top)'
+        } : {}"
       >
-        <!-- Background Image (extends to top on mobile) -->
-        <div class='absolute -top-4 md:top-0 left-0 right-0 bottom-0 bg-cover bg-center bg-no-repeat md:rounded-lg'>
+        <!-- Background Image -->
+        <div
+          :class="[
+            'absolute bg-cover bg-center bg-no-repeat',
+            isPortrait
+              ? '-top-4 left-0 right-0 bottom-0'
+              : 'inset-0 rounded-lg blur-md scale-105 overflow-hidden'
+          ]"
+        >
           <ImageLoader
             v-if='featuredAlbum && !isLoading'
             :item-id='featuredAlbum.id || featuredAlbum.name'
@@ -185,37 +199,81 @@
             :token='token'
             class='size-full object-cover'
           />
-          <!-- Dark overlay with gradient fade -->
-          <div class='absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-background md:rounded-lg' />
+          <div
+            v-if='isPortrait'
+            class='absolute inset-0 bg-black/50'
+          />
+          <div
+            :class="[
+              'absolute',
+              isPortrait
+                ? 'bottom-0 left-0 right-0 h-24 bg-linear-to-t from-background via-background/80 to-transparent'
+                : 'inset-0 bg-black/60 rounded-lg'
+            ]"
+          />
         </div>
 
         <!-- Content -->
         <div
-          class='absolute bottom-0 left-0 right-0 z-10 flex flex-col md:flex-row md:items-center
-                 md:space-x-6 space-y-2 md:space-y-0 p-4 md:p-8'
+          :class="[
+            'z-10',
+            isPortrait
+              ? 'absolute bottom-0 left-0 right-0 flex flex-col p-4'
+              : 'relative flex items-start space-x-6'
+          ]"
         >
-          <!-- Album Info - Left Side -->
-          <div class='flex-1 min-w-0 text-left px-4 md:px-0'>
+          <!-- Album Art - Desktop -->
+          <div
+            v-if='!isPortrait'
+            class='shrink-0'
+          >
             <template v-if='isLoading'>
-              <Skeleton class='h-12 md:h-14 w-3/4 mb-3' />
-              <Skeleton class='h-8 md:h-9 w-1/2 mb-4' />
-              <Skeleton class='h-6 md:h-6 w-1/4 mb-6' />
+              <Skeleton class='size-48 rounded-xl' />
             </template>
             <template v-else-if='featuredAlbum'>
-              <h1 class='text-4xl md:text-5xl font-bold mb-3 text-white drop-shadow-lg truncate'>
+              <ImageLoader
+                :alt='`${featuredAlbum.name} album art`'
+                :item-id='featuredAlbum.id || featuredAlbum.name'
+                :server-url='serverUrl'
+                :token='token'
+                class='size-48 rounded-xl shadow-2xl object-cover'
+              >
+                <template #fallback>
+                  <ImagePlaceholder
+                    class='size-48 rounded-xl shadow-2xl'
+                    size='large'
+                    type='album'
+                  />
+                </template>
+              </ImageLoader>
+            </template>
+          </div>
+
+          <!-- Text and Button Container - Desktop -->
+          <div
+            v-if='!isPortrait'
+            class='flex-1 min-w-0 flex flex-col space-y-4'
+          >
+            <template v-if='isLoading'>
+              <Skeleton class='h-10 w-3/4 mb-2' />
+              <Skeleton class='h-7 w-1/2 mb-4' />
+              <Skeleton class='h-5 w-1/4 mb-6' />
+            </template>
+            <template v-else-if='featuredAlbum'>
+              <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate'>
                 <router-link
                   v-if='featuredAlbum.id'
-                  :to="{ name: 'album-detail', params: { albumId: featuredAlbum.id } }"
+                  :to='`/songs/album/${featuredAlbum.id}`'
                 >
                   {{ featuredAlbum.name }}
                 </router-link>
                 <span v-else>{{ featuredAlbum.name }}</span>
               </h1>
-              <p class='text-2xl md:text-2xl text-white/90 mb-3 drop-shadow-md'>
+              <p class='text-xl text-white/90 mb-3 drop-shadow-md'>
                 <template v-if='featuredAlbumArtistPairs.length'>
                   <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
                     <router-link
-                      :to="{ name: 'artist-detail', params: { artistId: pair.id } }"
+                      :to='`/songs/artist/${pair.id}`'
                       class='hover:underline'
                     >
                       {{ pair.name }}
@@ -226,7 +284,82 @@
                 <template v-else>
                   <router-link
                     v-if='featuredAlbum.artistId'
-                    :to="{ name: 'artist-detail', params: { artistId: featuredAlbum.artistId } }"
+                    :to='`/songs/artist/${featuredAlbum.artistId}`'
+                    class='hover:underline'
+                  >
+                    {{ featuredAlbum.artist }}
+                  </router-link>
+                  <span v-else>{{ featuredAlbum.artist }}</span>
+                </template>
+              </p>
+              <p class='text-sm text-white/80 mb-6 drop-shadow-md'>
+                {{ featuredAlbum.songs?.length || 0 }} songs
+              </p>
+            </template>
+
+            <!-- Play Button - Desktop -->
+            <div class='shrink-0'>
+              <template v-if='isLoading'>
+                <button
+                  class='
+                    bg-white/20 backdrop-blur-sm text-white px-8
+                    py-3 rounded-full font-semibold border
+                    border-white/20 opacity-50 cursor-not-allowed
+                  '
+                  disabled
+                >
+                  Play Album
+                </button>
+              </template>
+              <template v-else-if='featuredAlbum'>
+                <button
+                  @click='playFeaturedAlbum'
+                  class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8 py-3
+                         rounded-full font-semibold transition-colors border border-white/20 flex items-center gap-2'
+                >
+                  <Play class='h-5 w-5 md:hidden' />
+                  <span class='hidden md:inline'>Play Album</span>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <!-- Mobile Portrait Content -->
+          <div
+            v-if='isPortrait'
+            class='flex-1 min-w-0 text-left'
+          >
+            <template v-if='isLoading'>
+              <Skeleton class='h-12 md:h-14 w-3/4 mb-3' />
+              <Skeleton class='h-8 md:h-9 w-1/2 mb-4' />
+              <Skeleton class='h-6 md:h-6 w-1/4 mb-6' />
+            </template>
+            <template v-else-if='featuredAlbum'>
+              <h1 class='text-4xl md:text-5xl font-bold mb-3 text-white drop-shadow-lg truncate'>
+                <router-link
+                  v-if='featuredAlbum.id'
+                  :to='`/songs/album/${featuredAlbum.id}`'
+                >
+                  {{ featuredAlbum.name }}
+                </router-link>
+                <span v-else>{{ featuredAlbum.name }}</span>
+              </h1>
+              <p class='text-2xl md:text-2xl text-white/90 mb-3 drop-shadow-md'>
+                <template v-if='featuredAlbumArtistPairs.length'>
+                  <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
+                    <router-link
+                      :to='`/songs/artist/${pair.id}`'
+                      class='hover:underline'
+                    >
+                      {{ pair.name }}
+                    </router-link>
+                    <span v-if='index < featuredAlbumArtistPairs.length - 1'>, </span>
+                  </template>
+                </template>
+                <template v-else>
+                  <router-link
+                    v-if='featuredAlbum.artistId'
+                    :to='`/songs/artist/${featuredAlbum.artistId}`'
                     class='hover:underline'
                   >
                     {{ featuredAlbum.artist }}
@@ -240,25 +373,27 @@
             </template>
           </div>
 
-          <!-- Play Button - Right Side -->
-          <div class='flex-shrink-0 px-4 md:px-0'>
+          <!-- Play Button - Mobile Portrait -->
+          <div
+            v-if='isPortrait'
+            class='shrink-0'
+          >
             <template v-if='isLoading'>
               <button
                 class='
-                  bg-white/20 backdrop-blur-sm text-white px-6 md:px-8
-                  py-3 md:py-3 rounded-full font-semibold border
+                  bg-white/20 backdrop-blur-sm text-white px-8
+                  py-3 rounded-full font-semibold border
                   border-white/20 opacity-50 cursor-not-allowed
                 '
                 disabled
               >
-                <Play class='h-5 w-5 md:hidden' />
-                <span class='hidden md:inline'>Play Album</span>
+                Play Album
               </button>
             </template>
             <template v-else-if='featuredAlbum'>
               <button
                 @click='playFeaturedAlbum'
-                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-6 md:px-8 py-3 md:py-3
+                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8 py-3
                        rounded-full font-semibold transition-colors border border-white/20 flex items-center gap-2'
               >
                 <Play class='h-5 w-5 md:hidden' />
@@ -271,25 +406,30 @@
         <!-- Navigation Arrows -->
         <div
           v-if='featuredAlbums.length > 1'
-          class='absolute bottom-4 right-4 z-20 flex space-x-2'
+          :class="[
+            'absolute z-20 flex space-x-2',
+            isPortrait
+              ? 'bottom-4 right-4'
+              : 'bottom-4 right-4'
+          ]"
         >
           <button
             @click='prevFeaturedAlbum'
             :disabled='isLoading'
-            class='flex items-center justify-center bg-white/20 p-3 md:p-2 text-white backdrop-blur-sm
+            class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
                    transition-colors hover:bg-white/30 border border-white/20 rounded-full
                    disabled:opacity-50 disabled:cursor-not-allowed'
           >
-            <ChevronLeft class='h-6 w-6 md:h-5 md:w-5' />
+            <ChevronLeft class='h-5 w-5' />
           </button>
           <button
             @click='nextFeaturedAlbum'
             :disabled='isLoading'
-            class='flex items-center justify-center bg-white/20 p-3 md:p-2 text-white backdrop-blur-sm
+            class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
                    transition-colors hover:bg-white/30 border border-white/20 rounded-full
                    disabled:opacity-50 disabled:cursor-not-allowed'
           >
-            <ChevronRight class='h-6 w-6 md:h-5 md:w-5' />
+            <ChevronRight class='h-5 w-5' />
           </button>
         </div>
       </div>
@@ -350,7 +490,7 @@
                     <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
                       <router-link
                         @click.stop
-                        :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
+                        :to='`/songs/artist/${song.artistIds[index]}`'
                         class='hover:underline'
                       >
                         {{ artist }}
@@ -432,7 +572,7 @@
                     <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
                       <router-link
                         @click.stop
-                        :to="{ name: 'artist-detail', params: { artistId: song.artistIds[index] } }"
+                        :to='`/songs/artist/${song.artistIds[index]}`'
                         class='hover:underline'
                       >
                         {{ artist }}
@@ -498,7 +638,7 @@
                   <router-link
                     @click.stop
                     v-if='album.artistId'
-                    :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
+                    :to='`/songs/artist/${album.artistId}`'
                     class='hover:underline'
                   >
                     {{ album.artist }}
@@ -560,7 +700,7 @@
                   <router-link
                     @click.stop
                     v-if='album.artistId'
-                    :to="{ name: 'artist-detail', params: { artistId: album.artistId } }"
+                    :to='`/songs/artist/${album.artistId}`'
                     class='hover:underline'
                   >
                     {{ album.artist }}

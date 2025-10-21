@@ -131,6 +131,8 @@
 
   const isSyncing = ref(false)
   const isClearing = ref(false)
+  const transitionAfterLeaveTriggered = ref(false)
+  const transitionBeforeEnterTriggered = ref(false)
 
   usePlayerSession()
 
@@ -199,6 +201,16 @@
     // Pass lyrics availability to player controls
     playerStore.setHasLyrics(hasLyrics)
   }
+
+  const handleTransitionAfterLeave = (): void => {
+    // Old page has finished leaving (is invisible), now safe to change layout
+    transitionAfterLeaveTriggered.value = !transitionAfterLeaveTriggered.value
+  }
+
+  const handleTransitionBeforeEnter = (): void => {
+    // New page is about to enter (still invisible)
+    transitionBeforeEnterTriggered.value = !transitionBeforeEnterTriggered.value
+  }
 </script>
 
 <template>
@@ -246,9 +258,16 @@
         isLyricsOpen,
         isQueueOpen,
       }'
+      :transition-after-leave='transitionAfterLeaveTriggered'
+      :transition-before-enter='transitionBeforeEnterTriggered'
     >
       <router-view v-slot='{ Component }'>
-        <transition mode='out-in' name='page-fade'>
+        <transition
+          @after-leave='handleTransitionAfterLeave'
+          @before-enter='handleTransitionBeforeEnter'
+          mode='out-in'
+          name='page-fade'
+        >
           <component
             :is='Component'
             @clear-cache='handleClearCache'
@@ -335,6 +354,6 @@
 
     <GlobalSearch v-model:open='isSearchOpen' />
 
-    <WindowControls v-if='!isFullScreenPlayerOpen && !isMobile()' class='fixed top-0 right-0 z-[100]' />
+    <WindowControls v-if='!isFullScreenPlayerOpen && !isMobile()' class='fixed top-0 right-0 z-100' />
   </div>
 </template>

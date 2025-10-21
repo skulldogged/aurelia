@@ -417,7 +417,7 @@
                 <router-link
                   @click.stop
                   v-if='song.album && song.albumId && !isSingle(song)'
-                  :to="{ name: 'album-detail', params: { albumId: song.albumId } }"
+                  :to="`/songs/album/${song.albumId}`"
                   class='hover:underline'
                 >
                   {{ song.album }}
@@ -429,7 +429,7 @@
                     <router-link
                       @click.stop
                       v-if='collab.id'
-                      :to="{ name: 'artist-detail', params: { artistId: collab.id } }"
+                      :to="`/songs/artist/${collab.id}`"
                       class='hover:underline'
                     >
                       {{ collab.name }}
@@ -479,7 +479,7 @@
                 <router-link
                   @click.stop
                   v-if='pair.id'
-                  :to="{ name: 'artist-detail', params: { artistId: pair.id } }"
+                  :to="`/songs/artist/${pair.id}`"
                   class='hover:underline'
                 >
                   {{ pair.name }}

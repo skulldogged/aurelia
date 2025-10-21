@@ -74,7 +74,7 @@
               <template v-for='(artist, artistIndex) in song.artists' :key='song.artistIds[artistIndex]'>
                 <router-link
                   @click.stop
-                  :to="{ name: 'artist-detail', params: { artistId: song.artistIds[artistIndex] } }"
+                  :to="`/songs/artist/${song.artistIds[artistIndex]}`"
                   class='hover:underline'
                 >
                   {{ artist }}

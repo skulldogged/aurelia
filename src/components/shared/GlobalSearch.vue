@@ -137,13 +137,13 @@
 
   const handleSelectArtist = (artist: Artist): void => {
     if (artist.id)
-      router.push({ name: 'artist-detail', params: { artistId: artist.id } })
+      router.push(`/songs/artist/${artist.id}`)
     closeDialog()
   }
 
   const handleSelectAlbum = (album: Album): void => {
     if (album.id)
-      router.push({ name: 'album-detail', params: { albumId: album.id } })
+      router.push(`/songs/album/${album.id}`)
     closeDialog()
   }
 </script>

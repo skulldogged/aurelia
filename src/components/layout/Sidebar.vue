@@ -28,34 +28,38 @@
       : 'bg-background-dark',
   )
 
-  const navItemClass = computed(() => (view: string) => [
-    isMobileLandscape.value
-      ? [
+  const navItemClass = computed(() => (view: string) => {
+    if (isMobileLandscape.value) {
+      return [
         'flex items-center justify-center rounded-md text-sm font-medium px-3 py-4',
-        props.currentView === view
-          ? 'bg-accent text-accent-foreground'
-          : 'hover:bg-accent/20',
+        props.currentView === view ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/20',
       ]
-      : props.isMobilePortrait
-        ? [
-          'flex items-center justify-center rounded-md text-sm font-medium flex-1 h-10',
-          props.currentView === view
-            ? 'bg-accent text-accent-foreground'
-            : 'hover:bg-accent/20',
-        ]
-        : [ // This is the desktop case
-          'flex items-center h-10 rounded-md text-sm font-medium pl-3 gap-x-3',
-          props.currentView === view
-            ? 'bg-accent text-accent-foreground'
-            : 'hover:bg-accent/20',
-        ],
-  ])
+    }
 
-  const navIconClass = computed(() =>
-    props.isMobilePortrait || isMobileLandscape
-      ? 'flex justify-center items-center'
-      : 'w-12 flex-shrink-0 flex justify-center items-center',
-  )
+    if (props.isMobilePortrait) {
+      return [
+        'flex items-center justify-center rounded-md text-sm font-medium flex-1 h-10',
+        props.currentView === view ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/20',
+      ]
+    }
+
+    // Desktop
+    return [
+      'flex items-center h-10 rounded-md text-sm font-medium',
+      props.isCollapsed ? 'justify-center px-0' : 'pl-3 gap-x-3',
+      props.currentView === view ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/20',
+    ]
+  })
+
+  const navIconClass = computed(() => {
+    if (props.isMobilePortrait || isMobileLandscape.value)
+      return 'flex justify-center items-center'
+
+    // Desktop
+    return props.isCollapsed
+      ? 'flex-1 flex justify-center items-center'
+      : 'w-12 flex-shrink-0 flex justify-center items-center'
+  })
 
 </script>
 
