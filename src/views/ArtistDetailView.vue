@@ -417,19 +417,19 @@
                 <router-link
                   @click.stop
                   v-if='song.album && song.albumId && !isSingle(song)'
-                  :to="`/songs/album/${song.albumId}`"
+                  :to='`/songs/album/${song.albumId}`'
                   class='hover:underline'
                 >
                   {{ song.album }}
                 </router-link>
-                <span v-if='(song.album && !isSingle(song)) && isFeaturedOnSong(song)' class='mx-1'>•</span>
+
                 <span v-if='isFeaturedOnSong(song)'>
                   with
                   <template v-for='(collab, idx) in collaboratorsFor(song)' :key='collab.id || collab.name'>
                     <router-link
                       @click.stop
                       v-if='collab.id'
-                      :to="`/songs/artist/${collab.id}`"
+                      :to='`/songs/artist/${collab.id}`'
                       class='hover:underline'
                     >
                       {{ collab.name }}
@@ -479,7 +479,7 @@
                 <router-link
                   @click.stop
                   v-if='pair.id'
-                  :to="`/songs/artist/${pair.id}`"
+                  :to='`/songs/artist/${pair.id}`'
                   class='hover:underline'
                 >
                   {{ pair.name }}

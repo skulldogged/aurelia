@@ -86,6 +86,15 @@
   const volumePopupRef = ref<HTMLDivElement | null>(null)
   const isVolumePopupVisible = ref(false)
 
+  const mediaSession = typeof navigator !== 'undefined' && 'mediaSession' in navigator
+    ? navigator.mediaSession
+    : null
+  const isMediaMetadataSupported = typeof window !== 'undefined' && 'MediaMetadata' in window
+  let lastMediaSessionPosition: null | { duration: number; position: number } = null
+
+  type MediaSessionActionCallback = Parameters<MediaSession['setActionHandler']>[1]
+  type MediaSessionActionName = Parameters<MediaSession['setActionHandler']>[0]
+
   const hasPrevious = computed(() => playerStore.playlist.length > 1 && playerStore.currentIndex > 0)
   const hasNext = computed(() =>
     playerStore.playlist.length > 1
@@ -297,33 +306,49 @@
   const formatTime = (seconds: number): string =>
     `${Math.floor(seconds / 60)}:${(Math.floor(seconds % 60)).toString().padStart(2, '0')}`
 
-  const togglePlayPause = async (): Promise<void> => {
-    if (!playerStore.audioReady) return
+  const playCurrentTrack = async (): Promise<void> => {
+    if (!playerStore.audioReady || playerStore.isPlaying) return
 
     try {
       if (useWebAudio.value) {
-        if (playerStore.isPlaying) {
-          webAudioPlayer.pause()
-          playerStore.pause()
-          stopWebAudioTimeUpdates()
-        } else {
-          const success = await webAudioPlayer.play()
-          if (success) {
-            playerStore.play()
-            startWebAudioTimeUpdates()
-          }
+        const success = await webAudioPlayer.play()
+        if (success) {
+          playerStore.play()
+          startWebAudioTimeUpdates()
         }
-      } else {
-        if (!activePlayer.value) return
-
-        if (playerStore.isPlaying) {
-          activePlayer.value.pause()
-        } else {
-          await activePlayer.value.play()
-        }
+      } else if (activePlayer.value) {
+        await activePlayer.value.play()
+        playerStore.play()
       }
     } catch (error) {
-      logger.error('Playback error:', error)
+      logger.error('Failed to start playback:', error)
+    }
+  }
+
+  const pauseCurrentTrack = (): void => {
+    if (!playerStore.isPlaying) return
+
+    try {
+      if (useWebAudio.value) {
+        webAudioPlayer.pause()
+        stopWebAudioTimeUpdates()
+      } else if (activePlayer.value) {
+        activePlayer.value.pause()
+      }
+    } catch (error) {
+      logger.error('Failed to pause playback:', error)
+    } finally {
+      playerStore.pause()
+    }
+  }
+
+  const togglePlayPause = async (): Promise<void> => {
+    if (!playerStore.audioReady) return
+
+    if (playerStore.isPlaying) {
+      pauseCurrentTrack()
+    } else {
+      await playCurrentTrack()
     }
   }
 
@@ -352,6 +377,190 @@
   const previousSong = (): void => {
     if (hasPrevious.value)
       playerStore.previousSong()
+  }
+
+  const seekRelative = (offsetSeconds: number): void => {
+    const duration = typeof playerStore.duration === 'number' ? playerStore.duration : 0
+    if (!Number.isFinite(duration) || duration <= 0) return
+
+    const currentPosition = typeof playerStore.currentTime === 'number' ? playerStore.currentTime : 0
+    const clampedPosition = Math.max(0, Math.min(currentPosition + offsetSeconds, duration))
+    const progress = (clampedPosition / duration) * 100
+    void onSeek([progress])
+  }
+
+  const updateMediaSessionPosition = (): void => {
+    if (!mediaSession || typeof mediaSession.setPositionState !== 'function') return
+
+    const duration = typeof playerStore.duration === 'number' ? playerStore.duration : 0
+    if (!Number.isFinite(duration) || duration <= 0) return
+
+    const position = Math.max(0, Math.min(playerStore.currentTime, duration))
+    if (
+      lastMediaSessionPosition
+      && Math.abs(lastMediaSessionPosition.position - position) < 0.5
+      && Math.abs(lastMediaSessionPosition.duration - duration) < 0.5
+    )
+      return
+
+    try {
+      mediaSession.setPositionState({
+        duration,
+        playbackRate: 1,
+        position,
+      })
+      lastMediaSessionPosition = { duration, position }
+    } catch (error) {
+      logger.debug('Failed to update media session position state:', error)
+    }
+  }
+
+  const updateMediaSessionMetadata = (song: null | Song): void => {
+    if (!mediaSession) return
+
+    lastMediaSessionPosition = null
+
+    if (!song || !isMediaMetadataSupported) {
+      mediaSession.metadata = null
+      mediaSession.playbackState = 'none'
+      return
+    }
+
+    try {
+      const metadata = {
+        album:  song.album ?? undefined,
+        artist: song.artists && song.artists.length > 0 ? song.artists.join(', ') : undefined,
+        title:  song.name,
+      }
+
+      if (song.albumArtUrl) {
+        metadata.artwork = [{ src: song.albumArtUrl }]
+      }
+
+      mediaSession.metadata = new MediaMetadata(metadata)
+      mediaSession.playbackState = playerStore.isPlaying ? 'playing' : 'paused'
+      updateMediaSessionPosition()
+    } catch (error) {
+      logger.warn('Failed to update media session metadata:', error)
+    }
+  }
+
+  const updateMediaSessionPlaybackState = (isPlaying: boolean): void => {
+    if (!mediaSession) return
+
+    if (!playerStore.currentSong) {
+      mediaSession.playbackState = 'none'
+      return
+    }
+
+    mediaSession.playbackState = isPlaying ? 'playing' : 'paused'
+
+    if (!isPlaying)
+      updateMediaSessionPosition()
+  }
+
+  const setMediaSessionActionHandlers = (): void => {
+    if (!mediaSession || typeof mediaSession.setActionHandler !== 'function') return
+
+    const safeSet = (action: MediaSessionActionName, handler: MediaSessionActionCallback): void => {
+      try {
+        mediaSession.setActionHandler(action, handler)
+      } catch (error) {
+        logger.debug(`Media session action ${action} not supported:`, error)
+      }
+    }
+
+    safeSet('play', () => {
+      void playCurrentTrack()
+    })
+
+    safeSet('pause', () => {
+      pauseCurrentTrack()
+    })
+
+    safeSet('stop', () => {
+      pauseCurrentTrack()
+      playerStore.setCurrentTime(0)
+      if (useWebAudio.value) {
+        void webAudioPlayer.seek(0)
+      } else if (activePlayer.value) {
+        activePlayer.value.currentTime = 0
+      }
+    })
+
+    safeSet('previoustrack', () => {
+      previousSong()
+    })
+
+    safeSet('nexttrack', () => {
+      nextSong()
+    })
+
+    safeSet('seekto', details => {
+      if (typeof details.seekTime === 'number' && Number.isFinite(details.seekTime)) {
+        const duration = typeof playerStore.duration === 'number' ? playerStore.duration : 0
+        if (duration > 0) {
+          const clamped = Math.max(0, Math.min(details.seekTime, duration))
+          const progress = (clamped / duration) * 100
+          void onSeek([progress])
+        }
+      }
+    })
+
+    safeSet('seekforward', details => {
+      const offset = typeof details.seekOffset === 'number' ? details.seekOffset : 10
+      seekRelative(offset)
+    })
+
+    safeSet('seekbackward', details => {
+      const offset = typeof details.seekOffset === 'number' ? details.seekOffset : 10
+      seekRelative(-offset)
+    })
+  }
+
+  const clearMediaSessionActionHandlers = (): void => {
+    if (!mediaSession || typeof mediaSession.setActionHandler !== 'function') return
+
+    const actions: MediaSessionActionName[] = [
+      'play',
+      'pause',
+      'stop',
+      'previoustrack',
+      'nexttrack',
+      'seekforward',
+      'seekbackward',
+      'seekto',
+    ]
+
+    for (const action of actions) {
+      try {
+        mediaSession.setActionHandler(action, null)
+      } catch {
+        // Ignore unsupported actions
+      }
+    }
+  }
+
+  if (mediaSession) {
+    setMediaSessionActionHandlers()
+
+    watch(
+      () => playerStore.currentSong,
+      song => updateMediaSessionMetadata(song),
+      { immediate: true },
+    )
+
+    watch(
+      () => playerStore.isPlaying,
+      isPlaying => updateMediaSessionPlaybackState(isPlaying),
+      { immediate: true },
+    )
+
+    watch(
+      [() => playerStore.currentTime, () => playerStore.duration],
+      () => updateMediaSessionPosition(),
+      { immediate: true },
+    )
   }
 
   watch(() => playerStore.currentSong?.id, (newSongId, oldSongId) => {
@@ -477,6 +686,13 @@
       delete w.advanceToNextSong
     }
 
+    if (mediaSession) {
+      clearMediaSessionActionHandlers()
+      mediaSession.metadata = null
+      mediaSession.playbackState = 'none'
+      lastMediaSessionPosition = null
+    }
+
     window.removeEventListener('resize', measureMarquee)
     window.removeEventListener('resize', updateVisibleIcons)
     if (marqueePauseTimeoutId) clearTimeout(marqueePauseTimeoutId)
@@ -583,7 +799,7 @@
                   :key='playerStore.currentSong.artistIds[index]'
                 >
                   <router-link
-                    :to="`/songs/artist/${playerStore.currentSong.artistIds[index]}`"
+                    :to='`/songs/artist/${playerStore.currentSong.artistIds[index]}`'
                     class='hover:underline'
                   >
                     {{ artist }}
@@ -597,7 +813,7 @@
               •
               <router-link
                 v-if='playerStore.currentSong.album && playerStore.currentSong.albumId'
-                :to="`/songs/album/${playerStore.currentSong.albumId}`"
+                :to='`/songs/album/${playerStore.currentSong.albumId}`'
                 class='hover:underline'
               >
                 {{ playerStore.currentSong.album }}

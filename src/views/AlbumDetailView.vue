@@ -194,7 +194,7 @@
             <template v-if='albumArtistPairs.length'>
               <template v-for='(pair, index) in albumArtistPairs' :key='pair.id'>
                 <router-link
-                  :to="`/songs/artist/${pair.id}`"
+                  :to='`/songs/artist/${pair.id}`'
                   class='hover:underline'
                 >
                   {{ pair.name }}
