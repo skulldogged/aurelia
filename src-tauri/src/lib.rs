@@ -12,6 +12,8 @@ pub mod state;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod system_tray;
 pub mod utils;
+#[cfg(target_os = "android")]
+mod android_now_playing;
 
 pub use anyhow::Result;
 
@@ -209,6 +211,11 @@ pub fn run() {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         tauri_builder = tauri_builder.plugin(tauri_plugin_m3::init());
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        tauri_builder = tauri_builder.plugin(android_now_playing::init());
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

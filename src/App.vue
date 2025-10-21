@@ -13,6 +13,7 @@
   import { useDiscordPresence } from '@/composables/useDiscordPresence'
   import { useLastFm } from '@/composables/useLastFm'
   import { useListenBrainz } from '@/composables/useListenBrainz'
+  import { useAndroidNowPlayingService } from '@/composables/useAndroidNowPlayingService'
   import { useNavigation } from '@/composables/useNavigation'
   import { usePlayerControls } from '@/composables/usePlayerControls'
   import { usePlayerSession } from '@/composables/usePlayerSession'
@@ -40,6 +41,7 @@
   useDiscordPresence()
   useLastFm()
   useListenBrainz()
+  useAndroidNowPlayingService()
 
   const isSearchOpen = ref(false)
   const keys = useMagicKeys()
