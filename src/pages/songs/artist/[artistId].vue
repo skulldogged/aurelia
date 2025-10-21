@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import ArtistDetailView from '@/views/ArtistDetailView.vue'
+  import ArtistDetailView from '@/views/ArtistDetailView.vue'
 </script>
 
 <template>
-  <ArtistDetailView v-bind="$attrs" />
+  <ArtistDetailView v-bind='$attrs' />
 </template>
