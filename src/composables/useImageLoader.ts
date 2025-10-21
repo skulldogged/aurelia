@@ -69,7 +69,7 @@ export interface ImageLoader {
     file_count: number
     total_size: number
   }, string>>
-  getImageUrl: (itemId: string, serverUrl: string, token: string, imageType?: string) => Promise<null | string>
+  getImageUrl:          (itemId: string, serverUrl: string, token: string, imageType?: string) => Promise<null | string>
   getImageUrlFromCache: (itemId: string, imageType?: string) => string | undefined
 }
 

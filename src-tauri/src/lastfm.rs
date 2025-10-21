@@ -322,7 +322,9 @@ pub fn lastfm_clear_credentials(state: State<LastFmState>) -> Result<(), String>
 #[specta::specta]
 pub fn lastfm_is_authenticated(state: State<LastFmState>) -> Result<bool, String> {
     let credentials = state.credentials.lock().unwrap();
-    Ok(credentials.is_some() && credentials.as_ref().unwrap().session_key.is_some())
+    Ok(credentials
+        .as_ref()
+        .is_some_and(|c| c.session_key.is_some()))
 }
 
 #[tauri::command]

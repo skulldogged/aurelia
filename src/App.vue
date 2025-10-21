@@ -111,18 +111,22 @@
   const hasPrevious = computed(() => playlist.value.length > 1 && playerStore.currentIndex > 0)
 
   const playerState = computed(() => ({
-    currentSong: currentSong.value,
-    currentTime: currentTime.value,
-    duration:    duration.value,
-    hasNext:     hasNext.value,
-    hasPrevious: hasPrevious.value,
-    isMuted:     playerStore.isMuted,
-    isPlaying:   isPlaying.value,
-    isShuffled:  isShuffled.value,
-    playlist:    playlist.value,
-    progress:    progress.value,
-    repeatMode:  repeatMode.value,
-    volume:      playerStore.volume * 100,
+    currentSong:     currentSong.value,
+    currentTime:     currentTime.value,
+    duration:        duration.value,
+    hasNext:         hasNext.value,
+    hasPlayer:       !!currentSong.value,
+    hasPrevious:     hasPrevious.value,
+    isEqualizerOpen: isEqualizerOpen.value,
+    isLyricsOpen:    isLyricsOpen.value,
+    isMuted:         playerStore.isMuted,
+    isPlaying:       isPlaying.value,
+    isQueueOpen:     isQueueOpen.value,
+    isShuffled:      isShuffled.value,
+    playlist:        playlist.value,
+    progress:        progress.value,
+    repeatMode:      repeatMode.value,
+    volume:          playerStore.volume * 100,
   }))
 
   const isSyncing = ref(false)
@@ -231,13 +235,17 @@
       @navigate-back='navigateBack'
       @navigate-forward='navigateForward'
       v-else
-      :can-go-back='canGoBack'
-      :can-go-forward='canGoForward'
-      :current-view='currentView'
-      :has-player='!!currentSong'
-      :is-equalizer-open='isEqualizerOpen'
-      :is-lyrics-open='isLyricsOpen'
-      :is-queue-open='isQueueOpen'
+      :navigation-state='{
+        canGoBack,
+        canGoForward,
+        currentView,
+      }'
+      :player-state='{
+        hasPlayer: !!currentSong,
+        isEqualizerOpen,
+        isLyricsOpen,
+        isQueueOpen,
+      }'
     >
       <router-view v-slot='{ Component }'>
         <transition mode='out-in' name='page-fade'>

@@ -4,8 +4,10 @@
   } from 'lucide-vue-next'
   import { storeToRefs } from 'pinia'
   import { computed, onMounted, ref } from 'vue'
+  import { useRouter } from 'vue-router'
 
   import { commands } from '@/bindings'
+  import Button from '@/components/ui/Button.vue'
   import Label from '@/components/ui/Label.vue'
   import {
     Select,
@@ -19,23 +21,34 @@
   import { useSystemTray } from '@/composables/useSystemTray'
   import { AccentColorName } from '@/lib/colorSchemes'
   import { logger } from '@/lib/logger'
-  import { getPlatform, isMobile } from '@/lib/platform'
-  import { useAccentColorStore, useBlurStore, usePlayerStore, useSystemTrayStore, useThemeStore } from '@/stores'
+  import { getPlatform, isMobile, Platform } from '@/lib/platform'
+  import {
+    useAccentColorStore,
+    useBlurStore,
+    useMaterialYouStore,
+    usePlayerStore,
+    useSystemTrayStore,
+    useThemeStore,
+  } from '@/stores'
 
+  const router = useRouter()
   const accentColorStore = useAccentColorStore()
   const themeStore = useThemeStore()
   const blurStore = useBlurStore()
   const playerStore = usePlayerStore()
   const systemTrayStore = useSystemTrayStore()
+  const materialYouStore = useMaterialYouStore()
 
   const { accentColor: accentColorRef, accentColors: accentColorsRef } = storeToRefs(accentColorStore)
   const { colorSchemes: colorSchemesRef, selectedScheme: selectedSchemeRef } = storeToRefs(themeStore)
   const { blurModes: blurModesRef, selectedBlurMode: selectedBlurModeRef } = storeToRefs(blurStore)
+  const { useMaterialYou: useMaterialYouRef } = storeToRefs(materialYouStore)
 
   const { setAccentColor } = accentColorStore
   const { setColorScheme } = themeStore
   const { setBlurMode } = blurStore
   const { setCloseToTray, setMinimizeToTray } = useSystemTray()
+  const { setUseMaterialYou } = materialYouStore
 
   const accentColor = computed(() => accentColorRef.value)
   const accentColors = computed(() => accentColorsRef.value)
@@ -43,6 +56,7 @@
   const colorSchemes = computed(() => colorSchemesRef.value)
   const selectedBlurMode = computed(() => selectedBlurModeRef.value)
   const blurModes = computed(() => blurModesRef.value)
+  const useMaterialYou = computed(() => useMaterialYouRef.value)
 
   const selectedColorScheme = ref(selectedScheme.value.name)
   const selectedBlurModeName = ref(selectedBlurMode.value.name)
@@ -50,6 +64,7 @@
   const selectedVisualizerStyle = ref(playerStore.visualizerStyle)
   const visualizerEnabled = ref(playerStore.visualizerEnabled)
   const isLinuxPlatform = ref(false)
+  const isAndroidPlatform = ref(getPlatform() === Platform.Android)
 
   // Helper to capitalize enum names for display
   const formatEnumName = (name: string): string =>
@@ -167,6 +182,29 @@
 
     <!-- Settings Grid -->
     <div class='p-6 space-y-6'>
+      <!-- Material You -->
+      <div v-if='isAndroidPlatform'>
+        <Label class='text-sm font-medium mb-4 block'>
+          Material You
+        </Label>
+        <div class='flex items-center justify-between p-3 bg-popover rounded-lg border border-border/30'>
+          <Label class='text-sm cursor-pointer' for='material-you-switch'>
+            Use Material You theming
+          </Label>
+          <Switch
+            @update:checked='setUseMaterialYou'
+            id='material-you-switch'
+            :checked='useMaterialYou'
+          />
+        </div>
+        <p class='text-xs text-muted-foreground mt-3'>
+          Use colors from your device's wallpaper.
+        </p>
+        <Button @click="router.push('/material-you-debug')" class='mt-2'>
+          View Colors
+        </Button>
+      </div>
+
       <!-- Theme Settings Row -->
       <div class='grid md:grid-cols-3 gap-6'>
         <!-- Color Scheme -->
@@ -174,7 +212,11 @@
           <Label class='text-sm font-medium mb-3 block'>
             Color Scheme
           </Label>
-          <Select @update:model-value='handleColorSchemeChange' v-model='selectedColorScheme'>
+          <Select
+            @update:model-value='handleColorSchemeChange'
+            v-model='selectedColorScheme'
+            :disabled='useMaterialYou'
+          >
             <SelectTrigger class='w-full !bg-popover !border-border/30'>
               <SelectValue placeholder='Select a color scheme' />
             </SelectTrigger>
@@ -201,7 +243,11 @@
           <Label class='text-sm font-medium mb-3 block'>
             Accent Color
           </Label>
-          <Select @update:model-value='handleAccentColorChange' v-model='selectedAccentColorName'>
+          <Select
+            @update:model-value='handleAccentColorChange'
+            v-model='selectedAccentColorName'
+            :disabled='useMaterialYou'
+          >
             <SelectTrigger class='w-full !bg-popover !border-border/30'>
               <SelectValue placeholder='Select an accent color' />
             </SelectTrigger>

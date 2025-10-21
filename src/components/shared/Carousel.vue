@@ -48,7 +48,7 @@
 </script>
 
 <template>
-  <section class='bg-sidebar rounded-lg p-6'>
+  <section :style="{ borderRadius: 'var(--card-radius, 0.5rem)' }" class='bg-sidebar p-6'>
     <div class='flex justify-between items-center mb-4'>
       <h2 class='text-3xl font-bold'>
         {{ title }}

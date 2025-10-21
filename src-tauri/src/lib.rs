@@ -19,19 +19,24 @@ pub use anyhow::Result;
 use specta_typescript::{BigIntExportBehavior, Typescript};
 #[cfg(debug_assertions)]
 use std::process::Command;
+use std::sync::Once;
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+static INIT_LOGGING: Once = Once::new();
+
 fn init_logging() {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    INIT_LOGGING.call_once(|| {
+        tracing_subscriber::registry()
+            .with(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "debug".into()),
+            )
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    });
 }
 
 #[cfg(debug_assertions)]
@@ -200,6 +205,11 @@ pub fn run() {
         .manage(lastfm::LastFmState::new())
         .manage(listenbrainz::ListenBrainzState::new())
         .manage(state::AppState::new());
+
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        tauri_builder = tauri_builder.plugin(tauri_plugin_m3::init());
+    }
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {

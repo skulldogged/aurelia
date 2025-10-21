@@ -165,7 +165,7 @@ pub mod albums {
             albums_processed.push(new_album);
         }
 
-        sync_items("albums", &albums_processed, |a| a.id.clone().unwrap())
+        sync_items("albums", &albums_processed, |a| a.id.clone().unwrap_or_default())
     }
 
     pub fn get_all() -> Result<Vec<Album>> {
