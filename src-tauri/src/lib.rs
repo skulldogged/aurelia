@@ -11,7 +11,6 @@ pub mod listenbrainz;
 pub mod models;
 pub mod services;
 pub mod state;
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod system_tray;
 pub mod utils;
 
@@ -34,7 +33,7 @@ fn init_logging() {
         tracing_subscriber::registry()
             .with(
                 tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| "debug".into()),
+                    .unwrap_or_else(|_| "aurelia=debug,tauri=info,warn".into()),
             )
             .with(tracing_subscriber::fmt::layer())
             .init();
@@ -184,14 +183,9 @@ pub fn run() {
             listenbrainz::listenbrainz_set_credentials,
             listenbrainz::listenbrainz_clear_credentials,
             listenbrainz::listenbrainz_is_authenticated,
-        ]);
-    }
-
-    #[cfg(target_os = "android")]
-    {
-        builder = builder.commands(collect_commands![
             android_now_playing::update_now_playing,
             android_now_playing::clear_now_playing,
+            system_tray::quit_application,
         ]);
     }
 

@@ -58,6 +58,11 @@ class NowPlayingService : Service() {
         override fun onSkipToPrevious() {
             dispatchControlAction("previous")
         }
+
+        override fun onSeekTo(pos: Long) {
+            val positionSeconds = pos / 1000.0
+            dispatchControlAction("seek:$positionSeconds")
+        }
     }
 
     override fun onCreate() {
@@ -250,7 +255,12 @@ class NowPlayingService : Service() {
     }
 
     private fun resolvePlaybackActions(info: NowPlayingInfo): Long {
-        var actions = PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_STOP
+        var actions = PlaybackStateCompat.ACTION_PLAY or
+                      PlaybackStateCompat.ACTION_PAUSE or
+                      PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                      PlaybackStateCompat.ACTION_STOP or
+                      PlaybackStateCompat.ACTION_SEEK_TO
+
         if (info.hasNext) actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
         if (info.hasPrevious) actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
         return actions

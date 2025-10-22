@@ -282,7 +282,7 @@
           p-8 bg-sidebar rounded-lg gap-8
         '
       >
-        <div class='flex-shrink-0 mx-auto md:mx-0'>
+        <div class='shrink-0 mx-auto md:mx-0'>
           <ImageLoader
             :item-id='artist.id'
             :server-url='serverUrl'
@@ -380,7 +380,7 @@
             :key='song.id'
             class='flex items-center p-2 hover:bg-muted/50 rounded-md cursor-pointer transition-colors group'
           >
-            <div class='relative mr-4 flex-shrink-0'>
+            <div class='relative mr-4 shrink-0'>
               <ImageLoader
                 :item-id='song.albumId || song.id'
                 :server-url='serverUrl'

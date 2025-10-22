@@ -9,6 +9,14 @@
   import GlobalSearch from '@/components/shared/GlobalSearch.vue'
   import WindowControls from '@/components/shared/WindowControls.vue'
   import Button from '@/components/ui/Button.vue'
+  import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+  } from '@/components/ui/dialog'
   import { useAndroidNowPlayingService } from '@/composables/useAndroidNowPlayingService'
   import { useAuth } from '@/composables/useAuth'
   import { useDiscordPresence } from '@/composables/useDiscordPresence'
@@ -44,6 +52,7 @@
   useAndroidNowPlayingService()
 
   const isSearchOpen = ref(false)
+  const showExitDialog = ref(false)
   const keys = useMagicKeys()
   const ctrlK = keys['Ctrl+K']
   watch(ctrlK, v => {
@@ -84,8 +93,6 @@
   } = usePlayerControls()
 
   const {
-    handleSongChanged,
-    handleUpdateCurrentSong,
     playInstantMix,
     playSong,
     playSongs,
@@ -135,6 +142,11 @@
   const isClearing = ref(false)
   const transitionAfterLeaveTriggered = ref(false)
   const transitionBeforeEnterTriggered = ref(false)
+  const swipeProgress = ref<null | {
+    deltaY:    number
+    direction: 'down' | 'left' | 'right' | 'up' | null
+    startY:    number
+  }>(null)
 
   usePlayerSession()
 
@@ -143,6 +155,32 @@
 
     await new Promise(resolve => setTimeout(resolve, 100))
     await commands.setBlurMode(blurStore.selectedBlurMode.name)
+
+    if (isMobile()) {
+      const { onBackButtonPress } = await import('@tauri-apps/api/app')
+
+      onBackButtonPress(async () => {
+        console.log('Back button pressed', {
+          canGoBack:              canGoBack.value,
+          isFullScreenPlayerOpen: isFullScreenPlayerOpen.value,
+        })
+
+        if (isFullScreenPlayerOpen.value) {
+          console.log('Closing fullscreen player')
+          toggleFullScreenPlayer()
+          return true
+        }
+        if (canGoBack.value) {
+          console.log('Navigating back')
+          navigateBack()
+          return true
+        }
+        // Show exit confirmation dialog
+        console.log('Showing exit dialog')
+        showExitDialog.value = true
+        return true // Prevent default back behavior while showing dialog
+      })
+    }
   })
 
   const loadLibraryAndHomeData = async (): Promise<void> => {
@@ -183,6 +221,16 @@
     playerStore.setVolume(newVolume / 100)
   }
 
+  const handleSwipeProgress = (
+    progress: null | {
+      deltaY:    number
+      direction: 'down' | 'left' | 'right' | 'up' | null
+      startY:    number
+    },
+  ): void => {
+    swipeProgress.value = progress
+  }
+
   const handleSyncLibrary = async (): Promise<void> => {
     if (!credentials.value) return
     isSyncing.value = true
@@ -212,6 +260,16 @@
   const handleTransitionBeforeEnter = (): void => {
     // New page is about to enter (still invisible)
     transitionBeforeEnterTriggered.value = !transitionBeforeEnterTriggered.value
+  }
+
+  const confirmExit = async (): Promise<void> => {
+    showExitDialog.value = false
+    // Exit the app
+    await commands.quitApplication()
+  }
+
+  const cancelExit = (): void => {
+    showExitDialog.value = false
   }
 </script>
 
@@ -308,14 +366,12 @@
 
       <template #player>
         <MusicPlayer
-          @song-changed='handleSongChanged'
+          @swipe-progress='handleSwipeProgress'
           @toggle-equalizer='toggleEqualizer'
           @toggle-favorite='handleToggleFavorite'
           @toggle-fullscreen='toggleFullScreenPlayer'
           @toggle-lyrics='toggleLyrics'
           @toggle-queue='toggleQueue'
-          @update-current-song='handleUpdateCurrentSong'
-          @volume-changed='handleVolumeChange'
           v-if='currentSong'
           ref='musicPlayerRef'
           :is-equalizer-open='isEqualizerOpen'
@@ -349,6 +405,7 @@
       :is-lyrics-open='isLyricsOpen'
       :is-queue-open='isQueueOpen'
       :player-state='playerState'
+      :preview-progress='swipeProgress'
       :server-url='credentials?.serverUrl'
       :show='isFullScreenPlayerOpen'
       :token='credentials?.token'
@@ -357,5 +414,25 @@
     <GlobalSearch v-model:open='isSearchOpen' />
 
     <WindowControls v-if='!isFullScreenPlayerOpen && !isMobile()' class='fixed top-0 right-0 z-100' />
+
+    <!-- Exit Confirmation Dialog -->
+    <Dialog v-model:open='showExitDialog'>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Exit Application</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to exit Aurelia?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button @click='cancelExit' variant='outline'>
+            Cancel
+          </Button>
+          <Button @click='confirmExit' variant='destructive'>
+            Exit
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

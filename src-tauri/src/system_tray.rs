@@ -1,9 +1,16 @@
-use tauri::image::Image;
-use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Listener, Manager, include_image};
+use tauri::{AppHandle, Manager};
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use tauri::image::Image;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use tauri::{Listener, include_image};
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 const TRAY_ICON: Image<'_> = include_image!("icons/icon.png");
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 #[specta::specta]
 pub fn show_main_window(app: AppHandle) {
@@ -14,6 +21,7 @@ pub fn show_main_window(app: AppHandle) {
     }
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 #[specta::specta]
 pub fn hide_main_window(app: AppHandle) {
@@ -26,9 +34,21 @@ pub fn hide_main_window(app: AppHandle) {
 #[specta::specta]
 pub fn quit_application(app: AppHandle) {
     app.cleanup_before_exit();
-    std::process::exit(0);
+
+    // On mobile platforms, use app exit method
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    {
+        app.exit(0);
+    }
+
+    // On desktop platforms, exit the process
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        std::process::exit(0);
+    }
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let toggle_visibility =
         tauri::menu::MenuItem::with_id(app, "toggle_visibility", "Show/Hide", true, None::<&str>)?;
@@ -84,23 +104,29 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::sync::atomic::{AtomicBool, Ordering};
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 static MINIMIZE_TO_TRAY: AtomicBool = AtomicBool::new(true);
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(false);
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 #[specta::specta]
 pub fn set_minimize_to_tray(minimize_to_tray: bool) {
     MINIMIZE_TO_TRAY.store(minimize_to_tray, Ordering::Relaxed);
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 #[specta::specta]
 pub fn set_close_to_tray(close_to_tray: bool) {
     CLOSE_TO_TRAY.store(close_to_tray, Ordering::Relaxed);
 }
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn setup_window_behavior(app: &AppHandle) {
     let app_handle_minimize = app.clone();
 

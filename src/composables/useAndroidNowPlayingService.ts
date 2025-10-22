@@ -33,6 +33,7 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
   const {
     handleNextSong,
     handlePreviousSong,
+    handleSeek,
     handleTogglePlayPause,
   } = usePlayerControls()
 
@@ -155,52 +156,98 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
     }
   }
 
+  const handleToggleFavorite = async (): Promise<void> => {
+    const song = currentSong.value
+    if (!song || !authStore.isAuthenticated()) return
+
+    try {
+      const result = await commands.toggleFavoriteStatus(
+        serverUrl.value,
+        token.value,
+        authStore.userId!,
+        song.id,
+        !song.isFavorite,
+      )
+      if (result.status === 'ok') {
+        logger.debug('Toggled favorite status for song:', {
+          isFavorite: result.data,
+          songId:     song.id,
+        })
+      } else {
+        logger.error('Failed to toggle favorite status:', result.error)
+      }
+    } catch (error) {
+      logger.error('Error toggling favorite status:', error)
+    }
+  }
+
   const unwatchers: Array<() => void> = []
   const cleanupListeners: Array<() => void> = []
 
-  if (typeof window !== 'undefined') {
-    const handleNativeControl = (event: Event): void => {
-      const detail = (event as CustomEvent<{ action?: string }>).detail
-      const action = detail?.action
-      if (!action)
-        return
+  const handleNativeControl = (event: Event): void => {
+    const detail = (event as CustomEvent<{ action?: string; position?: number }>).detail
+    const action = detail?.action
+    if (!action)
+      return
 
-      switch (action) {
-        case 'next':
-          handleNextSong()
-          break
-        case 'pause':
-          if (isPlaying.value)
-            handleTogglePlayPause()
-          break
-        case 'play':
-          if (!isPlaying.value)
-            handleTogglePlayPause()
-          break
-        case 'previous':
-          handlePreviousSong()
-          break
-        case 'stop':
-          if (isPlaying.value)
-            handleTogglePlayPause()
-          suppressUpdates = true
-          lastSignature = ''
-          pendingSignature = null
-          artworkPath.value = null
-          void AndroidNowPlayingService.clear()
-          break
-        case 'toggle':
+    switch (action) {
+      case 'next':
+        handleNextSong()
+        break
+      case 'pause':
+        if (isPlaying.value)
           handleTogglePlayPause()
-          break
-        default:
+        break
+      case 'play':
+        if (!isPlaying.value)
+          handleTogglePlayPause()
+        break
+      case 'previous':
+        handlePreviousSong()
+        break
+      case 'seek':
+        // This shouldn't happen with the new format, but keeping for compatibility
+        if (detail.position !== undefined)
+          handleSeek(detail.position)
+        break
+      case 'stop':
+        if (isPlaying.value)
+          handleTogglePlayPause()
+        suppressUpdates = true
+        lastSignature = ''
+        pendingSignature = null
+        artworkPath.value = null
+        void AndroidNowPlayingService.clear()
+        break
+      case 'toggle':
+        handleTogglePlayPause()
+        break
+      case 'toggleFavorite':
+        void handleToggleFavorite()
+        break
+      default:
+        // Handle seek with position: "seek:123.45"
+        if (action.startsWith('seek:')) {
+          const positionStr = action.substring(5)
+          const positionSeconds = parseFloat(positionStr)
+          if (!isNaN(positionSeconds) && playerStore.duration > 0) {
+            // Convert absolute time to percentage for the player
+            const percentage = (positionSeconds / playerStore.duration) * 100
+            handleSeek(percentage)
+          }
+        } else {
           logger.debug('Received unknown Android control action', {
             action,
           })
-      }
+        }
+        break
     }
+  }
 
+  if (typeof window !== 'undefined') {
     window.addEventListener('android-now-playing-control', handleNativeControl as EventListener)
-    cleanupListeners.push(() => window.removeEventListener('android-now-playing-control', handleNativeControl as EventListener))
+    cleanupListeners.push(() =>
+      window.removeEventListener('android-now-playing-control', handleNativeControl as EventListener))
   }
 
   unwatchers.push(watch(currentSong, async song => {

@@ -34,6 +34,7 @@
   } from '@/components/ui/dropdown-menu'
   import { Slider } from '@/components/ui/slider'
   import { useAudioEngine } from '@/composables/useAudioEngine'
+  import { useSwipe } from '@/composables/useSwipe'
   import { logger } from '@/lib/logger'
   import { isMobilePortrait } from '@/lib/platform'
   import { getSongFormatInfo } from '@/lib/utils'
@@ -48,6 +49,11 @@
   }>()
 
   const emit = defineEmits<{
+    'swipe-progress':    [progress: null | {
+      deltaY:    number
+      direction: 'down' | 'left' | 'right' | 'up' | null
+      startY:    number
+    }]
     'toggle-equalizer':  []
     'toggle-favorite':   [song: Song]
     'toggle-fullscreen': []
@@ -203,8 +209,23 @@
 
   const isMobilePortraitMode = computed(() => isMobilePortrait())
 
-  const toggleVolumePopup = (): void => {
-    isVolumePopupVisible.value = !isVolumePopupVisible.value
+  const { startTracking, stopTracking, swipeProgress, updateTracking } = useSwipe({ maxTime: 300 })
+
+  const handleSwipeMove = (event: TouchEvent): void => {
+    updateTracking(event)
+    // Emit swipe progress for real-time visual feedback
+    if (swipeProgress.value && swipeProgress.value.direction) {
+      emit('swipe-progress', swipeProgress.value)
+    }
+  }
+
+  const handleSwipeEnd = (event: TouchEvent): void => {
+    const swipeResult = stopTracking(event)
+    if (swipeResult?.direction === 'up' && swipeResult.isIntentional) {
+      emit('toggle-fullscreen')
+    }
+    // Clear swipe progress
+    emit('swipe-progress', null)
   }
 
   const closeVolumePopup = (): void => {
@@ -213,6 +234,10 @@
 
   const handleVolumeClick = (): void => {
     toggleVolumePopup()
+  }
+
+  const toggleVolumePopup = (): void => {
+    isVolumePopupVisible.value = !isVolumePopupVisible.value
   }
 
   const handleClickOutside = (event: Event): void => {
@@ -225,6 +250,18 @@
     if (isVolumePopupVisible.value)
       closeVolumePopup()
   }
+
+  const swipeTransform = computed(() => {
+    if (!swipeProgress.value || swipeProgress.value.direction !== 'up') return ''
+    // Allow unlimited upward movement following the finger
+    return `translateY(${Math.min(0, swipeProgress.value.deltaY)}px)`
+  })
+
+  const swipeOpacity = computed(() => {
+    if (!swipeProgress.value || swipeProgress.value.direction !== 'up') return 0
+    // Fade in hint based on upward movement (deltaY is negative for up)
+    return Math.min(Math.abs(swipeProgress.value.deltaY) / 100, 0.8)
+  })
 
   watch(isVolumePopupVisible, visible => {
     if (visible)
@@ -504,7 +541,36 @@
 </script>
 
 <template>
-  <div v-if='playerStore.currentSong' class='px-2 py-3 relative'>
+  <div
+    @touchend='handleSwipeEnd'
+    @touchmove='handleSwipeMove'
+    @touchstart='startTracking'
+    v-if='playerStore.currentSong'
+    class='px-2 py-3 relative'
+  >
+    <!-- Swipe hint overlay -->
+    <div
+      v-if='false'
+      :style='{ opacity: swipeOpacity }'
+      class='fixed inset-0 bg-black/20 backdrop-blur-sm z-40 pointer-events-none'
+    >
+      <div class='flex items-center justify-center h-full'>
+        <div
+          :style='{ transform: swipeTransform }'
+          class='bg-background/90 backdrop-blur-md border border-border rounded-xl p-6 shadow-2xl'
+        >
+          <div class='text-center'>
+            <div class='w-16 h-16 mx-auto mb-4 bg-primary/20 rounded-full flex items-center justify-center'>
+              <Expand class='w-8 h-8 text-primary' />
+            </div>
+
+            <p class='text-sm font-medium'>
+              Swipe up to open fullscreen
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- Audio Visualizer Background -->
     <div
       v-if='playerStore.visualizerEnabled'
@@ -526,7 +592,7 @@
           @mouseleave='onTitleMouseLeave'
           :class="['flex items-center space-x-4 min-w-0', shouldMarquee ? 'marquee-enabled' : '']"
         >
-          <div @click="emit('toggle-fullscreen')" class='flex-shrink-0'>
+          <div @click="emit('toggle-fullscreen')" class='shrink-0'>
             <ImageLoader
               v-if='playerStore.currentSong'
               :item-id='playerStore.currentSong.albumId || playerStore.currentSong.id'
@@ -610,7 +676,7 @@
           </div>
         </div>
 
-        <div v-if='!isMobilePortraitMode' class='flex-grow px-4'>
+        <div v-if='!isMobilePortraitMode' class='grow px-4'>
           <div class='flex justify-center'>
             <div class='flex items-center space-x-2'>
               <button
@@ -639,7 +705,7 @@
               <Button
                 @click='togglePlayPause'
                 :disabled='!playerStore.audioReady || playerStore.isBuffering'
-                class='!rounded-full size-10'
+                class='rounded-full! size-10'
                 size='icon'
                 variant='default'
               >
@@ -699,7 +765,7 @@
             @click='togglePlayPause'
             v-if='isMobilePortraitMode'
             :disabled='!playerStore.audioReady || playerStore.isBuffering'
-            class='!rounded-full size-12'
+            class='rounded-full! size-12'
             size='icon'
             variant='default'
           >
