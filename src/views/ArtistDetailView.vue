@@ -52,7 +52,15 @@
   const token = computed(() => authStore.token)
 
   const route = useRoute()
-  const artistId = computed(() => route.params.artistId as string)
+  const artistId = computed(() => {
+    const params = route.params
+    if ('artistId' in params) {
+      const param = params.artistId
+      if (typeof param === 'string') return param
+      if (Array.isArray(param)) return param[0] ?? ''
+    }
+    return ''
+  })
   const showFullOverview = ref(false)
   const showShareDialog = ref(false)
 
@@ -417,7 +425,7 @@
                 <router-link
                   @click.stop
                   v-if='song.album && song.albumId && !isSingle(song)'
-                  :to="`/songs/album/${song.albumId}`"
+                  :to='`/songs/album/${song.albumId}`'
                   class='hover:underline'
                 >
                   {{ song.album }}
@@ -429,7 +437,7 @@
                     <router-link
                       @click.stop
                       v-if='collab.id'
-                      :to="`/songs/artist/${collab.id}`"
+                      :to='`/songs/artist/${collab.id}`'
                       class='hover:underline'
                     >
                       {{ collab.name }}
@@ -465,8 +473,8 @@
               :album='album'
               :disabled='libraryLoading'
               :server-url='serverUrl'
-              :size='"responsive"'
               :token='token'
+              size='responsive'
             />
           </div>
           <div>
@@ -479,7 +487,7 @@
                 <router-link
                   @click.stop
                   v-if='pair.id'
-                  :to="`/songs/artist/${pair.id}`"
+                  :to='`/songs/artist/${pair.id}`'
                   class='hover:underline'
                 >
                   {{ pair.name }}

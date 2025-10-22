@@ -259,7 +259,7 @@
                               >
                                 <router-link
                                   @click.stop
-                                  :to="`/songs/artist/${song.artistIds[artistIndex]}`"
+                                  :to='`/songs/artist/${song.artistIds[artistIndex]}`'
                                   class='hover:underline'
                                 >
                                   {{ artist }}
@@ -278,7 +278,7 @@
                             <router-link
                               @click.stop
                               v-if='song.album && song.albumId'
-                              :to="`/songs/album/${song.albumId}`"
+                              :to='`/songs/album/${song.albumId}`'
                               class='hover:underline'
                             >
                               {{ song.album }}

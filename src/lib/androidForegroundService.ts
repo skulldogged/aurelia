@@ -2,11 +2,6 @@ import { invoke } from '@tauri-apps/api/core'
 
 import { logger } from '@/lib/logger'
 
-interface PluginResponse {
-  message?: string
-  success:  boolean
-}
-
 export interface AndroidNowPlayingPayload {
   album?:           null | string
   artists:          string[]
@@ -24,33 +19,63 @@ export interface AndroidNowPlayingPayload {
   title:            string
 }
 
+interface PluginResponse {
+  message?: string
+  success:  boolean
+}
+
 const UPDATE_COMMAND = 'plugin:android-now-playing|update_now_playing'
 const CLEAR_COMMAND = 'plugin:android-now-playing|clear_now_playing'
 
-const handleResult = (response: PluginResponse, context: string): boolean => {
-  if (response.success) return true
+let lastErrorSignature: null | string = null
 
-  logger.error(`Android now playing plugin reported error during ${context}:`, response.message)
+const resetError = (): void => {
+  lastErrorSignature = null
+}
+
+const logPluginError = (context: 'clear' | 'update', message?: string): void => {
+  const finalMessage = message ?? 'Unknown error'
+  const signature = `plugin:${context}:${finalMessage}`
+  if (lastErrorSignature === signature) return
+  lastErrorSignature = signature
+  logger.error(`Android now playing plugin reported error during ${context}:`, finalMessage)
+}
+
+const logInvokeError = (context: 'clear' | 'update', error: unknown): void => {
+  const message = error instanceof Error ? error.message : String(error)
+  const signature = `invoke:${context}:${message}`
+  if (lastErrorSignature === signature) return
+  lastErrorSignature = signature
+  logger.error(`Failed to ${context} Android now playing service:`, error)
+}
+
+const handleResult = (response: PluginResponse, context: 'clear' | 'update'): boolean => {
+  if (response.success) {
+    resetError()
+    return true
+  }
+
+  logPluginError(context, response.message)
   return false
 }
 
 export const AndroidNowPlayingService = {
-  async update(payload: AndroidNowPlayingPayload): Promise<boolean> {
-    try {
-      const result = await invoke<PluginResponse>(UPDATE_COMMAND, { payload })
-      return handleResult(result, 'update')
-    } catch (error) {
-      logger.error('Failed to update Android now playing service:', error)
-      return false
-    }
-  },
-
-  async clear(): Promise<boolean> {
+  clear: async (): Promise<boolean> => {
     try {
       const result = await invoke<PluginResponse>(CLEAR_COMMAND)
       return handleResult(result, 'clear')
     } catch (error) {
-      logger.error('Failed to clear Android now playing service:', error)
+      logInvokeError('clear', error)
+      return false
+    }
+  },
+
+  update: async (payload: AndroidNowPlayingPayload): Promise<boolean> => {
+    try {
+      const result = await invoke<PluginResponse>(UPDATE_COMMAND, { payload })
+      return handleResult(result, 'update')
+    } catch (error) {
+      logInvokeError('update', error)
       return false
     }
   },

@@ -583,7 +583,7 @@
                   :key='playerStore.currentSong.artistIds[index]'
                 >
                   <router-link
-                    :to="`/songs/artist/${playerStore.currentSong.artistIds[index]}`"
+                    :to='`/songs/artist/${playerStore.currentSong.artistIds[index]}`'
                     class='hover:underline'
                   >
                     {{ artist }}
@@ -597,7 +597,7 @@
               •
               <router-link
                 v-if='playerStore.currentSong.album && playerStore.currentSong.albumId'
-                :to="`/songs/album/${playerStore.currentSong.albumId}`"
+                :to='`/songs/album/${playerStore.currentSong.albumId}`'
                 class='hover:underline'
               >
                 {{ playerStore.currentSong.album }}

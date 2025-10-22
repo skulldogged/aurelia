@@ -3,7 +3,6 @@ package dev.pupbrained.aurelia.plugin.nowplaying
 import android.app.Activity
 import android.content.Intent
 import android.util.Log
-import android.webkit.WebView
 import androidx.core.content.ContextCompat
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -30,11 +29,8 @@ class NowPlayingPayload {
     var artworkData: String? = null
 }
 
-@TauriPlugin
+@TauriPlugin(name = "android-now-playing")
 class NowPlayingPlugin(private val activity: Activity) : Plugin(activity) {
-    override fun load(webView: WebView) {
-        super.load(webView)
-    }
 
     @Command
     fun updateNowPlaying(invoke: Invoke) {
@@ -51,7 +47,7 @@ class NowPlayingPlugin(private val activity: Activity) : Plugin(activity) {
             putExtra(NowPlayingService.EXTRA_TITLE, args.title)
             putStringArrayListExtra(
                 NowPlayingService.EXTRA_ARTISTS,
-                ArrayList(args.artists ?: mutableListOf())
+                ArrayList(args.artists)
             )
             putExtra(NowPlayingService.EXTRA_ALBUM, args.album)
             args.durationSeconds?.let { putExtra(NowPlayingService.EXTRA_DURATION_SECONDS, it) }
@@ -86,14 +82,7 @@ class NowPlayingPlugin(private val activity: Activity) : Plugin(activity) {
         }
 
         if (!stopped) {
-            val intent = Intent(context, NowPlayingService::class.java).apply {
-                action = NowPlayingService.ACTION_CLEAR
-            }
-            try {
-                ContextCompat.startForegroundService(context, intent)
-            } catch (exception: Exception) {
-                Log.w(TAG, "Failed to send clear action to now playing service", exception)
-            }
+            Log.d(TAG, "Now playing service was not running when attempting to clear")
         }
 
         invoke.resolve(successResponse())

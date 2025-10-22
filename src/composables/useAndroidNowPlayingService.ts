@@ -2,11 +2,10 @@ import { watchThrottled } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
-import type { Song } from '@/bindings'
-import { AndroidNowPlayingService, type AndroidNowPlayingPayload } from '@/lib/androidForegroundService'
+import { commands, type Song } from '@/bindings'
+import { type AndroidNowPlayingPayload, AndroidNowPlayingService } from '@/lib/androidForegroundService'
 import { logger } from '@/lib/logger'
 import { getPlatform, Platform } from '@/lib/platform'
-import { commands } from '@/bindings'
 import { useAuthStore, usePlayerStore } from '@/stores'
 
 const roundTo = (value: number, precision: number): number => {
@@ -14,7 +13,7 @@ const roundTo = (value: number, precision: number): number => {
   return Math.round(value * factor) / factor
 }
 
-const sanitizeNumber = (value: unknown): number | null => {
+const sanitizeNumber = (value: unknown): null | number => {
   if (typeof value !== 'number') return null
   if (!Number.isFinite(value)) return null
   return value
@@ -41,6 +40,7 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
 
   const artworkPath = ref<null | string>(null)
   let lastSignature = ''
+  let pendingSignature: null | string = null
 
   const hasNext = computed(() =>
     playlist.value.length > 0
@@ -94,6 +94,7 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
   const sendUpdate = (positionOverride?: number): void => {
     const payload = buildPayload(positionOverride)
     if (!payload) {
+      pendingSignature = null
       if (lastSignature !== '') {
         lastSignature = ''
         void AndroidNowPlayingService.clear()
@@ -102,10 +103,19 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
     }
 
     const signature = JSON.stringify(payload)
-    if (signature === lastSignature) return
-    lastSignature = signature
+    if (signature === lastSignature || signature === pendingSignature) return
 
-    void AndroidNowPlayingService.update(payload)
+    pendingSignature = signature
+
+    void AndroidNowPlayingService.update(payload).then(success => {
+      if (success) {
+        lastSignature = signature
+      }
+
+      if (pendingSignature === signature) {
+        pendingSignature = null
+      }
+    })
   }
 
   const resolveArtworkPath = async (song: Song): Promise<void> => {
@@ -116,7 +126,7 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
 
     try {
       const imageId = song.albumId ?? song.id
-      const result = await commands.getImage(imageId, 'Primary', authStore.serverUrl.value, authStore.token.value)
+      const result = await commands.getImage(imageId, 'Primary', authStore.serverUrl, authStore.token)
       if (result.status === 'ok')
         artworkPath.value = result.data ?? null
       else
@@ -133,11 +143,13 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
     if (!song) {
       artworkPath.value = null
       lastSignature = ''
+      pendingSignature = null
       void AndroidNowPlayingService.clear()
       return
     }
 
     lastSignature = ''
+    pendingSignature = null
     await resolveArtworkPath(song)
     sendUpdate()
   }, { immediate: true }))
@@ -149,10 +161,12 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
 
   unwatchers.push(watchThrottled(() => currentTime.value, position => {
     sendUpdate(position)
-  }, { throttle: 1000, trailing: true, leading: true }))
+  }, { leading: true, throttle: 1000, trailing: true }))
 
   onBeforeUnmount(() => {
     unwatchers.forEach(unwatch => unwatch())
+    lastSignature = ''
+    pendingSignature = null
     void AndroidNowPlayingService.clear()
   })
 

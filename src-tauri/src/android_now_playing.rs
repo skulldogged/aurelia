@@ -1,8 +1,6 @@
 #![cfg(target_os = "android")]
 
-use serde::{Deserialize, Serialize};
-use serde::ser::Serializer;
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, ser::Serializer, Deserialize, Serialize};
 use tauri::plugin::{Builder, PluginApi, PluginHandle, TauriPlugin};
 use tauri::{command, AppHandle, Manager, Runtime};
 use thiserror::Error;
