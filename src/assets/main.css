@@ -75,6 +75,9 @@
     @apply text-foreground;
     font-family: var(--font-family);
     user-select: none;
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
   }
 
   /* Custom button rounding for Material You */

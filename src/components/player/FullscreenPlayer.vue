@@ -32,6 +32,7 @@
   import Button from '@/components/ui/Button.vue'
   import { Slider } from '@/components/ui/slider'
   import { useImageLoader } from '@/composables/useImageLoader'
+  import { useSwipe } from '@/composables/useSwipe'
   import { logger } from '@/lib/logger'
   import { getPlatform, isMobilePortrait, Platform } from '@/lib/platform'
   import { formatDuration, getSongFormatInfo } from '@/lib/utils'
@@ -58,6 +59,14 @@
       required: true,
       type:     Object as PropType<PlayerState>,
     },
+    previewProgress: {
+      default: null,
+      type:    Object as PropType<null | {
+        deltaY:    number
+        direction: 'down' | 'left' | 'right' | 'up' | null
+        startY:    number
+      }>,
+    },
     serverUrl: {
       default: '',
       type:    String,
@@ -65,10 +74,6 @@
     show: {
       required: true,
       type:     Boolean,
-    },
-    startWithLyrics: {
-      default: false,
-      type:    Boolean,
     },
     token: {
       default: '',
@@ -131,7 +136,8 @@
 
   watch(() => props.show, newVal => {
     if (newVal) {
-      if (props.startWithLyrics)
+      // Show lyrics if they were open before
+      if (props.isLyricsOpen)
         showLyrics.value = true
     } else {
       showLyrics.value = false
@@ -206,27 +212,90 @@
       !isMobilePortrait() &&
       window.innerWidth > window.innerHeight
   })
+
+  const { startTracking, stopTracking, swipeProgress, updateTracking } = useSwipe({ maxTime: 300 })
+
+  const settledTransform = ref('')
+  const settledOpacity = ref(1)
+
+  const swipeTransform = computed(() => {
+    if (props.previewProgress && props.previewProgress.direction === 'up')
+      return `translateY(${Math.max(0, props.previewProgress.startY + props.previewProgress.deltaY)}px)`
+
+    if (!props.show) return 'translateY(100vh)' // Off-screen when not shown
+    if (!swipeProgress.value || swipeProgress.value.direction !== 'down')
+      return settledTransform.value
+
+    return `translateY(${Math.max(0, swipeProgress.value.deltaY)}px)`
+  })
+
+  const swipeOpacity = computed(() => {
+    if (props.previewProgress && props.previewProgress.direction === 'up')
+      return Math.min(Math.abs(props.previewProgress.deltaY) / 100, 0.9)
+
+    if (!props.show) return 0 // Invisible when not shown
+    if (!swipeProgress.value || swipeProgress.value.direction !== 'down')
+      return settledTransform.value ? settledOpacity.value : 1
+
+    return Math.max(1 - Math.max(0, swipeProgress.value.deltaY) / 200, 0.3)
+  })
+
+  const handleSwipeMove = (event: TouchEvent): void => {
+    updateTracking(event)
+  }
+
+  const handleSwipeStart = (event: TouchEvent): void => {
+    // Reset settled state when starting a new swipe
+    settledTransform.value = ''
+    settledOpacity.value = 1
+    startTracking(event)
+  }
+
+  const handleSwipeEnd = (event: TouchEvent): void => {
+    const currentProgress = swipeProgress.value
+    const swipeResult = stopTracking(event)
+    if (swipeResult?.direction === 'down' && swipeResult.isIntentional) {
+      emit('close')
+      // Reset settled state
+      settledTransform.value = ''
+      settledOpacity.value = 1
+    } else {
+      // Keep current position
+      if (currentProgress) {
+        settledTransform.value = `translateY(${Math.max(0, currentProgress.deltaY)}px)`
+        settledOpacity.value = Math.max(1 - Math.max(0, currentProgress.deltaY) / 200, 0.3)
+      }
+    }
+  }
 </script>
 
 <template>
   <div
-    v-if='show'
+    @touchend='handleSwipeEnd'
+    @touchmove='handleSwipeMove'
+    @touchstart='handleSwipeStart'
+    v-show='show || (previewProgress && previewProgress.direction === "up")'
     :class="[
       'fullscreen-player fixed inset-0 bg-background z-50 flex flex-col',
       { 'lyrics-active': isLyricsOpen, 'justify-center': isMobilePortraitMode, 'mobile': !isDesktop }
     ]"
+    :style="{
+      transform: swipeTransform,
+      opacity: swipeOpacity,
+      transition: swipeProgress ? 'none' : 'transform 0.3s ease-out, opacity 0.3s ease-out'
+    }"
   >
     <!-- Draggable Top Bar -->
     <div
       :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
-      class='fixed left-0 right-0 z-[100] h-16'
+      class='fixed left-0 right-0 z-100 h-16'
       data-tauri-drag-region
     />
 
     <!-- Top Bar Controls -->
     <div
       :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
-      class='fixed left-0 right-0 z-[101] h-16 pointer-events-none'
+      class='fixed left-0 right-0 z-101 h-16 pointer-events-none'
     >
       <div class='p-4 h-full flex items-center'>
         <div :class="['flex items-center pointer-events-auto', isMobilePortraitMode ? 'gap-4' : 'gap-2']">
@@ -258,7 +327,7 @@
     <WindowControls
       v-if='isDesktop'
       :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
-      class='absolute right-0 z-[110]'
+      class='absolute right-0 z-110'
     />
 
     <!-- Simplified Background -->
@@ -345,7 +414,7 @@
             </div>
 
             <!-- Full-width Lyrics on small screens in portrait mode -->
-            <div v-if='!isLargeScreen && isLyricsOpen && isMobilePortraitMode' class='w-full h-[20rem] p-4'>
+            <div v-if='!isLargeScreen && isLyricsOpen && isMobilePortraitMode' class='w-full h-80 p-4'>
               <LyricsView
                 @lyrics-loaded='onLyricsLoaded'
                 @seek='handleLyricsSeek'
@@ -361,7 +430,7 @@
             <!-- Constrained Lyrics on small screens in landscape/other modes (but not mobile landscape) -->
             <div
               v-if='!isLargeScreen && isLyricsOpen && !isMobilePortraitMode && !isMobileLandscapeMode'
-              class='w-full h-[24rem]'
+              class='w-full h-96'
             >
               <div class='w-full h-full p-4'>
                 <LyricsView
@@ -486,7 +555,7 @@
 
                 <Button
                   @click="$emit('toggle-play-pause')"
-                  :class="['!rounded-full', isMobilePortraitMode ? 'size-16' : 'size-14']"
+                  :class="['rounded-full!', isMobilePortraitMode ? 'size-16' : 'size-14']"
                   size='icon'
                   variant='default'
                 >
@@ -539,7 +608,7 @@
             :class="
               isMobileLandscapeMode
                 ? 'w-[300px] h-full'
-                : 'w-[600px] xl:w-[700px] 2xl:w-[800px] h-full max-h-[56rem]'
+                : 'w-[600px] xl:w-[700px] 2xl:w-[800px] h-full max-h-224'
             "
           >
             <LyricsView
