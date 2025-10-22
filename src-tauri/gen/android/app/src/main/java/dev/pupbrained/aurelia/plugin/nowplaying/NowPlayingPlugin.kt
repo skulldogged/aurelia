@@ -1,8 +1,11 @@
 package dev.pupbrained.aurelia.plugin.nowplaying
 
 import android.app.Activity
+import android.app.Application
 import android.content.Intent
+import android.os.Bundle
 import android.util.Log
+import android.webkit.WebView
 import androidx.core.content.ContextCompat
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -31,6 +34,57 @@ class NowPlayingPayload {
 
 @TauriPlugin
 class NowPlayingPlugin(private val activity: Activity) : Plugin(activity) {
+    private var webView: WebView? = null
+    private var lifecycleRegistered = false
+
+    private val lifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+        override fun onActivityStarted(activity: Activity) {}
+        override fun onActivityResumed(activity: Activity) {}
+        override fun onActivityPaused(activity: Activity) {}
+        override fun onActivityStopped(activity: Activity) {}
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+        override fun onActivityDestroyed(activity: Activity) {
+            if (activity === this@NowPlayingPlugin.activity) {
+                clearListener()
+            }
+        }
+    }
+
+    override fun load(webView: WebView) {
+        super.load(webView)
+        this.webView = webView
+        registerListener()
+        registerLifecycleCallbacks()
+    }
+
+    private fun registerListener() {
+        NowPlayingBridge.setListener { action -> emitControlEvent(action) }
+    }
+
+    private fun registerLifecycleCallbacks() {
+        if (!lifecycleRegistered) {
+            activity.application.registerActivityLifecycleCallbacks(lifecycleCallbacks)
+            lifecycleRegistered = true
+        }
+    }
+
+    private fun clearListener() {
+        NowPlayingBridge.setListener(null)
+        webView = null
+        if (lifecycleRegistered) {
+            activity.application.unregisterActivityLifecycleCallbacks(lifecycleCallbacks)
+            lifecycleRegistered = false
+        }
+    }
+
+    private fun emitControlEvent(action: String) {
+        val sanitizedAction = action.replace("'", "\\'")
+        val script = "window.dispatchEvent(new CustomEvent('android-now-playing-control',{detail:{action:'$sanitizedAction'}}));"
+        activity.runOnUiThread {
+            webView?.evaluateJavascript(script, null)
+        }
+    }
 
     @Command
     fun updateNowPlaying(invoke: Invoke) {

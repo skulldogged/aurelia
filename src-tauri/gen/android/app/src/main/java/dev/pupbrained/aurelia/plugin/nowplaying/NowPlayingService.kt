@@ -20,6 +20,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.media.app.NotificationCompat.MediaStyle
+import androidx.media.session.MediaButtonReceiver
 import dev.pupbrained.aurelia.R
 import java.io.File
 import java.net.HttpURLConnection
@@ -37,10 +38,33 @@ class NowPlayingService : Service() {
     private var currentArtwork: Bitmap? = null
     private var currentInfo: NowPlayingInfo? = null
 
+    private val mediaSessionCallback = object : MediaSessionCompat.Callback() {
+        override fun onPlay() {
+            dispatchControlAction("play")
+        }
+
+        override fun onPause() {
+            dispatchControlAction("pause")
+        }
+
+        override fun onStop() {
+            handleClear()
+        }
+
+        override fun onSkipToNext() {
+            dispatchControlAction("next")
+        }
+
+        override fun onSkipToPrevious() {
+            dispatchControlAction("previous")
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         mediaSession = MediaSessionCompat(this, SESSION_TAG).apply {
-            setCallback(object : MediaSessionCompat.Callback() {})
+            setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS)
+            setCallback(mediaSessionCallback, mainHandler)
             isActive = true
         }
         createNotificationChannel()
@@ -84,11 +108,18 @@ class NowPlayingService : Service() {
         }
     }
 
+    private fun dispatchControlAction(action: String) {
+        Log.d(TAG, "Dispatching control action: $action")
+        NowPlayingBridge.emit(action)
+    }
+
     private fun handleClear() {
         mainHandler.post {
             currentInfo = null
             currentArtwork = null
             currentArtworkKey = null
+
+            dispatchControlAction("stop")
 
             val playbackState = PlaybackStateCompat.Builder()
                 .setState(PlaybackStateCompat.STATE_STOPPED, 0, 0f)
@@ -219,10 +250,15 @@ class NowPlayingService : Service() {
     }
 
     private fun resolvePlaybackActions(info: NowPlayingInfo): Long {
-        var actions = PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY_PAUSE
+        var actions = PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_STOP
         if (info.hasNext) actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
         if (info.hasPrevious) actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
         return actions
+    }
+
+    private fun createMediaAction(iconRes: Int, titleRes: Int, action: Long): NotificationCompat.Action {
+        val intent = MediaButtonReceiver.buildMediaButtonPendingIntent(this, action)
+        return NotificationCompat.Action(iconRes, getString(titleRes), intent)
     }
 
     private fun buildNotification(info: NowPlayingInfo, artistsText: String, artwork: Bitmap?): Notification {
@@ -245,9 +281,62 @@ class NowPlayingService : Service() {
             .setSilent(true)
             .setCategory(Notification.CATEGORY_TRANSPORT)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setStyle(MediaStyle().setMediaSession(mediaSession.sessionToken))
 
-        contentIntent?.let { pending -> builder.setContentIntent(pending) }
+        contentIntent?.let { pending ->
+            builder.setContentIntent(pending)
+            mediaSession.setSessionActivity(pending)
+        }
+
+        val compactActionIndices = mutableListOf<Int>()
+        var actionIndex = 0
+
+        if (info.hasPrevious) {
+            builder.addAction(
+                createMediaAction(
+                    android.R.drawable.ic_media_previous,
+                    R.string.notification_action_previous,
+                    PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS,
+                ),
+            )
+            compactActionIndices.add(actionIndex)
+            actionIndex += 1
+        }
+
+        val playPauseAction = if (info.isPlaying) {
+            createMediaAction(
+                android.R.drawable.ic_media_pause,
+                R.string.notification_action_pause,
+                PlaybackStateCompat.ACTION_PAUSE,
+            )
+        } else {
+            createMediaAction(
+                android.R.drawable.ic_media_play,
+                R.string.notification_action_play,
+                PlaybackStateCompat.ACTION_PLAY,
+            )
+        }
+
+        builder.addAction(playPauseAction)
+        compactActionIndices.add(actionIndex)
+        actionIndex += 1
+
+        if (info.hasNext) {
+            builder.addAction(
+                createMediaAction(
+                    android.R.drawable.ic_media_next,
+                    R.string.notification_action_next,
+                    PlaybackStateCompat.ACTION_SKIP_TO_NEXT,
+                ),
+            )
+            compactActionIndices.add(actionIndex)
+        }
+
+        val mediaStyle = MediaStyle().setMediaSession(mediaSession.sessionToken)
+        if (compactActionIndices.isNotEmpty()) {
+            mediaStyle.setShowActionsInCompactView(*compactActionIndices.toIntArray())
+        }
+
+        builder.setStyle(mediaStyle)
 
         return builder.build()
     }

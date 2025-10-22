@@ -3,6 +3,7 @@ import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { commands, type Song } from '@/bindings'
+import { usePlayerControls } from '@/composables/usePlayerControls'
 import { type AndroidNowPlayingPayload, AndroidNowPlayingService } from '@/lib/androidForegroundService'
 import { logger } from '@/lib/logger'
 import { getPlatform, Platform } from '@/lib/platform'
@@ -30,6 +31,12 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
   const { serverUrl, token } = storeToRefs(authStore)
 
   const {
+    handleNextSong,
+    handlePreviousSong,
+    handleTogglePlayPause,
+  } = usePlayerControls()
+
+  const {
     currentIndex,
     currentSong,
     currentTime,
@@ -43,6 +50,7 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
   const artworkPath = ref<null | string>(null)
   let lastSignature = ''
   let pendingSignature: null | string = null
+  let suppressUpdates = false
 
   const hasNext = computed(() =>
     playlist.value.length > 0
@@ -104,6 +112,14 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
       return
     }
 
+    if (suppressUpdates && !payload.isPlaying) {
+      return
+    }
+
+    if (payload.isPlaying) {
+      suppressUpdates = false
+    }
+
     const signature = JSON.stringify(payload)
     if (signature === lastSignature || signature === pendingSignature) return
 
@@ -140,6 +156,52 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
   }
 
   const unwatchers: Array<() => void> = []
+  const cleanupListeners: Array<() => void> = []
+
+  if (typeof window !== 'undefined') {
+    const handleNativeControl = (event: Event): void => {
+      const detail = (event as CustomEvent<{ action?: string }>).detail
+      const action = detail?.action
+      if (!action)
+        return
+
+      switch (action) {
+        case 'next':
+          handleNextSong()
+          break
+        case 'pause':
+          if (isPlaying.value)
+            handleTogglePlayPause()
+          break
+        case 'play':
+          if (!isPlaying.value)
+            handleTogglePlayPause()
+          break
+        case 'previous':
+          handlePreviousSong()
+          break
+        case 'stop':
+          if (isPlaying.value)
+            handleTogglePlayPause()
+          suppressUpdates = true
+          lastSignature = ''
+          pendingSignature = null
+          artworkPath.value = null
+          void AndroidNowPlayingService.clear()
+          break
+        case 'toggle':
+          handleTogglePlayPause()
+          break
+        default:
+          logger.debug('Received unknown Android control action', {
+            action,
+          })
+      }
+    }
+
+    window.addEventListener('android-now-playing-control', handleNativeControl as EventListener)
+    cleanupListeners.push(() => window.removeEventListener('android-now-playing-control', handleNativeControl as EventListener))
+  }
 
   unwatchers.push(watch(currentSong, async song => {
     if (!song) {
@@ -167,6 +229,7 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
 
   onBeforeUnmount(() => {
     unwatchers.forEach(unwatch => unwatch())
+    cleanupListeners.forEach(cleanup => cleanup())
     lastSignature = ''
     pendingSignature = null
     void AndroidNowPlayingService.clear()
