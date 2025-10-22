@@ -4,6 +4,7 @@ import type { RpcActivity, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
 import { logger } from '@/lib/logger'
+import { isDesktop } from '@/lib/platform'
 import { usePlayerStore } from '@/stores'
 
 const DISCORD_APP_ID =
@@ -34,13 +35,15 @@ export const useDiscordPresence = (): {
 } => {
   const playerStore = usePlayerStore()
 
-  const isEnabled = ref(hasTauri && DISCORD_APP_ID.length > 0)
+  const isEnabled = ref(hasTauri && isDesktop() && DISCORD_APP_ID.length > 0)
 
   if (!isEnabled.value) {
     const noop = async (): Promise<void> => {}
     const reason = !hasTauri
       ? 'Tauri runtime not detected'
-      : 'Discord application ID not configured'
+      : !isDesktop()
+        ? 'Not running on desktop platform'
+        : 'Discord application ID not configured'
     logger.info('Discord Rich Presence disabled', { reason })
 
     return {
@@ -50,7 +53,7 @@ export const useDiscordPresence = (): {
     }
   }
 
-  logger.info(`Discord Rich Presence enabled with app ID: ${  DISCORD_APP_ID}`)
+  logger.info(`Discord Rich Presence enabled with app ID: ${DISCORD_APP_ID}`)
 
   let hasStartedThread = false
   let lastSignature = ''

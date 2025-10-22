@@ -16,7 +16,7 @@
     DropdownMenuSubTrigger,
   } from '@/components/ui/dropdown-menu'
   import { logger } from '@/lib/logger'
-  import { usePlaylistStore } from '@/stores'
+  import { usePlaylistStore } from '@/stores/playlists'
 
   const props = defineProps<{
     songs: Song[]

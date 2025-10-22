@@ -27,7 +27,8 @@
   import { Skeleton } from '@/components/ui/skeleton'
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { logger } from '@/lib/logger'
-  import { useAuthStore, usePlaylistStore } from '@/stores'
+  import { useAuthStore } from '@/stores'
+  import { usePlaylistStore } from '@/stores/playlists'
 
   const route = useRoute()
   const router = useRouter()

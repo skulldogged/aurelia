@@ -35,7 +35,8 @@
   import { Skeleton } from '@/components/ui/skeleton'
   import { usePagination } from '@/composables/useLayoutPreference'
   import { logger } from '@/lib/logger'
-  import { useAuthStore, usePlaylistStore } from '@/stores'
+  import { useAuthStore } from '@/stores'
+  import { usePlaylistStore } from '@/stores/playlists'
 
   const router = useRouter()
   const authStore = useAuthStore()

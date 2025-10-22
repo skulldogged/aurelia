@@ -1,4 +1,5 @@
 <script setup lang='ts'>
+  import { onBackButtonPress } from '@tauri-apps/api/app'
   import { useColorMode, useMagicKeys } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
   import { computed, onMounted, ref, watch } from 'vue'
@@ -29,7 +30,8 @@
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { isMobile } from '@/lib/platform'
-  import { useBlurStore, useHomeStore, useLibraryStore } from '@/stores'
+  import { useBlurStore, useHomeStore } from '@/stores'
+  import { useLibraryStore } from '@/stores/library'
 
   import MainLayout from './components/layout/MainLayout.vue'
   import Equalizer from './components/player/Equalizer.vue'
@@ -184,8 +186,6 @@
     await commands.setBlurMode(blurStore.selectedBlurMode.name)
 
     if (isMobile()) {
-      const { onBackButtonPress } = await import('@tauri-apps/api/app')
-
       onBackButtonPress(async () => {
         console.log('Back button pressed', {
           canGoBack:              canGoBack.value,

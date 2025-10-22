@@ -23,7 +23,9 @@
   import { Input } from '@/components/ui/input'
   import Label from '@/components/ui/Label.vue'
   import { logger } from '@/lib/logger'
-  import { useAuthStore, useLibraryStore, usePlaylistStore } from '@/stores'
+  import { useAuthStore } from '@/stores'
+  import { useLibraryStore } from '@/stores/library'
+  import { usePlaylistStore } from '@/stores/playlists'
 
   const route = useRoute()
   const router = useRouter()

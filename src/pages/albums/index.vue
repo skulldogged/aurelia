@@ -27,7 +27,8 @@
   import { Skeleton } from '@/components/ui/skeleton'
   import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
   import { useLayoutPreference, usePagination } from '@/composables/useLayoutPreference'
-  import { useAuthStore, useLibraryStore } from '@/stores'
+  import { useAuthStore } from '@/stores'
+  import { useLibraryStore } from '@/stores/library'
 
   const router = useRouter()
   const authStore = useAuthStore()

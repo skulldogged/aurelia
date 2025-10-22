@@ -21,7 +21,8 @@
   import { DialogDescription, DialogTitle } from '@/components/ui/dialog'
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { logger } from '@/lib/logger'
-  import { useAuthStore, useLibraryStore } from '@/stores'
+  import { useAuthStore } from '@/stores'
+  import { useLibraryStore } from '@/stores/library'
 
   const props = defineProps<{
     open: boolean
