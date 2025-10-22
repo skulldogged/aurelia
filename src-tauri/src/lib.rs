@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+mod android_now_playing;
 pub mod cache;
 pub mod database;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -185,6 +187,14 @@ pub fn run() {
         ]);
     }
 
+    #[cfg(target_os = "android")]
+    {
+        builder = builder.commands(collect_commands![
+            android_now_playing::update_now_playing,
+            android_now_playing::clear_now_playing,
+        ]);
+    }
+
     #[cfg(all(debug_assertions, not(any(target_os = "android", target_os = "ios"))))]
     builder
         .export(
@@ -209,6 +219,11 @@ pub fn run() {
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
         tauri_builder = tauri_builder.plugin(tauri_plugin_m3::init());
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        tauri_builder = tauri_builder.plugin(android_now_playing::init());
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

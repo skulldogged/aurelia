@@ -31,7 +31,15 @@
   const libraryStore = useLibraryStore()
   const authStore = useAuthStore()
 
-  const playlistId = computed(() => route.params.playlistId as string)
+  const playlistId = computed(() => {
+    const params = route.params
+    if ('playlistId' in params) {
+      const param = params.playlistId
+      if (typeof param === 'string') return param
+      if (Array.isArray(param)) return param[0] ?? ''
+    }
+    return ''
+  })
   const isCreate = computed(() => route.path.includes('/create'))
 
   const playlist = ref<null | PlaylistWithMeta>(null)
@@ -138,7 +146,7 @@
           // Reload playlists to ensure the new one is fully available
           await playlistStore.loadPlaylists()
           // Navigate to the new playlist detail page
-          router.push({ name: 'playlist-detail', params: { playlistId: newPlaylist.id } })
+          router.push({ path: `/playlists/${newPlaylist.id}` })
         }
       } else if (playlist.value) {
         const updateData: PlaylistUpdateData = {
@@ -154,7 +162,7 @@
         if (success) {
           // Reload playlists to get updated data
           await playlistStore.loadPlaylists()
-          router.push({ name: 'playlist-detail', params: { playlistId: playlist.value.id } })
+          router.push({ path: `/playlists/${playlist.value.id}` })
         }
       }
     } catch (error) {

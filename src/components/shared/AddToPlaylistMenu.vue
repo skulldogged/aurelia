@@ -37,7 +37,7 @@
 
   const createNewPlaylist = (): void => {
     router.push({
-      name:  'playlist-create',
+      path:  '/playlists/create',
       query: { songs: props.songs.map(s => s.id).join(',') },
     })
   }

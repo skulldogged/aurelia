@@ -9,6 +9,7 @@
   import GlobalSearch from '@/components/shared/GlobalSearch.vue'
   import WindowControls from '@/components/shared/WindowControls.vue'
   import Button from '@/components/ui/Button.vue'
+  import { useAndroidNowPlayingService } from '@/composables/useAndroidNowPlayingService'
   import { useAuth } from '@/composables/useAuth'
   import { useDiscordPresence } from '@/composables/useDiscordPresence'
   import { useLastFm } from '@/composables/useLastFm'
@@ -40,6 +41,7 @@
   useDiscordPresence()
   useLastFm()
   useListenBrainz()
+  useAndroidNowPlayingService()
 
   const isSearchOpen = ref(false)
   const keys = useMagicKeys()

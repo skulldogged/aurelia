@@ -1,4 +1,10 @@
 <resources>
     <string name="app_name">Aurelia</string>
     <string name="main_activity_title">Aurelia</string>
+    <string name="notification_channel_playback">Playback controls</string>
+    <string name="notification_channel_playback_description">Shows the current song in quick settings and notifications.</string>
+    <string name="notification_action_previous">Previous</string>
+    <string name="notification_action_play">Play</string>
+    <string name="notification_action_pause">Pause</string>
+    <string name="notification_action_next">Next</string>
 </resources>

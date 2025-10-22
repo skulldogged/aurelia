@@ -43,7 +43,15 @@
 
   const { playInstantMix, playSongs, toggleFavorite: toggleSongFavorite } = useSongInteractions(credentials)
 
-  const playlistId = computed(() => route.params.playlistId as string)
+  const playlistId = computed(() => {
+    const params = route.params
+    if ('playlistId' in params) {
+      const param = params.playlistId
+      if (typeof param === 'string') return param
+      if (Array.isArray(param)) return param[0] ?? ''
+    }
+    return ''
+  })
   const playlist = ref<null | Playlist>(null)
   const songs = ref<Song[]>([])
   const isLoading = ref(false)

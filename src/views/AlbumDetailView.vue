@@ -38,9 +38,21 @@
   const route = useRoute()
   const showShareDialog = ref(false)
 
+  const albumId = computed(() => {
+    const params = route.params
+    if ('albumId' in params) {
+      const param = params.albumId
+      if (typeof param === 'string') return param
+      if (Array.isArray(param)) return param[0] ?? ''
+    }
+    return ''
+  })
+
   const album = computed(() =>
-    libraryLoaded.value && allAlbums.value.length > 0
-      ? allAlbums.value.find(a => a.id === route.params.albumId as string) || null
+    albumId.value
+    && libraryLoaded.value
+    && allAlbums.value.length > 0
+      ? allAlbums.value.find(a => a.id === albumId.value) || null
       : null,
   )
 
@@ -194,7 +206,7 @@
             <template v-if='albumArtistPairs.length'>
               <template v-for='(pair, index) in albumArtistPairs' :key='pair.id'>
                 <router-link
-                  :to="`/songs/artist/${pair.id}`"
+                  :to='`/songs/artist/${pair.id}`'
                   class='hover:underline'
                 >
                   {{ pair.name }}
