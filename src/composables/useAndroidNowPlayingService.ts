@@ -27,6 +27,8 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
   const authStore = useAuthStore()
   const playerStore = usePlayerStore()
 
+  const { serverUrl, token } = storeToRefs(authStore)
+
   const {
     currentIndex,
     currentSong,
@@ -126,7 +128,7 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
 
     try {
       const imageId = song.albumId ?? song.id
-      const result = await commands.getImage(imageId, 'Primary', authStore.serverUrl, authStore.token)
+      const result = await commands.getImage(imageId, 'Primary', serverUrl.value, token.value)
       if (result.status === 'ok')
         artworkPath.value = result.data ?? null
       else

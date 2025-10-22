@@ -29,7 +29,7 @@ class NowPlayingPayload {
     var artworkData: String? = null
 }
 
-@TauriPlugin(name = "android-now-playing")
+@TauriPlugin
 class NowPlayingPlugin(private val activity: Activity) : Plugin(activity) {
 
     @Command
