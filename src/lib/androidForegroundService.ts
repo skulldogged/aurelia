@@ -24,8 +24,8 @@ interface PluginResponse {
   success:  boolean
 }
 
-const UPDATE_COMMAND = 'plugin:android-now-playing|update_now_playing'
-const CLEAR_COMMAND = 'plugin:android-now-playing|clear_now_playing'
+const UPDATE_COMMAND = 'update_now_playing'
+const CLEAR_COMMAND = 'clear_now_playing'
 
 let lastErrorSignature: null | string = null
 
@@ -38,7 +38,7 @@ const logPluginError = (context: 'clear' | 'update', message?: string): void => 
   const signature = `plugin:${context}:${finalMessage}`
   if (lastErrorSignature === signature) return
   lastErrorSignature = signature
-  logger.error(`Android now playing plugin reported error during ${context}:`, finalMessage)
+  logger.error(`Android now playing service reported error during ${context}:`, finalMessage)
 }
 
 const logInvokeError = (context: 'clear' | 'update', error: unknown): void => {

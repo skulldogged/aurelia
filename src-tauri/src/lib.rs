@@ -1,3 +1,5 @@
+#[cfg(target_os = "android")]
+mod android_now_playing;
 pub mod cache;
 pub mod database;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -12,8 +14,6 @@ pub mod state;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod system_tray;
 pub mod utils;
-#[cfg(target_os = "android")]
-mod android_now_playing;
 
 pub use anyhow::Result;
 
@@ -184,6 +184,8 @@ pub fn run() {
             listenbrainz::listenbrainz_set_credentials,
             listenbrainz::listenbrainz_clear_credentials,
             listenbrainz::listenbrainz_is_authenticated,
+            android_now_playing::update_now_playing,
+            android_now_playing::clear_now_playing,
         ]);
     }
 

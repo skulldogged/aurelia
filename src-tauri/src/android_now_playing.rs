@@ -1,8 +1,8 @@
 #![cfg(target_os = "android")]
 
-use serde::{de::DeserializeOwned, ser::Serializer, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned, ser::Serializer};
 use tauri::plugin::{Builder, PluginApi, PluginHandle, TauriPlugin};
-use tauri::{command, AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, command};
 use thiserror::Error;
 
 const PLUGIN_IDENTIFIER: &str = "dev.pupbrained.aurelia.plugin.nowplaying";
@@ -26,7 +26,7 @@ impl Serialize for NowPlayingError {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NowPlayingPayload {
     pub id: Option<String>,
@@ -70,22 +70,22 @@ impl PluginResponse {
         if self.success {
             Ok(())
         } else {
-            Err(NowPlayingError::Plugin(self.message.unwrap_or_else(|| "Unknown error".to_string())))
+            Err(NowPlayingError::Plugin(
+                self.message.unwrap_or_else(|| "Unknown error".to_string()),
+            ))
         }
     }
 }
 
-pub struct AndroidNowPlaying<R: Runtime>(PluginHandle<R>);
+pub struct AndroidNowPlaying(PluginHandle<tauri::Wry>);
 
-impl<R: Runtime> AndroidNowPlaying<R> {
-    fn new(handle: PluginHandle<R>) -> Self {
+impl AndroidNowPlaying {
+    fn new(handle: PluginHandle<tauri::Wry>) -> Self {
         Self(handle)
     }
 
     fn update(&self, payload: NowPlayingPayload) -> Result<()> {
-        let response: PluginResponse = self
-            .0
-            .run_mobile_plugin("updateNowPlaying", payload)?;
+        let response: PluginResponse = self.0.run_mobile_plugin("updateNowPlaying", payload)?;
         response.into_result()
     }
 
@@ -95,19 +95,22 @@ impl<R: Runtime> AndroidNowPlaying<R> {
     }
 }
 
-pub trait AndroidNowPlayingExt<R: Runtime> {
-    fn android_now_playing(&self) -> &AndroidNowPlaying<R>;
+pub trait AndroidNowPlayingExt {
+    fn android_now_playing(&self) -> &AndroidNowPlaying;
 }
 
-impl<R: Runtime, T: Manager<R>> AndroidNowPlayingExt<R> for T {
-    fn android_now_playing(&self) -> &AndroidNowPlaying<R> {
-        self.state::<AndroidNowPlaying<R>>().inner()
+impl<T: Manager<tauri::Wry>> AndroidNowPlayingExt for T {
+    fn android_now_playing(&self) -> &AndroidNowPlaying {
+        self.state::<AndroidNowPlaying>().inner()
     }
 }
 
-pub fn init<R: Runtime>() -> TauriPlugin<R> {
+pub fn init() -> TauriPlugin<tauri::Wry> {
     Builder::new("android-now-playing")
-        .invoke_handler(tauri::generate_handler![update_now_playing, clear_now_playing])
+        .invoke_handler(tauri::generate_handler![
+            update_now_playing,
+            clear_now_playing
+        ])
         .setup(|app, api| {
             let plugin = mobile_init(app, api)?;
             app.manage(plugin);
@@ -116,20 +119,27 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
         .build()
 }
 
-fn mobile_init<R: Runtime, C: DeserializeOwned>(
-    _app: &AppHandle<R>,
-    api: PluginApi<R, C>,
-) -> Result<AndroidNowPlaying<R>> {
+fn mobile_init<C: DeserializeOwned>(
+    _app: &AppHandle<tauri::Wry>,
+    api: PluginApi<tauri::Wry, C>,
+) -> Result<AndroidNowPlaying> {
     let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "NowPlayingPlugin")?;
     Ok(AndroidNowPlaying::new(handle))
 }
 
 #[command]
-pub async fn update_now_playing<R: Runtime>(app: AppHandle<R>, payload: NowPlayingPayload) -> Result<()> {
-    app.android_now_playing().update(payload)
+#[specta::specta]
+pub async fn update_now_playing(
+    app: AppHandle<tauri::Wry>,
+    payload: NowPlayingPayload,
+) -> std::result::Result<(), String> {
+    app.android_now_playing()
+        .update(payload)
+        .map_err(|e| e.to_string())
 }
 
 #[command]
-pub async fn clear_now_playing<R: Runtime>(app: AppHandle<R>) -> Result<()> {
-    app.android_now_playing().clear()
+#[specta::specta]
+pub async fn clear_now_playing(app: AppHandle<tauri::Wry>) -> std::result::Result<(), String> {
+    app.android_now_playing().clear().map_err(|e| e.to_string())
 }
