@@ -31,10 +31,10 @@
   const libraryStore = useLibraryStore()
   const authStore = useAuthStore()
 
-  const playlistId = computed(() => {
+  const id = computed(() => {
     const params = route.params
-    if ('playlistId' in params) {
-      const param = params.playlistId
+    if ('id' in params) {
+      const param = params.id
       if (typeof param === 'string') return param
       if (Array.isArray(param)) return param[0] ?? ''
     }
@@ -96,18 +96,18 @@
       return
     }
 
-    if (!playlistId.value) return
+    if (!id.value) return
 
     try {
       // Find playlist in store
-      const storedPlaylist = playlistStore.playlists.find(p => p.id === playlistId.value)
+      const storedPlaylist = playlistStore.playlists.find(p => p.id === id.value)
       if (storedPlaylist) {
         playlist.value = storedPlaylist
         name.value = storedPlaylist.name
       } else {
         // If not in store, refresh playlists
         await playlistStore.loadPlaylists()
-        const refreshedPlaylist = playlistStore.playlists.find(p => p.id === playlistId.value)
+        const refreshedPlaylist = playlistStore.playlists.find(p => p.id === id.value)
         if (refreshedPlaylist) {
           playlist.value = refreshedPlaylist
           name.value = refreshedPlaylist.name
@@ -117,7 +117,7 @@
       }
 
       // Load playlist songs
-      selectedSongs.value = await playlistStore.getPlaylistItems(playlistId.value)
+      selectedSongs.value = await playlistStore.getPlaylistItems(id.value)
     } catch (error) {
       logger.error('Failed to load playlist:', error)
       router.push('/playlists')
@@ -214,7 +214,7 @@
     if (isCreate.value) {
       router.push('/playlists')
     } else {
-      router.push(`/playlists/${playlistId.value}`)
+      router.push(`/playlists/${id.value}`)
     }
   }
 
@@ -236,7 +236,7 @@
     loadPlaylist()
   })
 
-  watch(() => playlistId.value, () => {
+  watch(() => id.value, () => {
     loadPlaylist()
   })
 </script>

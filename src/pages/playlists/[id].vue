@@ -43,10 +43,10 @@
 
   const { playInstantMix, playSongs, toggleFavorite: toggleSongFavorite } = useSongInteractions(credentials)
 
-  const playlistId = computed(() => {
+  const id = computed(() => {
     const params = route.params
-    if ('playlistId' in params) {
-      const param = params.playlistId
+    if ('id' in params) {
+      const param = params.id
       if (typeof param === 'string') return param
       if (Array.isArray(param)) return param[0] ?? ''
     }
@@ -87,12 +87,12 @@
   )
 
   const loadPlaylist = async (): Promise<void> => {
-    if (!playlistId.value) {
+    if (!id.value) {
       logger.error('No playlist ID provided')
       return
     }
 
-    logger.info('Loading playlist with ID:', playlistId.value)
+    logger.info('Loading playlist with ID:', id.value)
     isLoading.value = true
 
     try {
@@ -105,9 +105,9 @@
       logger.info('Available playlists:', playlistStore.playlists.map(p => ({ id: p.id, name: p.name })))
 
       // Find playlist in store
-      const foundPlaylist = playlistStore.playlists.find(p => p.id === playlistId.value)
+      const foundPlaylist = playlistStore.playlists.find(p => p.id === id.value)
       if (!foundPlaylist) {
-        logger.error(`Playlist with ID ${playlistId.value} not found in store`)
+        logger.error(`Playlist with ID ${id.value} not found in store`)
         throw new Error('Playlist not found')
       }
 
@@ -116,7 +116,7 @@
 
       // Load playlist songs
       logger.info('Loading playlist songs...')
-      songs.value = await playlistStore.getPlaylistItems(playlistId.value)
+      songs.value = await playlistStore.getPlaylistItems(id.value)
       logger.info('Loaded songs:', songs.value.length)
     } catch (error) {
       logger.error('Failed to load playlist:', error)
@@ -127,8 +127,8 @@
   }
 
   const playPlaylist = async (shuffle = false): Promise<void> => {
-    if (!playlistId.value) return
-    await playlistStore.playPlaylist(playlistId.value, shuffle)
+    if (!id.value) return
+    await playlistStore.playPlaylist(id.value, shuffle)
   }
 
   const playSongWithQueue = (song: Song): void => {
@@ -157,7 +157,7 @@
   }
 
   const editPlaylist = (): void => {
-    router.push(`/playlists/${playlistId.value}/edit`)
+    router.push(`/playlists/${id.value}/edit`)
   }
 
   const deletePlaylist = (): void => {
@@ -183,7 +183,7 @@
     loadPlaylist()
   })
 
-  watch(() => playlistId.value, () => {
+  watch(() => id.value, () => {
     loadPlaylist()
   })
 </script>

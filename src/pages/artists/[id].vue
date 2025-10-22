@@ -52,10 +52,10 @@
   const token = computed(() => authStore.token)
 
   const route = useRoute()
-  const artistId = computed(() => {
+  const id = computed(() => {
     const params = route.params
-    if ('artistId' in params) {
-      const param = params.artistId
+    if ('id' in params) {
+      const param = params.id
       if (typeof param === 'string') return param
       if (Array.isArray(param)) return param[0] ?? ''
     }
@@ -66,7 +66,7 @@
 
   const artist = computed(() =>
     libraryLoaded.value && allArtists.value.length
-      ? allArtists.value.find(a => a.id === artistId.value) || null
+      ? allArtists.value.find(a => a.id === id.value) || null
       : null,
   )
 
@@ -600,4 +600,3 @@
 }
 
 </style>
-

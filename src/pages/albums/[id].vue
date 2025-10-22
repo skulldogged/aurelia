@@ -38,10 +38,10 @@
   const route = useRoute()
   const showShareDialog = ref(false)
 
-  const albumId = computed(() => {
+  const id = computed(() => {
     const params = route.params
-    if ('albumId' in params) {
-      const param = params.albumId
+    if ('id' in params) {
+      const param = params.id
       if (typeof param === 'string') return param
       if (Array.isArray(param)) return param[0] ?? ''
     }
@@ -49,10 +49,10 @@
   })
 
   const album = computed(() =>
-    albumId.value
+    id.value
     && libraryLoaded.value
     && allAlbums.value.length > 0
-      ? allAlbums.value.find(a => a.id === albumId.value) || null
+      ? allAlbums.value.find(a => a.id === id.value) || null
       : null,
   )
 
@@ -303,4 +303,3 @@
     />
   </div>
 </template>
-

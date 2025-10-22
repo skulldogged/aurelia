@@ -37,7 +37,7 @@
   import LyricsSidebar from './components/player/LyricsSidebar.vue'
   import MusicPlayer from './components/player/MusicPlayer.vue'
   import Queue from './components/player/Queue.vue'
-  import Login from './views/LoginView.vue'
+  import Login from './pages/login.vue'
 
   useColorMode()
 

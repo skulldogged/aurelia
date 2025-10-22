@@ -37,9 +37,30 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/albums/[id]': RouteRecordInfo<
+      '/albums/[id]',
+      '/albums/:id',
+      { id: ParamValue<true> },
+      { id: ParamValue<false> },
+      | never
+    >,
     '/artists/': RouteRecordInfo<
       '/artists/',
       '/artists',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/artists/[id]': RouteRecordInfo<
+      '/artists/[id]',
+      '/artists/:id',
+      { id: ParamValue<true> },
+      { id: ParamValue<false> },
+      | never
+    >,
+    '/login': RouteRecordInfo<
+      '/login',
+      '/login',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -51,18 +72,18 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/playlists/[playlistId]': RouteRecordInfo<
-      '/playlists/[playlistId]',
-      '/playlists/:playlistId',
-      { playlistId: ParamValue<true> },
-      { playlistId: ParamValue<false> },
-      | '/playlists/[playlistId]/edit'
+    '/playlists/[id]': RouteRecordInfo<
+      '/playlists/[id]',
+      '/playlists/:id',
+      { id: ParamValue<true> },
+      { id: ParamValue<false> },
+      | '/playlists/[id]/edit'
     >,
-    '/playlists/[playlistId]/edit': RouteRecordInfo<
-      '/playlists/[playlistId]/edit',
-      '/playlists/:playlistId/edit',
-      { playlistId: ParamValue<true> },
-      { playlistId: ParamValue<false> },
+    '/playlists/[id]/edit': RouteRecordInfo<
+      '/playlists/[id]/edit',
+      '/playlists/:id/edit',
+      { id: ParamValue<true> },
+      { id: ParamValue<false> },
       | never
     >,
     '/playlists/create': RouteRecordInfo<
@@ -84,20 +105,6 @@ declare module 'vue-router/auto-routes' {
       '/songs',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
-    '/songs/album/[albumId]': RouteRecordInfo<
-      '/songs/album/[albumId]',
-      '/songs/album/:albumId',
-      { albumId: ParamValue<true> },
-      { albumId: ParamValue<false> },
-      | never
-    >,
-    '/songs/artist/[artistId]': RouteRecordInfo<
-      '/songs/artist/[artistId]',
-      '/songs/artist/:artistId',
-      { artistId: ParamValue<true> },
-      { artistId: ParamValue<false> },
       | never
     >,
   }
@@ -125,9 +132,27 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
+    'src/pages/albums/[id].vue': {
+      routes:
+        | '/albums/[id]'
+      views:
+        | never
+    }
     'src/pages/artists/index.vue': {
       routes:
         | '/artists/'
+      views:
+        | never
+    }
+    'src/pages/artists/[id].vue': {
+      routes:
+        | '/artists/[id]'
+      views:
+        | never
+    }
+    'src/pages/login.vue': {
+      routes:
+        | '/login'
       views:
         | never
     }
@@ -137,16 +162,16 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
-    'src/pages/playlists/[playlistId].vue': {
+    'src/pages/playlists/[id].vue': {
       routes:
-        | '/playlists/[playlistId]'
-        | '/playlists/[playlistId]/edit'
+        | '/playlists/[id]'
+        | '/playlists/[id]/edit'
       views:
         | 'default'
     }
-    'src/pages/playlists/[playlistId]/edit.vue': {
+    'src/pages/playlists/[id]/edit.vue': {
       routes:
-        | '/playlists/[playlistId]/edit'
+        | '/playlists/[id]/edit'
       views:
         | never
     }
@@ -165,18 +190,6 @@ declare module 'vue-router/auto-routes' {
     'src/pages/songs/index.vue': {
       routes:
         | '/songs/'
-      views:
-        | never
-    }
-    'src/pages/songs/album/[albumId].vue': {
-      routes:
-        | '/songs/album/[albumId]'
-      views:
-        | never
-    }
-    'src/pages/songs/artist/[artistId].vue': {
-      routes:
-        | '/songs/artist/[artistId]'
       views:
         | never
     }
