@@ -165,7 +165,7 @@
                 </div>
 
                 <!-- Frequency Label -->
-                <div class='text-center min-h-[2.5rem] flex flex-col justify-center'>
+                <div class='text-center min-h-10 flex flex-col justify-center'>
                   <div class='text-sm font-medium text-foreground leading-tight'>
                     {{ formatFrequency(band.frequency) }}
                   </div>

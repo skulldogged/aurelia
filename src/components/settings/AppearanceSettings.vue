@@ -4,10 +4,8 @@
   } from 'lucide-vue-next'
   import { storeToRefs } from 'pinia'
   import { computed, onMounted, ref } from 'vue'
-  import { useRouter } from 'vue-router'
 
   import { commands } from '@/bindings'
-  import Button from '@/components/ui/Button.vue'
   import Label from '@/components/ui/Label.vue'
   import {
     Select,
@@ -31,7 +29,6 @@
     useThemeStore,
   } from '@/stores'
 
-  const router = useRouter()
   const accentColorStore = useAccentColorStore()
   const themeStore = useThemeStore()
   const blurStore = useBlurStore()
@@ -200,9 +197,6 @@
         <p class='text-xs text-muted-foreground mt-3'>
           Use colors from your device's wallpaper.
         </p>
-        <Button @click="router.push('/material-you-debug')" class='mt-2'>
-          View Colors
-        </Button>
       </div>
 
       <!-- Theme Settings Row -->
@@ -217,10 +211,10 @@
             v-model='selectedColorScheme'
             :disabled='useMaterialYou'
           >
-            <SelectTrigger class='w-full !bg-popover !border-border/30'>
+            <SelectTrigger class='w-full bg-popover! border-border/30!'>
               <SelectValue placeholder='Select a color scheme' />
             </SelectTrigger>
-            <SelectContent class='!border-border/30'>
+            <SelectContent class='border-border/30!'>
               <SelectGroup>
                 <SelectItem
                   v-for='scheme in colorSchemes'
@@ -248,10 +242,10 @@
             v-model='selectedAccentColorName'
             :disabled='useMaterialYou'
           >
-            <SelectTrigger class='w-full !bg-popover !border-border/30'>
+            <SelectTrigger class='w-full bg-popover! border-border/30!'>
               <SelectValue placeholder='Select an accent color' />
             </SelectTrigger>
-            <SelectContent class='!border-border/30'>
+            <SelectContent class='border-border/30!'>
               <SelectGroup>
                 <SelectItem
                   v-for='color in accentColors'
@@ -281,10 +275,10 @@
             {{ isLinuxPlatform ? 'Window Transparency' : 'Window Blur' }}
           </Label>
           <Select @update:model-value='handleBlurModeChange' :model-value='selectedBlurModeName'>
-            <SelectTrigger class='w-full !bg-popover !border-border/30'>
+            <SelectTrigger class='w-full bg-popover! border-border/30!'>
               <SelectValue :placeholder='isLinuxPlatform ? "Select transparency" : "Select a blur mode"' />
             </SelectTrigger>
-            <SelectContent class='!border-border/30'>
+            <SelectContent class='border-border/30!'>
               <SelectGroup v-if='isLinuxPlatform'>
                 <SelectItem
                   v-for='mode in transparencyModes'
@@ -334,10 +328,10 @@
 
           <div v-if='visualizerEnabled' class='h-full'>
             <Select @update:model-value='handleVisualizerStyleChange' v-model='selectedVisualizerStyle'>
-              <SelectTrigger class='w-full !h-full !bg-popover !border-border/30'>
+              <SelectTrigger class='w-full bg-popover! border-border/30!'>
                 <SelectValue placeholder='Select a style' />
               </SelectTrigger>
-              <SelectContent class='!border-border/30'>
+              <SelectContent class='border-border/30!'>
                 <SelectGroup>
                   <SelectItem
                     v-for='style in visualizerStyles'

@@ -41,7 +41,7 @@
       <!-- Sync Library Card -->
       <div class='bg-popover border border-border/30 rounded-lg p-6'>
         <div class='flex items-start space-x-4'>
-          <div class='p-3 bg-primary/10 rounded-lg flex-shrink-0'>
+          <div class='p-3 bg-primary/10 rounded-lg shrink-0'>
             <RefreshCw class='size-6 text-primary' />
           </div>
           <div class='flex-1'>
@@ -68,7 +68,7 @@
       <!-- Clear Cache Card -->
       <div class='bg-popover border border-border/30 rounded-lg p-6'>
         <div class='flex items-start space-x-4'>
-          <div class='p-3 bg-accent/10 rounded-lg flex-shrink-0'>
+          <div class='p-3 bg-accent/10 rounded-lg shrink-0'>
             <AlertTriangle class='size-6 text-accent' />
           </div>
           <div class='flex-1'>

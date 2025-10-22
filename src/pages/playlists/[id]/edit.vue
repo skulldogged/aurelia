@@ -303,7 +303,7 @@
               </Button>
             </DialogTrigger>
             <DialogContent class='max-w-3xl h-[85vh] flex flex-col p-0'>
-              <DialogHeader class='flex-shrink-0 px-6 pt-6 pb-4'>
+              <DialogHeader class='shrink-0 px-6 pt-6 pb-4'>
                 <DialogTitle class='text-2xl'>
                   Add Songs to Playlist
                 </DialogTitle>
@@ -316,7 +316,7 @@
                 <Input
                   v-model='songSearchQuery'
                   class='focus-visible:ring-1 focus-visible:ring-accent border
-                         focus-visible:border-accent flex-shrink-0 h-11'
+                         focus-visible:border-accent shrink-0 h-11'
                   placeholder='Search by song name, artist, or album...'
                 />
 
@@ -339,7 +339,7 @@
                         ]"
                       >
                         <!-- Album Art -->
-                        <div class='size-14 flex-shrink-0 rounded-md overflow-hidden shadow-md'>
+                        <div class='size-14 shrink-0 rounded-md overflow-hidden shadow-md'>
                           <ImageLoader
                             :alt='`${song.album || song.name} album art`'
                             :item-id='song.albumId || song.id'
@@ -378,7 +378,7 @@
                         <!-- Selection Indicator -->
                         <div
                           :class="[
-                            'flex-shrink-0 size-7 rounded-full flex items-center justify-center',
+                            'shrink-0 size-7 rounded-full flex items-center justify-center',
                             'transition-all',
                             selectedSongs.some(s => s.id === song.id)
                               ? 'bg-accent text-accent-foreground'
@@ -446,7 +446,7 @@
               >
                 <!-- Drag Handle -->
                 <Button
-                  class='handle cursor-grab flex-shrink-0 p-1 opacity-0 group-hover:opacity-100
+                  class='handle cursor-grab shrink-0 p-1 opacity-0 group-hover:opacity-100
                          transition-opacity'
                   size='icon'
                   variant='ghost'
@@ -455,7 +455,7 @@
                 </Button>
 
                 <!-- Album Art -->
-                <div class='size-14 flex-shrink-0 rounded-md overflow-hidden shadow-md'>
+                <div class='size-14 shrink-0 rounded-md overflow-hidden shadow-md'>
                   <ImageLoader
                     :alt='`${song.album || song.name} album art`'
                     :item-id='song.albumId || song.id'
@@ -494,7 +494,7 @@
                 <!-- Duration -->
                 <div
                   v-if='song.duration'
-                  class='text-sm text-muted-foreground font-medium flex-shrink-0 w-16 text-right'
+                  class='text-sm text-muted-foreground font-medium shrink-0 w-16 text-right'
                 >
                   {{ formatDuration(song.duration) }}
                 </div>
@@ -502,7 +502,7 @@
                 <!-- Remove Button -->
                 <Button
                   @click='removeSongFromPlaylist(song)'
-                  class='flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity'
+                  class='shrink-0 opacity-0 group-hover:opacity-100 transition-opacity'
                   size='icon'
                   variant='ghost'
                 >

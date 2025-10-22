@@ -45,10 +45,10 @@
 
 <template>
   <div
-    class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] bg-background-dark flex flex-col h-full'
+    class='w-64 lg:w-80 xl:w-96 2xl:w-md bg-background-dark flex flex-col h-full'
   >
     <div
-      class='h-12 flex items-center px-4 flex-shrink-0'
+      class='h-12 flex items-center px-4 shrink-0'
       data-tauri-drag-region
     >
       <h2 class='text-base font-semibold tracking-tight text-muted-foreground'>
@@ -57,7 +57,7 @@
     </div>
     <OverlayScrollbarsComponent
       :options='{ scrollbars: { autoHide: "scroll" } }'
-      class='flex-grow px-2 py-3'
+      class='grow px-2 py-3'
       defer
     >
       <Sortable

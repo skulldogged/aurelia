@@ -20,9 +20,9 @@ const ROUTE_MAP: Record<string, string> = {
 // Pure functions for navigation logic
 const getRoutePath = (view: string): string | undefined => ROUTE_MAP[view]
 
-const createArtistPath = (artist: Artist): string => `/songs/artist/${artist.id}`
+const createArtistPath = (artist: Artist): string => `/artists/${artist.id}`
 
-const createAlbumPath = (album: Album): string => `/songs/album/${album.id}`
+const createAlbumPath = (album: Album): string => `/albums/${album.id}`
 
 const updateNavState = (): void => {
   canGoBack.value = window.history.state.position > 0

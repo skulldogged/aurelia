@@ -58,7 +58,7 @@
     // Desktop
     return props.isCollapsed
       ? 'flex-1 flex justify-center items-center'
-      : 'w-12 flex-shrink-0 flex justify-center items-center'
+      : 'w-12 shrink-0 flex justify-center items-center'
   })
 
 </script>
@@ -67,7 +67,7 @@
   <div
     :class="[
       sidebarBgClass,
-      'flex flex-shrink-0 ease-in-out',
+      'flex shrink-0 ease-in-out',
       isMobileLandscape
         ? 'flex-col h-full justify-around items-center py-4'
         : props.isMobilePortrait
@@ -83,7 +83,7 @@
         class='flex items-center h-10 w-full rounded-md text-sm font-medium
                bg-background border border-border hover:border-accent transition-colors'
       >
-        <div class='w-12 flex-shrink-0 flex justify-center items-center'>
+        <div class='w-12 shrink-0 flex justify-center items-center'>
           <Search class='size-5 text-muted-foreground' />
         </div>
         <div
@@ -110,9 +110,9 @@
         ? 'flex flex-col flex-1 justify-around'
         : props.isMobilePortrait
           ? 'flex flex-1'
-          : 'flex flex-col flex-grow m-2 mt-0'"
+          : 'flex flex-col grow m-2 mt-0'"
     >
-      <div v-if='!(props.isMobilePortrait || isMobileLandscape)' :class="'flex-grow space-y-2'">
+      <div v-if='!(props.isMobilePortrait || isMobileLandscape)' class='grow space-y-2'>
         <router-link
           :class="navItemClass('home')"
           to='/'

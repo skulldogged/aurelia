@@ -414,7 +414,12 @@
             </div>
 
             <!-- Full-width Lyrics on small screens in portrait mode -->
-            <div v-if='!isLargeScreen && isLyricsOpen && isMobilePortraitMode' class='w-full h-80 p-4'>
+            <div
+              @touchmove.stop
+              @touchstart.stop
+              v-if='!isLargeScreen && isLyricsOpen && isMobilePortraitMode'
+              class='w-full h-80 p-4'
+            >
               <LyricsView
                 @lyrics-loaded='onLyricsLoaded'
                 @seek='handleLyricsSeek'
@@ -429,6 +434,8 @@
 
             <!-- Constrained Lyrics on small screens in landscape/other modes (but not mobile landscape) -->
             <div
+              @touchmove.stop
+              @touchstart.stop
               v-if='!isLargeScreen && isLyricsOpen && !isMobilePortraitMode && !isMobileLandscapeMode'
               class='w-full h-96'
             >
@@ -601,6 +608,8 @@
 
         <!-- Right side - Lyrics (when active) -->
         <div
+          @touchmove.stop
+          @touchstart.stop
           v-if='showLyrics && (isLargeScreen || isMobileLandscapeMode)'
           class='flex-1 flex justify-center items-center p-8'
         >

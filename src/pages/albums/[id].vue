@@ -183,7 +183,7 @@
     <div v-else-if='album' class='space-y-8'>
       <!-- Header -->
       <div class='flex items-center space-x-6 p-8 bg-sidebar rounded-lg'>
-        <div class='flex-shrink-0'>
+        <div class='shrink-0'>
           <ImageLoader
             :item-id='album.id || album.name'
             :server-url='serverUrl'
@@ -206,7 +206,7 @@
             <template v-if='albumArtistPairs.length'>
               <template v-for='(pair, index) in albumArtistPairs' :key='pair.id'>
                 <router-link
-                  :to='`/songs/artist/${pair.id}`'
+                  :to='`/artists/${pair.id}`'
                   class='hover:underline'
                 >
                   {{ pair.name }}

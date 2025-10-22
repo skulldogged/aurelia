@@ -58,6 +58,20 @@ declare module 'vue-router/auto-routes' {
       { id: ParamValue<false> },
       | never
     >,
+    '/HomePageDesktop': RouteRecordInfo<
+      '/HomePageDesktop',
+      '/HomePageDesktop',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/HomePageMobile': RouteRecordInfo<
+      '/HomePageMobile',
+      '/HomePageMobile',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/login': RouteRecordInfo<
       '/login',
       '/login',
@@ -147,6 +161,18 @@ declare module 'vue-router/auto-routes' {
     'src/pages/artists/[id].vue': {
       routes:
         | '/artists/[id]'
+      views:
+        | never
+    }
+    'src/pages/HomePageDesktop.vue': {
+      routes:
+        | '/HomePageDesktop'
+      views:
+        | never
+    }
+    'src/pages/HomePageMobile.vue': {
+      routes:
+        | '/HomePageMobile'
       views:
         | never
     }

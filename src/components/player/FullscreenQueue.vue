@@ -21,7 +21,7 @@
     emit('remove-song', song)
   }
 
-  const handlePlay = (song: Song, index: number): void => {
+  const handlePlay = (index: number): void => {
     playerStore.playSongAtIndex(index)
   }
 
@@ -71,7 +71,7 @@
         >
           <template #item='{ element, index }'>
             <QueueItem
-              @play='handlePlay(element, index)'
+              @play='handlePlay(index)'
               @remove='handleRemove(element)'
               :index='index'
               :is-current='index === playerStore.currentIndex'

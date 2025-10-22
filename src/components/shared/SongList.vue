@@ -183,7 +183,7 @@
                   {{ pageIndex * pageSize + index + 1 }}
                 </div>
 
-                <div v-if='shouldShowAlbumArt' class='relative flex-shrink-0'>
+                <div v-if='shouldShowAlbumArt' class='relative shrink-0'>
                   <ImageLoader
                     :class="layoutMode === 'comfy'
                       ? 'size-12 rounded-lg object-cover ' +
@@ -259,7 +259,7 @@
                               >
                                 <router-link
                                   @click.stop
-                                  :to='`/songs/artist/${song.artistIds[artistIndex]}`'
+                                  :to='`/artists/${song.artistIds[artistIndex]}`'
                                   class='hover:underline'
                                 >
                                   {{ artist }}
@@ -278,7 +278,7 @@
                             <router-link
                               @click.stop
                               v-if='song.album && song.albumId'
-                              :to='`/songs/album/${song.albumId}`'
+                              :to='`/albums/${song.albumId}`'
                               class='hover:underline'
                             >
                               {{ song.album }}
@@ -289,7 +289,7 @@
                       </div>
                     </div>
 
-                    <div class='flex items-center gap-2 ml-4 flex-shrink-0'>
+                    <div class='flex items-center gap-2 ml-4 shrink-0'>
                       <span
                         v-if='showYear && song.year'
                         :class="layoutMode === 'compact' ? 'text-xs' : 'text-sm'"
@@ -316,7 +316,7 @@
                       <Button
                         @click.stop="$emit('toggle-favorite', song)"
                         :size='layoutMode === "compact" ? "sm" : "icon"'
-                        class='flex-shrink-0 hover:text-accent-foreground'
+                        class='shrink-0 hover:text-accent-foreground'
                         variant='ghost'
                       >
                         <Heart

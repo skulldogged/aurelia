@@ -237,7 +237,7 @@
             <p class='font-semibold truncate flex-1'>
               {{ playlist.name || 'Untitled Playlist' }}
             </p>
-            <Heart v-if='playlist.userData?.isFavorite' class='h-4 w-4 text-red-500 flex-shrink-0' />
+            <Heart v-if='playlist.userData?.isFavorite' class='h-4 w-4 text-red-500 shrink-0 fill-current' />
           </div>
           <p v-if='playlist.description' class='text-sm text-muted-foreground truncate'>
             {{ playlist.description }}

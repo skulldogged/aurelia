@@ -62,7 +62,7 @@
           alt='Album Art'
           class='size-10 rounded-md mx-2'
         />
-        <div @click="emit('play', song, index)" class='flex-grow cursor-pointer min-w-0'>
+        <div @click="emit('play', song, index)" class='grow cursor-pointer min-w-0'>
           <p :class="['font-semibold text-sm truncate', isCurrent ? 'text-accent-foreground' : '']" :title='song.name'>
             {{ song.name }}
           </p>
@@ -74,7 +74,7 @@
               <template v-for='(artist, artistIndex) in song.artists' :key='song.artistIds[artistIndex]'>
                 <router-link
                   @click.stop
-                  :to='`/songs/artist/${song.artistIds[artistIndex]}`'
+                  :to='`/artists/${song.artistIds[artistIndex]}`'
                   class='hover:underline'
                 >
                   {{ artist }}

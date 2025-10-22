@@ -121,8 +121,8 @@
       @click='handleMinimize'
       class='
         cursor-default rounded-none bg-transparent text-foreground
-        hover:bg-black/[.05] active:bg-black/[.03]
-        dark:hover:bg-white/[.06] dark:active:bg-white/[.04] inline-flex
+        hover:bg-black/5 active:bg-black/3
+        dark:hover:bg-white/6 dark:active:bg-white/4 inline-flex
         justify-center items-center w-[46px] h-full
       '
     >
@@ -144,8 +144,8 @@
       @click='appWindow.toggleMaximize()'
       class='
         cursor-default rounded-none bg-transparent text-foreground
-        hover:bg-black/[.05] active:bg-black/[.03]
-        dark:hover:bg-white/[.06] dark:active:bg-white/[.04] inline-flex
+        hover:bg-black/5 active:bg-black/3
+        dark:hover:bg-white/6 dark:active:bg-white/4 inline-flex
         justify-center items-center w-[46px] h-full
       '
     >

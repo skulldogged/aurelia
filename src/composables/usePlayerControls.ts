@@ -33,8 +33,6 @@ const toggleQueue = (): void => {
 
 const toggleFullScreenPlayer = (): void => {
   isFullScreenPlayerOpen.value = !isFullScreenPlayerOpen.value
-  // Reset sidebar panel states when switching between player views
-  closePanels()
 }
 
 const handleTogglePlayPause = (): void => {

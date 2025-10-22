@@ -18,7 +18,7 @@
 
 <template>
   <header
-    class='relative bg-sidebar flex-shrink-0 h-12 z-50 flex justify-between items-center pr-[138px]'
+    class='relative bg-sidebar shrink-0 h-12 z-50 flex justify-between items-center pr-[138px]'
     data-tauri-drag-region
   >
     <div class='flex items-center gap-2 pl-2 h-full'>

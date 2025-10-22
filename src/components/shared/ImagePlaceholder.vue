@@ -62,7 +62,7 @@
       :is='currentIconConfig.icon'
       :class='currentSizeConfig.icon'
       :style='{ color: currentIconConfig.iconColor }'
-      class='flex-shrink-0 opacity-60'
+      class='shrink-0 opacity-60'
     />
   </div>
 </template>

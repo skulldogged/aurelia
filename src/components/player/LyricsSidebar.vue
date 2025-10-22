@@ -19,7 +19,7 @@
 </script>
 
 <template>
-  <div class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] flex flex-col bg-background-dark h-full'>
+  <div class='w-64 lg:w-80 xl:w-96 2xl:w-md flex flex-col bg-background-dark h-full'>
     <div class='flex-1 overflow-hidden'>
       <LyricsView
         @lyrics-loaded='handleLyricsLoaded'

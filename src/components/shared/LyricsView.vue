@@ -178,7 +178,7 @@
   <div class='size-full flex flex-col overflow-hidden'>
     <div
       v-if='isInSidebar'
-      class='h-12 flex items-center justify-between px-4 flex-shrink-0'
+      class='h-12 flex items-center justify-between px-4 shrink-0'
       data-tauri-drag-region
     >
       <h2 class='text-base font-semibold tracking-tight text-muted-foreground'>
@@ -187,13 +187,13 @@
     </div>
     <div
       v-if='isLoading'
-      class='flex-grow flex items-center justify-center'
+      class='grow flex items-center justify-center'
     >
       <Loader2 class='size-8 animate-spin' />
     </div>
     <div
       v-else-if='error'
-      class='flex-grow flex items-center justify-center px-6'
+      class='grow flex items-center justify-center px-6'
     >
       <div class='w-full max-w-md bg-card/60 border border-destructive/30 rounded-2xl shadow-lg backdrop-blur-sm p-6'>
         <div class='flex items-start space-x-4'>
@@ -214,7 +214,7 @@
     <div
       v-else-if='lyrics && areLyricsSynced'
       ref='lyricsContainerRef'
-      :class="['lyrics-container flex-grow overflow-y-auto', { 'sidebar': isInSidebar }]"
+      :class="['lyrics-container grow overflow-y-auto', { 'sidebar': isInSidebar }]"
     >
       <div class='lyrics-content'>
         <p
@@ -235,7 +235,7 @@
     </div>
     <div
       v-else-if='lyrics'
-      :class="['lyrics-container flex-grow overflow-y-auto', { 'sidebar': isInSidebar }]"
+      :class="['lyrics-container grow overflow-y-auto', { 'sidebar': isInSidebar }]"
     >
       <div class='lyrics-content lyrics-content--static'>
         <p
@@ -252,7 +252,7 @@
     </div>
     <div
       v-else
-      class='flex-grow flex items-center justify-center text-muted-foreground'
+      class='grow flex items-center justify-center text-muted-foreground'
     >
       No lyrics found for this song.
     </div>

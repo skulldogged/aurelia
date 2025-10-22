@@ -152,9 +152,8 @@
   }
 
   const selectAlbum = (album: Album): void => {
-    if (album.id) {
-      router.push(`/songs/album/${album.id}`)
-    }
+    if (album.id)
+      router.push(`/albums/${album.id}`)
   }
 </script>
 

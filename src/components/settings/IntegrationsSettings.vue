@@ -195,7 +195,7 @@
               <Input
                 id='api-key'
                 v-model='apiKey'
-                class='!bg-popover !border-border/30'
+                class='bg-popover! border-border/30!'
                 placeholder='Enter your Last.fm API key'
                 type='text'
               />
@@ -206,7 +206,7 @@
               <Input
                 id='api-secret'
                 v-model='apiSecret'
-                class='!bg-popover !border-border/30'
+                class='bg-popover! border-border/30!'
                 placeholder='Enter your Last.fm API secret'
                 type='password'
               />
@@ -323,7 +323,7 @@
                   id='listenbrainz-token'
                   v-model='userToken'
                   :disabled='isValidating'
-                  class='!bg-popover !border-border/30'
+                  class='bg-popover! border-border/30!'
                   placeholder='Enter your ListenBrainz user token'
                   type='password'
                 />

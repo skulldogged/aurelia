@@ -63,7 +63,7 @@
       <div class='space-y-4'>
         <div class='flex items-center space-x-4'>
           <div
-            class='flex-shrink-0 size-20 bg-gradient-to-br from-primary to-accent rounded-xl
+            class='shrink-0 size-20 bg-linear-to-br from-primary to-accent rounded-xl
                    flex items-center justify-center text-4xl font-bold text-primary-foreground'
           >
             A

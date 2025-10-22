@@ -199,7 +199,7 @@
     <!-- Loading Skeleton -->
     <div v-if='isLoading' class='space-y-8'>
       <div class='flex items-center space-x-6 p-8 bg-sidebar rounded-lg'>
-        <Skeleton class='size-48 rounded-lg flex-shrink-0' />
+        <Skeleton class='size-48 rounded-lg shrink-0' />
         <div class='flex-1 space-y-4'>
           <Skeleton class='h-12 w-3/4' />
           <Skeleton class='h-6 w-1/2' />
@@ -216,7 +216,7 @@
     <!-- Playlist Header -->
     <div v-else-if='playlist' class='space-y-8'>
       <div class='flex items-center space-x-6 p-8 bg-sidebar rounded-lg'>
-        <div class='flex-shrink-0'>
+        <div class='shrink-0'>
           <ImageLoader
             :alt='`${playlist.name} playlist art`'
             :item-id='playlist.id'
@@ -241,7 +241,7 @@
             </h1>
             <Heart
               v-if='playlist.userData?.isFavorite'
-              class='h-7 w-7 text-red-500 flex-shrink-0 fill-current'
+              class='h-7 w-7 text-red-500 shrink-0 fill-current'
             />
           </div>
 

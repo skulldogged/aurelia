@@ -91,12 +91,12 @@
 
 <template>
   <div
-    class='w-64 lg:w-80 xl:w-96 2xl:w-[28rem] bg-background-dark flex flex-col h-full'
+    class='w-64 lg:w-80 xl:w-96 2xl:w-md bg-background-dark flex flex-col h-full'
   >
     <!-- Header -->
     <div
       :class="[
-        'h-12 flex items-center justify-between flex-shrink-0',
+        'h-12 flex items-center justify-between shrink-0',
         isMobile() ? 'px-4' : 'pl-4 pr-[142px]'
       ]"
       data-tauri-drag-region
@@ -153,7 +153,7 @@
               </Select>
               <Button
                 @click='resetEQ'
-                class='flex-shrink-0'
+                class='shrink-0'
                 size='sm'
                 variant='ghost'
               >
@@ -193,7 +193,7 @@
                 </div>
 
                 <!-- Frequency Label -->
-                <div class='text-center min-h-[2.5rem] flex flex-col justify-center'>
+                <div class='text-center min-h-10 flex flex-col justify-center'>
                   <div class='text-sm font-medium text-foreground leading-tight'>
                     {{ formatFrequency(band.frequency) }}
                   </div>

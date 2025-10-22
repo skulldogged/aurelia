@@ -175,7 +175,7 @@
 
   const selectArtist = (artist: Artist): void => {
     if (artist.id)
-      router.push(`/songs/artist/${artist.id}`)
+      router.push(`/artists/${artist.id}`)
   }
 </script>
 

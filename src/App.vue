@@ -92,6 +92,33 @@
     toggleQueue,
   } = usePlayerControls()
 
+  // State for fullscreen player panels
+  const isFsQueueOpen = ref(false)
+  const isFsEqualizerOpen = ref(false)
+  const isFsLyricsOpen = ref(false)
+
+  const toggleFsQueue = (): void => {
+    if (!isFsQueueOpen.value) {
+      isFsEqualizerOpen.value = false
+      isFsLyricsOpen.value = false
+    }
+    isFsQueueOpen.value = !isFsQueueOpen.value
+  }
+  const toggleFsEqualizer = (): void => {
+    if (!isFsEqualizerOpen.value) {
+      isFsQueueOpen.value = false
+      isFsLyricsOpen.value = false
+    }
+    isFsEqualizerOpen.value = !isFsEqualizerOpen.value
+  }
+  const toggleFsLyrics = (): void => {
+    if (!isFsLyricsOpen.value) {
+      isFsQueueOpen.value = false
+      isFsEqualizerOpen.value = false
+    }
+    isFsLyricsOpen.value = !isFsLyricsOpen.value
+  }
+
   const {
     playInstantMix,
     playSong,
@@ -390,20 +417,20 @@
       @previous-song='handlePreviousSong'
       @remove-song='removeSongFromPlaylist'
       @seek='handleSeek'
-      @toggle-equalizer='toggleEqualizer'
+      @toggle-equalizer='toggleFsEqualizer'
       @toggle-favorite='handleToggleFavorite'
-      @toggle-lyrics='toggleLyrics'
+      @toggle-lyrics='toggleFsLyrics'
       @toggle-mute='playerStore.toggleMute'
       @toggle-play-pause='handleTogglePlayPause'
-      @toggle-queue='toggleQueue'
+      @toggle-queue='toggleFsQueue'
       @toggle-repeat='handleToggleRepeat'
       @toggle-shuffle='handleToggleShuffle'
       @update:playlist='updatePlaylist'
       @volume-change='handleVolumeChange'
       :analyser-node='webAudioPlayer.getAnalyserNode()'
-      :is-equalizer-open='isEqualizerOpen'
-      :is-lyrics-open='isLyricsOpen'
-      :is-queue-open='isQueueOpen'
+      :is-equalizer-open='isFsEqualizerOpen'
+      :is-lyrics-open='isFsLyricsOpen'
+      :is-queue-open='isFsQueueOpen'
       :player-state='playerState'
       :preview-progress='swipeProgress'
       :server-url='credentials?.serverUrl'
