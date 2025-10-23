@@ -3,22 +3,7 @@ use crate::models::{Album, Artist, Song};
 use anyhow::Result;
 
 pub fn sync_library(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<()> {
-    database::songs::sync(songs)?;
-    database::artists::sync(artists)?;
-    database::albums::sync(albums)?;
-    Ok(())
-}
-
-pub fn cache_library(songs: &[Song]) -> Result<()> {
-    database::songs::sync(songs)
-}
-
-pub fn cache_artists(artists: &[Artist]) -> Result<()> {
-    database::artists::sync(artists)
-}
-
-pub fn cache_albums(albums: &[Album]) -> Result<()> {
-    database::albums::sync(albums)
+    database::sync_all(songs, artists, albums)
 }
 
 pub fn get_songs() -> Result<Vec<Song>> {

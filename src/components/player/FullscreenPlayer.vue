@@ -298,7 +298,11 @@
       class='fixed left-0 right-0 z-101 h-16 pointer-events-none'
     >
       <div class='p-4 h-full flex items-center'>
-        <div :class="['flex items-center pointer-events-auto', isMobilePortraitMode ? 'gap-4' : 'gap-2']">
+        <div
+          @touchmove.stop
+          @touchstart.stop
+          :class="['flex items-center pointer-events-auto', isMobilePortraitMode ? 'gap-4' : 'gap-2']"
+        >
           <Button
             @click="$emit('close')"
             :size="isMobilePortraitMode ? 'lg' : 'icon'"
@@ -471,7 +475,7 @@
           </div>
 
           <!-- Progress Bar & Controls -->
-          <div class='w-full flex flex-col gap-4'>
+          <div @touchmove.stop @touchstart.stop class='w-full flex flex-col gap-4'>
             <!-- Progress Bar -->
             <div :class="isMobilePortraitMode ? 'w-full' : 'w-full max-w-96 mx-auto'">
               <Slider
@@ -636,6 +640,8 @@
       </div>
 
       <div
+        @touchmove.stop
+        @touchstart.stop
         v-if='isMobilePortraitMode'
         :class="[
           'absolute bottom-0 left-0 right-0 flex items-center justify-center p-4 z-50 pb-safe-bottom',

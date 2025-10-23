@@ -21,7 +21,12 @@ export default defineConfig(async () => ({
 
   plugins: [
     // VueRouter must be before vue()
-    VueRouter({}),
+    VueRouter({
+      exclude: [
+        '**/desktop/**',
+        '**/mobile/**',
+      ],
+    }),
     vue(),
     tailwindcss(),
   ],

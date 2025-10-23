@@ -244,8 +244,10 @@ pub fn run() {
             let artists = app_state.artists.clone();
             let albums = app_state.albums.clone();
 
+            let handle_for_async = handle.clone();
             tauri::async_runtime::spawn(async move {
                 info!("Starting background library load...");
+                let handle = handle_for_async;
                 tauri::async_runtime::spawn_blocking(move || {
                     let songs_res = database::songs::get_all();
                     let artists_res = database::artists::get_all();
@@ -259,6 +261,24 @@ pub fn run() {
                                 ar.len(),
                                 al.len()
                             );
+                            if s.is_empty() && ar.is_empty() && al.is_empty() {
+                                info!("Database is empty, triggering library sync.");
+                                let handle = handle.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    if let Ok(Some(creds)) =
+                                        handlers::auth::get_saved_credentials(handle.clone()).await
+                                        && let Err(e) = handlers::music::sync_library(
+                                            handle.clone(),
+                                            handle.state(),
+                                            creds.server_url,
+                                            creds.token,
+                                        )
+                                        .await
+                                    {
+                                        error!("Failed to sync library: {}", e);
+                                    }
+                                });
+                            }
                             *songs.lock().unwrap() = s;
                             *artists.lock().unwrap() = ar;
                             *albums.lock().unwrap() = al;

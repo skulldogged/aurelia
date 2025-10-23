@@ -450,16 +450,8 @@ pub async fn sync_library(
     artists.extend(user_artists_map.into_values());
 
     // Update database
-    info!("Syncing {} songs to database", songs.len());
-    database::songs::sync(&songs).map_err(|e| e.to_string())?;
-    info!("Syncing {} artists to database", artists.len());
-    database::artists::sync(&artists).map_err(|e| e.to_string())?;
-    info!("Syncing {} albums to database", albums.len());
-    database::albums::sync(&albums).map_err(|e| e.to_string())?;
-
-    if let Err(e) = database::flush_db() {
-        warn!("Failed to flush database: {}", e);
-    }
+    info!("Syncing {} songs, {} artists, and {} albums to database", songs.len(), artists.len(), albums.len());
+    database::sync_all(&songs, &artists, &albums).map_err(|e| e.to_string())?;
 
     // Update app state
     *app_state.songs.lock().unwrap() = songs;
@@ -486,9 +478,6 @@ pub async fn clear_cache(
     database::artists::clear().map_err(|e| e.to_string())?;
     database::albums::clear().map_err(|e| e.to_string())?;
 
-    if let Err(e) = database::flush_db() {
-        warn!("Failed to flush database: {}", e);
-    }
 
     // Clear app state
     *app_state.songs.lock().unwrap() = vec![];

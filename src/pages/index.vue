@@ -3,8 +3,8 @@
 
   import { useOrientation } from '@/composables/useOrientation'
 
-  import HomePageDesktop from './HomePageDesktop.vue'
-  import HomePageMobile from './HomePageMobile.vue'
+  import HomePageDesktop from './desktop/HomePage.vue'
+  import HomePageMobile from './mobile/HomePage.vue'
 
   const { isPortrait } = useOrientation()
 
