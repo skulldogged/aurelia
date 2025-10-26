@@ -378,8 +378,8 @@
         <template v-else>
           <div class='flex items-center gap-2'>
             <span class='text-sm text-muted-foreground'>Songs per page:</span>
-            <Select @update:model-value='(v) => setPageSize(Number(v))' :model-value='String(pageSize)'>
-              <SelectTrigger class='w-[80px]'>
+            <Select @update:model-value='v => setPageSize(Number(v))' :model-value='String(pageSize)'>
+              <SelectTrigger class='w-20'>
                 <SelectValue placeholder='Per page' />
               </SelectTrigger>
               <SelectContent>

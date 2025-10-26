@@ -29,6 +29,7 @@
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
+  import { setAuthLogout } from '@/lib/auth-interceptor'
   import { isMobile } from '@/lib/platform'
   import { useBlurStore, useHomeStore } from '@/stores'
   import { useLibraryStore } from '@/stores/library'
@@ -44,6 +45,7 @@
   useColorMode()
 
   const { authStatus, clearError: clearAuthError, credentials, error: authError, login, logout } = useAuth()
+  setAuthLogout(logout)
   const libraryStore = useLibraryStore()
   const homeStore = useHomeStore()
   const blurStore = useBlurStore()

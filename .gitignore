@@ -27,6 +27,7 @@ dist-ssr
 .direnv/
 .env
 .gemini
+.claude
 keystore.properties
 
 # START Ruler Generated Files

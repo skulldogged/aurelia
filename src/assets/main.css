@@ -97,6 +97,13 @@
   .safe-height {
     height: var(--safe-vh);
   }
+
+  /* Hide OverlayScrollbars on mobile devices */
+  @media (max-width: 768px) {
+    .os-scrollbar {
+      display: none !important;
+    }
+  }
 }
 
 /* OverlayScrollbars Theme */

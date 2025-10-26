@@ -4,6 +4,7 @@ import { readonly, ref } from 'vue'
 import type { Album, Song } from '@/bindings'
 
 import { commands } from '@/bindings'
+import { getAuthLogout } from '@/lib/auth-interceptor'
 import { logger } from '@/lib/logger'
 
 export const useHomeStore = defineStore('home', () => {
@@ -64,6 +65,11 @@ export const useHomeStore = defineStore('home', () => {
       if (!isWaitingForLibrary) {
         error.value = errorMessage
         logger.error('Failed to load home data:', errorMessage)
+        if (errorMessage.toLowerCase().includes('unauthorized')) {
+          const logout = getAuthLogout()
+          if (logout)
+            logout()
+        }
         isLoading.value = false
         return
       }
