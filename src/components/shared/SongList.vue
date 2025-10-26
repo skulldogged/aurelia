@@ -257,13 +257,13 @@
                                 v-for='(artist, artistIndex) in song.artists'
                                 :key='song.artistIds[artistIndex]'
                               >
-                                <router-link
+                                <RouterLink
                                   @click.stop
                                   :to='`/artists/${song.artistIds[artistIndex]}`'
                                   class='hover:underline'
                                 >
                                   {{ artist }}
-                                </router-link>
+                                </RouterLink>
                                 <span v-if='artistIndex < song.artists.length - 1'>, </span>
                               </template>
                             </template>
@@ -275,14 +275,14 @@
                           <span v-if='showArtist && showAlbum' class='text-muted-foreground/60'>•</span>
 
                           <span v-if='showAlbum'>
-                            <router-link
+                            <RouterLink
                               @click.stop
                               v-if='song.album && song.albumId'
                               :to='`/albums/${song.albumId}`'
                               class='hover:underline'
                             >
                               {{ song.album }}
-                            </router-link>
+                            </RouterLink>
                             <span v-else>Unknown Album</span>
                           </span>
                         </div>

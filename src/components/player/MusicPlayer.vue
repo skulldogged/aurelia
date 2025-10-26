@@ -648,12 +648,12 @@
                   v-for='(artist, index) in playerStore.currentSong.artists'
                   :key='playerStore.currentSong.artistIds[index]'
                 >
-                  <router-link
+                  <RouterLink
                     :to='`/artists/${playerStore.currentSong.artistIds[index]}`'
                     class='hover:underline'
                   >
                     {{ artist }}
-                  </router-link>
+                  </RouterLink>
                   <span v-if='index < playerStore.currentSong.artists.length - 1'>, </span>
                 </template>
               </template>
@@ -661,13 +661,13 @@
                 {{ playerStore.currentSong.artists?.join(', ') || 'Unknown Artist' }}
               </template>
               •
-              <router-link
+              <RouterLink
                 v-if='playerStore.currentSong.album && playerStore.currentSong.albumId'
                 :to='`/albums/${playerStore.currentSong.albumId}`'
                 class='hover:underline'
               >
                 {{ playerStore.currentSong.album }}
-              </router-link>
+              </RouterLink>
               <span v-else>{{ 'Unknown Album' }}</span>
             </p>
             <p v-if='songFormatInfo' class='text-xs text-muted-foreground/80 truncate select-text'>

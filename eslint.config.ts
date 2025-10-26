@@ -142,10 +142,11 @@ export default defineConfig(
           'style',
         ],
       }],
-      'vue/html-closing-bracket-newline': ['error', { multiline: 'always', singleline: 'never' }],
-      'vue/html-indent':                  ['error', 2, { baseIndent: 1 }],
-      'vue/html-quotes':                  ['warn', 'single', { avoidEscape: true }],
-      'vue/html-self-closing':            ['error', {
+      'vue/component-name-in-template-casing': ['error', 'PascalCase', { registeredComponentsOnly: false }],
+      'vue/html-closing-bracket-newline':      ['error', { multiline: 'always', singleline: 'never' }],
+      'vue/html-indent':                       ['error', 2, { baseIndent: 1 }],
+      'vue/html-quotes':                       ['warn', 'single', { avoidEscape: true }],
+      'vue/html-self-closing':                 ['error', {
         html: {
           component: 'always',
           normal:    'always',

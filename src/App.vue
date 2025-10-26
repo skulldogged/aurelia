@@ -348,8 +348,8 @@
       :transition-after-leave='transitionAfterLeaveTriggered'
       :transition-before-enter='transitionBeforeEnterTriggered'
     >
-      <router-view v-slot='{ Component }'>
-        <transition
+      <RouterView v-slot='{ Component }'>
+        <Transition
           @after-leave='handleTransitionAfterLeave'
           @before-enter='handleTransitionBeforeEnter'
           mode='out-in'
@@ -372,8 +372,8 @@
             :is-clearing='isClearing'
             :is-syncing='isSyncing'
           />
-        </transition>
-      </router-view>
+        </Transition>
+      </RouterView>
 
       <template #queue>
         <Queue

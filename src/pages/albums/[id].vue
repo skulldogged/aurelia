@@ -205,12 +205,12 @@
           <p class='text-2xl text-muted-foreground mt-2 select-text'>
             <template v-if='albumArtistPairs.length'>
               <template v-for='(pair, index) in albumArtistPairs' :key='pair.id'>
-                <router-link
+                <RouterLink
                   :to='`/artists/${pair.id}`'
                   class='hover:underline'
                 >
                   {{ pair.name }}
-                </router-link>
+                </RouterLink>
                 <span v-if='index < albumArtistPairs.length - 1'>, </span>
               </template>
             </template>

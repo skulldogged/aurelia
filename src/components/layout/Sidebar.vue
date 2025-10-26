@@ -113,7 +113,7 @@
           : 'flex flex-col grow m-2 mt-0'"
     >
       <div v-if='!(props.isMobilePortrait || isMobileLandscape)' class='grow space-y-2'>
-        <router-link
+        <RouterLink
           :class="navItemClass('home')"
           to='/'
         >
@@ -129,8 +129,8 @@
           >
             <span class='whitespace-nowrap'>Home</span>
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('songs')"
           to='/songs'
         >
@@ -146,8 +146,8 @@
           >
             <span class='whitespace-nowrap'>Songs</span>
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('artists')"
           to='/artists'
         >
@@ -163,8 +163,8 @@
           >
             <span class='whitespace-nowrap'>Artists</span>
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('albums')"
           to='/albums'
         >
@@ -180,8 +180,8 @@
           >
             <span class='whitespace-nowrap'>Albums</span>
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('playlists')"
           to='/playlists'
         >
@@ -197,9 +197,9 @@
           >
             <span class='whitespace-nowrap'>Playlists</span>
           </div>
-        </router-link>
+        </RouterLink>
       </div>
-      <router-link
+      <RouterLink
         v-if='!(props.isMobilePortrait || isMobileLandscape)'
         :class="navItemClass('settings')"
         to='/settings'
@@ -215,57 +215,57 @@
         >
           <span class='whitespace-nowrap'>Settings</span>
         </div>
-      </router-link>
+      </RouterLink>
       <!-- Mobile portrait navigation -->
       <template v-if='props.isMobilePortrait || isMobileLandscape'>
-        <router-link
+        <RouterLink
           :class="navItemClass('home')"
           to='/'
         >
           <div :class='navIconClass'>
             <Home class='size-5' />
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('songs')"
           to='/songs'
         >
           <div :class='navIconClass'>
             <Music class='size-5' />
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('artists')"
           to='/artists'
         >
           <div :class='navIconClass'>
             <Users class='size-5' />
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('albums')"
           to='/albums'
         >
           <div :class='navIconClass'>
             <Disc class='size-5' />
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('playlists')"
           to='/playlists'
         >
           <div :class='navIconClass'>
             <ListMusic class='size-5' />
           </div>
-        </router-link>
-        <router-link
+        </RouterLink>
+        <RouterLink
           :class="navItemClass('settings')"
           to='/settings'
         >
           <div :class='navIconClass'>
             <Settings class='size-5' />
           </div>
-        </router-link>
+        </RouterLink>
       </template>
     </nav>
   </div>

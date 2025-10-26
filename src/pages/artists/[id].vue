@@ -422,26 +422,26 @@
                 v-if='(song.album && !isSingle(song)) || isFeaturedOnSong(song)'
                 class='text-muted-foreground text-sm truncate'
               >
-                <router-link
+                <RouterLink
                   @click.stop
                   v-if='song.album && song.albumId && !isSingle(song)'
                   :to='`/albums/${song.albumId}`'
                   class='hover:underline'
                 >
                   {{ song.album }}
-                </router-link>
+                </RouterLink>
                 <span v-if='(song.album && !isSingle(song)) && isFeaturedOnSong(song)' class='mx-1'>•</span>
                 <span v-if='isFeaturedOnSong(song)'>
                   with
                   <template v-for='(collab, idx) in collaboratorsFor(song)' :key='collab.id || collab.name'>
-                    <router-link
+                    <RouterLink
                       @click.stop
                       v-if='collab.id'
                       :to='`/artists/${collab.id}`'
                       class='hover:underline'
                     >
                       {{ collab.name }}
-                    </router-link>
+                    </RouterLink>
                     <span v-else>{{ collab.name }}</span>
                     <span v-if='idx < collaboratorsFor(song).length - 1'>, </span>
                   </template>
@@ -484,14 +484,14 @@
             <p v-if='albumCollaboratorsFor(album).length' class='text-sm text-muted-foreground truncate'>
               with
               <template v-for='(pair, idx) in albumCollaboratorsFor(album)' :key='pair.id || pair.name'>
-                <router-link
+                <RouterLink
                   @click.stop
                   v-if='pair.id'
                   :to='`/artists/${pair.id}`'
                   class='hover:underline'
                 >
                   {{ pair.name }}
-                </router-link>
+                </RouterLink>
                 <span v-else>{{ pair.name }}</span>
                 <span v-if='idx < albumCollaboratorsFor(album).length - 1'>, </span>
               </template>

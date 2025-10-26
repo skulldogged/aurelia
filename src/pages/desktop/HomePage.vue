@@ -116,34 +116,34 @@
             </template>
             <template v-else-if='featuredAlbum'>
               <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate'>
-                <router-link
+                <RouterLink
                   v-if='featuredAlbum.id'
                   :to='`/albums/${featuredAlbum.id}`'
                 >
                   {{ featuredAlbum.name }}
-                </router-link>
+                </RouterLink>
                 <span v-else>{{ featuredAlbum.name }}</span>
               </h1>
               <p class='text-xl text-white/90 mb-3 drop-shadow-md'>
                 <template v-if='featuredAlbumArtistPairs.length'>
                   <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
-                    <router-link
+                    <RouterLink
                       :to='`/artists/${pair.id}`'
                       class='hover:underline'
                     >
                       {{ pair.name }}
-                    </router-link>
+                    </RouterLink>
                     <span v-if='index < featuredAlbumArtistPairs.length - 1'>, </span>
                   </template>
                 </template>
                 <template v-else>
-                  <router-link
+                  <RouterLink
                     v-if='featuredAlbum.artistId'
                     :to='`/artists/${featuredAlbum.artistId}`'
                     class='hover:underline'
                   >
                     {{ featuredAlbum.artist }}
-                  </router-link>
+                  </RouterLink>
                   <span v-else>{{ featuredAlbum.artist }}</span>
                 </template>
               </p>
@@ -260,13 +260,13 @@
                 <p class='text-sm text-muted-foreground truncate'>
                   <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
                     <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
-                      <router-link
+                      <RouterLink
                         @click.stop
                         :to='`/artists/${song.artistIds[index]}`'
                         class='hover:underline'
                       >
                         {{ artist }}
-                      </router-link>
+                      </RouterLink>
                       <span v-if='index < song.artists.length - 1'>, </span>
                     </template>
                   </template>
@@ -342,13 +342,13 @@
                 <p class='text-sm text-muted-foreground truncate'>
                   <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
                     <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
-                      <router-link
+                      <RouterLink
                         @click.stop
                         :to='`/artists/${song.artistIds[index]}`'
                         class='hover:underline'
                       >
                         {{ artist }}
-                      </router-link>
+                      </RouterLink>
                       <span v-if='index < song.artists.length - 1'>, </span>
                     </template>
                   </template>
@@ -407,14 +407,14 @@
                   {{ album.name }}
                 </p>
                 <p class='text-sm text-muted-foreground truncate'>
-                  <router-link
+                  <RouterLink
                     @click.stop
                     v-if='album.artistId'
                     :to='`/artists/${album.artistId}`'
                     class='hover:underline'
                   >
                     {{ album.artist }}
-                  </router-link>
+                  </RouterLink>
                   <span v-else>{{ album.artist }}</span>
                 </p>
               </div>
@@ -473,14 +473,14 @@
                   {{ album.name }}
                 </p>
                 <p class='text-sm text-muted-foreground truncate'>
-                  <router-link
+                  <RouterLink
                     @click.stop
                     v-if='album.artistId'
                     :to='`/artists/${album.artistId}`'
                     class='hover:underline'
                   >
                     {{ album.artist }}
-                  </router-link>
+                  </RouterLink>
                   <span v-else>{{ album.artist }}</span>
                 </p>
               </div>

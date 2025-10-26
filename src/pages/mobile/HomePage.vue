@@ -86,34 +86,34 @@
             </template>
             <template v-else-if='featuredAlbum'>
               <h1 class='text-4xl md:text-5xl font-bold mb-3 text-white drop-shadow-lg truncate'>
-                <router-link
+                <RouterLink
                   v-if='featuredAlbum.id'
                   :to='`/albums/${featuredAlbum.id}`'
                 >
                   {{ featuredAlbum.name }}
-                </router-link>
+                </RouterLink>
                 <span v-else>{{ featuredAlbum.name }}</span>
               </h1>
               <p class='text-2xl md:text-2xl text-white/90 mb-3 drop-shadow-md'>
                 <template v-if='featuredAlbumArtistPairs.length'>
                   <template v-for='(pair, index) in featuredAlbumArtistPairs' :key='pair.id'>
-                    <router-link
+                    <RouterLink
                       :to='`/artists/${pair.id}`'
                       class='hover:underline'
                     >
                       {{ pair.name }}
-                    </router-link>
+                    </RouterLink>
                     <span v-if='index < featuredAlbumArtistPairs.length - 1'>, </span>
                   </template>
                 </template>
                 <template v-else>
-                  <router-link
+                  <RouterLink
                     v-if='featuredAlbum.artistId'
                     :to='`/artists/${featuredAlbum.artistId}`'
                     class='hover:underline'
                   >
                     {{ featuredAlbum.artist }}
-                  </router-link>
+                  </RouterLink>
                   <span v-else>{{ featuredAlbum.artist }}</span>
                 </template>
               </p>

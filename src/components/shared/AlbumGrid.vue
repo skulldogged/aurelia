@@ -145,13 +145,13 @@
               <p class='text-sm text-muted-foreground truncate'>
                 <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
                   <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
-                    <router-link
+                    <RouterLink
                       @click.stop
                       :to='`/artists/${song.artistIds[index]}`'
                       class='hover:underline'
                     >
                       {{ artist }}
-                    </router-link>
+                    </RouterLink>
                     <span v-if='index < song.artists.length - 1'>, </span>
                   </template>
                 </template>
@@ -193,14 +193,14 @@
                 {{ album.name }}
               </p>
               <p class='text-sm text-muted-foreground truncate'>
-                <router-link
+                <RouterLink
                   @click.stop
                   v-if='album.artistId'
                   :to='`/artists/${album.artistId}`'
                   class='hover:underline'
                 >
                   {{ album.artist }}
-                </router-link>
+                </RouterLink>
                 <span v-else>{{ album.artist }}</span>
               </p>
             </div>

@@ -72,13 +72,13 @@
           >
             <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
               <template v-for='(artist, artistIndex) in song.artists' :key='song.artistIds[artistIndex]'>
-                <router-link
+                <RouterLink
                   @click.stop
                   :to='`/artists/${song.artistIds[artistIndex]}`'
                   class='hover:underline'
                 >
                   {{ artist }}
-                </router-link>
+                </RouterLink>
                 <span v-if='artistIndex < song.artists.length - 1'>, </span>
               </template>
             </template>
