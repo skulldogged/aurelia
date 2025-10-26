@@ -5,6 +5,7 @@
 
   import AlbumGrid from '@/components/shared/AlbumGrid.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import Button from '@/components/ui/Button.vue'
   import { Skeleton } from '@/components/ui/skeleton'
   import { useHomePage } from '@/composables/useHomePage'
 
@@ -124,30 +125,27 @@
           </div>
 
           <!-- Play Button - Mobile Portrait -->
-          <div
-            class='shrink-0'
-          >
+          <div class='shrink-0'>
             <template v-if='isLoading'>
-              <button
-                class='
-                  bg-white/20 backdrop-blur-sm text-white px-8
-                  py-3 rounded-full font-semibold border
-                  border-white/20 opacity-50 cursor-not-allowed
-                '
+              <Button
+                class='bg-white/20 backdrop-blur-sm text-white rounded-full font-semibold border border-white/20'
+                size='icon-lg'
                 disabled
               >
-                Play Album
-              </button>
+                <Play class='size-5' />
+              </Button>
             </template>
             <template v-else-if='featuredAlbum'>
-              <button
+              <Button
                 @click='playFeaturedAlbum'
-                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-8 py-3
-                       rounded-full font-semibold transition-colors border border-white/20 flex items-center gap-2'
+                class='
+                  bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white
+                  rounded-full font-semibold transition-colors border border-white/20
+                '
+                size='icon-lg'
               >
-                <Play class='h-5 w-5 md:hidden' />
-                <span class='hidden md:inline'>Play Album</span>
-              </button>
+                <Play class='size-5' />
+              </Button>
             </template>
           </div>
         </div>
@@ -157,24 +155,24 @@
           v-if='featuredAlbums.length > 1'
           class='absolute z-20 flex space-x-2 bottom-4 right-4'
         >
-          <button
+          <Button
             @click='prevFeaturedAlbum'
             :disabled='isLoading'
-            class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
-                   transition-colors hover:bg-white/30 border border-white/20 rounded-full
-                   disabled:opacity-50 disabled:cursor-not-allowed'
+            class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20 rounded-full'
+            size='icon-lg'
+            variant='ghost'
           >
-            <ChevronLeft class='h-5 w-5' />
-          </button>
-          <button
+            <ChevronLeft class='size-5' />
+          </Button>
+          <Button
             @click='nextFeaturedAlbum'
             :disabled='isLoading'
-            class='flex items-center justify-center bg-white/20 p-2 text-white backdrop-blur-sm
-                   transition-colors hover:bg-white/30 border border-white/20 rounded-full
-                   disabled:opacity-50 disabled:cursor-not-allowed'
+            class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20 rounded-full'
+            size='icon-lg'
+            variant='ghost'
           >
-            <ChevronRight class='h-5 w-5' />
-          </button>
+            <ChevronRight class='size-5' />
+          </Button>
         </div>
       </div>
 

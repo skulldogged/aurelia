@@ -49,7 +49,7 @@ const logInvokeError = (context: 'clear' | 'update', error: unknown): void => {
   logger.error(`Failed to ${context} Android now playing service:`, error)
 }
 
-const handleResult = (response: PluginResponse | null, context: 'clear' | 'update'): boolean => {
+const handleResult = (response: null | PluginResponse, context: 'clear' | 'update'): boolean => {
   if (response?.success) {
     resetError()
     return true

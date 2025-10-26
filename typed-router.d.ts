@@ -77,10 +77,10 @@ declare module 'vue-router/auto-routes' {
       '/playlists/:id',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
-      | '/playlists/[id]/edit'
+      | never
     >,
-    '/playlists/[id]/edit': RouteRecordInfo<
-      '/playlists/[id]/edit',
+    '/playlists/[id].edit': RouteRecordInfo<
+      '/playlists/[id].edit',
       '/playlists/:id/edit',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
@@ -165,13 +165,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/playlists/[id].vue': {
       routes:
         | '/playlists/[id]'
-        | '/playlists/[id]/edit'
       views:
-        | 'default'
+        | never
     }
-    'src/pages/playlists/[id]/edit.vue': {
+    'src/pages/playlists/[id].edit.vue': {
       routes:
-        | '/playlists/[id]/edit'
+        | '/playlists/[id].edit'
       views:
         | never
     }

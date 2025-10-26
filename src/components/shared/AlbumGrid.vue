@@ -76,6 +76,42 @@
     else
       logger.warn('No songs found for album', album.name)
   }
+
+  const getAlbumArtists = (album: Album): { id: string, name: string }[] => {
+    const idToName = new Map<string, string>()
+    const albumSongs = album.songs || []
+
+    for (const song of albumSongs) {
+      if (song.albumArtists) {
+        for (const pair of song.albumArtists) {
+          if (pair.id && pair.name) {
+            idToName.set(pair.id, pair.name)
+          }
+        }
+      }
+    }
+
+    if (idToName.size === 0) {
+      const first = albumSongs[0]
+      if (first?.artistIds && first.artists && first.artistIds.length === first.artists.length) {
+        first.artistIds.forEach((id, idx) => {
+          const name = first.artists![idx]
+          if (id && name) {
+            idToName.set(id, name)
+          }
+        })
+      } else if (album.artist && album.artistId) {
+        idToName.set(album.artistId, album.artist)
+      }
+    }
+
+    if (idToName.size === 0 && album.artist) {
+      // Final fallback for albums that might not have songs attached in this context
+      idToName.set(album.artistId || album.artist, album.artist)
+    }
+
+    return Array.from(idToName, ([id, name]) => ({ id, name }))
+  }
 </script>
 
 <template>
@@ -193,15 +229,29 @@
                 {{ album.name }}
               </p>
               <p class='text-sm text-muted-foreground truncate'>
-                <RouterLink
-                  @click.stop
-                  v-if='album.artistId'
-                  :to='`/artists/${album.artistId}`'
-                  class='hover:underline'
-                >
-                  {{ album.artist }}
-                </RouterLink>
-                <span v-else>{{ album.artist }}</span>
+                <template v-if='getAlbumArtists(album).length > 0'>
+                  <template v-for='(artist, index) in getAlbumArtists(album)' :key='artist.id'>
+                    <RouterLink
+                      @click.stop
+                      :to='`/artists/${artist.id}`'
+                      class='hover:underline'
+                    >
+                      {{ artist.name }}
+                    </RouterLink>
+                    <span v-if='index < getAlbumArtists(album).length - 1'>, </span>
+                  </template>
+                </template>
+                <template v-else-if='album.artist'>
+                  <RouterLink
+                    @click.stop
+                    v-if='album.artistId'
+                    :to='`/artists/${album.artistId}`'
+                    class='hover:underline'
+                  >
+                    {{ album.artist }}
+                  </RouterLink>
+                  <span v-else>{{ album.artist }}</span>
+                </template>
               </p>
             </div>
           </ContextMenuTrigger>

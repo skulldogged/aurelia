@@ -1,6 +1,5 @@
 import type { Result } from '@/bindings'
 
-import { useAuth } from '@/composables/useAuth'
 import { getAuthLogout } from '@/lib/auth-interceptor'
 
 /**

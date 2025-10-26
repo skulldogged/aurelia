@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { MoreHorizontal, Music, Play, Share2, Shuffle } from 'lucide-vue-next'
+  import { MoreHorizontal, Play, Share2, Shuffle } from 'lucide-vue-next'
   import { computed, ref } from 'vue'
   import { useRoute } from 'vue-router'
 
@@ -145,34 +145,45 @@
 </script>
 
 <template>
-  <div class='px-4 pb-4' style='padding-top: env(safe-area-inset-top)'>
-    <div v-if='libraryLoading || !libraryLoaded || !album' class='space-y-6'>
-      <!-- Header Skeleton -->
-      <div class='flex flex-col items-center space-y-4 p-6 bg-sidebar rounded-lg'>
-        <Skeleton class='w-32 h-32 rounded-lg' />
-        <div class='text-center space-y-2'>
-          <Skeleton class='h-8 w-48 mx-auto' />
-          <Skeleton class='h-5 w-32 mx-auto' />
-          <div class='flex justify-center gap-2'>
-            <Skeleton class='h-6 w-16 rounded-md' />
-            <Skeleton class='h-6 w-20 rounded-md' />
+  <div>
+    <div v-if='libraryLoading || !libraryLoaded || !album'>
+      <!-- Immersive Header Skeleton -->
+      <div
+        :style="{
+          minHeight: '400px',
+          marginBottom: 'calc(-env(safe-area-inset-top) + 2rem)',
+          position: 'relative',
+          top: '-env(safe-area-inset-top)',
+        }"
+        class='relative isolate bg-sidebar -mx-4 -mt-4 overflow-hidden'
+      >
+        <div class='absolute inset-0 bg-secondary/50' />
+        <div
+          class='
+            absolute bottom-0 left-0 right-0 h-32 bg-linear-to-t
+            from-background via-background/80 to-transparent
+          '
+        />
+        <!-- Skeleton Content -->
+        <div class='z-10 absolute bottom-0 left-0 right-0 flex flex-col p-4'>
+          <div class='flex-1 min-w-0 text-left'>
+            <Skeleton class='h-10 w-3/4 mb-3' />
+            <Skeleton class='h-8 w-1/2 mb-4' />
+            <Skeleton class='h-5 w-3/5 mb-4' />
           </div>
-          <div class='flex justify-center gap-1'>
-            <Skeleton class='h-4 w-16 rounded-full' />
-            <Skeleton class='h-4 w-12 rounded-full' />
-            <Skeleton class='h-4 w-20 rounded-full' />
-          </div>
-          <div class='flex justify-center gap-2 pt-2'>
-            <Skeleton class='h-10 w-24 rounded-md' />
-            <Skeleton class='h-10 w-10 rounded-md' />
+          <div class='flex items-center justify-between'>
+            <div class='flex items-center gap-2'>
+              <Skeleton class='h-9 w-24 rounded-full' />
+              <Skeleton class='h-9 w-24 rounded-full' />
+            </div>
+            <Skeleton class='size-9 rounded-full' />
           </div>
         </div>
       </div>
 
       <!-- Songs Skeleton -->
-      <div>
-        <Skeleton class='h-6 w-20 mb-3' />
-        <div class='space-y-2'>
+      <div class='w-full px-4'>
+        <div class='space-y-2 pt-2'>
           <div v-for='i in 8' :key='`song-skeleton-${i}`' class='flex items-center space-x-3 p-2 rounded-md'>
             <Skeleton class='size-8 rounded-md' />
             <div class='flex-1 space-y-1'>
@@ -185,83 +196,100 @@
       </div>
     </div>
 
-    <div v-else-if='album' class='space-y-6'>
-      <!-- Header -->
-      <div class='flex flex-col items-center space-y-4 p-6 bg-sidebar rounded-lg'>
-        <div class='shrink-0'>
+    <div v-else-if='album' class='p-4 space-y-6'>
+      <!-- Featured Album Section -->
+      <div
+        :style="{
+          minHeight: '400px',
+          marginBottom: 'calc(-env(safe-area-inset-top) + 2rem)',
+          position: 'relative',
+          top: '-env(safe-area-inset-top)',
+        }"
+        class='relative isolate bg-sidebar -mx-4 -mt-4 overflow-hidden'
+      >
+        <!-- Background Image -->
+        <div class='absolute bg-cover bg-center bg-no-repeat -top-4 inset-0'>
           <ImageLoader
+            v-if='album'
             :item-id='album.id || album.name'
             :server-url='serverUrl'
             :token='token'
-            alt='Album art'
-            class='w-32 h-32 rounded-lg object-cover'
-          >
-            <template #fallback>
-              <div class='w-32 h-32 rounded-lg bg-muted flex items-center justify-center'>
-                <Music class='size-16 text-muted-foreground' />
-              </div>
-            </template>
-          </ImageLoader>
+            class='size-full object-cover'
+          />
+          <div class='absolute inset-0 bg-black/50' />
+          <div
+            class='
+              absolute bottom-0 left-0 right-0 h-32 bg-linear-to-t
+              from-background via-background/80 to-transparent
+            '
+          />
         </div>
 
-        <div class='text-center space-y-2'>
-          <h1 class='text-2xl font-bold text-foreground select-text'>
-            {{ album.name }}
-          </h1>
-          <p class='text-lg text-muted-foreground select-text'>
-            <template v-if='albumArtistPairs.length'>
-              <template v-for='(pair, index) in albumArtistPairs' :key='pair.id'>
-                <RouterLink
-                  :to='`/artists/${pair.id}`'
-                  class='hover:underline'
-                >
-                  {{ pair.name }}
-                </RouterLink>
-                <span v-if='index < albumArtistPairs.length - 1'>, </span>
+        <!-- Content -->
+        <div class='z-10 absolute bottom-0 left-0 right-0 flex flex-col p-4'>
+          <div class='flex-1 min-w-0 text-left'>
+            <h1 class='text-4xl font-bold mb-2 text-white drop-shadow-lg truncate select-text'>
+              {{ album.name }}
+            </h1>
+            <p class='text-2xl text-white/90 mb-3 drop-shadow-md select-text'>
+              <template v-if='albumArtistPairs.length'>
+                <template v-for='(pair, index) in albumArtistPairs' :key='pair.id'>
+                  <RouterLink :to='`/artists/${pair.id}`' class='hover:underline'>
+                    {{ pair.name }}
+                  </RouterLink>
+                  <span v-if='index < albumArtistPairs.length - 1'>, </span>
+                </template>
               </template>
-            </template>
-            <template v-else>
-              {{ album?.artist || 'Unknown Artist' }}
-            </template>
-          </p>
-
-          <!-- Meta chips -->
-          <div class='flex flex-wrap justify-center items-center gap-x-2 gap-y-1 text-sm text-muted-foreground'>
-            <span v-if='albumYear'>{{ albumYear }}</span>
-            <span v-if='albumYear && albumSongs.length'>•</span>
-            <span v-if='albumSongs.length'>{{ albumSongs.length }} songs</span>
-            <span v-if='albumSongs.length'>•</span>
-            <span v-if='albumSongs.length'>{{ formattedTotalDuration }}</span>
-          </div>
-
-          <!-- Genres -->
-          <div v-if='albumGenres.length > 0' class='flex flex-wrap justify-center gap-1'>
-            <span
-              v-for='genre in albumGenres'
-              :key='genre'
-              class='px-2 py-1 text-xs font-semibold rounded-full bg-secondary/30 text-foreground'
-            >
-              {{ genre }}
-            </span>
+              <template v-else>
+                {{ album?.artist || 'Unknown Artist' }}
+              </template>
+            </p>
+            <div class='flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-white/80 mb-4 drop-shadow-md'>
+              <span v-if='albumYear'>{{ albumYear }}</span>
+              <span v-if='albumYear && albumSongs.length'>•</span>
+              <span v-if='albumSongs.length'>{{ albumSongs.length }} songs</span>
+              <span v-if='albumSongs.length'>•</span>
+              <span v-if='albumSongs.length'>{{ formattedTotalDuration }}</span>
+              <template v-if='albumGenres.length > 0'>
+                <span>•</span>
+                <span class='capitalize'>
+                  {{ albumGenres.slice(0, 2).join(', ') }}
+                </span>
+              </template>
+            </div>
           </div>
 
           <!-- Actions -->
-          <div class='flex items-center justify-center gap-2 pt-2'>
-            <Button @click='playAll' size='sm'>
-              <Play class='size-4 mr-2' />
-              Play
-            </Button>
+          <div class='flex items-center justify-between'>
+            <div class='flex items-center gap-2'>
+              <Button
+                @click='playAll'
+                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-full border border-white/20'
+                size='icon-lg'
+                variant='ghost'
+              >
+                <Play class='size-5' />
+              </Button>
+              <Button
+                @click='shuffleAll'
+                class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-full border border-white/20'
+                size='icon-lg'
+                variant='ghost'
+              >
+                <Shuffle class='size-5' />
+              </Button>
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger as-child>
-                <Button size='sm' variant='outline'>
-                  <MoreHorizontal class='size-4' />
+                <Button
+                  class='bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-full border border-white/20'
+                  size='icon-lg'
+                  variant='ghost'
+                >
+                  <MoreHorizontal class='size-5' />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='center'>
-                <DropdownMenuItem @click='shuffleAll'>
-                  <Shuffle class='size-4 mr-2' />
-                  Shuffle
-                </DropdownMenuItem>
+              <DropdownMenuContent align='end'>
                 <AddToPlaylistMenu :songs='albumSongs' type='dropdown' />
                 <DropdownMenuItem @click='showShareDialog = true'>
                   <Share2 class='size-4 mr-2' />
@@ -275,13 +303,10 @@
 
       <!-- Songs -->
       <div class='w-full'>
-        <h2 class='text-xl font-semibold text-foreground mb-3'>
-          Songs
-        </h2>
         <SongList
-          @play-instant-mix='$emit("play-instant-mix", $event)'
+          @play-instant-mix="$emit('play-instant-mix', $event)"
           @play-song='playSongWithQueue'
-          @toggle-favorite='(song) => $emit("toggle-favorite", song)'
+          @toggle-favorite="(song) => $emit('toggle-favorite', song)"
           :loading='libraryLoading || !libraryLoaded || !album'
           :server-url='serverUrl'
           :show-album-art='false'
@@ -301,9 +326,9 @@
     <ShareDialog
       v-if='album'
       v-model:open='showShareDialog'
-      :item-id='album.id || ""'
+      :item-id="album.id || ''"
       :item-name='album.name'
-      :item-type='"album"'
+      :item-type="'album'"
     />
   </div>
 </template>

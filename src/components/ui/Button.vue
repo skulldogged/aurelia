@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, HTMLAttributes } from 'vue'
 import { computed } from 'vue'
 
 type Variant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'
-type Size = 'default' | 'sm' | 'lg' | 'icon'
+type Size = 'default' | 'sm' | 'lg' | 'icon' | 'icon-lg'
 
 interface Props extends /* @vue-ignore */ ButtonHTMLAttributes {
   variant?: Variant
@@ -35,6 +35,7 @@ const sizeClasses: Record<Size, string> = {
   sm: 'h-8 rounded-button gap-1.5 px-3 has-[>svg]:px-2.5',
   lg: 'h-10 rounded-button px-6 has-[>svg]:px-4',
   icon: 'size-9',
+  'icon-lg': 'size-12',
 }
 
 const classes = computed(() => [
