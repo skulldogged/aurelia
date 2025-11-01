@@ -47,6 +47,9 @@
     <template #search-results>
       <slot name='search-results' />
     </template>
+    <template #top-bar>
+      <slot name='top-bar' />
+    </template>
     <template #queue>
       <slot name='queue' />
     </template>

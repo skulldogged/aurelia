@@ -28,6 +28,7 @@
   import { usePlayerSession } from '@/composables/usePlayerSession'
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { useSystemTray } from '@/composables/useSystemTray'
+  import { useTopBar } from '@/composables/useTopBar'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { setAuthLogout } from '@/lib/auth-interceptor'
   import { isMobile } from '@/lib/platform'
@@ -54,6 +55,8 @@
   useLastFm()
   useListenBrainz()
   useAndroidNowPlayingService()
+
+  const { topBarContent } = useTopBar()
 
   const isSearchOpen = ref(false)
   const showExitDialog = ref(false)
@@ -408,6 +411,14 @@
           :is-queue-open='isQueueOpen'
           :server-url='credentials!.serverUrl'
           :token='credentials!.token'
+        />
+      </template>
+
+      <template #top-bar>
+        <component
+          :is='topBarContent?.component'
+          v-if='topBarContent'
+          v-bind='topBarContent.props'
         />
       </template>
     </MainLayout>

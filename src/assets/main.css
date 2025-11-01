@@ -27,6 +27,7 @@
   --color-ring: var(--ring);
   --color-success: var(--success);
   --color-sidebar: var(--sidebar);
+  --border-shadow: rgb(from var(--border) r g b / 0.5);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -138,4 +139,9 @@
 
 .page-fade-leave-to {
   opacity: 0;
+}
+
+body.songs-page-active .os-scrollbar-vertical {
+  margin-top: 40px;
+  height: calc(100% - 40px);
 }

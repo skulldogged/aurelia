@@ -1,10 +1,12 @@
 import type { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
 import type { ComputedRef, Ref } from 'vue'
 
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { useBlurStore } from '@/stores'
+
+export const scrollElementKey = Symbol('scrollElement')
 
 export interface MainLayoutComposableReturn {
   mainContentBgClass: ComputedRef<string>
@@ -15,6 +17,9 @@ export interface MainLayoutComposableReturn {
 export const useMainLayout = (): MainLayoutComposableReturn => {
   const route = useRoute()
   const scrollbarsRef = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
+  const scrollElement = ref<HTMLElement | null>(null)
+  provide(scrollElementKey, scrollElement)
+
   const blurStore = useBlurStore()
 
   const mainContentBgClass = computed(() =>
@@ -35,8 +40,10 @@ export const useMainLayout = (): MainLayoutComposableReturn => {
       const osInstance = scrollbarsRef.value?.osInstance?.()
       if (osInstance) {
         const elements = osInstance.elements()
-        if (elements.scrollOffsetElement)
+        if (elements.scrollOffsetElement) {
+          scrollElement.value = elements.scrollOffsetElement as HTMLElement
           elements.scrollOffsetElement.scrollTop = 0
+        }
       }
     }, 100)
   })

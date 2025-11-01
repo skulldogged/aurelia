@@ -79,7 +79,7 @@
         <!-- Navigation buttons positioned relative to sidebar -->
         <div
           :class="[
-            'absolute z-10 flex items-center gap-2',
+            'absolute z-10 flex items-center',
             isSidebarCollapsed ? 'left-[72px]' : 'left-[200px]'
           ]"
           :style='{ top: `calc(0.5rem + env(safe-area-inset-top))` }'
@@ -107,6 +107,28 @@
           >
             <PanelLeft class='h-4 w-4' />
           </Button>
+        </div>
+
+        <!-- Top bar content slot - spans from sidebar to right edge -->
+        <div
+          :style='{
+            top: `calc(env(safe-area-inset-top))`,
+            left: isSidebarCollapsed ? "48px" : "176px",
+            right: "0"
+          }'
+          class='
+            absolute z-5 flex items-center justify-center h-12
+            bg-background-dark shadow-[0_1px_0_0_var(--border-shadow)]
+          '
+        >
+          <div class='relative w-full h-full px-3' style='margin-left: 128px; margin-right: 138px;'>
+            <slot name='top-bar'>
+              <!-- Default draggable area when no custom top bar content -->
+              <div class='relative w-full h-full'>
+                <div class='absolute inset-0 z-0' data-tauri-drag-region />
+              </div>
+            </slot>
+          </div>
         </div>
         <main
           :style='{
@@ -157,7 +179,7 @@
     <div
       v-if='playerState.hasPlayer'
       :class="[
-        'absolute z-30 border-t border-border/50 bg-sidebar',
+        'absolute z-30 bg-sidebar',
         'bottom-0',
         {
           'left-16 right-0':

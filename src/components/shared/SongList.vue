@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { Heart, Pause, Play, Share2, Shuffle } from 'lucide-vue-next'
-  import { computed, ref, watch } from 'vue'
+  import { computed, ref } from 'vue'
 
   import { Song } from '@/bindings'
   import Button from '@/components/ui/Button.vue'
@@ -10,16 +10,7 @@
     ContextMenuItem,
     ContextMenuTrigger,
   } from '@/components/ui/context-menu'
-  import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from '@/components/ui/select'
   import { Skeleton } from '@/components/ui/skeleton'
-  import { usePageSizePreference } from '@/composables/useLayoutPreference'
   import { formatDuration } from '@/lib/utils'
   import { usePlayerStore } from '@/stores'
 
@@ -61,42 +52,6 @@
     'toggle-favorite':  [song: Song]
   }>()
 
-  const pageIndex = ref(0)
-  const { pageSize } = usePageSizePreference('songlist-pagesize', 20)
-
-  watch(
-    () => props.songs,
-    () => {
-      pageIndex.value = 0
-    },
-    { deep: false },
-  )
-
-  const pageCount = computed(() => Math.max(1, Math.ceil((props.songs?.length ?? 0) / pageSize.value)))
-
-  const canPreviousPage = computed(() => pageIndex.value > 0)
-  const canNextPage = computed(() => pageIndex.value < pageCount.value - 1)
-
-  const pagedSongs = computed(() =>
-    props.songs.slice((pageIndex.value * pageSize.value), (pageIndex.value * pageSize.value + pageSize.value)),
-  )
-
-  const previousPage = (): void => {
-    if (canPreviousPage.value) pageIndex.value -= 1
-  }
-
-  const nextPage = (): void => {
-    if (canNextPage.value) pageIndex.value += 1
-  }
-
-  const setPageSize = (value: number): void => {
-    const oldStart = pageIndex.value * pageSize.value
-    pageSize.value = value
-    pageIndex.value = Math.floor(oldStart / pageSize.value)
-  }
-
-  const pageSizeOptions = [10, 20, 30, 50]
-
   // Playlist functionality
   const showShareDialog = ref(false)
   const shareDialogItem = ref<null | { id: string; name: string; type: 'album' | 'artist' | 'song' }>(null)
@@ -112,28 +67,83 @@
 </script>
 
 <template>
-  <div class='bg-sidebar rounded-lg p-6'>
-    <div class='space-y-4 w-full'>
+  <div class='flex-1 flex flex-col h-full'>
+    <div class='flex-1 overflow-auto'>
+      <!-- Table Header -->
+      <div v-if='!loading' class='bg-sidebar/80 backdrop-blur-sm px-2 py-1'>
+        <div
+          :class="
+            layoutMode === 'compact'
+              ? 'flex items-center gap-2 text-xs text-muted-foreground'
+              : 'flex items-center gap-2 text-xs text-muted-foreground'
+          "
+        >
+          <div
+            v-if='showTrackNumber'
+            :class="layoutMode === 'compact' ? 'w-6 text-center font-medium' : 'w-8 text-center font-medium'"
+          >
+            #
+          </div>
+
+          <div v-if='shouldShowAlbumArt' :class="layoutMode === 'compact' ? 'size-8 shrink-0' : 'size-12 shrink-0'" />
+
+          <div class='flex-1 min-w-0'>
+            <div class='flex items-center justify-between'>
+              <div class='flex-1 min-w-0 font-medium'>
+                Song
+                <div v-if='showArtist || showAlbum' class='text-xs font-normal opacity-70'>
+                  Artist • Album
+                </div>
+              </div>
+
+              <div
+                :class="
+                  layoutMode === 'compact'
+                    ? 'flex items-center gap-3 ml-2 shrink-0'
+                    : 'flex items-center gap-2 ml-4 shrink-0'
+                "
+              >
+                <div v-if='showYear' class='w-10 text-right hidden sm:block'>
+                  Year
+                </div>
+                <div class='w-12 text-right'>
+                  Plays
+                </div>
+                <div v-if='showDuration' class='w-10 text-right font-mono'>
+                  Time
+                </div>
+                <div class='w-8 text-center'>
+                  <Heart class='size-3.5 opacity-0' />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div
         v-if='loading'
-        class='space-y-2 w-full max-w-full'
+        class='w-full'
       >
         <div
-          v-for='n in pageSize'
+          v-for='n in 20'
           :key='`list-skeleton-${n}`'
           :class="{
-            'rounded-lg p-3': layoutMode === 'comfy',
-            'rounded-md px-2 py-1.5': layoutMode === 'compact'
+            'border-b last:border-b-0': layoutMode === 'compact',
+            'bg-card p-3': layoutMode === 'comfy'
           }"
         >
-          <div class='flex items-center gap-3'>
-            <Skeleton v-if='showTrackNumber' class='w-8 h-4' />
+          <div :class="layoutMode === 'compact' ? 'flex items-center gap-2 px-2 py-1' : 'flex items-center gap-3'">
+            <Skeleton
+              v-if='showTrackNumber'
+              :class="layoutMode === 'compact' ? 'w-6 h-3' : 'w-8 h-4'"
+            />
 
             <Skeleton
               v-if='shouldShowAlbumArt'
               :class="{
-                'size-12 rounded-lg': layoutMode === 'comfy',
-                'size-8 rounded-md': layoutMode === 'compact'
+                'size-8': layoutMode === 'compact',
+                'size-12 rounded-lg': layoutMode === 'comfy'
               }"
             />
 
@@ -141,19 +151,28 @@
               <div class='flex items-center justify-between'>
                 <div class='flex-1 min-w-0'>
                   <Skeleton :class="layoutMode === 'compact' ? 'h-4 w-3/4' : 'h-5 w-3/4'" />
-                  <div
-                    v-if='showArtist || showAlbum'
-                    :class="layoutMode === 'compact' ? 'space-y-1' : 'mt-1 space-y-1'"
-                  >
+                  <div :class="layoutMode === 'compact' ? 'mt-0.5' : 'mt-1'">
                     <Skeleton :class="layoutMode === 'compact' ? 'h-3 w-1/2' : 'h-4 w-1/2'" />
                   </div>
                 </div>
 
-                <div class='flex items-center gap-2 ml-4'>
-                  <Skeleton v-if='showYear' class='h-4 w-12' />
-                  <Skeleton class='h-4 w-16' />
-                  <Skeleton v-if='showDuration' class='h-4 w-12' />
-                  <Skeleton class='size-8 rounded' />
+                <div
+                  :class="
+                    layoutMode === 'compact'
+                      ? 'flex items-center gap-3 ml-2 shrink-0'
+                      : 'flex items-center gap-2 ml-4'
+                  "
+                >
+                  <Skeleton
+                    v-if='showYear'
+                    :class="layoutMode === 'compact' ? 'h-3 w-10' : 'h-4 w-10'"
+                  />
+                  <Skeleton :class="layoutMode === 'compact' ? 'h-3 w-12' : 'h-4 w-12'" />
+                  <Skeleton
+                    v-if='showDuration'
+                    :class="layoutMode === 'compact' ? 'h-3 w-10' : 'h-4 w-10'"
+                  />
+                  <Skeleton :class="layoutMode === 'compact' ? 'size-5' : 'size-8'" />
                 </div>
               </div>
             </div>
@@ -163,32 +182,36 @@
 
       <div
         v-else
-        class='space-y-2 w-full max-w-full'
+        class='w-full'
       >
-        <ContextMenu v-for='(song, index) in pagedSongs' :key='song.id'>
+        <ContextMenu v-for='(song, index) in songs' :key='song.id'>
           <ContextMenuTrigger>
             <div
               @click="$emit('play-song', song)"
-              :class="layoutMode === 'comfy'
-                ? 'group cursor-pointer hover:bg-muted/50 rounded-lg p-3 ' +
-                  'transition-all duration-200 w-full min-w-0 max-w-full'
-                : 'group cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1.5 ' +
-                  'transition-all duration-200 w-full min-w-0 max-w-full'"
+              :class="[
+                'group cursor-pointer transition-all duration-200 w-full min-w-0 max-w-full',
+                layoutMode === 'comfy'
+                  ? 'hover:bg-muted/50 p-3 bg-card'
+                  : 'hover:bg-muted/50 border-b last:border-b-0'
+              ]"
             >
-              <div class='flex items-center gap-3 min-w-0'>
+              <div :class="layoutMode === 'compact' ? 'flex items-center gap-2 px-2 py-1' : 'flex items-center gap-3'">
                 <div
                   v-if='showTrackNumber'
-                  class='w-8 text-center text-sm text-muted-foreground font-medium'
+                  :class="[
+                    'text-center text-muted-foreground',
+                    layoutMode === 'compact' ? 'w-6 text-xs' : 'w-8 text-sm font-medium'
+                  ]"
                 >
-                  {{ pageIndex * pageSize + index + 1 }}
+                  {{ index + 1 }}
                 </div>
 
                 <div v-if='shouldShowAlbumArt' class='relative shrink-0'>
                   <ImageLoader
-                    :class="layoutMode === 'comfy'
-                      ? 'size-12 rounded-lg object-cover ' +
-                        'group-hover:opacity-75 transition-opacity'
-                      : 'size-8 rounded-md object-cover group-hover:opacity-75 transition-opacity'"
+                    :class="[
+                      'object-cover group-hover:opacity-75 transition-opacity',
+                      layoutMode === 'compact' ? 'size-8' : 'size-12 rounded-lg'
+                    ]"
                     :item-id='song.albumId || song.id'
                     :server-url='serverUrl'
                     :token='token'
@@ -196,10 +219,10 @@
                   >
                     <template #fallback>
                       <ImagePlaceholder
-                        :class="{
-                          'size-12 rounded-lg group-hover:opacity-75 transition-opacity': layoutMode === 'comfy',
-                          'size-8 rounded-md group-hover:opacity-75 transition-opacity': layoutMode === 'compact'
-                        }"
+                        :class="[
+                          'group-hover:opacity-75 transition-opacity',
+                          layoutMode === 'compact' ? 'size-8' : 'size-12 rounded-lg'
+                        ]"
                         size='small'
                         type='album-art'
                       />
@@ -208,7 +231,8 @@
 
                   <div
                     :class="[
-                      'absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center transition-opacity',
+                      'absolute inset-0 bg-black/50 flex items-center justify-center transition-opacity',
+                      layoutMode === 'comfy' ? 'rounded-lg' : '',
                       playerStore.currentSong?.id === song.id && playerStore.isPlaying
                         ? 'opacity-100'
                         : 'opacity-0 group-hover:opacity-100'
@@ -216,11 +240,10 @@
                   >
                     <Button
                       @click.stop="$emit('play-song', song)"
-                      :class="layoutMode === 'comfy'
-                        ? 'bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white ' +
-                          'border border-white/20 size-8'
-                        : 'bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white ' +
-                          'border border-white/20 size-6'"
+                      :class="[
+                        'bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20',
+                        layoutMode === 'compact' ? 'size-6' : 'size-8'
+                      ]"
                       size='icon'
                     >
                       <Pause
@@ -238,14 +261,16 @@
                 <div class='flex-1 min-w-0'>
                   <div class='flex items-center justify-between'>
                     <div class='flex-1 min-w-0 overflow-hidden'>
-                      <h3 :class="layoutMode === 'compact' ? 'font-medium text-sm' : 'font-semibold'" class='truncate'>
+                      <h3 :class="layoutMode === 'compact' ? 'font-medium text-sm' : 'font-semibold'">
                         {{ song.name }}
                       </h3>
 
                       <div
                         v-if='showArtist || showAlbum'
-                        :class="layoutMode === 'compact' ? 'text-xs' : 'text-sm mt-1'"
-                        class='text-muted-foreground'
+                        :class="[
+                          'text-muted-foreground',
+                          layoutMode === 'compact' ? 'text-xs mt-0.5' : 'text-sm mt-1'
+                        ]"
                       >
                         <div class='flex items-center gap-1 truncate'>
                           <span v-if='showArtist'>
@@ -289,43 +314,57 @@
                       </div>
                     </div>
 
-                    <div class='flex items-center gap-2 ml-4 shrink-0'>
-                      <span
+                    <div
+                      :class="
+                        layoutMode === 'compact'
+                          ? 'flex items-center gap-3 ml-2 shrink-0'
+                          : 'flex items-center gap-2 ml-4'
+                      "
+                    >
+                      <div
                         v-if='showYear && song.year'
-                        :class="layoutMode === 'compact' ? 'text-xs' : 'text-sm'"
-                        class='text-muted-foreground hidden sm:block whitespace-nowrap'
+                        :class="[
+                          'text-right text-muted-foreground hidden sm:block whitespace-nowrap',
+                          layoutMode === 'compact' ? 'w-10 text-xs' : 'w-10 text-right text-sm'
+                        ]"
                       >
                         {{ song.year }}
-                      </span>
+                      </div>
 
-                      <span
-                        :class="layoutMode === 'compact' ? 'text-xs' : 'text-sm'"
-                        class='text-muted-foreground whitespace-nowrap'
+                      <div
+                        :class="[
+                          'text-muted-foreground whitespace-nowrap',
+                          layoutMode === 'compact' ? 'w-12 text-right text-xs' : 'w-12 text-right text-sm'
+                        ]"
                       >
-                        {{ song.playCount ?? 0 }} plays
-                      </span>
+                        {{ song.playCount ?? 0 }}
+                      </div>
 
-                      <span
+                      <div
                         v-if='showDuration'
-                        :class="layoutMode === 'compact' ? 'text-xs' : 'text-sm'"
-                        class='text-muted-foreground font-mono whitespace-nowrap'
+                        :class="[
+                          'text-muted-foreground font-mono whitespace-nowrap',
+                          layoutMode === 'compact' ? 'w-10 text-right text-xs' : 'w-10 text-right text-sm'
+                        ]"
                       >
                         {{ formatDuration(song.duration) }}
-                      </span>
+                      </div>
 
-                      <Button
-                        @click.stop="$emit('toggle-favorite', song)"
-                        :size='layoutMode === "compact" ? "sm" : "icon"'
-                        class='shrink-0 hover:text-accent-foreground'
-                        variant='ghost'
-                      >
-                        <Heart
-                          :class="[
-                            layoutMode === 'compact' ? 'size-3.5' : 'size-5',
-                            song.isFavorite ? 'fill-current' : ''
-                          ]"
-                        />
-                      </Button>
+                      <div :class="layoutMode === 'compact' ? 'w-8 text-center' : 'w-8 text-center'">
+                        <Button
+                          @click.stop="$emit('toggle-favorite', song)"
+                          :size='layoutMode === "compact" ? "sm" : "icon"'
+                          class='shrink-0 hover:text-accent-foreground'
+                          variant='ghost'
+                        >
+                          <Heart
+                            :class="[
+                              layoutMode === 'compact' ? 'size-3.5' : 'size-5',
+                              song.isFavorite ? 'fill-current' : ''
+                            ]"
+                          />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -352,91 +391,6 @@
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
-      </div>
-
-      <div
-        v-if='loading || pageCount > 1'
-        class='flex flex-col sm:flex-row items-center justify-between gap-4'
-      >
-        <template v-if='loading'>
-          <div class='flex items-center gap-2'>
-            <Skeleton class='h-4 w-32' />
-            <Skeleton class='h-9 w-20 rounded-md' />
-          </div>
-
-          <div class='flex items-center gap-2'>
-            <Skeleton class='h-4 w-24' />
-            <div class='flex items-center gap-1'>
-              <Skeleton class='h-9 w-16 rounded-md' />
-              <Skeleton class='h-9 w-20 rounded-md' />
-              <Skeleton class='h-9 w-16 rounded-md' />
-              <Skeleton class='h-9 w-16 rounded-md' />
-            </div>
-          </div>
-        </template>
-
-        <template v-else>
-          <div class='flex items-center gap-2'>
-            <span class='text-sm text-muted-foreground'>Songs per page:</span>
-            <Select @update:model-value='v => setPageSize(Number(v))' :model-value='String(pageSize)'>
-              <SelectTrigger class='w-20'>
-                <SelectValue placeholder='Per page' />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem v-for='option in pageSizeOptions' :key='option' :value='String(option)'>
-                    {{ option }}
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div class='flex items-center gap-2'>
-            <span class='text-sm text-muted-foreground'>
-              Page {{ pageIndex + 1 }} of {{ pageCount }}
-            </span>
-
-            <div class='flex items-center gap-1'>
-              <Button
-                @click='pageIndex = 0'
-                :disabled='!canPreviousPage'
-                class='h-9 px-3'
-                size='sm'
-                variant='outline'
-              >
-                First
-              </Button>
-              <Button
-                @click='previousPage'
-                :disabled='!canPreviousPage'
-                class='h-9 px-3'
-                size='sm'
-                variant='outline'
-              >
-                Previous
-              </Button>
-              <Button
-                @click='nextPage'
-                :disabled='!canNextPage'
-                class='h-9 px-3'
-                size='sm'
-                variant='outline'
-              >
-                Next
-              </Button>
-              <Button
-                @click='pageIndex = pageCount - 1'
-                :disabled='!canNextPage'
-                class='h-9 px-3'
-                size='sm'
-                variant='outline'
-              >
-                Last
-              </Button>
-            </div>
-          </div>
-        </template>
       </div>
     </div>
   </div>
