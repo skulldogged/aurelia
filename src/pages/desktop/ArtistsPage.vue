@@ -2,10 +2,11 @@
   import { useMediaQuery } from '@vueuse/core'
   import Fuse from 'fuse.js'
   import { Shuffle } from 'lucide-vue-next'
-  import { computed, ref, watch } from 'vue'
+  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Artist, Song } from '@/bindings'
+  import ArtistsPageTopBar from '@/components/desktop/ArtistsPageTopBar.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import Button from '@/components/ui/Button.vue'
@@ -21,6 +22,7 @@
   import { Skeleton } from '@/components/ui/skeleton'
   import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
   import { useLayoutPreference, usePagination } from '@/composables/useLayoutPreference'
+  import { useTopBar } from '@/composables/useTopBar'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
 
@@ -61,6 +63,9 @@
 
   const authStore = useAuthStore()
   const libraryStore = useLibraryStore()
+
+  // Use top bar for title display
+  const { clearTopBarContent, setTopBarContent } = useTopBar()
 
   // Create computed properties from stores
   const allArtists = computed(() => libraryStore.allArtistsWithSongs as Artist[])
@@ -177,15 +182,26 @@
     if (artist.id)
       router.push(`/artists/${artist.id}`)
   }
+
+  // Set up top bar content when component mounts
+  onMounted(() => {
+    setTopBarContent({
+      component: ArtistsPageTopBar,
+      id:        'artists-page',
+    })
+  })
+
+  // Clean up top bar content when component unmounts
+  onUnmounted(() => {
+    clearTopBarContent()
+  })
 </script>
 
 <template>
   <div class='p-4 max-w-7xl mx-auto'>
     <div class='mb-8'>
       <div class='flex justify-between items-start mb-4'>
-        <h1 class='text-4xl font-bold'>
-          Artists
-        </h1>
+        <div class='flex-1' />
         <Tabs v-model='viewLayout'>
           <TabsList>
             <TabsTrigger value='comfy'>

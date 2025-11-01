@@ -193,29 +193,29 @@
                 <div
                   v-if='song.year'
                   :class="[
-                    'text-right text-muted-foreground hidden sm:block whitespace-nowrap',
-                    viewLayout === 'compact' ? 'w-10 text-xs' : 'w-10 text-right text-sm'
+                    'text-muted-foreground hidden sm:block whitespace-nowrap w-8 text-right',
+                    viewLayout === 'compact' ? 'text-xs' : 'text-sm'
                   ]"
                 >
                   {{ song.year }}
                 </div>
                 <div
                   :class="[
-                    'text-muted-foreground whitespace-nowrap',
-                    viewLayout === 'compact' ? 'w-12 text-right text-xs' : 'w-12 text-right text-sm'
+                    'text-muted-foreground whitespace-nowrap w-8 text-right',
+                    viewLayout === 'compact' ? 'text-xs' : 'text-sm'
                   ]"
                 >
                   {{ song.playCount ?? 0 }}
                 </div>
                 <div
                   :class="[
-                    'text-muted-foreground font-mono whitespace-nowrap',
-                    viewLayout === 'compact' ? 'w-10 text-right text-xs' : 'w-10 text-right text-sm'
+                    'text-muted-foreground whitespace-nowrap w-8 text-right',
+                    viewLayout === 'compact' ? 'text-xs' : 'text-sm'
                   ]"
                 >
                   {{ formatDuration(song.duration) }}
                 </div>
-                <div :class="viewLayout === 'compact' ? 'w-8 text-center' : 'w-8 text-center'">
+                <div class='w-8 text-center'>
                   <Button
                     @click.stop="$emit('toggle-favorite', song)"
                     :size='viewLayout === "compact" ? "sm" : "icon"'

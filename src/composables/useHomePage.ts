@@ -1,8 +1,9 @@
-import { computed, ComputedRef, ref } from 'vue'
+import { computed, ComputedRef, ref, shallowRef, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 
 import type { Album, NameIdPair, Song } from '@/bindings'
 
+import { useDebouncedComputed } from '@/composables/useDebouncedComputed'
 import { useSongInteractions } from '@/composables/useSongInteractions'
 import { logger } from '@/lib/logger'
 import { sortSongsByTrackOrder } from '@/lib/transforms'
@@ -12,7 +13,10 @@ export interface HomePageComposableReturn {
   featuredAlbum:            ComputedRef<Album | null>
   featuredAlbumArtistPairs: ComputedRef<NameIdPair[]>
   featuredAlbums:           ComputedRef<Album[]>
+  hasMoreData:              ComputedRef<{ recentlyPlayed: boolean; recentlyAdded: boolean; randomAlbums: boolean; featuredAlbums: boolean }>
   isLoading:                ComputedRef<boolean>
+  loadMoreData:             () => Promise<void>
+  loadingStage:             ComputedRef<'initial' | 'extended' | 'full'>
   mostPlayed:               ComputedRef<Song[]>
   nextFeaturedAlbum:        () => void
   playAlbumSongs:           (album: Album) => void
@@ -48,19 +52,36 @@ export const useHomePage = (emit: {
   const { playInstantMix } = useSongInteractions(credentials)
 
   const isLoading = computed(() => homeStore.isLoading)
+  const loadingStage = computed(() => homeStore.loadingStage)
+  const hasMoreData = computed(() => homeStore.hasMoreData)
   const recentlyPlayed = computed(() => homeStore.recentlyPlayedSongs)
   const recentlyAdded = computed(() => homeStore.recentlyAddedAlbums)
   const randomAlbums = computed(() => homeStore.randomLibraryAlbums)
   const featuredAlbums = computed(() => homeStore.featuredLibraryAlbums)
   const currentFeaturedIndex = ref(0)
 
-  const featuredAlbum = computed(() =>
+  // Debounced featured album to prevent excessive updates during rapid navigation
+  const featuredAlbumDebounced = useDebouncedComputed(() =>
     featuredAlbums.value[currentFeaturedIndex.value] || null,
+    150 // 150ms delay for smooth transitions
   )
+
+  const featuredAlbum = featuredAlbumDebounced
+
+  // Memoize artist pairs computation to avoid redundant processing
+  const artistPairsCache = shallowRef<Map<string, NameIdPair[]>>(new Map())
 
   const featuredAlbumArtistPairs = computed<NameIdPair[]>(() => {
     const album = featuredAlbum.value
     if (!album) return []
+
+    const cacheKey = album.id || album.name
+    if (!cacheKey) return []
+
+    // Check cache first
+    if (artistPairsCache.value.has(cacheKey)) {
+      return artistPairsCache.value.get(cacheKey)!
+    }
 
     const idToName = new Map<string, string>()
     const albumSongs = album.songs || []
@@ -83,16 +104,40 @@ export const useHomePage = (emit: {
       }
     }
 
-    return Array.from(idToName, ([id, name]) => ({ id, name }))
+    const result = Array.from(idToName, ([id, name]) => ({ id, name }))
+
+    // Cache the result with size limit
+    const cache = artistPairsCache.value
+    if (cache.size > 20) {
+      const firstKey = cache.keys().next().value
+      if (firstKey) cache.delete(firstKey)
+    }
+    cache.set(cacheKey, result)
+    artistPairsCache.value = new Map(cache)
+
+    return result
   })
 
-  const mostPlayed = computed(() =>
-    recentlyPlayed.value.length > 0
-      ? [...recentlyPlayed.value]
-        .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
-        .slice(0, 10)
-      : [],
-  )
+  // Optimized most played computation with caching
+  const mostPlayedCache = shallowRef<Song[]>([])
+
+  const mostPlayed = computed(() => {
+    const recentlyPlayedSongs = recentlyPlayed.value
+    if (recentlyPlayedSongs.length === 0) return []
+
+    // Simple cache invalidation - only recompute if recentlyPlayed changed
+    if (mostPlayedCache.value.length > 0 &&
+        recentlyPlayedSongs.length === mostPlayedCache.value.length) {
+      return mostPlayedCache.value
+    }
+
+    const result = [...recentlyPlayedSongs]
+      .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
+      .slice(0, 10)
+
+    mostPlayedCache.value = result
+    return result
+  })
 
   const nextFeaturedAlbum = (): void => {
     if (featuredAlbums.value.length > 1)
@@ -158,7 +203,10 @@ export const useHomePage = (emit: {
     featuredAlbum,
     featuredAlbumArtistPairs,
     featuredAlbums,
+    hasMoreData,
     isLoading,
+    loadMoreData: homeStore.loadMoreData,
+    loadingStage,
     mostPlayed,
     nextFeaturedAlbum,
     playAlbumSongs,

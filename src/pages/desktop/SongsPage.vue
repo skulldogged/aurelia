@@ -110,44 +110,56 @@
       <div class='w-full flex-1 flex flex-col'>
         <div class='flex-1'>
           <div v-if='!libraryLoading' class='bg-sidebar/80 backdrop-blur-sm px-2 py-1 sticky top-0 z-10'>
+            <!-- Match SongListItem structure exactly -->
             <div
               :class="
                 viewLayout === 'compact'
                   ? 'flex items-center gap-2 text-xs text-muted-foreground'
-                  : 'flex items-center gap-2 text-xs text-muted-foreground'
+                  : 'flex items-center gap-3 text-xs text-muted-foreground px-1'
               "
             >
+              <!-- Number column - exact match -->
               <div
-                :class="viewLayout === 'compact' ? 'w-6 text-center font-medium' : 'w-8 text-center font-medium'"
+                :class="[
+                  'text-center text-muted-foreground font-medium',
+                  viewLayout === 'compact' ? 'w-6 text-xs' : 'w-8 text-sm'
+                ]"
               >
                 #
               </div>
 
-              <div :class="viewLayout === 'compact' ? 'size-8 shrink-0' : 'size-12 shrink-0'" />
+              <!-- Image placeholder - width only for alignment -->
+              <div
+                :class="[
+                  'shrink-0',
+                  viewLayout === 'compact' ? 'w-8' : 'w-12'
+                ]"
+              />
 
+              <!-- Content area - exact match -->
               <div class='flex-1 min-w-0'>
                 <div class='flex items-center justify-between'>
                   <div class='flex-1 min-w-0 font-medium'>
                     Song
-                    <div class='text-xs font-normal opacity-70'>
+                    <div class='text-xs opacity-70'>
                       Artist • Album
                     </div>
                   </div>
 
+                  <!-- Metadata columns - exact match -->
                   <div
-                    :class="
-                      viewLayout === 'compact'
-                        ? 'flex items-center gap-3 ml-2 shrink-0'
-                        : 'flex items-center gap-2 ml-4 shrink-0'
-                    "
+                    :class="[
+                      'flex items-center',
+                      viewLayout === 'compact' ? 'gap-3 ml-2' : 'gap-2 ml-4'
+                    ]"
                   >
-                    <div class='w-10 text-right hidden sm:block'>
+                    <div class='w-8 text-right hidden sm:block'>
                       Year
                     </div>
-                    <div class='w-12 text-right'>
+                    <div class='w-8 text-right'>
                       Plays
                     </div>
-                    <div class='w-10 text-right font-mono'>
+                    <div class='w-8 text-right'>
                       Time
                     </div>
                     <div class='w-8 text-center'>

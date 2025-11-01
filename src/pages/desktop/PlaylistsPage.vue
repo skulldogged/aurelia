@@ -2,10 +2,11 @@
   import Fuse from 'fuse.js'
   import { Heart, HeartOff, MoreHorizontal, Play, Plus } from 'lucide-vue-next'
   import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
-  import { computed, ref, watch } from 'vue'
+  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Playlist } from '@/bindings'
+  import PlaylistsPageTopBar from '@/components/desktop/PlaylistsPageTopBar.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import Button from '@/components/ui/Button.vue'
@@ -34,6 +35,7 @@
   } from '@/components/ui/select'
   import { Skeleton } from '@/components/ui/skeleton'
   import { usePagination } from '@/composables/useLayoutPreference'
+  import { useTopBar } from '@/composables/useTopBar'
   import { logger } from '@/lib/logger'
   import { useAuthStore } from '@/stores'
   import { usePlaylistStore } from '@/stores/playlists'
@@ -41,6 +43,9 @@
   const router = useRouter()
   const authStore = useAuthStore()
   const playlistStore = usePlaylistStore()
+
+  // Use top bar for title display
+  const { clearTopBarContent, setTopBarContent } = useTopBar()
 
   const searchQuery = ref('')
   const showDeleteDialog = ref(false)
@@ -120,15 +125,25 @@
     showDeleteDialog.value = false
     playlistToDelete.value = null
   }
+
+  // Set up top bar content when component mounts
+  onMounted(() => {
+    setTopBarContent({
+      component: PlaylistsPageTopBar,
+      id:        'playlists-page',
+    })
+  })
+
+  // Clean up top bar content when component unmounts
+  onUnmounted(() => {
+    clearTopBarContent()
+  })
 </script>
 
 <template>
   <div class='p-4 max-w-7xl mx-auto'>
     <div class='mb-8'>
-      <div class='flex items-center justify-between mb-4'>
-        <h1 class='text-4xl font-bold'>
-          Playlists
-        </h1>
+      <div class='flex justify-end mb-4'>
         <Button @click='createPlaylist' class='gap-2'>
           <Plus class='h-4 w-4' />
           Create Playlist

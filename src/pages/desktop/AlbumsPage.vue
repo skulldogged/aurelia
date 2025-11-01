@@ -2,13 +2,13 @@
   import { useMediaQuery } from '@vueuse/core'
   import Fuse from 'fuse.js'
   import { Play } from 'lucide-vue-next'
-  import { computed, ref, watch } from 'vue'
+  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Album, Song } from '@/bindings'
+  import AlbumsPageTopBar from '@/components/desktop/AlbumsPageTopBar.vue'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import AlbumStack from '@/components/shared/AlbumStack.vue'
-  import Button from '@/components/ui/Button.vue'
   import {
     ContextMenu,
     ContextMenuContent,
@@ -27,6 +27,7 @@
   import { Skeleton } from '@/components/ui/skeleton'
   import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
   import { useLayoutPreference, usePagination } from '@/composables/useLayoutPreference'
+  import { useTopBar } from '@/composables/useTopBar'
   import { useAuthStore } from '@/stores'
   import { useLibraryStore } from '@/stores/library'
 
@@ -46,6 +47,9 @@
   const searchQuery = ref('')
 
   const { layout: viewLayout } = useLayoutPreference('albums-layout', 'comfy')
+
+  // Use top bar for title display
+  const { clearTopBarContent, setTopBarContent } = useTopBar()
 
   // Detect current breakpoint for column calculations
   const isXl = useMediaQuery('(min-width: 1280px)')
@@ -156,15 +160,25 @@
     if (album.id)
       router.push(`/albums/${album.id}`)
   }
+
+  // Set up top bar content when component mounts
+  onMounted(() => {
+    setTopBarContent({
+      component: AlbumsPageTopBar,
+      id:        'albums-page',
+    })
+  })
+
+  // Clean up top bar content when component unmounts
+  onUnmounted(() => {
+    clearTopBarContent()
+  })
 </script>
 
 <template>
   <div class='p-4 max-w-7xl mx-auto'>
     <div class='mb-8'>
-      <div class='flex justify-between items-start mb-4'>
-        <h1 class='text-4xl font-bold'>
-          Albums
-        </h1>
+      <div class='flex justify-end items-start mb-4'>
         <Tabs v-model='viewLayout'>
           <TabsList>
             <TabsTrigger value='comfy'>
@@ -234,7 +248,7 @@
 
                 <div
                   class='
-                    absolute inset-0 bg-black/25 rounded-lg opacity-0
+                    absolute inset-0 bg-black/25 rounded-xl opacity-0
                     group-hover:opacity-100 transition-opacity flex items-center
                     justify-center z-10
                   '
@@ -266,14 +280,6 @@
                     : "text-sm text-muted-foreground truncate"'
                 >
                   {{ album.artist }}
-                </p>
-                <p
-                  v-if='album.songs'
-                  :class='viewLayout === "compact"
-                    ? "text-xs text-muted-foreground truncate"
-                    : "text-sm text-muted-foreground truncate"'
-                >
-                  {{ album.songs.length }} songs
                 </p>
               </div>
             </div>

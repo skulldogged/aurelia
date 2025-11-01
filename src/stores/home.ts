@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { readonly, ref } from 'vue'
+import { computed, readonly, ref } from 'vue'
 
 import type { Album, Song } from '@/bindings'
 
@@ -17,24 +17,53 @@ export const useHomeStore = defineStore('home', () => {
   const isLoaded = ref(false)
   const error = ref<null | string>(null)
 
-  // Getters
-  const recentlyPlayedSongs = recentlyPlayed
-  const recentlyAddedAlbums = recentlyAdded
-  const randomLibraryAlbums = randomAlbums
+  // Progressive loading state
+  const loadingStage = ref<'initial' | 'extended' | 'full'>('initial')
+  const hasMoreData = ref({
+    recentlyPlayed: false,
+    recentlyAdded: false,
+    randomAlbums: false,
+    featuredAlbums: false,
+  })
+
+  // Getters with progressive limits
+  const recentlyPlayedSongs = computed(() => {
+    if (loadingStage.value === 'initial') return recentlyPlayed.value.slice(0, 10)
+    if (loadingStage.value === 'extended') return recentlyPlayed.value.slice(0, 25)
+    return recentlyPlayed.value
+  })
+
+  const recentlyAddedAlbums = computed(() => {
+    if (loadingStage.value === 'initial') return recentlyAdded.value.slice(0, 12)
+    if (loadingStage.value === 'extended') return recentlyAdded.value.slice(0, 30)
+    return recentlyAdded.value
+  })
+
+  const randomLibraryAlbums = computed(() => {
+    if (loadingStage.value === 'initial') return randomAlbums.value.slice(0, 12)
+    if (loadingStage.value === 'extended') return randomAlbums.value.slice(0, 30)
+    return randomAlbums.value
+  })
+
   const featuredLibraryAlbums = featuredAlbums
 
   // Actions
-  const loadHomeData = async (): Promise<void> => {
-    if (isLoaded.value) {
-      logger.info('Home data already loaded, skipping.')
+  const loadHomeData = async (stage: 'initial' | 'extended' | 'full' = 'initial'): Promise<void> => {
+    // Skip if we're already at or beyond this stage
+    if (
+      (stage === 'initial' && loadingStage.value !== 'initial') ||
+      (stage === 'extended' && loadingStage.value === 'full') ||
+      (stage === 'full' && loadingStage.value === 'full')
+    ) {
+      logger.info(`Home data stage '${stage}' already loaded, skipping.`)
       return
     }
 
     isLoading.value = true
     error.value = null
-    logger.info('Loading home data...')
+    logger.info(`Loading home data stage: ${stage}...`)
 
-    const maxRetries = 5
+    const maxRetries = 3 // Reduce retries for progressive loading
     let retryDelay = 200
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -42,19 +71,30 @@ export const useHomeStore = defineStore('home', () => {
 
       if (result.status === 'ok') {
         const data = result.data
+
+        // Store full data but only expose progressive amounts
         recentlyPlayed.value = data.recently_played || []
         recentlyAdded.value = data.recently_added || []
         randomAlbums.value = data.random_albums || []
         featuredAlbums.value = data.featured_albums || []
 
+        // Track if we have more data for progressive loading
+        hasMoreData.value = {
+          recentlyPlayed: (data.recently_played?.length || 0) > getStageLimit('recentlyPlayed', stage),
+          recentlyAdded: (data.recently_added?.length || 0) > getStageLimit('recentlyAdded', stage),
+          randomAlbums: (data.random_albums?.length || 0) > getStageLimit('randomAlbums', stage),
+          featuredAlbums: false, // Featured albums are typically limited already
+        }
+
+        loadingStage.value = stage
+        isLoaded.value = true
+
         logger.info(
-          `Home data loaded: ${recentlyPlayed.value.length} recently played, ` +
+          `Home data stage '${stage}' loaded: ${recentlyPlayed.value.length} recently played, ` +
           `${recentlyAdded.value.length} recently added, ` +
           `${randomAlbums.value.length} random, ${featuredAlbums.value.length} featured`,
         )
 
-        isLoaded.value = true
-        logger.info('Home data loaded successfully')
         isLoading.value = false
         return
       }
@@ -93,9 +133,32 @@ export const useHomeStore = defineStore('home', () => {
     isLoading.value = false
   }
 
+  // Helper function to get stage limits
+  const getStageLimit = (dataType: string, stage: string): number => {
+    const limits = {
+      initial: { recentlyPlayed: 10, recentlyAdded: 12, randomAlbums: 12 },
+      extended: { recentlyPlayed: 25, recentlyAdded: 30, randomAlbums: 30 },
+      full: { recentlyPlayed: Infinity, recentlyAdded: Infinity, randomAlbums: Infinity }
+    }
+    return limits[stage as keyof typeof limits]?.[dataType as keyof typeof limits.initial] || 0
+  }
+
+  // Progressive loading functions
+  const loadMoreData = async (): Promise<void> => {
+    if (loadingStage.value === 'initial') {
+      await loadHomeData('extended')
+    } else if (loadingStage.value === 'extended') {
+      await loadHomeData('full')
+    }
+  }
+
+  const loadInitialData = async (): Promise<void> => {
+    await loadHomeData('initial')
+  }
+
   const refreshHomeData = async (): Promise<void> => {
     resetHomeData()
-    await loadHomeData()
+    await loadInitialData()
   }
 
   const resetHomeData = (): void => {
@@ -104,23 +167,33 @@ export const useHomeStore = defineStore('home', () => {
     randomAlbums.value = []
     featuredAlbums.value = []
     isLoaded.value = false
+    loadingStage.value = 'initial'
+    hasMoreData.value = {
+      recentlyPlayed: false,
+      recentlyAdded: false,
+      randomAlbums: false,
+      featuredAlbums: false,
+    }
     error.value = null
     logger.info('Home data reset')
   }
 
   return {
     // State
-    error:    readonly(error),
+    error: readonly(error),
+    hasMoreData: readonly(hasMoreData),
+    loadingStage: readonly(loadingStage),
     // Data
     featuredLibraryAlbums,
     isLoaded: readonly(isLoaded),
-
     isLoading: readonly(isLoading),
+
     // Actions
     loadHomeData,
+    loadInitialData,
+    loadMoreData,
     randomLibraryAlbums,
     recentlyAddedAlbums,
-
     recentlyPlayedSongs,
     refreshHomeData,
     resetHomeData,

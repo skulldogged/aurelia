@@ -1,8 +1,10 @@
 <script setup lang="ts">
   import { ChevronLeft, ChevronRight, Play, Shuffle } from 'lucide-vue-next'
+  import { onMounted, onUnmounted } from 'vue'
 
   import type { Album, Song } from '@/bindings'
 
+  import HomePageTopBar from '@/components/desktop/HomePageTopBar.vue'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import AlbumStack from '@/components/shared/AlbumStack.vue'
   import Carousel from '@/components/shared/Carousel.vue'
@@ -17,6 +19,7 @@
   } from '@/components/ui/context-menu'
   import { Skeleton } from '@/components/ui/skeleton'
   import { useHomePage } from '@/composables/useHomePage'
+  import { useTopBar } from '@/composables/useTopBar'
 
   defineProps<{
     currentSong: null | Song
@@ -27,11 +30,17 @@
     (e: 'select-album', album: Album): void
   }>()
 
+  // Use top bar for title display
+  const { clearTopBarContent, setTopBarContent } = useTopBar()
+
   const {
     featuredAlbum,
     featuredAlbumArtistPairs,
     featuredAlbums,
+    hasMoreData,
     isLoading,
+    loadingStage,
+    loadMoreData,
     mostPlayed,
     nextFeaturedAlbum,
     playAlbumSongs,
@@ -45,14 +54,23 @@
     serverUrl,
     token,
   } = useHomePage(emit)
+
+  // Set up top bar content when component mounts
+  onMounted(() => {
+    setTopBarContent({
+      component: HomePageTopBar,
+      id:        'home-page',
+    })
+  })
+
+  // Clean up top bar content when component unmounts
+  onUnmounted(() => {
+    clearTopBarContent()
+  })
 </script>
 
 <template>
   <div class='p-4 max-w-7xl mx-auto'>
-    <h1 class='text-4xl font-bold mb-8'>
-      Home
-    </h1>
-
     <div class='space-y-8'>
       <!-- Featured Album Section -->
       <div
@@ -377,10 +395,8 @@
             :key='`recently-added-skeleton-${n}`'
             class='cursor-pointer group'
           >
-            <div class='relative mb-2 album-stack-container'>
-              <Skeleton class='album-stack-layer album-stack-layer-3 album-art-image' />
-              <Skeleton class='album-stack-layer album-stack-layer-2 album-art-image' />
-              <Skeleton class='album-stack-layer album-stack-layer-1 album-art-image' />
+            <div class='relative mb-2 album-card'>
+              <Skeleton class='album-cover-wrapper' />
             </div>
             <Skeleton class='h-6 w-3/4 mb-1' />
             <Skeleton class='h-4 w-1/2' />
@@ -433,6 +449,30 @@
               />
             </ContextMenuContent>
           </ContextMenu>
+
+          <!-- Load More Button -->
+          <div
+            @click='loadMoreData'
+            v-if='hasMoreData.recentlyAdded && loadingStage !== "full"'
+            class='
+              cursor-pointer group hover:bg-muted/50 rounded-md
+              transition-colors p-2 flex flex-col items-center
+              justify-center min-h-44
+            '
+          >
+            <div class='text-center'>
+              <Button
+                :disabled='isLoading'
+                class='mb-2'
+                variant='outline'
+              >
+                Load More
+              </Button>
+              <p class='text-sm text-muted-foreground'>
+                {{ recentlyAdded.length }} albums loaded
+              </p>
+            </div>
+          </div>
         </template>
       </Carousel>
 
@@ -443,10 +483,8 @@
             :key='`library-skeleton-${n}`'
             class='cursor-pointer group'
           >
-            <div class='relative mb-2 album-stack-container'>
-              <Skeleton class='album-stack-layer album-stack-layer-3 album-art-image' />
-              <Skeleton class='album-stack-layer album-stack-layer-2 album-art-image' />
-              <Skeleton class='album-stack-layer album-stack-layer-1 album-art-image' />
+            <div class='relative mb-2 album-card'>
+              <Skeleton class='album-cover-wrapper' />
             </div>
             <Skeleton class='h-6 w-3/4 mb-1' />
             <Skeleton class='h-4 w-1/2' />
@@ -508,8 +546,12 @@
 <style scoped>
 @reference "tailwindcss";
 
-:deep(.album-art-image) {
-  @apply w-full h-auto rounded-lg shadow-lg aspect-square object-cover transition-all;
+:deep(.album-cover-image) {
+  @apply w-full h-auto rounded-xl shadow-lg aspect-square object-cover transition-all;
+}
+
+:deep(.album-cover-wrapper) {
+  @apply w-full h-auto rounded-xl aspect-square;
 }
 
 </style>

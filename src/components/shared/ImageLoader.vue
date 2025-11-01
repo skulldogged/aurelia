@@ -1,11 +1,55 @@
 <script setup lang="ts">
-  import { computed, ref, watch } from 'vue'
+  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
   import { useImageLoader } from '@/composables/useImageLoader'
   import { logger } from '@/lib/logger'
 
   const loadedImageCache = new Map<string, boolean>()
   const imagePreloadCache = new Map<string, boolean>()
+  const prefetchQueue = new Set<string>()
+  let prefetchTimeout: null | ReturnType<typeof setTimeout> = null
+
+  // Enhanced prefetching for viewport-based loading
+  const handlePrefetchEvent = (event: Event): void => {
+    const customEvent = event as CustomEvent
+    const { itemId } = customEvent.detail
+    if (itemId && props.itemId === itemId && !prefetchQueue.has(itemId)) {
+      prefetchQueue.add(itemId)
+      // Debounced prefetch to avoid overwhelming the network
+      if (prefetchTimeout) clearTimeout(prefetchTimeout)
+      prefetchTimeout = setTimeout(() => {
+        prefetchImage(itemId)
+      }, 100)
+    }
+  }
+
+  const prefetchImage = async (itemId: string): Promise<void> => {
+    if (props.itemId === itemId && props.serverUrl && props.token && !imagePreloadCache.has(itemId)) {
+      imagePreloadCache.set(itemId, true)
+      try {
+        const url = await getImageUrl(itemId, props.serverUrl, props.token, props.imageType)
+        if (url) {
+          // Preload the image in the background
+          const img = new Image()
+          img.src = url
+        }
+      } catch (error) {
+        logger.warn('Failed to prefetch image:', error)
+      }
+    }
+  }
+
+  // Set up viewport-based prefetching
+  onMounted(() => {
+    window.addEventListener('prefetch-item', handlePrefetchEvent)
+  })
+
+  onUnmounted(() => {
+    window.removeEventListener('prefetch-item', handlePrefetchEvent)
+    if (prefetchTimeout) {
+      clearTimeout(prefetchTimeout)
+    }
+  })
 
   interface Props {
     alt?:       string

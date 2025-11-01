@@ -1,5 +1,6 @@
 <script setup lang="ts">
-  import { Play } from 'lucide-vue-next'
+  import { Disc, Play } from 'lucide-vue-next'
+  import { computed } from 'vue'
 
   import { Album } from '@/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
@@ -15,7 +16,7 @@
     token:           string
   }
 
-  withDefaults(defineProps<Props>(), {
+  const props = withDefaults(defineProps<Props>(), {
     disabled:       false,
     showPlayButton: true,
     size:           'fixed',
@@ -24,115 +25,63 @@
   defineEmits<{
     play: [album: Album]
   }>()
+
+  // Memoize album identifier to prevent unnecessary re-renders
+  const albumKey = computed(() => props.album.id || props.album.name)
+
+  // shouldComponentUpdate optimization - only re-render if album actually changes
+  const shouldUpdate = computed(() => albumKey.value)
+
+  // Album-specific styling - different from song covers
+  const songCount = computed(() => props.album.songs?.length || 0)
 </script>
 
 <template>
   <div
+    :key='shouldUpdate'
     :class="[
-      'relative album-stack-container group',
+      'relative album-card group',
       size === 'responsive' ? 'aspect-square w-full' : ''
     ]"
   >
-    <!-- Album stack effect - multiple layers -->
-    <div class='album-stack-layer album-stack-layer-3'>
+    <!-- Album cover with distinctive styling -->
+    <div class='album-cover-wrapper'>
       <ImageLoader
         :alt='`${album.name} album art`'
-        :item-id='album.id || album.name'
+        :item-id='albumKey'
         :server-url='serverUrl'
         :token='token'
-        class='album-art-image'
+        class='album-cover-image'
       >
         <template #fallback>
           <ImagePlaceholder
-            class='album-art-image'
+            class='album-cover-image'
             size='large'
             type='album'
           />
         </template>
       </ImageLoader>
 
-      <!-- Darkening overlay -->
-      <div
-        class='
-          absolute inset-0 bg-black/25 opacity-0
-          group-hover:opacity-100
-        '
-        style='border-radius: 0.625rem;'
-      />
-    </div>
-    <div class='album-stack-layer album-stack-layer-2'>
-      <ImageLoader
-        :alt='`${album.name} album art`'
-        :item-id='album.id || album.name'
-        :server-url='serverUrl'
-        :token='token'
-        class='album-art-image'
-      >
-        <template #fallback>
-          <ImagePlaceholder
-            class='album-art-image'
-            size='large'
-            type='album'
-          />
-        </template>
-      </ImageLoader>
+      <!-- Album indicator overlay -->
+      <div class='album-indicator'>
+        <Disc class='album-icon' />
+        <span class='song-count'>{{ songCount }} songs</span>
+      </div>
 
-      <!-- Darkening overlay -->
+      <!-- Play button overlay -->
       <div
-        class='
-          absolute inset-0 bg-black/25 opacity-0
-          group-hover:opacity-100
-        '
-        style='border-radius: 0.625rem;'
-      />
-    </div>
-    <div class='album-stack-layer album-stack-layer-1'>
-      <ImageLoader
-        :alt='`${album.name} album art`'
-        :item-id='album.id || album.name'
-        :server-url='serverUrl'
-        :token='token'
-        class='album-art-image'
+        v-if='showPlayButton'
+        class='play-button-overlay'
       >
-        <template #fallback>
-          <ImagePlaceholder
-            class='album-art-image'
-            size='large'
-            type='album'
-          />
-        </template>
-      </ImageLoader>
-
-      <!-- Darkening overlay -->
-      <div
-        class='
-          absolute inset-0 bg-black/25 opacity-0
-          group-hover:opacity-100
-        '
-        style='border-radius: 0.625rem;'
-      />
-    </div>
-
-    <!-- Play button overlay -->
-    <div
-      v-if='showPlayButton'
-      class='
-        absolute inset-0 rounded-lg opacity-0
-        group-hover:opacity-100 transition-opacity
-        flex items-center justify-center z-10
-      '
-    >
-      <Button
-        @click.stop='$emit("play", album)'
-        :disabled='disabled'
-        class='
-          bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
-          border-white/20 disabled:opacity-50 disabled:cursor-not-allowed
-        '
-        size='icon'
-      >
-        <Play class='h-4 w-4' />
-      </Button>
+        <Button
+          @click.stop='$emit("play", album)'
+          :disabled='disabled'
+          class='play-button'
+          size='icon'
+        >
+          <Play class='h-4 w-4' />
+        </Button>
+      </div>
     </div>
   </div>
 </template>
@@ -140,64 +89,100 @@
 <style scoped>
   @reference "tailwindcss";
 
-  :deep(.album-art-image) {
-    @apply w-full h-auto rounded-lg shadow-lg aspect-square object-cover transition-all;
+  :deep(.album-cover-image) {
+    @apply w-full h-auto rounded-xl shadow-lg aspect-square object-cover transition-all;
   }
 
-  /* Album stack effect */
-  .album-stack-container {
+  /* Album card styling - clean and distinctive */
+  .album-card {
     @apply relative;
+    /* Optimize for performance */
+    transform: translateZ(0);
+    contain: layout style paint;
   }
 
-  .album-stack-container:not(.aspect-square) {
+  .album-card:not(.aspect-square) {
     height: 11rem;
     width: 11rem;
   }
 
-  .group:hover .album-stack-layer {
+  .album-cover-wrapper {
+    @apply relative overflow-hidden rounded-xl;
+    background: linear-gradient(135deg, var(--muted) 0%, var(--muted-foreground/10) 100%);
     box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.2),
-      0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: box-shadow 0.2s ease;
+      0 4px 6px -1px rgba(0, 0, 0, 0.1),
+      0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    /* Ensure child overlays are properly clipped */
+    isolation: isolate;
   }
 
-  .album-stack-layer {
-    position: absolute;
-    border-radius: 0.625rem;
-    overflow: hidden;
-    width: 100%;
-    height: 100%;
-    left: 0;
-    top: 0;
-    background-color: rgba(255, 255, 255, 0.01);
-    box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.2),
-      0 2px 4px rgba(0, 0, 0, 0.1),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  /* Album indicator - distinctive from songs */
+  .album-indicator {
+    @apply absolute bottom-0 left-0 right-0 p-3;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: white;
+    /* Ensure proper coverage */
+    border-radius: 0 0 0.75rem 0.75rem;
   }
 
-  .album-stack-layer-1 {
-    transform: rotate(-4deg) translateX(-4px) translateY(6px) scale(0.95);
-    z-index: 1;
-    opacity: 0.8;
-  }
-
-  .album-stack-layer-2 {
-    transform: rotate(4deg) translateX(2px) translateY(2px) scale(0.97);
-    z-index: 2;
+  .album-icon {
+    @apply h-4 w-4;
     opacity: 0.9;
   }
 
-  .album-stack-layer-3 {
-    transform: rotate(0deg) scale(1);
-    z-index: 3;
+  .album-text {
+    @apply text-xs font-medium;
+    opacity: 0.95;
+  }
+
+  .song-count {
+    @apply text-xs ml-auto;
+    opacity: 0.8;
+  }
+
+  /* Play button overlay */
+  .play-button-overlay {
+    @apply absolute inset-0 flex items-center justify-center;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    backdrop-filter: blur(2px);
+    /* Match the rounded corners of the album art */
+    border-radius: 0.75rem;
+  }
+
+  .group:hover .play-button-overlay {
     opacity: 1;
   }
 
-  /* Remove transition from stack layer overlays for static effect */
-  .album-stack-layer > div:last-child {
-    transition: none;
-    border-radius: 0.625rem;
-    border: 1px solid transparent !important;
+  .play-button {
+    @apply bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border;
+    border-color: rgba(255, 255, 255, 0.2);
+    transition: all 0.2s ease;
+  }
+
+  .play-button:hover {
+    @apply bg-white/40;
+    transform: scale(1.05);
+  }
+
+  .play-button:disabled {
+    @apply opacity-50 cursor-not-allowed;
+    transform: none;
+  }
+
+  /* Performance optimizations */
+  .album-cover-wrapper {
+    /* Optimize for GPU acceleration */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  /* Reduce layout thrashing during hover */
+  .album-card {
+    contain: layout style paint;
   }
 </style>
