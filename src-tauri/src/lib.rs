@@ -2,6 +2,7 @@
 mod android_now_playing;
 pub mod cache;
 pub mod database;
+pub mod db;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod discord_rpc;
 pub mod error;

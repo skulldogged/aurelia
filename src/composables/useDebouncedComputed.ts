@@ -5,20 +5,20 @@ import { computed, ref, Ref, watch } from 'vue'
  */
 export const useDebouncedComputed = <T>(
   getter: () => T,
-  delay: number = 300
+  delay: number = 300,
 ): Ref<T> => {
   const result = ref(getter()) as Ref<T>
-  let timeout: ReturnType<typeof setTimeout> | null = null
+  let timeout: null | ReturnType<typeof setTimeout> = null
 
   watch(
     getter,
-    (newValue) => {
+    newValue => {
       if (timeout) clearTimeout(timeout)
       timeout = setTimeout(() => {
         result.value = newValue
       }, delay)
     },
-    { immediate: true }
+    { immediate: true },
   )
 
   return result
@@ -30,7 +30,7 @@ export const useDebouncedComputed = <T>(
  */
 export const useStableComputed = <T>(
   getter: () => T,
-  equalityFn?: (a: T, b: T) => boolean
+  equalityFn?: (a: T, b: T) => boolean,
 ): Ref<T> => {
   const cached = ref<T>(getter())
 
