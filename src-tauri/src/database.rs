@@ -100,6 +100,20 @@ fn clear_table(table: &mut redb::Table<&str, &[u8]>) -> Result<()> {
 
 pub fn sync_all(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<()> {
     let db = DB.get().ok_or(anyhow!("Database not initialized"))?;
+    
+    // Use the LibraryService for sync operations
+    let service = crate::domain::services::LibraryService::new(db);
+    service
+        .sync_library(songs, artists, albums, true)
+        .map_err(|e| anyhow!("Sync failed: {}", e))?;
+    
+    Ok(())
+}
+
+// Legacy implementation kept for reference (can be removed later)
+#[allow(dead_code)]
+fn sync_all_legacy(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<()> {
+    let db = DB.get().ok_or(anyhow!("Database not initialized"))?;
     let write_txn = db
         .begin_write()
         .map_err(|e| anyhow!("Failed to begin write transaction: {}", e))?;
