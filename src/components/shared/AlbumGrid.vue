@@ -1,10 +1,9 @@
 <script setup lang="ts">
-  import { Play, Shuffle } from 'lucide-vue-next'
+  import { Disc, Play, Shuffle } from 'lucide-vue-next'
   import { computed } from 'vue'
 
   import { Album, Song } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
-  import AlbumStack from '@/components/shared/AlbumStack.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import Button from '@/components/ui/Button.vue'
@@ -213,22 +212,48 @@
           <ContextMenuTrigger as-child>
             <div
               @click="$emit('select-album', album)"
-              class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
+              class='cursor-pointer group'
             >
-              <div class='relative mb-2'>
-                <AlbumStack
-                  @play='playAlbumSongs'
-                  :album='album'
-                  :disabled='isLoading'
+              <div class='relative mb-3 overflow-hidden rounded-lg'>
+                <ImageLoader
+                  :alt='`${album.name} album art`'
+                  :item-id='album.id || album.name'
                   :server-url='serverUrl'
-                  :size="'responsive'"
                   :token='token'
-                />
+                  class='album-art-image group-hover:scale-105 transition-transform duration-300'
+                >
+                  <template #fallback>
+                    <ImagePlaceholder class='album-art-image' size='large' type='album' />
+                  </template>
+                </ImageLoader>
+
+                <!-- Album indicator overlay -->
+                <div
+                  class='absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80
+                         to-transparent p-2 flex items-center gap-1'
+                >
+                  <Disc class='h-3 w-3 text-white opacity-90' />
+                  <span class='text-xs text-white opacity-80'>{{ album.songs?.length || 0 }}</span>
+                </div>
+
+                <!-- Play button overlay -->
+                <div
+                  class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
+                         transition-opacity duration-200 flex items-center justify-center'
+                >
+                  <Button
+                    @click.stop='playAlbumSongs(album)'
+                    class='bg-white/30 hover:bg-white/40 backdrop-blur-sm text-white border border-white/40 shadow-lg'
+                    size='icon'
+                  >
+                    <Play class='h-5 w-5 fill-current' />
+                  </Button>
+                </div>
               </div>
-              <p class='font-semibold truncate'>
+              <p class='font-semibold text-sm truncate group-hover:text-accent transition-colors'>
                 {{ album.name }}
               </p>
-              <p class='text-sm text-muted-foreground truncate'>
+              <p class='text-xs text-muted-foreground truncate mt-1'>
                 <template v-if='getAlbumArtists(album).length > 0'>
                   <template v-for='(artist, index) in getAlbumArtists(album)' :key='artist.id'>
                     <RouterLink

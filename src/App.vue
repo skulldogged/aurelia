@@ -174,8 +174,6 @@
 
   const isSyncing = ref(false)
   const isClearing = ref(false)
-  const transitionAfterLeaveTriggered = ref(false)
-  const transitionBeforeEnterTriggered = ref(false)
   const swipeProgress = ref<null | {
     deltaY:    number
     direction: 'down' | 'left' | 'right' | 'up' | null
@@ -284,16 +282,6 @@
     playerStore.setHasLyrics(hasLyrics)
   }
 
-  const handleTransitionAfterLeave = (): void => {
-    // Old page has finished leaving (is invisible), now safe to change layout
-    transitionAfterLeaveTriggered.value = !transitionAfterLeaveTriggered.value
-  }
-
-  const handleTransitionBeforeEnter = (): void => {
-    // New page is about to enter (still invisible)
-    transitionBeforeEnterTriggered.value = !transitionBeforeEnterTriggered.value
-  }
-
   const confirmExit = async (): Promise<void> => {
     showExitDialog.value = false
     // Exit the app
@@ -350,34 +338,25 @@
         isLyricsOpen,
         isQueueOpen,
       }'
-      :transition-after-leave='transitionAfterLeaveTriggered'
-      :transition-before-enter='transitionBeforeEnterTriggered'
     >
       <RouterView v-slot='{ Component }'>
-        <Transition
-          @after-leave='handleTransitionAfterLeave'
-          @before-enter='handleTransitionBeforeEnter'
-          mode='out-in'
-          name='page-fade'
-        >
-          <component
-            :is='Component'
-            @clear-cache='handleClearCache'
-            @logout='handleLogout'
-            @play-instant-mix='playInstantMix'
-            @play-song='playSong'
-            @play-songs='playSongs'
-            @reload-library='loadLibraryAndHomeData'
-            @select-album='navigateToAlbum'
-            @select-artist='navigateToArtist'
-            @sync-library='handleSyncLibrary'
-            @toggle-favorite='toggleFavorite'
-            :credentials='credentials'
-            :current-song='currentSong'
-            :is-clearing='isClearing'
-            :is-syncing='isSyncing'
-          />
-        </Transition>
+        <component
+          :is='Component'
+          @clear-cache='handleClearCache'
+          @logout='handleLogout'
+          @play-instant-mix='playInstantMix'
+          @play-song='playSong'
+          @play-songs='playSongs'
+          @reload-library='loadLibraryAndHomeData'
+          @select-album='navigateToAlbum'
+          @select-artist='navigateToArtist'
+          @sync-library='handleSyncLibrary'
+          @toggle-favorite='toggleFavorite'
+          :credentials='credentials'
+          :current-song='currentSong'
+          :is-clearing='isClearing'
+          :is-syncing='isSyncing'
+        />
       </RouterView>
 
       <template #queue>

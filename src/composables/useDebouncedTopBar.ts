@@ -1,7 +1,7 @@
 import type { Ref } from 'vue'
 
 import { refDebounced } from '@vueuse/core'
-import { watch } from 'vue'
+import { onMounted, watch } from 'vue'
 
 import SongsPageTopBar from '@/components/desktop/SongsPageTopBar.vue'
 import { useTopBar } from '@/composables/useTopBar'
@@ -27,35 +27,43 @@ export const useDebouncedTopBar = (
   const debouncedSortOption = refDebounced(sortOption, debounceMs)
   const debouncedViewLayout = refDebounced(viewLayout, debounceMs)
 
-  // Update top bar content only when debounced values change
+  const updateTopBar = (): void => {
+    const topBarProps: TopBarProps = {
+      searchQuery: debouncedSearchQuery.value,
+      sortingOptions,
+      sortOption:  debouncedSortOption.value,
+      viewLayout:  debouncedViewLayout.value,
+    }
+
+    setTopBarContent({
+      component: SongsPageTopBar,
+      id:        'songs-page',
+      props:     {
+        'onUpdate:searchQuery': (value: string) => {
+          searchQuery.value = value
+        },
+        'onUpdate:sortOption': (value: string) => {
+          sortOption.value = value
+        },
+        'onUpdate:viewLayout': (value: string) => {
+          viewLayout.value = value
+        },
+        ...topBarProps,
+      },
+    })
+  }
+
+  // Set up top bar content immediately on mount
+  onMounted(() => {
+    updateTopBar()
+  })
+
+  // Update top bar content when debounced values change
   watch(
     [debouncedSearchQuery, debouncedSortOption, debouncedViewLayout],
-    ([newSearchQuery, newSortOption, newViewLayout]) => {
-      const topBarProps: TopBarProps = {
-        searchQuery: newSearchQuery,
-        sortingOptions,
-        sortOption:  newSortOption,
-        viewLayout:  newViewLayout,
-      }
-
-      setTopBarContent({
-        component: SongsPageTopBar,
-        id:        'songs-page',
-        props:     {
-          'onUpdate:searchQuery': (value: string) => {
-            searchQuery.value = value
-          },
-          'onUpdate:sortOption': (value: string) => {
-            sortOption.value = value
-          },
-          'onUpdate:viewLayout': (value: string) => {
-            viewLayout.value = value
-          },
-          ...topBarProps,
-        },
-      })
+    () => {
+      updateTopBar()
     },
-    { immediate: true },
   )
 
   return {

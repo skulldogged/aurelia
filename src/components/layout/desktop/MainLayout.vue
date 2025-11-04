@@ -113,15 +113,26 @@
         <div
           :style='{
             top: `calc(env(safe-area-inset-top))`,
-            left: isSidebarCollapsed ? "48px" : "176px",
-            right: "0"
+            left: isSidebarCollapsed ? "64px" : "192px",
+            right: "0",
+            boxShadow: "0 1px 0 0 var(--border)"
           }'
           class='
             absolute z-5 flex items-center justify-center h-12
-            bg-background-dark shadow-[0_1px_0_0_var(--border-shadow)]
+            bg-background-dark
           '
         >
-          <div class='relative w-full h-full px-3' style='margin-left: 128px; margin-right: 138px;'>
+          <div
+            :class="[
+              'relative w-full h-full pr-3',
+              {
+                'mr-[138px]': !playerState.isQueueOpen && !playerState.isEqualizerOpen && !playerState.isLyricsOpen,
+                'mr-64 lg:mr-80 xl:mr-96 2xl:mr-[448px]':
+                  playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen,
+              }
+            ]"
+            style='margin-left: 128px;'
+          >
             <slot name='top-bar'>
               <!-- Default draggable area when no custom top bar content -->
               <div class='relative w-full h-full'>
@@ -152,13 +163,11 @@
     <Sidebar
       @global-search="$emit('global-search')"
       @navigate="(view: string) => emit('navigate', view)"
-      :class="[
-        'absolute left-0 top-0 h-full z-30 border-r border-border/50'
-      ]"
       :current-view='navigationState.currentView'
       :is-collapsed='isSidebarCollapsed'
       :is-mobile-portrait='false'
       :style='{ paddingTop: `calc(env(safe-area-inset-top))` }'
+      class='absolute left-0 top-0 h-full z-30 border-r border-border'
     />
 
     <!-- Queue/Equalizer/Lyrics positioned absolutely on the right -->
@@ -167,7 +176,7 @@
         'absolute right-0 top-0 h-full z-20',
         rightPanelBgClass,
         (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
-          ? 'border-l border-border/50'
+          ? 'border-l border-border'
           : ''
       ]"
       :style='{ paddingTop: `calc(env(safe-area-inset-top))` }'
@@ -179,7 +188,7 @@
     <div
       v-if='playerState.hasPlayer'
       :class="[
-        'absolute z-30 bg-sidebar',
+        'absolute z-30 bg-background-dark border-t border-border',
         'bottom-0',
         {
           'left-16 right-0':
@@ -192,10 +201,10 @@
             && !playerState.isQueueOpen
             && !playerState.isEqualizerOpen
             && !playerState.isLyricsOpen,
-          'left-16 right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border/50':
+          'left-16 right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border':
             isSidebarCollapsed
             && (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen),
-          'left-48 right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border/50':
+          'left-48 right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border':
             !isSidebarCollapsed
             && (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen),
         }

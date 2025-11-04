@@ -127,19 +127,7 @@
   background-color: var(--accent) !important;
 }
 
-/* Page transition animations */
-.page-fade-enter-active,
-.page-fade-leave-active {
-  transition: opacity 0.1s ease-in-out;
-}
 
-.page-fade-enter-from {
-  opacity: 0;
-}
-
-.page-fade-leave-to {
-  opacity: 0;
-}
 
 body.songs-page-active .os-scrollbar-vertical {
   margin-top: 40px;

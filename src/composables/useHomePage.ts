@@ -1,5 +1,4 @@
-import { computed, ComputedRef, ref, shallowRef, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ComputedRef, ref, shallowRef } from 'vue'
 
 import type { Album, NameIdPair, Song } from '@/bindings'
 
@@ -13,29 +12,33 @@ export interface HomePageComposableReturn {
   featuredAlbum:            ComputedRef<Album | null>
   featuredAlbumArtistPairs: ComputedRef<NameIdPair[]>
   featuredAlbums:           ComputedRef<Album[]>
-  hasMoreData:              ComputedRef<{ recentlyPlayed: boolean; recentlyAdded: boolean; randomAlbums: boolean; featuredAlbums: boolean }>
-  isLoading:                ComputedRef<boolean>
-  loadMoreData:             () => Promise<void>
-  loadingStage:             ComputedRef<'initial' | 'extended' | 'full'>
-  mostPlayed:               ComputedRef<Song[]>
-  nextFeaturedAlbum:        () => void
-  playAlbumSongs:           (album: Album) => void
-  playFeaturedAlbum:        () => void
-  playInstantMix:           (song: Song) => void
-  playSongs:                (songs: Song[], startWith?: Song) => void
-  prevFeaturedAlbum:        () => void
-  randomAlbums:             ComputedRef<Album[]>
-  recentlyAdded:            ComputedRef<Album[]>
-  recentlyPlayed:           ComputedRef<Song[]>
-  serverUrl:                ComputedRef<string>
-  token:                    ComputedRef<string>
+  hasMoreData:              ComputedRef<{
+    featuredAlbums: boolean
+    randomAlbums:   boolean
+    recentlyAdded:  boolean
+    recentlyPlayed: boolean
+  }>
+  isLoading:         ComputedRef<boolean>
+  loadingStage:      ComputedRef<'extended' | 'full' | 'initial'>
+  loadMoreData:      () => Promise<void>
+  mostPlayed:        ComputedRef<Song[]>
+  nextFeaturedAlbum: () => void
+  playAlbumSongs:    (album: Album) => void
+  playFeaturedAlbum: () => void
+  playInstantMix:    (song: Song) => void
+  playSongs:         (songs: Song[], startWith?: Song) => void
+  prevFeaturedAlbum: () => void
+  randomAlbums:      ComputedRef<Album[]>
+  recentlyAdded:     ComputedRef<Album[]>
+  recentlyPlayed:    ComputedRef<Song[]>
+  serverUrl:         ComputedRef<string>
+  token:             ComputedRef<string>
 }
 
 export const useHomePage = (emit: {
   (e: 'play-songs', songs: Song[]): void
   (e: 'select-album', album: Album): void
 }): HomePageComposableReturn => {
-  const router = useRouter()
   const authStore = useAuthStore()
   const homeStore = useHomeStore()
 
@@ -63,10 +66,12 @@ export const useHomePage = (emit: {
   // Debounced featured album to prevent excessive updates during rapid navigation
   const featuredAlbumDebounced = useDebouncedComputed(() =>
     featuredAlbums.value[currentFeaturedIndex.value] || null,
-    150 // 150ms delay for smooth transitions
+    // eslint-disable-next-line @stylistic/indent
+    150, // 150ms delay for smooth transitions
   )
 
-  const featuredAlbum = featuredAlbumDebounced
+  // Ensure featuredAlbum matches the declared ComputedRef<Album | null> type:
+  const featuredAlbum = computed<Album | null>(() => featuredAlbumDebounced.value)
 
   // Memoize artist pairs computation to avoid redundant processing
   const artistPairsCache = shallowRef<Map<string, NameIdPair[]>>(new Map())
@@ -79,9 +84,8 @@ export const useHomePage = (emit: {
     if (!cacheKey) return []
 
     // Check cache first
-    if (artistPairsCache.value.has(cacheKey)) {
+    if (artistPairsCache.value.has(cacheKey))
       return artistPairsCache.value.get(cacheKey)!
-    }
 
     const idToName = new Map<string, string>()
     const albumSongs = album.songs || []
@@ -182,14 +186,10 @@ export const useHomePage = (emit: {
     }
 
     const albumSongs = featuredAlbum.value.songs || []
-    if (albumSongs.length > 0) {
+    if (albumSongs.length > 0)
       emit('play-songs', sortSongsByTrackOrder(albumSongs))
-      if (featuredAlbum.value.id) {
-        router.push(`/albums/${featuredAlbum.value.id}`)
-      }
-    } else {
+    else
       logger.warn('No songs found for featured album')
-    }
   }
 
   const playAlbumSongs = (album: Album): void => {
@@ -205,8 +205,8 @@ export const useHomePage = (emit: {
     featuredAlbums,
     hasMoreData,
     isLoading,
-    loadMoreData: homeStore.loadMoreData,
     loadingStage,
+    loadMoreData: homeStore.loadMoreData,
     mostPlayed,
     nextFeaturedAlbum,
     playAlbumSongs,

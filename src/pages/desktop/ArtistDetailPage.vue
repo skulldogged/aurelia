@@ -1,11 +1,10 @@
 <script setup lang="ts">
-  import { MoreHorizontal, Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
+  import { Disc, MoreHorizontal, Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
   import { computed, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
   import { Album, Artist, commands, Song } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
-  import AlbumStack from '@/components/shared/AlbumStack.vue'
   import Carousel from '@/components/shared/Carousel.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
@@ -82,9 +81,9 @@
       logger.info('Starting to get related artists')
       const start = Date.now()
       const result = await commands.getRelatedArtists(newArtist.id)
-      if (result.status === 'ok') {
+      if (result.status === 'ok')
         relatedArtists.value = result.data as Artist[]
-      }
+
       logger.info(`Got related artists in ${Date.now() - start}ms`)
     }
   })
@@ -458,20 +457,46 @@
           v-for='album in artistAlbums'
           @click="$emit('select-album', { ...album })"
           :key='album.name'
-          class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
+          class='cursor-pointer group'
         >
-          <div class='relative mb-2'>
-            <AlbumStack
-              @play='playAlbum'
-              :album='album'
-              :disabled='libraryLoading'
+          <div class='relative mb-3 overflow-hidden rounded-lg'>
+            <ImageLoader
+              :alt='`${album.name} album art`'
+              :item-id='album.id || album.name'
               :server-url='serverUrl'
               :token='token'
-              size='responsive'
-            />
+              class='album-art-image group-hover:scale-105 transition-transform duration-300'
+            >
+              <template #fallback>
+                <ImagePlaceholder class='album-art-image' size='large' type='album' />
+              </template>
+            </ImageLoader>
+
+            <!-- Album indicator overlay -->
+            <div
+              class='absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80
+                     to-transparent p-2 flex items-center gap-1'
+            >
+              <Disc class='h-3 w-3 text-white opacity-90' />
+              <span class='text-xs text-white opacity-80'>{{ album.songs?.length || 0 }}</span>
+            </div>
+
+            <!-- Play button overlay -->
+            <div
+              class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
+                     transition-opacity duration-200 flex items-center justify-center'
+            >
+              <Button
+                @click.stop='playAlbum(album)'
+                class='bg-white/30 hover:bg-white/40 backdrop-blur-sm text-white border border-white/40 shadow-lg'
+                size='icon'
+              >
+                <Play class='h-5 w-5 fill-current' />
+              </Button>
+            </div>
           </div>
           <div>
-            <h3 class='font-semibold truncate'>
+            <h3 class='font-semibold truncate group-hover:text-accent transition-colors'>
               {{ album.name }}
             </h3>
             <p v-if='albumCollaboratorsFor(album).length' class='text-sm text-muted-foreground truncate'>

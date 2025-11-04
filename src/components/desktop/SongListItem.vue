@@ -138,7 +138,7 @@
           <div class='flex-1 min-w-0'>
             <div class='flex items-center justify-between'>
               <div class='flex-1 min-w-0 overflow-hidden'>
-                <h3 :class="viewLayout === 'compact' ? 'font-medium text-sm' : 'font-semibold'">
+                <h3 :class="viewLayout === 'compact' ? 'font-medium text-sm truncate' : 'font-semibold truncate'">
                   {{ song.name }}
                 </h3>
                 <div
