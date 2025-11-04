@@ -271,7 +271,7 @@
         <!-- Navigation Controls -->
         <div
           v-if='featuredAlbums.length > 1'
-          class='flex w-full items-center justify-between'
+          class='flex w-full items-center justify-between max-w-7xl'
         >
           <!-- Carousel dots -->
           <div class='flex gap-2'>

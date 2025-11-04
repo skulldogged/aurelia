@@ -10,12 +10,12 @@ export const useViewportPrefetching = (
   items: Ref<Array<{ [key: string]: unknown; id: string }>>,
   config: PrefetchConfig = {},
 ): {
-  cleanup: () => void
-  observeItem: (element: HTMLElement, itemId: string) => void
+  cleanup:         () => void
+  observeItem:     (element: HTMLElement, itemId: string) => void
   prefetchedItems: Ref<Set<string>>
-  setupObserver: (container: Element | null) => void
-  unobserveItem: (element: HTMLElement) => void
-  visibleItems: Ref<Set<string>>
+  setupObserver:   (container: Element | null) => void
+  unobserveItem:   (element: HTMLElement) => void
+  visibleItems:    Ref<Set<string>>
 } => {
   const {
     enabled = true,
