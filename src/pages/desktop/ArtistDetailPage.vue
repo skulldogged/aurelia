@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Disc, MoreHorizontal, Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
+  import { Disc, MoreHorizontal, Music, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
   import { computed, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
@@ -18,7 +18,6 @@
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
   import { logger } from '@/lib/logger'
-  import { usePlayerStore } from '@/stores'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
 
@@ -33,12 +32,12 @@
 
   const authStore = useAuthStore()
   const libraryStore = useLibraryStore()
-  const playerStore = usePlayerStore()
 
   // Create computed properties from stores
   const allSongs = computed(() => libraryStore.allSongs as Song[])
   const libraryLoaded = computed(() => libraryStore.isLoaded)
   const libraryLoading = computed(() => libraryStore.isLoading)
+  const isLoading = computed(() => libraryLoading.value || loadingFallbackSongs.value)
   const serverUrl = computed(() => authStore.serverUrl)
   const token = computed(() => authStore.token)
 
@@ -269,62 +268,190 @@
 </script>
 
 <template>
-  <div class='p-4 max-w-7xl mx-auto space-y-8'>
-    <div v-if='libraryLoading || !libraryLoaded || !artist' class='space-y-8'>
-      <!-- Header Skeleton -->
-      <div class='flex items-center p-8 bg-sidebar rounded-lg'>
-        <Skeleton class='size-48 rounded-lg' />
-        <div class='ml-6 space-y-3 flex-1'>
-          <Skeleton class='h-10 w-48' />
-          <Skeleton class='h-6 w-52' />
-          <Skeleton class='h-6 w-72' />
-          <div class='flex items-center gap-2 pt-1'>
-            <Button disabled>
-              <Shuffle class='size-4 mr-2' />
-              Shuffle All
+  <div class='flex flex-col'>
+    <!-- Hero Section - Premium Design (full-width, no padding) -->
+    <div
+      v-if='artist || isLoading'
+      class='
+        relative isolate overflow-hidden min-h-[400px]
+        bg-linear-to-b from-sidebar via-sidebar to-background
+      '
+    >
+      <!-- Animated Background Elements -->
+      <div class='absolute inset-0 overflow-hidden'>
+        <!-- Main background image -->
+        <div class='absolute inset-0 opacity-20'>
+          <ImageLoader
+            v-if='artist && !isLoading'
+            :item-id='artist.id'
+            :server-url='serverUrl'
+            :token='token'
+            class='size-full object-cover blur-2xl scale-110'
+          />
+        </div>
+
+        <!-- Fade to background at bottom -->
+        <div
+          class='
+            absolute bottom-0 left-0 right-0 h-40 pointer-events-none
+            bg-linear-to-t from-background to-transparent
+          '
+        />
+      </div>
+
+      <!-- Content Container -->
+      <div class='relative z-10 flex flex-col items-center py-12 px-6 md:px-10 lg:px-16'>
+        <div class='w-full max-w-7xl space-y-8'>
+          <!-- Top Row: Title and Artist Image -->
+          <div class='flex items-start justify-between gap-8 lg:gap-12'>
+            <!-- Left Content -->
+            <div class='flex-1 min-w-0 space-y-6'>
+              <template v-if='isLoading'>
+                <Skeleton class='h-12 w-3/4 rounded-lg' />
+                <Skeleton class='h-8 w-1/2 rounded-lg' />
+                <Skeleton class='h-5 w-2/3 rounded-lg' />
+                <div class='flex gap-3 pt-2'>
+                  <Skeleton class='h-10 w-32 rounded-lg' />
+                  <Skeleton class='h-10 w-32 rounded-lg' />
+                </div>
+              </template>
+              <template v-else-if='artist'>
+                <!-- Artist Name -->
+                <h1 class='text-5xl lg:text-6xl font-black text-white'>
+                  {{ artist.name }}
+                </h1>
+
+                <!-- Artist Metadata -->
+                <div class='flex flex-wrap gap-4 items-center'>
+                  <div v-if='artist.communityRating' class='flex items-center gap-1'>
+                    <Star class='size-4 text-yellow-500' />
+                    <span class='text-sm text-white/90 font-semibold'>
+                      {{ artist.communityRating.toFixed(1) }} / 10
+                    </span>
+                  </div>
+                  <p class='text-sm text-white/70'>
+                    <template v-if='isFeaturedOnlyArtist'>
+                      Featured on {{ featuredSongs.length }} {{ featuredSongs.length === 1 ? 'song' : 'songs' }}
+                    </template>
+                    <template v-else>
+                      {{ artistSongs.length }} songs across {{ artistAlbums.length }} albums
+                    </template>
+                  </p>
+                </div>
+
+                <!-- Genres -->
+                <div v-if='artistGenres.length > 0' class='flex flex-wrap gap-2'>
+                  <span
+                    v-for='genre in artistGenres.slice(0, 5)'
+                    :key='genre'
+                    class='px-3 py-1 bg-white/10 text-white text-xs font-semibold rounded-full border border-white/20'
+                  >
+                    {{ genre }}
+                  </span>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class='flex items-center gap-3 pt-2'>
+                  <button
+                    @click='playArtistShuffle'
+                    class='
+                      px-6 py-3 bg-accent hover:bg-accent/90 text-sidebar font-bold rounded-lg
+                      transition-all duration-200 flex items-center gap-2 shadow-lg
+                      hover:shadow-xl
+                    '
+                  >
+                    <Shuffle class='h-5 w-5' />
+                    <span>Shuffle All</span>
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <button
+                        class='
+                          px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg
+                          border border-white/20 transition-all duration-200
+                          backdrop-blur-sm hover:backdrop-blur-md
+                        '
+                      >
+                        <MoreHorizontal class='h-5 w-5' />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='start'>
+                      <AddToPlaylistMenu :songs='artistSongs' type='dropdown' />
+                      <DropdownMenuItem @click='showShareDialog = true'>
+                        <Share2 class='size-4 mr-2' />
+                        Share
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </template>
+            </div>
+
+            <!-- Right Artist Art -->
+            <div class='hidden lg:flex shrink-0 items-start justify-end'>
+              <template v-if='isLoading'>
+                <Skeleton class='w-64 h-64 rounded-2xl' />
+              </template>
+              <template v-else-if='artist'>
+                <div class='relative group'>
+                  <!-- Glow effect -->
+                  <div
+                    class='
+                      absolute -inset-4 rounded-3xl blur-xl opacity-0
+                      group-hover:opacity-100 transition-opacity duration-300
+                      bg-linear-to-br from-accent/30 to-accent/10
+                    '
+                  />
+
+                  <!-- Artist Art -->
+                  <ImageLoader
+                    :item-id='artist.id'
+                    :server-url='serverUrl'
+                    :token='token'
+                    class='
+                      relative w-64 h-64 rounded-2xl shadow-2xl object-cover
+                      transition-shadow duration-300 group-hover:shadow-2xl
+                    '
+                  >
+                    <template #fallback>
+                      <div class='relative w-64 h-64 rounded-2xl shadow-2xl bg-muted flex items-center justify-center'>
+                        <Music class='size-32 text-muted-foreground' />
+                      </div>
+                    </template>
+                  </ImageLoader>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Bottom Row: Overview Section -->
+          <div v-if='artist && artist.overview && !isLoading' class='prose dark:prose-invert max-w-none'>
+            <p
+              :class="[
+                'text-white/90 text-sm leading-relaxed',
+                { 'line-clamp-3': !showFullOverview }
+              ]"
+              v-html='artist.overview'
+            />
+            <Button
+              @click='showFullOverview = !showFullOverview'
+              v-if='artist.overview.length > 200'
+              class='mt-3 text-white hover:text-accent'
+              variant='link'
+            >
+              {{ showFullOverview ? 'Show Less' : 'Read More' }}
             </Button>
           </div>
         </div>
       </div>
-
-      <!-- Top Songs Skeleton -->
-      <div class='space-y-4'>
-        <Skeleton class='h-8 w-48' />
-        <div class='grid sm:grid-cols-1 md:grid-cols-2 gap-x-8'>
-          <div
-            v-for='i in topSongsCount'
-            :key='`top-song-skeleton-${i}`'
-            class='flex items-center py-2.5 px-2 rounded-md'
-          >
-            <Skeleton class='size-10 rounded-md mr-3' />
-            <div class='flex-1 space-y-2'>
-              <Skeleton class='h-4 w-3/4' />
-              <Skeleton class='h-3 w-1/2' />
-            </div>
-            <Skeleton class='h-4 w-12 ml-3' />
-          </div>
-        </div>
-      </div>
-
-      <!-- Albums Skeleton -->
-      <div class='space-y-4'>
-        <Skeleton class='h-8 w-32' />
-        <div class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6'>
-          <div v-for='i in 6' :key='`albums-skeleton-${i}`' class='cursor-pointer group'>
-            <div class='relative mb-4'>
-              <Skeleton class='w-full aspect-square rounded-lg' />
-            </div>
-            <Skeleton class='h-6 w-3/4 mb-1' />
-            <Skeleton class='h-4 w-1/2' />
-          </div>
-        </div>
-      </div>
     </div>
-    <div v-else-if='artist' class='space-y-12'>
+
+    <!-- Content Sections - With page-level padding -->
+    <div class='flex flex-col px-6 md:px-10 lg:px-16'>
       <!-- Data Error Alert -->
       <div
-        v-if='artistDataError'
-        class='p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3'
+        v-if='artistDataError && artist'
+        class='py-4 bg-destructive/10 border-b border-destructive/20 flex items-start gap-3'
       >
         <div class='text-destructive'>
           ⚠️
@@ -340,303 +467,223 @@
         </div>
       </div>
 
-      <!-- Header -->
-      <div
-        class='
-          relative flex flex-col md:flex-row md:items-center items-start
-          p-8 bg-sidebar rounded-lg gap-8
-        '
-      >
-        <div class='shrink-0 mx-auto md:mx-0'>
-          <ImageLoader
-            :item-id='artist.id'
-            :server-url='serverUrl'
-            :token='token'
-            alt='Artist art'
-            class='size-48 rounded-lg object-cover'
-          >
-            <template #fallback>
-              <div class='size-48 rounded-lg bg-muted flex items-center justify-center'>
-                <Music class='size-24 text-muted-foreground' />
+      <!-- Top Songs Section - Carousel -->
+      <div class='flex justify-center'>
+        <div class='w-full max-w-7xl'>
+          <Carousel :disabled='isLoading || libraryLoading' :title="isFeaturedOnlyArtist ? 'Features' : 'Top Songs'">
+            <template v-if='isLoading || artistSongs.length === 0'>
+              <div
+                v-for='n in 10'
+                :key='`top-song-skeleton-${n}`'
+                class='cursor-pointer group'
+              >
+                <div class='relative mb-3'>
+                  <Skeleton class='album-art-image' />
+                </div>
+                <Skeleton class='h-5 w-4/5 mb-2' />
+                <Skeleton class='h-4 w-3/4' />
               </div>
             </template>
-          </ImageLoader>
-        </div>
-        <div class='flex-1 w-full'>
-          <div class='flex flex-col lg:flex-row items-start gap-8'>
-            <div class='space-y-4'>
-              <div>
-                <h2 class='text-4xl font-bold'>
-                  {{ artist.name }}
-                </h2>
-                <div class='flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-muted-foreground'>
-                  <div v-if='artist.communityRating' class='flex items-center gap-1'>
-                    <Star class='size-4 text-yellow-500' />
-                    <span>{{ artist.communityRating.toFixed(1) }} / 10</span>
-                  </div>
-                  <p v-if='isFeaturedOnlyArtist'>
-                    Featured on {{ featuredSongs.length }} {{ featuredSongs.length === 1 ? 'song' : 'songs' }}
-                  </p>
-                  <p v-else>
-                    {{ artistSongs.length }} songs across {{ artistAlbums.length }} albums
-                  </p>
-                </div>
-                <div v-if='artistGenres.length > 0' class='flex flex-wrap gap-2 mt-4 w-full'>
-                  <span
-                    v-for='genre in artistGenres'
-                    :key='genre'
-                    class='px-2 py-1 text-xs font-semibold rounded-full bg-secondary/30 text-foreground'
-                  >
-                    {{ genre }}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Actions -->
-              <div class='flex items-center gap-2'>
-                <Button @click='playArtistShuffle'>
-                  <Shuffle class='size-4 mr-2' />
-                  Shuffle All
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button variant='outline'>
-                      <MoreHorizontal class='size-4' />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align='start'>
-                    <AddToPlaylistMenu :songs='artistSongs' type='dropdown' />
-                    <DropdownMenuItem @click='showShareDialog = true'>
-                      <Share2 class='size-4 mr-2' />
-                      Share
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            <!-- About Section -->
-            <div class='space-y-4 flex-1 self-stretch'>
-              <div v-if='artist.overview' class='prose dark:prose-invert max-w-none h-full flex flex-col'>
-                <p :class="['flex-1', { 'line-clamp-4': !showFullOverview }]" v-html='artist.overview' />
-                <Button
-                  @click='showFullOverview = !showFullOverview'
-                  v-if='artist.overview.length > 200'
-                  class='px-0 self-start'
-                  variant='link'
-                >
-                  {{ showFullOverview ? 'Show Less' : 'Read More' }}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Top Songs -->
-      <div class='bg-sidebar rounded-lg p-6 space-y-4'>
-        <h3 class='text-2xl font-semibold'>
-          {{ isFeaturedOnlyArtist ? 'Features' : 'Top Songs' }}
-        </h3>
-        <div class='grid sm:grid-cols-1 md:grid-cols-2 gap-x-8'>
-          <div
-            v-for='song in artistSongs.slice(0, topSongsCount)'
-            @click='playSong(song)'
-            :key='song.id'
-            class='flex items-center p-2 hover:bg-muted/50 rounded-md cursor-pointer transition-colors group'
-          >
-            <div class='relative mr-4 shrink-0'>
-              <ImageLoader
-                :item-id='song.albumId || song.id'
-                :server-url='serverUrl'
-                :token='token'
-                alt='Album art'
-                class='size-10 rounded-md object-cover'
-              >
-                <template #fallback>
-                  <ImagePlaceholder
-                    class='size-10 rounded-md'
-                    size='small'
-                    type='album'
-                  />
-                </template>
-              </ImageLoader>
+            <template v-else>
               <div
-                :class="[
-                  'absolute inset-0 size-10 flex items-center justify-center transition-opacity',
-                  playerStore.currentSong?.id === song.id && playerStore.isPlaying
-                    ? 'opacity-100'
-                    : 'opacity-0 group-hover:opacity-100',
-                ]"
+                v-for='song in artistSongs.slice(0, topSongsCount)'
+                @click='playSong(song)'
+                :key='song.id'
+                class='cursor-pointer group'
               >
-                <Button
-                  class='size-8 rounded-full bg-background/75 text-foreground hover:bg-background'
-                  size='icon'
-                  variant='ghost'
-                >
-                  <Pause v-if='playerStore.currentSong?.id === song.id && playerStore.isPlaying' class='size-5' />
-                  <Play v-else class='size-5' />
-                </Button>
-              </div>
-            </div>
-            <div class='flex-1 min-w-0'>
-              <p class='text-foreground font-medium truncate'>
-                {{ song.name }}
-              </p>
-              <p
-                v-if='(song.album && !isSingle(song)) || isFeaturedOnSong(song)'
-                class='text-muted-foreground text-sm truncate'
-              >
-                <RouterLink
-                  @click.stop
-                  v-if='song.album && song.albumId && !isSingle(song)'
-                  :to='`/albums/${song.albumId}`'
-                  class='hover:underline'
-                >
-                  {{ song.album }}
-                </RouterLink>
-                <span v-if='(song.album && !isSingle(song)) && isFeaturedOnSong(song)' class='mx-1'>•</span>
-                <span v-if='isFeaturedOnSong(song)'>
-                  with
-                  <template v-for='(collab, idx) in collaboratorsFor(song)' :key='collab.id || collab.name'>
-                    <RouterLink
-                      @click.stop
-                      v-if='collab.id'
-                      :to='`/artists/${collab.id}`'
-                      class='hover:underline'
+                <div class='relative mb-3 overflow-hidden rounded-lg'>
+                  <ImageLoader
+                    :item-id='song.albumId || song.id'
+                    :server-url='serverUrl'
+                    :token='token'
+                    alt='Album art'
+                    class='album-art-image'
+                  >
+                    <template #fallback>
+                      <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
+                    </template>
+                  </ImageLoader>
+
+                  <!-- Play button overlay -->
+                  <div
+                    class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
+                         transition-opacity duration-200 flex items-center justify-center'
+                  >
+                    <Button
+                      @click.stop='playSong(song)'
+                      class='bg-white/30 hover:bg-white/40 backdrop-blur-sm text-white border border-white/40 shadow-lg'
+                      size='icon'
                     >
-                      {{ collab.name }}
-                    </RouterLink>
-                    <span v-else>{{ collab.name }}</span>
-                    <span v-if='idx < collaboratorsFor(song).length - 1'>, </span>
+                      <Play class='h-5 w-5 fill-current' />
+                    </Button>
+                  </div>
+                </div>
+                <p class='font-semibold text-sm truncate group-hover:text-accent transition-colors'>
+                  {{ song.name }}
+                </p>
+                <p class='text-xs text-muted-foreground truncate mt-1'>
+                  <template v-if='(song.album && !isSingle(song)) || isFeaturedOnSong(song)'>
+                    <template v-if='song.album && song.albumId && !isSingle(song)'>
+                      <RouterLink
+                        @click.stop
+                        :to='`/albums/${song.albumId}`'
+                        class='hover:underline'
+                      >
+                        {{ song.album }}
+                      </RouterLink>
+                    </template>
+                    <span v-if='(song.album && !isSingle(song)) && isFeaturedOnSong(song)' class='mx-0.5'>•</span>
+                    <span v-if='isFeaturedOnSong(song)'>
+                      with
+                      <template v-for='(collab, idx) in collaboratorsFor(song)' :key='collab.id || collab.name'>
+                        <RouterLink
+                          @click.stop
+                          v-if='collab.id'
+                          :to='`/artists/${collab.id}`'
+                          class='hover:underline'
+                        >
+                          {{ collab.name }}
+                        </RouterLink>
+                        <span v-else>{{ collab.name }}</span>
+                        <span v-if='idx < collaboratorsFor(song).length - 1'>, </span>
+                      </template>
+                    </span>
                   </template>
-                </span>
-              </p>
-            </div>
-            <p class='text-muted-foreground text-sm'>
-              {{ song.playCount ?? 0 }} play{{ (song.playCount ?? 0) === 1 ? '' : 's' }}
-            </p>
-          </div>
+                </p>
+              </div>
+            </template>
+          </Carousel>
         </div>
       </div>
 
       <!-- Albums Carousel -->
-      <Carousel
-        v-if='artistAlbums.length > 0'
-        :disabled='libraryLoading || !libraryLoaded || !artist'
-        :title="isFeaturedOnlyArtist ? 'Appears On' : 'Albums'"
-      >
-        <div
-          v-for='album in artistAlbums'
-          @click="$emit('select-album', { ...album })"
-          :key='album.name'
-          class='cursor-pointer group'
-        >
-          <div class='relative mb-3 overflow-hidden rounded-lg'>
-            <ImageLoader
-              :alt='`${album.name} album art`'
-              :item-id='album.id || album.name'
-              :server-url='serverUrl'
-              :token='token'
-              class='album-art-image group-hover:scale-105 transition-transform duration-300'
-            >
-              <template #fallback>
-                <ImagePlaceholder class='album-art-image' size='large' type='album' />
-              </template>
-            </ImageLoader>
-
-            <!-- Album indicator overlay -->
+      <div class='flex justify-center'>
+        <div class='w-full max-w-7xl'>
+          <Carousel
+            v-if='artistAlbums.length > 0'
+            :disabled='libraryLoading || !libraryLoaded || !artist'
+            :title="isFeaturedOnlyArtist ? 'Appears On' : 'Albums'"
+          >
             <div
-              class='absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80
-                     to-transparent p-2 flex items-center gap-1'
+              v-for='album in artistAlbums'
+              @click="$emit('select-album', { ...album })"
+              :key='album.name'
+              class='cursor-pointer group'
             >
-              <Disc class='h-3 w-3 text-white opacity-90' />
-              <span class='text-xs text-white opacity-80'>{{ album.songs?.length || 0 }}</span>
-            </div>
-
-            <!-- Play button overlay -->
-            <div
-              class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
-                     transition-opacity duration-200 flex items-center justify-center'
-            >
-              <Button
-                @click.stop='playAlbum(album)'
-                class='bg-white/30 hover:bg-white/40 backdrop-blur-sm text-white border border-white/40 shadow-lg'
-                size='icon'
-              >
-                <Play class='h-5 w-5 fill-current' />
-              </Button>
-            </div>
-          </div>
-          <div>
-            <h3 class='font-semibold truncate group-hover:text-accent transition-colors'>
-              {{ album.name }}
-            </h3>
-            <p v-if='albumCollaboratorsFor(album).length' class='text-sm text-muted-foreground truncate'>
-              with
-              <template v-for='(pair, idx) in albumCollaboratorsFor(album)' :key='pair.id || pair.name'>
-                <RouterLink
-                  @click.stop
-                  v-if='pair.id'
-                  :to='`/artists/${pair.id}`'
-                  class='hover:underline'
+              <div class='relative mb-3 overflow-hidden rounded-lg'>
+                <ImageLoader
+                  :alt='`${album.name} album art`'
+                  :item-id='album.id || album.name'
+                  :server-url='serverUrl'
+                  :token='token'
+                  class='album-art-image group-hover:scale-105 transition-transform duration-300'
                 >
-                  {{ pair.name }}
-                </RouterLink>
-                <span v-else>{{ pair.name }}</span>
-                <span v-if='idx < albumCollaboratorsFor(album).length - 1'>, </span>
-              </template>
-            </p>
-            <p class='text-xs text-muted-foreground'>
-              <span v-if='isAlbumSingle(album)'>Single</span>
-              <span v-else>{{ album.songs?.length || 0 }} songs</span>
-            </p>
-          </div>
-        </div>
-      </Carousel>
+                  <template #fallback>
+                    <ImagePlaceholder class='album-art-image' size='large' type='album' />
+                  </template>
+                </ImageLoader>
 
-      <!-- Related Artists -->
-      <Carousel
-        v-if='relatedArtists.length > 0'
-        :disabled='libraryLoading || !libraryLoaded || !artist'
-        title='Related Artists'
-      >
-        <div
-          v-for='relatedArtist in relatedArtists'
-          @click="$emit('select-artist', relatedArtist)"
-          :key='relatedArtist.name'
-          class='cursor-pointer group hover:bg-muted/50 rounded-md transition-colors p-2'
-        >
-          <div class='relative mb-4'>
-            <ImageLoader
-              :item-id='relatedArtist.id'
-              :server-url='serverUrl'
-              :token='token'
-              alt='Artist art'
-              class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
-            >
-              <template #fallback>
-                <ImagePlaceholder
-                  class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-                  size='large'
-                  type='artist'
-                />
-              </template>
-            </ImageLoader>
-          </div>
-          <div class='text-center'>
-            <h3 class='font-semibold truncate'>
-              {{ relatedArtist.name }}
-            </h3>
-            <p class='text-sm text-muted-foreground truncate'>
-              {{ relatedArtist.songCount }} {{ relatedArtist.songCount === BigInt(1) ? 'song' : 'songs' }}
-            </p>
-          </div>
+                <!-- Album indicator overlay -->
+                <div
+                  class='absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80
+                   to-transparent p-2 flex items-center gap-1'
+                >
+                  <Disc class='h-3 w-3 text-white opacity-90' />
+                  <span class='text-xs text-white opacity-80'>{{ album.songs?.length || 0 }}</span>
+                </div>
+
+                <!-- Play button overlay -->
+                <div
+                  class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
+                   transition-opacity duration-200 flex items-center justify-center'
+                >
+                  <Button
+                    @click.stop='playAlbum(album)'
+                    class='bg-white/30 hover:bg-white/40 backdrop-blur-sm text-white border border-white/40 shadow-lg'
+                    size='icon'
+                  >
+                    <Play class='h-5 w-5 fill-current' />
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <h3 class='font-semibold truncate group-hover:text-accent transition-colors'>
+                  {{ album.name }}
+                </h3>
+                <p v-if='albumCollaboratorsFor(album).length' class='text-sm text-muted-foreground truncate'>
+                  with
+                  <template v-for='(pair, idx) in albumCollaboratorsFor(album)' :key='pair.id || pair.name'>
+                    <RouterLink
+                      @click.stop
+                      v-if='pair.id'
+                      :to='`/artists/${pair.id}`'
+                      class='hover:underline'
+                    >
+                      {{ pair.name }}
+                    </RouterLink>
+                    <span v-else>{{ pair.name }}</span>
+                    <span v-if='idx < albumCollaboratorsFor(album).length - 1'>, </span>
+                  </template>
+                </p>
+                <p class='text-xs text-muted-foreground'>
+                  <span v-if='isAlbumSingle(album)'>Single</span>
+                  <span v-else>{{ album.songs?.length || 0 }} songs</span>
+                </p>
+              </div>
+            </div>
+          </Carousel>
         </div>
-      </Carousel>
+      </div>
+
+      <!-- Related Artists Carousel -->
+      <div class='flex justify-center'>
+        <div class='w-full max-w-7xl'>
+          <Carousel
+            v-if='relatedArtists.length > 0'
+            :disabled='libraryLoading || !libraryLoaded || !artist'
+            title='Related Artists'
+          >
+            <div
+              v-for='relatedArtist in relatedArtists'
+              @click="$emit('select-artist', relatedArtist)"
+              :key='relatedArtist.name'
+              class='cursor-pointer group'
+            >
+              <div class='relative mb-3 overflow-hidden rounded-lg'>
+                <ImageLoader
+                  :item-id='relatedArtist.id'
+                  :server-url='serverUrl'
+                  :token='token'
+                  alt='Artist art'
+                  class='
+                    w-full aspect-square rounded-lg object-cover
+                    shadow-lg group-hover:opacity-75 transition-opacity
+                  '
+                >
+                  <template #fallback>
+                    <ImagePlaceholder
+                      class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+                      size='large'
+                      type='artist'
+                    />
+                  </template>
+                </ImageLoader>
+              </div>
+              <div class='text-center'>
+                <h3 class='font-semibold truncate'>
+                  {{ relatedArtist.name }}
+                </h3>
+                <p class='text-sm text-muted-foreground truncate'>
+                  {{ relatedArtist.songCount }} {{ relatedArtist.songCount === BigInt(1) ? 'song' : 'songs' }}
+                </p>
+              </div>
+            </div>
+          </Carousel>
+        </div>
+      </div>
     </div>
 
-    <div v-else class='text-center py-12 text-muted-foreground'>
+    <div v-if='!libraryLoading && !artist' class='text-center py-12 text-muted-foreground px-6'>
       Artist not found.
     </div>
 

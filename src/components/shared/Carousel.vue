@@ -46,9 +46,9 @@
 </script>
 
 <template>
-  <section class='flex flex-col bg-sidebar'>
+  <section class='flex flex-col'>
     <!-- Title and Controls -->
-    <div class='px-4 md:px-8 py-6 flex justify-between items-center'>
+    <div class='py-6 flex justify-between items-center'>
       <h2 class='text-2xl md:text-3xl font-bold'>
         {{ title }}
       </h2>
@@ -97,7 +97,7 @@
         "--left-fade-opacity": canScrollLeft ? 1 : 0,
         "--right-fade-opacity": canScrollRight ? 1 : 0,
       }'
-      class='relative carousel-container px-4 md:px-8 py-6'
+      class='relative carousel-container py-6'
     >
       <div @scroll='updateScrollButtons' ref='scrollContainer' class='overflow-x-auto scrollbar-hide'>
         <div class='grid grid-rows-1 grid-flow-col auto-cols-[12rem] gap-6'>
@@ -132,13 +132,13 @@
 
 .carousel-container::before {
   left: 1rem;
-  background-image: linear-gradient(to right, var(--sidebar, rgb(24, 23, 23)), transparent);
+  background-image: linear-gradient(to right, var(--background, rgb(30, 30, 46)), transparent);
   opacity: var(--left-fade-opacity, 0);
 }
 
 .carousel-container::after {
   right: 1rem;
-  background-image: linear-gradient(to left, var(--sidebar, rgb(24, 23, 23)), transparent);
+  background-image: linear-gradient(to left, var(--background, rgb(30, 30, 46)), transparent);
   opacity: var(--right-fade-opacity, 0);
 }
 </style>

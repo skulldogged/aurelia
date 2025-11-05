@@ -161,234 +161,251 @@
 </script>
 
 <template>
-  <div class='bg-sidebar rounded-lg'>
+  <div class='space-y-6'>
     <!-- Header -->
-    <div class='p-6'>
-      <div class='flex items-center space-x-3'>
-        <div class='p-2 bg-accent/10 rounded-lg'>
-          <Palette class='size-5 text-accent' />
-        </div>
-        <h2 class='text-2xl font-semibold'>
+    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
+      <div class='p-2 bg-accent/10 rounded-lg'>
+        <Palette class='size-5 text-accent' />
+      </div>
+      <div>
+        <h2 class='text-xl font-semibold'>
           Appearance
         </h2>
+        <p class='text-sm text-muted-foreground'>
+          Customize the look and feel of your music player
+        </p>
       </div>
-      <p class='text-sm text-muted-foreground mt-2'>
-        Customize the look and feel of your music player
+    </div>
+
+    <!-- Material You -->
+    <div v-if='isAndroidPlatform' class='space-y-3'>
+      <Label class='text-sm font-medium'>
+        Material You
+      </Label>
+      <div
+        class='
+          flex items-center justify-between p-4 bg-background/40 rounded-lg
+          border border-border/20 hover:border-border/40 transition-colors
+        '
+      >
+        <Label class='text-sm cursor-pointer' for='material-you-switch'>
+          Use Material You theming
+        </Label>
+        <Switch
+          @update:checked='setUseMaterialYou'
+          id='material-you-switch'
+          :checked='useMaterialYou'
+        />
+      </div>
+      <p class='text-xs text-muted-foreground'>
+        Use colors from your device's wallpaper.
       </p>
     </div>
 
-    <!-- Settings Grid -->
-    <div class='p-6 space-y-6'>
-      <!-- Material You -->
-      <div v-if='isAndroidPlatform'>
-        <Label class='text-sm font-medium mb-4 block'>
-          Material You
+    <!-- Theme Settings Row -->
+    <div class='grid md:grid-cols-3 gap-6'>
+      <!-- Color Scheme -->
+      <div class='space-y-3'>
+        <Label class='text-sm font-medium'>
+          Color Scheme
         </Label>
-        <div class='flex items-center justify-between p-3 bg-popover rounded-lg border border-border/30'>
-          <Label class='text-sm cursor-pointer' for='material-you-switch'>
-            Use Material You theming
+        <Select
+          @update:model-value='handleColorSchemeChange'
+          v-model='selectedColorScheme'
+          :disabled='useMaterialYou'
+        >
+          <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
+            <SelectValue placeholder='Select a color scheme' />
+          </SelectTrigger>
+          <SelectContent class='border-border/30'>
+            <SelectGroup>
+              <SelectItem
+                v-for='scheme in colorSchemes'
+                :key='scheme.name'
+                :value='scheme.name'
+                class='cursor-pointer'
+              >
+                {{ formatEnumName(scheme.name) }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <p class='text-xs text-muted-foreground'>
+          Choose your preferred theme
+        </p>
+      </div>
+
+      <!-- Accent Color -->
+      <div class='space-y-3'>
+        <Label class='text-sm font-medium'>
+          Accent Color
+        </Label>
+        <Select
+          @update:model-value='handleAccentColorChange'
+          v-model='selectedAccentColorName'
+          :disabled='useMaterialYou'
+        >
+          <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
+            <SelectValue placeholder='Select an accent color' />
+          </SelectTrigger>
+          <SelectContent class='border-border/30'>
+            <SelectGroup>
+              <SelectItem
+                v-for='color in accentColors'
+                :key='color.name'
+                :value='color.name'
+                class='cursor-pointer'
+              >
+                <div class='flex items-center space-x-3'>
+                  <div
+                    :style='{ backgroundColor: color.hex }'
+                    class='size-4 rounded-full border border-border/20'
+                  />
+                  <span>{{ formatEnumName(color.name) }}</span>
+                </div>
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <p class='text-xs text-muted-foreground'>
+          Pick your favorite accent color
+        </p>
+      </div>
+
+      <!-- Window Effects -->
+      <div v-if='!isMobile()' class='space-y-3'>
+        <Label class='text-sm font-medium'>
+          {{ isLinuxPlatform ? 'Window Transparency' : 'Window Blur' }}
+        </Label>
+        <Select @update:model-value='handleBlurModeChange' :model-value='selectedBlurModeName'>
+          <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
+            <SelectValue :placeholder='isLinuxPlatform ? "Select transparency" : "Select a blur mode"' />
+          </SelectTrigger>
+          <SelectContent class='border-border/30'>
+            <SelectGroup v-if='isLinuxPlatform'>
+              <SelectItem
+                v-for='mode in transparencyModes'
+                :key='mode.name'
+                :value='mode.name'
+                class='cursor-pointer'
+              >
+                {{ mode.displayName }}
+              </SelectItem>
+            </SelectGroup>
+            <SelectGroup v-else>
+              <SelectItem
+                v-for='mode in blurModes'
+                :key='mode.name'
+                :disabled='!mode.supported'
+                :value='mode.name'
+                class='cursor-pointer'
+              >
+                {{ mode.displayName }}
+              </SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <p class='text-xs text-muted-foreground'>
+          {{ isLinuxPlatform ? 'Toggle window transparency effect' : 'Choose the background blur effect' }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Audio Visualizer -->
+    <div class='space-y-4 pt-4 border-t border-border/20'>
+      <Label class='text-sm font-medium'>
+        Audio Visualizer
+      </Label>
+
+      <div class='grid md:grid-cols-2 gap-4'>
+        <div
+          class='
+            flex items-center justify-between p-4 bg-background/40 rounded-lg
+            border border-border/20 hover:border-border/40 transition-colors
+          '
+        >
+          <Label class='text-sm cursor-pointer' for='visualizer-switch'>
+            Enable visualizer
           </Label>
           <Switch
-            @update:checked='setUseMaterialYou'
-            id='material-you-switch'
-            :checked='useMaterialYou'
+            @update:checked='handleVisualizerToggle'
+            id='visualizer-switch'
+            :checked='visualizerEnabled'
           />
         </div>
-        <p class='text-xs text-muted-foreground mt-3'>
-          Use colors from your device's wallpaper.
-        </p>
-      </div>
 
-      <!-- Theme Settings Row -->
-      <div class='grid md:grid-cols-3 gap-6'>
-        <!-- Color Scheme -->
-        <div>
-          <Label class='text-sm font-medium mb-3 block'>
-            Color Scheme
-          </Label>
-          <Select
-            @update:model-value='handleColorSchemeChange'
-            v-model='selectedColorScheme'
-            :disabled='useMaterialYou'
-          >
-            <SelectTrigger class='w-full bg-popover! border-border/30!'>
-              <SelectValue placeholder='Select a color scheme' />
+        <div v-if='visualizerEnabled' class='h-full'>
+          <Select @update:model-value='handleVisualizerStyleChange' v-model='selectedVisualizerStyle'>
+            <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
+              <SelectValue placeholder='Select a style' />
             </SelectTrigger>
-            <SelectContent class='border-border/30!'>
+            <SelectContent class='border-border/30'>
               <SelectGroup>
                 <SelectItem
-                  v-for='scheme in colorSchemes'
-                  :key='scheme.name'
-                  :value='scheme.name'
+                  v-for='style in visualizerStyles'
+                  :key='style.value'
+                  :value='style.value'
                   class='cursor-pointer'
                 >
-                  {{ formatEnumName(scheme.name) }}
+                  {{ style.displayName }}
                 </SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
-          <p class='text-xs text-muted-foreground mt-2'>
-            Choose your preferred theme
-          </p>
-        </div>
-
-        <!-- Accent Color -->
-        <div>
-          <Label class='text-sm font-medium mb-3 block'>
-            Accent Color
-          </Label>
-          <Select
-            @update:model-value='handleAccentColorChange'
-            v-model='selectedAccentColorName'
-            :disabled='useMaterialYou'
-          >
-            <SelectTrigger class='w-full bg-popover! border-border/30!'>
-              <SelectValue placeholder='Select an accent color' />
-            </SelectTrigger>
-            <SelectContent class='border-border/30!'>
-              <SelectGroup>
-                <SelectItem
-                  v-for='color in accentColors'
-                  :key='color.name'
-                  :value='color.name'
-                  class='cursor-pointer'
-                >
-                  <div class='flex items-center space-x-3'>
-                    <div
-                      :style='{ backgroundColor: color.hex }'
-                      class='size-4 rounded-full border border-border/20'
-                    />
-                    <span>{{ formatEnumName(color.name) }}</span>
-                  </div>
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <p class='text-xs text-muted-foreground mt-2'>
-            Pick your favorite accent color
-          </p>
-        </div>
-
-        <!-- Window Effects -->
-        <div v-if='!isMobile()'>
-          <Label class='text-sm font-medium mb-3 block'>
-            {{ isLinuxPlatform ? 'Window Transparency' : 'Window Blur' }}
-          </Label>
-          <Select @update:model-value='handleBlurModeChange' :model-value='selectedBlurModeName'>
-            <SelectTrigger class='w-full bg-popover! border-border/30!'>
-              <SelectValue :placeholder='isLinuxPlatform ? "Select transparency" : "Select a blur mode"' />
-            </SelectTrigger>
-            <SelectContent class='border-border/30!'>
-              <SelectGroup v-if='isLinuxPlatform'>
-                <SelectItem
-                  v-for='mode in transparencyModes'
-                  :key='mode.name'
-                  :value='mode.name'
-                  class='cursor-pointer'
-                >
-                  {{ mode.displayName }}
-                </SelectItem>
-              </SelectGroup>
-              <SelectGroup v-else>
-                <SelectItem
-                  v-for='mode in blurModes'
-                  :key='mode.name'
-                  :disabled='!mode.supported'
-                  :value='mode.name'
-                  class='cursor-pointer'
-                >
-                  {{ mode.displayName }}
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <p class='text-xs text-muted-foreground mt-2'>
-            {{ isLinuxPlatform ? 'Toggle window transparency effect' : 'Choose the background blur effect' }}
-          </p>
         </div>
       </div>
 
-      <!-- Audio Visualizer -->
-      <div>
-        <Label class='text-sm font-medium mb-4 block'>
-          Audio Visualizer
-        </Label>
+      <p class='text-xs text-muted-foreground'>
+        {{
+          visualizerEnabled
+            ? 'Choose how audio is visualized during playback'
+            : 'Show visual effects during playback'
+        }}
+      </p>
+    </div>
 
-        <div class='grid md:grid-cols-2 gap-4'>
-          <div class='flex items-center justify-between p-3 bg-popover rounded-lg border border-border/30'>
-            <Label class='text-sm cursor-pointer' for='visualizer-switch'>
-              Enable visualizer
-            </Label>
-            <Switch
-              @update:checked='handleVisualizerToggle'
-              id='visualizer-switch'
-              :checked='visualizerEnabled'
-            />
-          </div>
+    <!-- System Tray -->
+    <div v-if='!isMobile()' class='space-y-4 pt-4 border-t border-border/20'>
+      <Label class='text-sm font-medium'>
+        System Tray
+      </Label>
 
-          <div v-if='visualizerEnabled' class='h-full'>
-            <Select @update:model-value='handleVisualizerStyleChange' v-model='selectedVisualizerStyle'>
-              <SelectTrigger class='w-full bg-popover! border-border/30!'>
-                <SelectValue placeholder='Select a style' />
-              </SelectTrigger>
-              <SelectContent class='border-border/30!'>
-                <SelectGroup>
-                  <SelectItem
-                    v-for='style in visualizerStyles'
-                    :key='style.value'
-                    :value='style.value'
-                    class='cursor-pointer'
-                  >
-                    {{ style.displayName }}
-                  </SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
+      <div class='space-y-3'>
+        <div
+          class='
+            flex items-center justify-between p-4 bg-background/40 rounded-lg
+            border border-border/20 hover:border-border/40 transition-colors
+          '
+        >
+          <Label class='text-sm cursor-pointer' for='minimize-switch'>
+            Minimize to system tray
+          </Label>
+          <Switch
+            @update:checked='handleMinimizeToggle'
+            id='minimize-switch'
+            :checked='systemTrayStore.minimizeToTray'
+          />
         </div>
 
-        <p class='text-xs text-muted-foreground mt-3'>
-          {{
-            visualizerEnabled
-              ? 'Choose how audio is visualized during playback'
-              : 'Show visual effects during playback'
-          }}
+        <div
+          class='
+            flex items-center justify-between p-4 bg-background/40 rounded-lg
+            border border-border/20 hover:border-border/40 transition-colors
+          '
+        >
+          <Label class='text-sm cursor-pointer' for='close-switch'>
+            Close to system tray
+          </Label>
+          <Switch
+            @update:checked='handleCloseToggle'
+            id='close-switch'
+            :checked='systemTrayStore.closeToTray'
+          />
+        </div>
+
+        <p class='text-xs text-muted-foreground'>
+          When enabled, the app will hide to the system tray instead of closing completely
         </p>
-      </div>
-
-      <!-- System Tray -->
-      <div v-if='!isMobile()'>
-        <Label class='text-sm font-medium mb-4 block'>
-          System Tray
-        </Label>
-
-        <div class='space-y-3'>
-          <div class='flex items-center justify-between p-3 bg-popover rounded-lg border border-border/30'>
-            <Label class='text-sm cursor-pointer' for='minimize-switch'>
-              Minimize to system tray
-            </Label>
-            <Switch
-              @update:checked='handleMinimizeToggle'
-              id='minimize-switch'
-              :checked='systemTrayStore.minimizeToTray'
-            />
-          </div>
-
-          <div class='flex items-center justify-between p-3 bg-popover rounded-lg border border-border/30'>
-            <Label class='text-sm cursor-pointer' for='close-switch'>
-              Close to system tray
-            </Label>
-            <Switch
-              @update:checked='handleCloseToggle'
-              id='close-switch'
-              :checked='systemTrayStore.closeToTray'
-            />
-          </div>
-
-          <p class='text-xs text-muted-foreground pl-4'>
-            When enabled, the app will hide to the system tray instead of closing completely
-          </p>
-        </div>
       </div>
     </div>
   </div>

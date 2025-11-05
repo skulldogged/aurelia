@@ -22,6 +22,7 @@
   const playerStore = usePlayerStore()
 
   const props = withDefaults(defineProps<{
+    hideHeader?:       boolean
     layout?:           'comfy' | 'compact'
     loading?:          boolean
     serverUrl:         string
@@ -70,7 +71,7 @@
   <div class='flex-1 flex flex-col h-full'>
     <div class='flex-1 overflow-auto'>
       <!-- Table Header -->
-      <div v-if='!loading' class='bg-sidebar/80 backdrop-blur-sm px-2 py-1'>
+      <div v-if='!loading && !hideHeader' class='bg-sidebar/80 backdrop-blur-sm px-2 py-1'>
         <div
           :class="
             layoutMode === 'compact'

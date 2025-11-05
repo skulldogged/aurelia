@@ -159,246 +159,260 @@
 </script>
 
 <template>
-  <div class='bg-sidebar rounded-lg'>
+  <div class='space-y-6'>
     <!-- Header -->
-    <div class='p-6'>
-      <div class='flex items-center space-x-3'>
-        <div class='p-2 bg-accent/10 rounded-lg'>
-          <Plug class='size-5 text-accent' />
-        </div>
-        <h2 class='text-2xl font-semibold'>
+    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
+      <div class='p-2 bg-accent/10 rounded-lg'>
+        <Plug class='size-5 text-accent' />
+      </div>
+      <div>
+        <h2 class='text-xl font-semibold'>
           Integrations
         </h2>
+        <p class='text-sm text-muted-foreground'>
+          Connect to music scrobbling services to track your listening history
+        </p>
       </div>
-      <p class='text-sm text-muted-foreground mt-2'>
-        Connect to music scrobbling services to track your listening history
-      </p>
     </div>
 
     <!-- Content -->
-    <div class='p-6'>
-      <div class='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-        <!-- Last.fm Section -->
-        <div>
-          <div class='mb-4'>
-            <h3 class='text-lg font-semibold'>
-              Last.fm
-            </h3>
+    <div class='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+      <!-- Last.fm Section -->
+      <div class='space-y-4'>
+        <h3 class='text-lg font-semibold'>
+          Last.fm
+        </h3>
+
+        <div v-if='!isLastFmAuthenticated' class='space-y-4'>
+          <p class='text-sm text-muted-foreground'>
+            Connect your Last.fm account to automatically scrobble tracks as you listen.
+          </p>
+          <div class='space-y-2'>
+            <Label for='api-key'>API Key</Label>
+            <Input
+              id='api-key'
+              v-model='apiKey'
+              class='bg-background/40 border-border/20'
+              placeholder='Enter your Last.fm API key'
+              type='text'
+            />
           </div>
 
-          <div v-if='!isLastFmAuthenticated' class='space-y-4'>
-            <p class='text-sm text-muted-foreground'>
-              Connect your Last.fm account to automatically scrobble tracks as you listen.
+          <div class='space-y-2'>
+            <Label for='api-secret'>API Secret</Label>
+            <Input
+              id='api-secret'
+              v-model='apiSecret'
+              class='bg-background/40 border-border/20'
+              placeholder='Enter your Last.fm API secret'
+              type='password'
+            />
+          </div>
+
+          <Button
+            @click='handleLastFmAuthenticate'
+            :disabled='isLastFmAuthenticating || isWaitingForCallback || !apiKey || !apiSecret'
+            class='w-full'
+          >
+            <template v-if='isWaitingForCallback'>
+              Waiting for authorization...
+            </template>
+            <template v-else-if='isLastFmAuthenticating'>
+              Authenticating...
+            </template>
+            <template v-else>
+              <ExternalLink class='size-4 mr-2' />
+              Connect to Last.fm
+            </template>
+          </Button>
+
+          <div
+            v-if='lastfmError'
+            class='text-sm text-destructive p-3 bg-destructive/10 rounded-lg border border-destructive/20'
+          >
+            {{ lastfmError }}
+          </div>
+
+          <div class='p-4 bg-background/40 rounded-lg border border-border/20'>
+            <p class='text-xs text-muted-foreground'>
+              Don't have API credentials?
+              <a
+                class='text-accent hover:underline'
+                href='https://www.last.fm/api/account/create'
+                target='_blank'
+              >
+                Create an API account on Last.fm
+              </a>
             </p>
-            <div class='space-y-2'>
-              <Label for='api-key'>API Key</Label>
-              <Input
-                id='api-key'
-                v-model='apiKey'
-                class='bg-popover! border-border/30!'
-                placeholder='Enter your Last.fm API key'
-                type='text'
-              />
+          </div>
+        </div>
+
+        <div v-else class='space-y-4'>
+          <div
+            class='
+              flex items-center space-x-3 p-4 bg-background/40 rounded-lg
+              border border-border/20
+            '
+          >
+            <div class='p-2 bg-success/10 rounded-lg'>
+              <svg
+                class='size-5 text-success'
+                fill='none'
+                stroke='currentColor'
+                stroke-width='2'
+                viewBox='0 0 24 24'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <path d='M5 13l4 4L19 7' stroke-linecap='round' stroke-linejoin='round' />
+              </svg>
             </div>
-
-            <div class='space-y-2'>
-              <Label for='api-secret'>API Secret</Label>
-              <Input
-                id='api-secret'
-                v-model='apiSecret'
-                class='bg-popover! border-border/30!'
-                placeholder='Enter your Last.fm API secret'
-                type='password'
-              />
-            </div>
-
-            <Button
-              @click='handleLastFmAuthenticate'
-              :disabled='isLastFmAuthenticating || isWaitingForCallback || !apiKey || !apiSecret'
-              class='w-full'
-            >
-              <template v-if='isWaitingForCallback'>
-                Waiting for authorization...
-              </template>
-              <template v-else-if='isLastFmAuthenticating'>
-                Authenticating...
-              </template>
-              <template v-else>
-                <ExternalLink class='size-4 mr-2' />
-                Connect to Last.fm
-              </template>
-            </Button>
-
-            <div
-              v-if='lastfmError'
-              class='text-sm text-destructive p-3 bg-destructive/10 rounded-lg border border-destructive/20'
-            >
-              {{ lastfmError }}
-            </div>
-
-            <div class='p-4 bg-popover rounded-lg border border-border/30'>
-              <p class='text-xs text-muted-foreground'>
-                Don't have API credentials?
-                <a
-                  class='text-accent hover:underline'
-                  href='https://www.last.fm/api/account/create'
-                  target='_blank'
-                >
-                  Create an API account on Last.fm
-                </a>
+            <div>
+              <p class='font-medium'>
+                Connected to Last.fm
+              </p>
+              <p class='text-sm text-muted-foreground'>
+                Signed in as {{ lastfmStore.credentials?.username }}
               </p>
             </div>
           </div>
 
-          <div v-else class='space-y-4'>
-            <div class='flex items-center space-x-3 p-4 bg-popover rounded-lg border border-border/30'>
-              <div class='p-2 bg-success/10 rounded-lg'>
-                <svg
-                  class='size-5 text-success'
-                  fill='none'
-                  stroke='currentColor'
-                  stroke-width='2'
-                  viewBox='0 0 24 24'
-                  xmlns='http://www.w3.org/2000/svg'
-                >
-                  <path d='M5 13l4 4L19 7' stroke-linecap='round' stroke-linejoin='round' />
-                </svg>
-              </div>
-              <div>
-                <p class='font-medium'>
-                  Connected to Last.fm
-                </p>
-                <p class='text-sm text-muted-foreground'>
-                  Signed in as {{ lastfmStore.credentials?.username }}
-                </p>
-              </div>
-            </div>
+          <div
+            class='
+              flex items-center justify-between p-4 bg-background/40 rounded-lg
+              border border-border/20 hover:border-border/40 transition-colors
+            '
+          >
+            <Label class='text-sm cursor-pointer' for='lastfm-scrobbling-switch'>
+              Enable scrobbling
+            </Label>
+            <Switch
+              @update:checked='handleToggleLastFmScrobbling'
+              id='lastfm-scrobbling-switch'
+              :checked='lastfmStore.isScrobblingEnabled'
+            />
+          </div>
 
-            <div class='flex items-center justify-between p-3 bg-popover rounded-lg border border-border/30'>
-              <Label class='text-sm cursor-pointer' for='lastfm-scrobbling-switch'>
-                Enable scrobbling
-              </Label>
-              <Switch
-                @update:checked='handleToggleLastFmScrobbling'
-                id='lastfm-scrobbling-switch'
-                :checked='lastfmStore.isScrobblingEnabled'
+          <Button
+            @click='handleLastFmDisconnect'
+            class='w-full'
+            variant='destructive'
+          >
+            <XCircle class='size-4 mr-2' />
+            Disconnect from Last.fm
+          </Button>
+        </div>
+      </div>
+
+      <!-- ListenBrainz Section -->
+      <div class='space-y-4'>
+        <h3 class='text-lg font-semibold'>
+          ListenBrainz
+        </h3>
+
+        <div v-if='!isListenBrainzAuthenticated' class='space-y-4'>
+          <p class='text-sm text-muted-foreground'>
+            ListenBrainz is a free and open-source alternative to Last.fm for tracking your listening history.
+          </p>
+
+          <div class='space-y-4'>
+            <div class='space-y-2'>
+              <div class='flex items-center justify-between'>
+                <Label for='listenbrainz-token'>User Token</Label>
+                <Button @click='openTokenPage' size='sm' variant='ghost'>
+                  <ExternalLink class='mr-2 size-4' />
+                  Get Token
+                </Button>
+              </div>
+              <Input
+                @keyup.enter='handleListenBrainzConnect'
+                id='listenbrainz-token'
+                v-model='userToken'
+                :disabled='isValidating'
+                class='bg-background/40 border-border/20'
+                placeholder='Enter your ListenBrainz user token'
+                type='password'
               />
+              <p class='text-xs text-muted-foreground'>
+                You can find your user token in your ListenBrainz settings
+              </p>
             </div>
 
             <Button
-              @click='handleLastFmDisconnect'
+              @click='handleListenBrainzConnect'
+              :disabled='!userToken.trim() || isValidating'
               class='w-full'
-              variant='destructive'
             >
-              <XCircle class='size-4 mr-2' />
-              Disconnect from Last.fm
+              <template v-if='isValidating'>
+                Validating...
+              </template>
+              <template v-else>
+                <ExternalLink class='size-4 mr-2' />
+                Connect to ListenBrainz
+              </template>
             </Button>
+
+            <div
+              v-if='listenbrainzError'
+              class='text-sm text-destructive p-3 bg-destructive/10 rounded-lg border border-destructive/20'
+            >
+              {{ listenbrainzError }}
+            </div>
           </div>
         </div>
 
-        <!-- ListenBrainz Section -->
-        <div>
-          <div class='mb-4'>
-            <h3 class='text-lg font-semibold'>
-              ListenBrainz
-            </h3>
-          </div>
-
-          <div v-if='!isListenBrainzAuthenticated' class='space-y-4'>
-            <p class='text-sm text-muted-foreground'>
-              ListenBrainz is a free and open-source alternative to Last.fm for tracking your listening history.
-            </p>
-
-            <div class='space-y-4'>
-              <div class='space-y-2'>
-                <div class='flex items-center justify-between'>
-                  <Label for='listenbrainz-token'>User Token</Label>
-                  <Button @click='openTokenPage' size='sm' variant='ghost'>
-                    <ExternalLink class='mr-2 size-4' />
-                    Get Token
-                  </Button>
-                </div>
-                <Input
-                  @keyup.enter='handleListenBrainzConnect'
-                  id='listenbrainz-token'
-                  v-model='userToken'
-                  :disabled='isValidating'
-                  class='bg-popover! border-border/30!'
-                  placeholder='Enter your ListenBrainz user token'
-                  type='password'
-                />
-                <p class='text-xs text-muted-foreground'>
-                  You can find your user token in your ListenBrainz settings
-                </p>
-              </div>
-
-              <Button
-                @click='handleListenBrainzConnect'
-                :disabled='!userToken.trim() || isValidating'
-                class='w-full'
+        <div v-else class='space-y-4'>
+          <div
+            class='
+              flex items-center space-x-3 p-4 bg-background/40 rounded-lg
+              border border-border/20
+            '
+          >
+            <div class='p-2 bg-success/10 rounded-lg'>
+              <svg
+                class='size-5 text-success'
+                fill='none'
+                stroke='currentColor'
+                stroke-width='2'
+                viewBox='0 0 24 24'
+                xmlns='http://www.w3.org/2000/svg'
               >
-                <template v-if='isValidating'>
-                  Validating...
-                </template>
-                <template v-else>
-                  <ExternalLink class='size-4 mr-2' />
-                  Connect to ListenBrainz
-                </template>
-              </Button>
-
-              <div
-                v-if='listenbrainzError'
-                class='text-sm text-destructive p-3 bg-destructive/10 rounded-lg border border-destructive/20'
-              >
-                {{ listenbrainzError }}
-              </div>
+                <path d='M5 13l4 4L19 7' stroke-linecap='round' stroke-linejoin='round' />
+              </svg>
+            </div>
+            <div>
+              <p class='font-medium'>
+                Connected to ListenBrainz
+              </p>
+              <p class='text-sm text-muted-foreground'>
+                Signed in as {{ listenbrainzUsername }}
+              </p>
             </div>
           </div>
 
-          <div v-else class='space-y-4'>
-            <div class='flex items-center space-x-3 p-4 bg-popover rounded-lg border border-border/30'>
-              <div class='p-2 bg-success/10 rounded-lg'>
-                <svg
-                  class='size-5 text-success'
-                  fill='none'
-                  stroke='currentColor'
-                  stroke-width='2'
-                  viewBox='0 0 24 24'
-                  xmlns='http://www.w3.org/2000/svg'
-                >
-                  <path d='M5 13l4 4L19 7' stroke-linecap='round' stroke-linejoin='round' />
-                </svg>
-              </div>
-              <div>
-                <p class='font-medium'>
-                  Connected to ListenBrainz
-                </p>
-                <p class='text-sm text-muted-foreground'>
-                  Signed in as {{ listenbrainzUsername }}
-                </p>
-              </div>
-            </div>
-
-            <div class='flex items-center justify-between p-3 bg-popover rounded-lg border border-border/30'>
-              <Label class='text-sm cursor-pointer' for='listenbrainz-scrobbling-switch'>
-                Enable scrobbling
-              </Label>
-              <Switch
-                @update:checked='handleToggleListenBrainzScrobbling'
-                id='listenbrainz-scrobbling-switch'
-                :checked='listenbrainzStore.isScrobblingEnabled'
-              />
-            </div>
-
-            <Button
-              @click='handleListenBrainzDisconnect'
-              class='w-full'
-              variant='destructive'
-            >
-              <XCircle class='size-4 mr-2' />
-              Disconnect from ListenBrainz
-            </Button>
+          <div
+            class='
+              flex items-center justify-between p-4 bg-background/40 rounded-lg
+              border border-border/20 hover:border-border/40 transition-colors
+            '
+          >
+            <Label class='text-sm cursor-pointer' for='listenbrainz-scrobbling-switch'>
+              Enable scrobbling
+            </Label>
+            <Switch
+              @update:checked='handleToggleListenBrainzScrobbling'
+              id='listenbrainz-scrobbling-switch'
+              :checked='listenbrainzStore.isScrobblingEnabled'
+            />
           </div>
+
+          <Button
+            @click='handleListenBrainzDisconnect'
+            class='w-full'
+            variant='destructive'
+          >
+            <XCircle class='size-4 mr-2' />
+            Disconnect from ListenBrainz
+          </Button>
         </div>
       </div>
     </div>

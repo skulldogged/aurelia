@@ -41,30 +41,32 @@
 </script>
 
 <template>
-  <div class='bg-sidebar rounded-lg'>
+  <div class='space-y-6'>
     <!-- Header -->
-    <div class='p-6'>
-      <div class='flex items-center space-x-3'>
-        <div class='p-2 bg-primary/10 rounded-lg'>
-          <Info class='size-5 text-primary' />
-        </div>
-        <h2 class='text-2xl font-semibold'>
+    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
+      <div class='p-2 bg-primary/10 rounded-lg'>
+        <Info class='size-5 text-primary' />
+      </div>
+      <div>
+        <h2 class='text-xl font-semibold'>
           About
         </h2>
+        <p class='text-sm text-muted-foreground'>
+          Information about Aurelia and its components
+        </p>
       </div>
-      <p class='text-sm text-muted-foreground mt-2'>
-        Information about Aurelia and its components
-      </p>
     </div>
 
     <!-- Content -->
-    <div class='p-6 space-y-6'>
+    <div class='space-y-6'>
       <!-- App Info -->
       <div class='space-y-4'>
         <div class='flex items-center space-x-4'>
           <div
-            class='shrink-0 size-20 bg-linear-to-br from-primary to-accent rounded-xl
-                   flex items-center justify-center text-4xl font-bold text-primary-foreground'
+            class='
+              shrink-0 size-20 bg-linear-to-br from-primary to-accent rounded-xl
+              flex items-center justify-center text-4xl font-bold text-primary-foreground
+            '
           >
             A
           </div>
@@ -86,7 +88,7 @@
       </div>
 
       <!-- Links -->
-      <div class='space-y-3'>
+      <div class='space-y-3 pt-2 border-t border-border/20'>
         <h3 class='text-sm font-medium text-muted-foreground'>
           Links
         </h3>
@@ -115,7 +117,7 @@
       </div>
 
       <!-- Tech Stack -->
-      <div class='space-y-3'>
+      <div class='space-y-3 pt-2 border-t border-border/20'>
         <h3 class='text-sm font-medium text-muted-foreground'>
           Built With
         </h3>
@@ -123,7 +125,7 @@
           <div
             v-for='tech in techStack'
             :key='tech.name'
-            class='p-3 bg-popover rounded-lg border border-border/30'
+            class='p-3 bg-background/40 rounded-lg border border-border/20'
           >
             <div class='font-medium text-sm'>
               {{ tech.name }}

@@ -25,26 +25,31 @@
 </script>
 
 <template>
-  <div class='bg-sidebar rounded-lg'>
+  <div class='space-y-6'>
     <!-- Header -->
-    <div class='p-6'>
-      <div class='flex items-center space-x-3'>
-        <div class='p-2 bg-primary/10 rounded-lg'>
-          <Server class='size-5 text-primary' />
-        </div>
-        <h2 class='text-2xl font-semibold'>
+    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
+      <div class='p-2 bg-primary/10 rounded-lg'>
+        <Server class='size-5 text-primary' />
+      </div>
+      <div>
+        <h2 class='text-xl font-semibold'>
           Server Connection
         </h2>
+        <p class='text-sm text-muted-foreground'>
+          Manage your Jellyfin server connection and credentials
+        </p>
       </div>
-      <p class='text-sm text-muted-foreground mt-2'>
-        Manage your Jellyfin server connection and credentials
-      </p>
     </div>
 
     <!-- Content -->
-    <div class='p-6 space-y-6'>
+    <div class='space-y-6'>
       <!-- Connection Status -->
-      <div class='flex items-center space-x-3 p-4 bg-popover rounded-lg border border-border/30'>
+      <div
+        class='
+          flex items-center space-x-3 p-4 bg-background/40 rounded-lg
+          border border-border/20
+        '
+      >
         <div :class='credentials ? "bg-green-500" : "bg-red-500"' class='size-3 rounded-full' />
         <div>
           <p class='font-medium'>
@@ -63,7 +68,12 @@
             <Link class='size-4' />
             <span>Server URL</span>
           </label>
-          <p class='text-sm font-mono bg-popover p-3 rounded-lg border border-border/30'>
+          <p
+            class='
+              text-sm font-mono bg-background/40 p-3 rounded-lg
+              border border-border/20
+            '
+          >
             {{ credentials?.serverUrl || 'Not connected' }}
           </p>
         </div>
@@ -72,14 +82,19 @@
             <User class='size-4' />
             <span>Username</span>
           </label>
-          <p class='text-sm bg-popover p-3 rounded-lg border border-border/30'>
+          <p
+            class='
+              text-sm bg-background/40 p-3 rounded-lg
+              border border-border/20
+            '
+          >
             {{ credentials?.username || 'Not connected' }}
           </p>
         </div>
       </div>
 
       <!-- Actions -->
-      <div class='flex justify-end'>
+      <div class='flex justify-end pt-2'>
         <Button
           @click='$emit("logout")'
           :disabled='!credentials'
