@@ -1,37 +1,38 @@
-import { ref, onMounted, onUnmounted, type Ref } from 'vue'
-
-interface IntersectionObserverOptions {
-  root?: Element | null
-  rootMargin?: string
-  threshold?: number
-}
+import { onUnmounted, ref, type Ref } from 'vue'
 
 interface PrefetchConfig {
-  enabled?: boolean
-  preloadCount?: number
+  enabled?:        boolean
   observerMargin?: string
+  preloadCount?:   number
 }
 
 export const useViewportPrefetching = (
-  items: Ref<Array<{ id: string; [key: string]: any }>>,
-  config: PrefetchConfig = {}
-) => {
+  items: Ref<Array<{ [key: string]: unknown; id: string }>>,
+  config: PrefetchConfig = {},
+): {
+  cleanup:         () => void
+  observeItem:     (element: HTMLElement, itemId: string) => void
+  prefetchedItems: Ref<Set<string>>
+  setupObserver:   (container: Element | null) => void
+  unobserveItem:   (element: HTMLElement) => void
+  visibleItems:    Ref<Set<string>>
+} => {
   const {
     enabled = true,
+    observerMargin = '200px',
     preloadCount = 5,
-    observerMargin = '200px'
   } = config
 
-  const visibleItems = ref<Set<string>>(new Set())
   const prefetchedItems = ref<Set<string>>(new Set())
+  const visibleItems = ref<Set<string>>(new Set())
   const observerRef = ref<IntersectionObserver | null>(null)
 
-  const setupObserver = (container: Element | null) => {
+  const setupObserver = (container: Element | null): void => {
     if (!enabled || !container) return
 
     observerRef.value = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
+      entries => {
+        entries.forEach(entry => {
           const element = entry.target as HTMLElement
           const itemId = element.dataset.itemId
 
@@ -47,14 +48,14 @@ export const useViewportPrefetching = (
         })
       },
       {
-        root: container,
+        root:       container,
         rootMargin: observerMargin,
-        threshold: 0.1
-      }
+        threshold:  0.1,
+      },
     )
   }
 
-  const prefetchNearbyItems = (currentItemId: string) => {
+  const prefetchNearbyItems = (currentItemId: string): void => {
     const itemIndex = items.value.findIndex(item => item.id === currentItemId)
     if (itemIndex === -1) return
 
@@ -68,25 +69,25 @@ export const useViewportPrefetching = (
         prefetchedItems.value.add(item.id)
         // Emit custom event for prefetching
         window.dispatchEvent(new CustomEvent('prefetch-item', {
-          detail: { itemId: item.id, item }
+          detail: { item, itemId: item.id },
         }))
       }
     }
   }
 
-  const observeItem = (element: HTMLElement, itemId: string) => {
+  const observeItem = (element: HTMLElement, itemId: string): void => {
     if (!observerRef.value) return
 
     element.dataset.itemId = itemId
     observerRef.value.observe(element)
   }
 
-  const unobserveItem = (element: HTMLElement) => {
+  const unobserveItem = (element: HTMLElement): void => {
     if (!observerRef.value) return
     observerRef.value.unobserve(element)
   }
 
-  const cleanup = () => {
+  const cleanup = (): void => {
     if (observerRef.value) {
       observerRef.value.disconnect()
       observerRef.value = null
@@ -100,11 +101,11 @@ export const useViewportPrefetching = (
   })
 
   return {
-    visibleItems,
+    cleanup,
+    observeItem,
     prefetchedItems,
     setupObserver,
-    observeItem,
     unobserveItem,
-    cleanup
+    visibleItems,
   }
 }

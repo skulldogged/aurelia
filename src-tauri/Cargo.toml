@@ -10,7 +10,11 @@ name = "aurelia_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
+openapiv3 = "2.2.0"
+prettyplease = "0.2.37"
+progenitor = "0.11.2"
 serde_json = "1"
+syn = { version = "2.0.108", features = ["full"] }
 tauri-build = { version = "2", features = [] }
 toml_edit = "0.23"
 
@@ -24,6 +28,7 @@ dirs = "6.0"
 discord-rich-presence = "1"
 md5 = "0.8"
 once_cell = "1.21.3"
+progenitor-client = "0.11.2"
 rand = "0.9.2"
 redb = "3.1.0"
 reqwest = { version = "0.12", default-features = false, features = [

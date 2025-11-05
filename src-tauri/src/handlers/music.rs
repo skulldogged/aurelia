@@ -10,7 +10,6 @@ use crate::state::AppState;
 use rand::seq::SliceRandom;
 
 use crate::database;
-use std::collections::HashMap;
 use tauri::{AppHandle, State};
 use tracing::{error, info, warn};
 
@@ -151,6 +150,7 @@ pub async fn get_song(app_state: State<'_, AppState>, song_id: String) -> Result
 #[tauri::command]
 #[specta::specta]
 pub async fn get_album(
+    app: tauri::AppHandle,
     app_state: State<'_, AppState>,
     album_id: String,
     include_songs: Option<bool>,
@@ -162,12 +162,20 @@ pub async fn get_album(
         .ok_or_else(|| format!("Album with ID '{}' not found", album_id))?;
 
     if include_songs.unwrap_or(false) {
-        let all_songs = app_state.songs.lock().unwrap().clone();
-        let album_songs: Vec<Song> = all_songs
-            .into_iter()
-            .filter(|song| song.album_id.as_ref() == Some(&album_id))
-            .collect();
-        album.songs = Some(album_songs);
+        // Use server-side filtering via AlbumIds query parameter
+        // Includes workaround for Jellyfin bug where it also matches album names
+        let (server_url, token, user_id) =
+            match crate::handlers::auth::get_saved_credentials(app).await {
+                Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
+                _ => return Err("No saved credentials found".to_string()),
+            };
+
+        let client = JellyfinClient::with_auth(server_url, token);
+        let songs = client
+            .get_songs_for_album(&user_id, &album_id)
+            .await
+            .map_err(|e| format!("Failed to fetch songs for album: {}", e))?;
+        album.songs = Some(songs);
     }
 
     Ok(album)
@@ -176,6 +184,7 @@ pub async fn get_album(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_artist(
+    app: tauri::AppHandle,
     app_state: State<'_, AppState>,
     artist_id: String,
     include_songs: Option<bool>,
@@ -187,16 +196,19 @@ pub async fn get_artist(
         .ok_or_else(|| format!("Artist with ID '{}' not found", artist_id))?;
 
     if include_songs.unwrap_or(false) {
-        let all_songs = app_state.songs.lock().unwrap().clone();
-        let artist_songs: Vec<Song> = all_songs
-            .into_iter()
-            .filter(|song| {
-                song.artist_ids
-                    .as_ref()
-                    .is_some_and(|ids| ids.contains(&artist_id))
-            })
-            .collect();
-        artist.songs = Some(artist_songs);
+        // Use server-side filtering via AlbumArtistIds query parameter
+        let (server_url, token, user_id) =
+            match crate::handlers::auth::get_saved_credentials(app).await {
+                Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
+                _ => return Err("No saved credentials found".to_string()),
+            };
+
+        let client = JellyfinClient::with_auth(server_url, token);
+        let songs = client
+            .get_songs_for_album_artist(&user_id, &artist_id)
+            .await
+            .map_err(|e| format!("Failed to fetch songs for artist: {}", e))?;
+        artist.songs = Some(songs);
     }
 
     Ok(artist)
@@ -421,36 +433,23 @@ pub async fn sync_library(
 
     // Fetch in parallel
     let songs_fut = client.get_music_library(&user_id);
-    let all_artists_fut = client.get_all_artists();
-    let user_artists_fut = client.get_all_artists_for_user(&user_id);
+    let album_artists_fut = client.get_album_artists();
     let albums_fut = client.get_albums(&user_id);
 
-    let (songs_res, all_artists_res, user_artists_res, albums_res) =
-        tokio::join!(songs_fut, all_artists_fut, user_artists_fut, albums_fut);
+    let (songs_res, album_artists_res, albums_res) =
+        tokio::join!(songs_fut, album_artists_fut, albums_fut);
 
     let songs = songs_res.map_err(|e| e.to_string())?;
-    let all_artists = all_artists_res.map_err(|e| e.to_string())?;
-    let user_artists = user_artists_res.map_err(|e| e.to_string())?;
+    let artists = album_artists_res.map_err(|e| e.to_string())?;
     let albums = albums_res.map_err(|e| e.to_string())?;
 
-    // Merge artist lists
-    let mut user_artists_map: HashMap<String, Artist> = user_artists
-        .into_iter()
-        .map(|artist| (artist.id.clone(), artist))
-        .collect();
-
-    let mut artists = Vec::new();
-    for artist in all_artists {
-        if let Some(user_artist) = user_artists_map.remove(&artist.id) {
-            artists.push(user_artist);
-        } else {
-            artists.push(artist);
-        }
-    }
-    artists.extend(user_artists_map.into_values());
-
     // Update database
-    info!("Syncing {} songs, {} artists, and {} albums to database", songs.len(), artists.len(), albums.len());
+    info!(
+        "Syncing {} songs, {} artists, and {} albums to database",
+        songs.len(),
+        artists.len(),
+        albums.len()
+    );
     database::sync_all(&songs, &artists, &albums).map_err(|e| e.to_string())?;
 
     // Update app state
@@ -477,7 +476,6 @@ pub async fn clear_cache(
     database::songs::clear().map_err(|e| e.to_string())?;
     database::artists::clear().map_err(|e| e.to_string())?;
     database::albums::clear().map_err(|e| e.to_string())?;
-
 
     // Clear app state
     *app_state.songs.lock().unwrap() = vec![];
@@ -724,10 +722,11 @@ pub async fn get_song_share_urls(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_album_share_urls(
+    app: tauri::AppHandle,
     app_state: State<'_, AppState>,
     album_id: String,
 ) -> Result<std::collections::HashMap<String, String>, String> {
-    let album = get_album(app_state, album_id, None).await?;
+    let album = get_album(app, app_state, album_id, None).await?;
     crate::services::MusicBrainzService::get_album_share_urls(&album).await
 }
 
@@ -735,9 +734,10 @@ pub async fn get_album_share_urls(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_artist_share_urls(
+    app: tauri::AppHandle,
     app_state: State<'_, AppState>,
     artist_id: String,
 ) -> Result<std::collections::HashMap<String, String>, String> {
-    let artist = get_artist(app_state, artist_id, None).await?;
+    let artist = get_artist(app, app_state, artist_id, None).await?;
     crate::services::MusicBrainzService::get_artist_share_urls(&artist).await
 }

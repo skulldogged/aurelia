@@ -1,3 +1,4 @@
+use crate::db;
 use crate::models::{Album, Artist, Song};
 use anyhow::{Result, anyhow};
 use bincode::Decode;
@@ -42,6 +43,14 @@ pub fn init(app: &AppHandle) -> Result<()> {
         let _ = write_txn
             .open_table(ALBUMS_TABLE)
             .map_err(|e| anyhow!("Failed to open albums table: {}", e))?;
+        
+        // Initialize new index tables
+        let _ = write_txn.open_table(db::schema::SONGS_BY_ALBUM)?;
+        let _ = write_txn.open_table(db::schema::SONGS_BY_ARTIST)?;
+        let _ = write_txn.open_table(db::schema::ALBUMS_BY_ARTIST)?;
+        let _ = write_txn.open_table(db::schema::FAVORITES)?;
+        let _ = write_txn.open_table(db::schema::SYNC_STATE)?;
+        let _ = write_txn.open_table(db::schema::PLAYLISTS)?;
     }
     write_txn
         .commit()
@@ -91,6 +100,20 @@ fn clear_table(table: &mut redb::Table<&str, &[u8]>) -> Result<()> {
 
 pub fn sync_all(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<()> {
     let db = DB.get().ok_or(anyhow!("Database not initialized"))?;
+    
+    // Use the LibraryService for sync operations
+    let service = crate::domain::services::LibraryService::new(db);
+    service
+        .sync_library(songs, artists, albums, true)
+        .map_err(|e| anyhow!("Sync failed: {}", e))?;
+    
+    Ok(())
+}
+
+// Legacy implementation kept for reference (can be removed later)
+#[allow(dead_code)]
+fn sync_all_legacy(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<()> {
+    let db = DB.get().ok_or(anyhow!("Database not initialized"))?;
     let write_txn = db
         .begin_write()
         .map_err(|e| anyhow!("Failed to begin write transaction: {}", e))?;
@@ -100,6 +123,12 @@ pub fn sync_all(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<
             .open_table(SONGS_TABLE)
             .map_err(|e| anyhow!("Failed to open songs table: {}", e))?;
         clear_table(&mut songs_table)?;
+        
+        // Sync and build indexes
+        let mut songs_by_album = write_txn.open_table(db::schema::SONGS_BY_ALBUM)?;
+        let mut songs_by_artist = write_txn.open_table(db::schema::SONGS_BY_ARTIST)?;
+        let mut favorites = write_txn.open_table(db::schema::FAVORITES)?;
+        
         for item in songs {
             let id = item.id.clone();
             let encoded = bincode::encode_to_vec(item, bincode::config::standard())
@@ -107,6 +136,23 @@ pub fn sync_all(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<
             songs_table
                 .insert(id.as_str(), encoded.as_slice())
                 .map_err(|e| anyhow!("Failed to insert song into table: {}", e))?;
+            
+            // Build indexes
+            if let Some(album_id) = &item.album_id {
+                songs_by_album.insert((album_id.as_str(), id.as_str()), ())?;
+            }
+            
+            if let Some(artist_ids) = &item.artist_ids {
+                for artist_id in artist_ids {
+                    songs_by_artist.insert((artist_id.as_str(), id.as_str()), ())?;
+                }
+            }
+            
+            if let Some(true) = item.is_favorite {
+                let timestamp = chrono::Utc::now().to_rfc3339();
+                let encoded_ts = bincode::encode_to_vec(&timestamp, bincode::config::standard())?;
+                favorites.insert(id.as_str(), encoded_ts.as_slice())?;
+            }
         }
 
         // Sync artists
@@ -128,6 +174,9 @@ pub fn sync_all(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<
             .open_table(ALBUMS_TABLE)
             .map_err(|e| anyhow!("Failed to open albums table: {}", e))?;
         clear_table(&mut albums_table)?;
+        
+        let mut albums_by_artist = write_txn.open_table(db::schema::ALBUMS_BY_ARTIST)?;
+        
         let mut albums_processed: Vec<Album> = Vec::new();
         for album in albums {
             let mut new_album = album.clone();
@@ -148,6 +197,11 @@ pub fn sync_all(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<
             albums_table
                 .insert(id.as_str(), encoded.as_slice())
                 .map_err(|e| anyhow!("Failed to insert album into table: {}", e))?;
+            
+            // Build album-artist index
+            if let Some(artist_id) = &item.artist_id {
+                albums_by_artist.insert((artist_id.as_str(), id.as_str()), ())?;
+            }
         }
     }
     write_txn
@@ -172,34 +226,8 @@ pub mod songs {
 
     pub fn update_favorite_status(song_id: &str, is_favorite: bool) -> Result<()> {
         let db = DB.get().ok_or(anyhow!("Database not initialized"))?;
-        let write_txn = db
-            .begin_write()
-            .map_err(|e| anyhow!("Failed to begin write transaction: {}", e))?;
-        {
-            let mut table = write_txn
-                .open_table(SONGS_TABLE)
-                .map_err(|e| anyhow!("Failed to open songs table: {}", e))?;
-            let song_bytes = table
-                .get(song_id)
-                .map_err(|e| anyhow!("Failed to get song from table: {}", e))?
-                .map(|bytes| bytes.value().to_vec());
-
-            if let Some(bytes) = song_bytes {
-                let (mut song, _): (Song, _) =
-                    bincode::decode_from_slice(&bytes, bincode::config::standard())
-                        .map_err(|e| anyhow!("Failed to decode song: {}", e))?;
-                song.is_favorite = Some(is_favorite);
-                let encoded = bincode::encode_to_vec(&song, bincode::config::standard())
-                    .map_err(|e| anyhow!("Failed to encode song: {}", e))?;
-                table
-                    .insert(song_id, encoded.as_slice())
-                    .map_err(|e| anyhow!("Failed to insert song into table: {}", e))?;
-            }
-        }
-        write_txn
-            .commit()
-            .map_err(|e| anyhow!("Failed to commit write transaction: {}", e))?;
-        Ok(())
+        let repo = crate::db::repositories::SongRepository::new(db);
+        repo.update_favorite_status(song_id, is_favorite)
     }
 
     pub fn clear() -> Result<()> {
