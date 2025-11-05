@@ -1,8 +1,8 @@
 <script setup lang="ts">
-  import { useMediaQuery } from '@vueuse/core'
+  import { refDebounced } from '@vueuse/core'
   import Fuse from 'fuse.js'
   import { Shuffle } from 'lucide-vue-next'
-  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+  import { computed, onMounted, onUnmounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Artist, Song } from '@/bindings'
@@ -10,18 +10,8 @@
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import Button from '@/components/ui/Button.vue'
-  import { Input } from '@/components/ui/input'
-  import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from '@/components/ui/select'
   import { Skeleton } from '@/components/ui/skeleton'
-  import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-  import { useLayoutPreference, usePagination } from '@/composables/useLayoutPreference'
+  import { useLayoutPreference } from '@/composables/useLayoutPreference'
   import { useTopBar } from '@/composables/useTopBar'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
@@ -30,30 +20,6 @@
 
   const artistMode = ref<'album' | 'all'>('album')
   const { layout: viewLayout } = useLayoutPreference('artists-layout', 'comfy')
-
-  // Detect current breakpoint for column calculations
-  const isXl = useMediaQuery('(min-width: 1280px)')
-  const isLg = useMediaQuery('(min-width: 1024px)')
-  const isMd = useMediaQuery('(min-width: 768px)')
-  const isSm = useMediaQuery('(min-width: 640px)')
-
-  // Calculate current column count based on viewport and layout mode
-  const currentColumns = computed(() => {
-    if (viewLayout.value === 'compact') {
-      // Compact: 3 sm:4 md:5 lg:6 xl:7
-      if (isXl.value) return 7
-      if (isLg.value) return 6
-      if (isMd.value) return 5
-      if (isSm.value) return 4
-      return 3
-    } else {
-      // Comfy: 2 sm:3 md:4 lg:5
-      if (isLg.value) return 5
-      if (isMd.value) return 4
-      if (isSm.value) return 3
-      return 2
-    }
-  })
 
   const emit = defineEmits<{
     'play-song':     [song: Song]
@@ -74,6 +40,7 @@
   const token = computed(() => authStore.token)
 
   const searchQuery = ref('')
+  const debouncedSearchQuery = refDebounced(searchQuery, 300)
 
   // All artists from the library are now album artists only (from /Artists/AlbumArtists endpoint)
   // Both "album" and "all" modes show the same list since we only fetch album artists
@@ -89,9 +56,8 @@
       const existing = uniqueArtistsByName.get(normalizedName)
 
       // Keep the artist with more songs, or the first one if equal
-      if (!existing || (artist.songs?.length || 0) > (existing.songs?.length || 0)) {
+      if (!existing || (artist.songs?.length || 0) > (existing.songs?.length || 0))
         uniqueArtistsByName.set(normalizedName, artist)
-      }
     }
 
     return Array.from(uniqueArtistsByName.values()).sort((a, b) =>
@@ -109,59 +75,10 @@
   }))
 
   const filteredArtists = computed(() =>
-    searchQuery.value && searchQuery.value.length >= 2
-      ? artistsFuse.value.search(searchQuery.value).map(result => result.item)
+    debouncedSearchQuery.value && debouncedSearchQuery.value.length >= 2
+      ? artistsFuse.value.search(debouncedSearchQuery.value).map(result => result.item)
       : artistsWithSongs.value,
   )
-
-  // User selects number of rows (1-5), which stays constant
-  const rowsPerPage = ref(3) // Default: 3 rows
-
-  // Items per page = rows × current columns (changes with viewport)
-  const itemsPerPage = computed(() => rowsPerPage.value * currentColumns.value)
-
-  // Static row options (always 1-5)
-  const rowOptions = [1, 2, 3, 4, 5]
-
-  // Dynamic storage key based on layout mode (stores row count, not item count)
-  const pageSizeKey = computed(() =>
-    viewLayout.value === 'compact'
-      ? 'artists-rows-compact'
-      : 'artists-rows-comfy',
-  )
-
-  // Load saved row count from localStorage
-  watch(pageSizeKey, newKey => {
-    const saved = localStorage.getItem(newKey)
-    if (saved) {
-      const parsed = parseInt(saved, 10)
-      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) {
-        rowsPerPage.value = parsed
-      }
-    }
-  }, { immediate: true })
-
-  // Save row count to localStorage when it changes
-  watch(rowsPerPage, newRows => {
-    localStorage.setItem(pageSizeKey.value, String(newRows))
-  })
-
-  // Pagination - pass itemsPerPage as the dynamic page size
-  const {
-    canNextPage,
-    canPreviousPage,
-    goToFirstPage,
-    goToLastPage,
-    goToNextPage,
-    goToPreviousPage,
-    pageCount,
-    pagedItems: pagedArtists,
-    pageIndex,
-  } = usePagination(filteredArtists, 'artists-pagesize', itemsPerPage, [])
-
-  const setRowsPerPage = (rows: number): void => {
-    rowsPerPage.value = rows
-  }
 
   const playArtistShuffle = (artist: Artist): void => {
     const artistSongs = artist.songs
@@ -180,6 +97,20 @@
     setTopBarContent({
       component: ArtistsPageTopBar,
       id:        'artists-page',
+      props:     {
+        artistMode:            artistMode.value,
+        'onUpdate:artistMode': (value: 'album' | 'all') => {
+          artistMode.value = value
+        },
+        'onUpdate:searchQuery': (value: string) => {
+          searchQuery.value = value
+        },
+        'onUpdate:viewLayout': (value: string) => {
+          viewLayout.value = value as 'comfy' | 'compact'
+        },
+        searchQuery: searchQuery.value,
+        viewLayout:  viewLayout.value,
+      },
     })
   })
 
@@ -190,201 +121,99 @@
 </script>
 
 <template>
-  <div class='p-4 max-w-7xl mx-auto'>
-    <div class='mb-8'>
-      <div class='flex justify-between items-start mb-4'>
-        <div class='flex-1' />
-        <Tabs v-model='viewLayout'>
-          <TabsList>
-            <TabsTrigger value='comfy'>
-              Comfy
-            </TabsTrigger>
-            <TabsTrigger value='compact'>
-              Compact
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+  <div class='px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8'>
+    <div
+      v-if='libraryLoading'
+      :class='viewLayout === "compact"
+        ? "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-4"
+        : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-6"'
+    >
+      <!-- Skeleton loading grid -->
+      <div
+        v-for='n in 20'
+        :key='`skeleton-${n}`'
+        class='flex flex-col gap-4'
+      >
+        <!-- Artist image skeleton -->
+        <Skeleton class='w-full aspect-square rounded-lg' />
+        <!-- Text content skeleton -->
+        <div class='flex flex-col items-center gap-1'>
+          <!-- Artist name skeleton -->
+          <Skeleton :class='viewLayout === "compact" ? "h-4 w-3/4" : "h-6 w-3/4"' />
+          <!-- Song count skeleton -->
+          <Skeleton :class='viewLayout === "compact" ? "h-3 w-1/2" : "h-4 w-1/2"' />
+        </div>
       </div>
-      <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between'>
-        <Input
-          v-model='searchQuery'
-          class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
-          placeholder='Search artists...'
-          type='text'
-        />
+    </div>
+    <div
+      v-else
+      :class='viewLayout === "compact"
+        ? "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-4"
+        : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-6"'
+    >
+      <div
+        v-for='artist in filteredArtists'
+        @click='selectArtist(artist)'
+        :key='artist.id'
+        class='cursor-pointer group'
+      >
+        <div :class='viewLayout === "compact" ? "relative mb-2" : "relative mb-4"'>
+          <ImageLoader
+            :alt='`${artist.name} artist image`'
+            :item-id='artist.id'
+            :server-url='serverUrl'
+            :token='token'
+            class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
+          >
+            <template #fallback>
+              <ImagePlaceholder
+                class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+                size='large'
+                type='artist'
+              />
+            </template>
+          </ImageLoader>
 
-        <!-- Artist Mode Tabs -->
-        <Tabs v-model='artistMode'>
-          <TabsList>
-            <TabsTrigger value='album'>
-              Album Artists
-            </TabsTrigger>
-            <TabsTrigger value='all'>
-              All Artists
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+          <!-- Play button overlay -->
+          <div
+            class='
+              absolute inset-0 bg-black/50 rounded-lg opacity-0
+              group-hover:opacity-100 transition-opacity flex items-center
+              justify-center
+            '
+          >
+            <Button
+              @click.stop='playArtistShuffle(artist)'
+              :size='viewLayout === "compact" ? "sm" : "icon"'
+              class='
+                bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white
+                border border-white/20
+              '
+            >
+              <Shuffle :class='viewLayout === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"' />
+            </Button>
+          </div>
+        </div>
+
+        <div class='text-center'>
+          <p
+            :class='viewLayout === "compact"
+              ? "text-sm font-medium truncate"
+              : "font-semibold truncate"'
+          >
+            {{ artist.name }}
+          </p>
+        </div>
       </div>
     </div>
 
-    <div class='bg-sidebar rounded-lg p-6'>
-      <div
-        v-if='libraryLoading'
-        :class='viewLayout === "compact"
-          ? "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4"
-          : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6"'
-      >
-        <!-- Skeleton loading grid -->
-        <div
-          v-for='n in 20'
-          :key='`skeleton-${n}`'
-          class='flex flex-col gap-4'
-        >
-          <!-- Artist image skeleton -->
-          <Skeleton class='w-full aspect-square rounded-lg' />
-          <!-- Text content skeleton -->
-          <div class='flex flex-col items-center gap-1'>
-            <!-- Artist name skeleton -->
-            <Skeleton :class='viewLayout === "compact" ? "h-4 w-3/4" : "h-6 w-3/4"' />
-            <!-- Song count skeleton -->
-            <Skeleton :class='viewLayout === "compact" ? "h-3 w-1/2" : "h-4 w-1/2"' />
-          </div>
-        </div>
-      </div>
-      <div
-        v-else
-        :class='viewLayout === "compact"
-          ? "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-4"
-          : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6"'
-      >
-        <div
-          v-for='artist in pagedArtists'
-          @click='selectArtist(artist)'
-          :key='artist.id'
-          class='cursor-pointer group'
-        >
-          <div :class='viewLayout === "compact" ? "relative mb-2" : "relative mb-4"'>
-            <ImageLoader
-              :alt='`${artist.name} artist image`'
-              :item-id='artist.id'
-              :server-url='serverUrl'
-              :token='token'
-              class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
-            >
-              <template #fallback>
-                <ImagePlaceholder
-                  class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-                  size='large'
-                  type='artist'
-                />
-              </template>
-            </ImageLoader>
-
-            <!-- Play button overlay -->
-            <div
-              class='
-                absolute inset-0 bg-black/50 rounded-lg opacity-0
-                group-hover:opacity-100 transition-opacity flex items-center
-                justify-center
-              '
-            >
-              <Button
-                @click.stop='playArtistShuffle(artist)'
-                :size='viewLayout === "compact" ? "sm" : "icon"'
-                class='
-                  bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white
-                  border border-white/20
-                '
-              >
-                <Shuffle :class='viewLayout === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"' />
-              </Button>
-            </div>
-          </div>
-
-          <div class='text-center'>
-            <p
-              :class='viewLayout === "compact"
-                ? "text-sm font-medium truncate"
-                : "font-semibold truncate"'
-            >
-              {{ artist.name }}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div
-        v-if='!libraryLoading && filteredArtists && filteredArtists.length === 0'
-        class='text-center py-12'
-      >
-        <p class='text-muted-foreground'>
-          No artists found
-        </p>
-      </div>
-
-      <!-- Pagination Controls -->
-      <div v-if='pageCount > 1' class='flex flex-col sm:flex-row items-center justify-between gap-4 mt-6'>
-        <div class='flex items-center gap-2'>
-          <span class='text-sm text-muted-foreground'>Rows per page:</span>
-          <Select @update:model-value='(v) => setRowsPerPage(Number(v))' :model-value='String(rowsPerPage)'>
-            <SelectTrigger class='w-20'>
-              <SelectValue placeholder='Rows' />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem v-for='row in rowOptions' :key='row' :value='String(row)'>
-                  {{ row }}
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div class='flex items-center gap-2'>
-          <span class='text-sm text-muted-foreground'>
-            Page {{ pageIndex + 1 }} of {{ pageCount }}
-          </span>
-
-          <div class='flex items-center gap-1'>
-            <Button
-              @click='goToFirstPage'
-              :disabled='!canPreviousPage'
-              class='h-9 px-3'
-              size='sm'
-              variant='outline'
-            >
-              First
-            </Button>
-            <Button
-              @click='goToPreviousPage'
-              :disabled='!canPreviousPage'
-              class='h-9 px-3'
-              size='sm'
-              variant='outline'
-            >
-              Previous
-            </Button>
-            <Button
-              @click='goToNextPage'
-              :disabled='!canNextPage'
-              class='h-9 px-3'
-              size='sm'
-              variant='outline'
-            >
-              Next
-            </Button>
-            <Button
-              @click='goToLastPage'
-              :disabled='!canNextPage'
-              class='h-9 px-3'
-              size='sm'
-              variant='outline'
-            >
-              Last
-            </Button>
-          </div>
-        </div>
-      </div>
+    <div
+      v-if='!libraryLoading && filteredArtists && filteredArtists.length === 0'
+      class='text-center py-12'
+    >
+      <p class='text-muted-foreground'>
+        No artists found
+      </p>
     </div>
   </div>
 </template>
