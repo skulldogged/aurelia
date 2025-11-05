@@ -35,17 +35,9 @@
 
   const searchQuery = ref('')
 
-  // Artists who appear as an "album artist" on at least one song
-  const albumArtists = computed(() => allArtists.value.filter(artist =>
-    artist.songs?.some(song =>
-      song.albumArtists?.some(albumArtist => albumArtist.id === artist.id),
-    ),
-  ))
-
-  const artistsToDisplay = computed(() => {
-    const mode = artistMode.value
-    return mode === 'all' ? allArtists.value : (albumArtists.value?.length ? albumArtists.value : allArtists.value)
-  })
+  // All artists from the library are now album artists only (from /Artists/AlbumArtists endpoint)
+  // Both "album" and "all" modes show the same list since we only fetch album artists
+  const artistsToDisplay = computed(() => allArtists.value)
 
   // Deduplicate artists by name (not ID) to handle Jellyfin duplicate artist entries
   // For duplicates, keep the entry with the most songs
@@ -188,12 +180,6 @@
         <div class='text-center'>
           <p class='font-medium truncate text-sm'>
             {{ artist.name }}
-          </p>
-          <p
-            v-if='artist.songs'
-            class='text-xs text-muted-foreground truncate'
-          >
-            {{ artist.songs.length }} songs
           </p>
         </div>
       </div>

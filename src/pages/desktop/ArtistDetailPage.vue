@@ -36,7 +36,6 @@
   const playerStore = usePlayerStore()
 
   // Create computed properties from stores
-  const allArtists = computed(() => libraryStore.allArtistsWithSongs as Artist[])
   const allSongs = computed(() => libraryStore.allSongs as Song[])
   const libraryLoaded = computed(() => libraryStore.isLoaded)
   const libraryLoading = computed(() => libraryStore.isLoading)
@@ -56,35 +55,90 @@
   const showFullOverview = ref(false)
   const showShareDialog = ref(false)
 
+  // Get artist from store like albums do
   const artist = computed(() =>
-    libraryLoaded.value && allArtists.value.length
-      ? allArtists.value.find(a => a.id === id.value) || null
+    id.value
+    && libraryLoaded.value
+    && libraryStore.allArtistsWithSongs.length > 0
+      ? libraryStore.allArtistsWithSongs.find(a => a.id === id.value) || null
       : null,
   )
 
-  const artistSongs = computed(() =>
-    artist.value && artist.value.songs
-      ? [...artist.value.songs].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0))
-      : [],
-  )
+  // Fallback: fetch songs for artists with 0 songs (Jellyfin ID mismatch issue)
+  const fallbackSongsCache = new Map<string, Song[]>()
+  const fallbackSongs = ref<Song[]>([])
+  const loadingFallbackSongs = ref(false)
+  const artistDataError = ref(false)
+
+  const fetchFallbackSongs = async (artistId: string): Promise<void> => {
+    if (fallbackSongsCache.has(artistId)) {
+      fallbackSongs.value = fallbackSongsCache.get(artistId)!
+      artistDataError.value = fallbackSongs.value.length === 0
+      return
+    }
+
+    loadingFallbackSongs.value = true
+    artistDataError.value = false
+    try {
+      const result = await commands.getArtist(artistId, true)
+      if (result.status === 'ok' && result.data.songs) {
+        const songs = result.data.songs as Song[]
+        fallbackSongs.value = songs
+        fallbackSongsCache.set(artistId, songs)
+
+        if (result.data.songs.length === 0)
+          artistDataError.value = true
+      } else {
+        artistDataError.value = true
+      }
+    } catch (error) {
+      logger.error('Error fetching fallback artist songs:', error)
+      artistDataError.value = true
+    } finally {
+      loadingFallbackSongs.value = false
+    }
+  }
+
+  // Watch artist and fetch fallback songs if needed
+  watch(artist, async newArtist => {
+    if (newArtist && (!newArtist.songs || newArtist.songs.length === 0))
+      await fetchFallbackSongs(newArtist.id)
+    else
+      fallbackSongs.value = []
+  }, { immediate: true })
+
+  const artistSongs = computed<Song[]>(() => {
+    // Use fallback songs if artist has none in store
+    if (artist.value && (!artist.value.songs || artist.value.songs.length === 0) && fallbackSongs.value.length > 0)
+      return [...fallbackSongs.value].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0)) as Song[]
+
+    return artist.value && artist.value.songs
+      ? [...artist.value.songs].sort((a, b) => (b.playCount ?? 0) - (a.playCount ?? 0)) as Song[]
+      : []
+  })
 
   const artistAlbums = computed(() => {
-    if (!artist.value || !artist.value.songs) return []
-    const albumIds = new Set(artist.value.songs.map(s => s.albumId).filter(Boolean))
+    if (!artistSongs.value || artistSongs.value.length === 0) return []
+    const albumIds = new Set(artistSongs.value.map(s => s.albumId).filter(Boolean))
     return libraryStore.allAlbums.filter(album => album.id && albumIds.has(album.id)) as Album[]
   })
 
+  const relatedArtistsCache = new Map<string, Artist[]>()
   const relatedArtists = ref<Artist[]>([])
 
   watch(artist, async newArtist => {
     if (newArtist) {
-      logger.info('Starting to get related artists')
-      const start = Date.now()
-      const result = await commands.getRelatedArtists(newArtist.id)
-      if (result.status === 'ok')
-        relatedArtists.value = result.data as Artist[]
+      // Check cache first
+      if (relatedArtistsCache.has(newArtist.id)) {
+        relatedArtists.value = relatedArtistsCache.get(newArtist.id)!
+        return
+      }
 
-      logger.info(`Got related artists in ${Date.now() - start}ms`)
+      const result = await commands.getRelatedArtists(newArtist.id)
+      if (result.status === 'ok') {
+        relatedArtists.value = result.data as Artist[]
+        relatedArtistsCache.set(newArtist.id, result.data as Artist[])
+      }
     }
   })
 
@@ -267,6 +321,25 @@
       </div>
     </div>
     <div v-else-if='artist' class='space-y-12'>
+      <!-- Data Error Alert -->
+      <div
+        v-if='artistDataError'
+        class='p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3'
+      >
+        <div class='text-destructive'>
+          ⚠️
+        </div>
+        <div class='flex-1 text-sm'>
+          <p class='font-semibold text-destructive'>
+            Artist Data Issue
+          </p>
+          <p class='text-muted-foreground mt-1'>
+            This artist has a metadata mismatch in your Jellyfin library.
+            Try re-identifying this artist in Jellyfin to fix the issue.
+          </p>
+        </div>
+      </div>
+
       <!-- Header -->
       <div
         class='

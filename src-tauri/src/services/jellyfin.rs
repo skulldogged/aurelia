@@ -227,12 +227,62 @@ impl JellyfinClient {
         }
     }
 
+    /// Get albums for a specific artist
+    /// Handles compilation vs non-compilation albums like Feishin does
+    /// - For compilations: uses ContributingArtistIds (artist contributed to the album)
+    /// - For non-compilations: uses AlbumArtistIds (artist is the album artist)
+    /// - If neither specified: uses ArtistIds (all credits)
+    pub async fn get_albums_for_artist(
+        &self,
+        user_id: &str,
+        artist_id: &str,
+        compilation: Option<bool>,
+    ) -> AppResult<Vec<crate::models::Album>> {
+        let artist_filter = match compilation {
+            Some(true) => format!("ContributingArtistIds={artist_id}"),
+            Some(false) => format!("AlbumArtistIds={artist_id}"),
+            None => format!("ArtistIds={artist_id}"),
+        };
+
+        let albums_url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!(
+                "/Items?userId={user_id}&IncludeItemTypes=MusicAlbum&Recursive=true&{artist_filter}&Fields=People,Tags,ImageTags,Overview,ProductionYear,CommunityRating,Artists,ProviderIds,DateCreated",
+            ),
+        );
+
+        let response = self
+            .client
+            .get(&albums_url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to fetch albums for artist: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let response_json: serde_json::Value = response.json().await?;
+        let items = response_json["Items"]
+            .as_array()
+            .ok_or_else(|| AppError::ApiParse("Invalid albums response format".to_string()))?;
+
+        let albums = items
+            .iter()
+            .map(|item| self.parse_single_album(item))
+            .collect();
+        Ok(albums)
+    }
+
     /// Get music library items
     pub async fn get_music_library(&self, user_id: &str) -> AppResult<Vec<Song>> {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,MediaSources,Width,Height,Container"
+                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Fields=Genres,DateCreated,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams"
             ),
         );
 
@@ -259,7 +309,7 @@ impl JellyfinClient {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=20&Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded"
+                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=20&Fields=Genres,DateCreated,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams"
             ),
         );
 
@@ -281,12 +331,80 @@ impl JellyfinClient {
         self.parse_music_items(&response_json)
     }
 
+    /// Get songs for a specific album artist using server-side filtering
+    /// This uses the AlbumArtistIds query parameter to let Jellyfin do the filtering
+    pub async fn get_songs_for_album_artist(
+        &self,
+        user_id: &str,
+        artist_id: &str,
+    ) -> AppResult<Vec<Song>> {
+        let songs_url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!(
+                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&AlbumArtistIds={artist_id}&Fields=Genres,DateCreated,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams&SortBy=Album,SortName"
+            ),
+        );
+
+        let response = self
+            .client
+            .get(&songs_url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to fetch songs for artist: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let response_json: serde_json::Value = response.json().await?;
+        self.parse_music_items(&response_json)
+    }
+
+    /// Get songs for a specific album using server-side filtering
+    /// Includes workaround for Jellyfin bug where AlbumIds filter also matches album names
+    pub async fn get_songs_for_album(&self, user_id: &str, album_id: &str) -> AppResult<Vec<Song>> {
+        let songs_url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!(
+                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&AlbumIds={album_id}&Fields=Genres,DateCreated,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams&SortBy=ParentIndexNumber,IndexNumber,SortName"
+            ),
+        );
+
+        let response = self
+            .client
+            .get(&songs_url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to fetch songs for album: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let response_json: serde_json::Value = response.json().await?;
+        let mut songs = self.parse_music_items(&response_json)?;
+
+        // Workaround for Jellyfin bug: AlbumIds filter searches for both:
+        // 1. Matching album ID
+        // 2. An album with the NAME of the album
+        // Filter client-side to ensure we only get songs from the requested album
+        songs.retain(|song| song.album_id.as_ref() == Some(&album_id.to_string()));
+
+        Ok(songs)
+    }
+
     /// Get instant mix (similar songs) for a given item
     pub async fn get_instant_mix(&self, item_id: &str) -> AppResult<Vec<Song>> {
         let instant_mix_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items/{}/InstantMix?Fields=Path,ParentId,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,Genres,PremiereDate,AlbumArtists,MediaStreams,DateCreated,DateLastSaved,DateLastMediaAdded,MediaSources,Width,Height,Container",
+                "/Items/{}/InstantMix?Fields=Genres,DateCreated,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams",
                 item_id
             ),
         );
@@ -599,8 +717,29 @@ impl JellyfinClient {
 
     /// Extract artists from item
     fn extract_artists(item: &serde_json::Value) -> Option<Vec<String>> {
-        let artists_value = &item["Artists"];
+        // Use ArtistItems (array of objects with Name+Id) to ensure alignment with IDs
+        let artist_items = &item["ArtistItems"];
 
+        if let Some(arr) = artist_items.as_array() {
+            let mut artists = Vec::new();
+            for item_value in arr {
+                if let Some(name_str) = item_value["Name"].as_str() {
+                    if name_str.contains('\x1F') {
+                        for split_name in name_str.split('\x1F').filter(|s| !s.is_empty()) {
+                            artists.push(split_name.to_string());
+                        }
+                    } else {
+                        artists.push(name_str.to_string());
+                    }
+                }
+            }
+            if !artists.is_empty() {
+                return Some(artists);
+            }
+        }
+
+        // Fallback to Artists array if ArtistItems not available
+        let artists_value = &item["Artists"];
         if let Some(arr) = artists_value.as_array() {
             let mut artists = Vec::new();
             for artist_value in arr {

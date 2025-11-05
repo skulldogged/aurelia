@@ -83,19 +83,38 @@ export const useLibraryStore = defineStore('library', () => {
           if (album.id)
             album.songs = albumMap.get(album.id) || []
 
+        // Map songs to artists using both albumArtists and artistIds
+        // Some artists only appear as contributing artists (compilations, features)
         const artistMap = new Map<string, Song[]>()
-        for (const song of songs)
+        for (const song of songs) {
+          // Add from albumArtists (primary album artists)
+          if (song.albumArtists)
+            for (const pair of song.albumArtists)
+              if (pair.id) {
+                if (!artistMap.has(pair.id))
+                  artistMap.set(pair.id, [])
+
+                artistMap.get(pair.id)!.push(song)
+              }
+
+          // Add from artistIds (track-level artists, includes features)
           if (song.artistIds)
             for (const artistId of song.artistIds) {
               if (!artistMap.has(artistId))
                 artistMap.set(artistId, [])
 
-              artistMap.get(artistId)!.push(song)
+              // Avoid duplicates - check if song already added
+              const existing = artistMap.get(artistId)!
+              if (!existing.find(s => s.id === song.id))
+                existing.push(song)
             }
+        }
 
-        for (const artist of artists)
+        // Assign mapped songs to artists
+        for (const artist of artists) {
           if (artist.id)
             artist.songs = artistMap.get(artist.id) || []
+        }
 
         allArtistsWithSongs.value = artists
         allAlbums.value = albums
