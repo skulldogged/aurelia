@@ -31,7 +31,7 @@
   import { useTopBar } from '@/composables/useTopBar'
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { setAuthLogout } from '@/lib/auth-interceptor'
-  import { isMobile } from '@/lib/platform'
+  import { getPlatform, isMobile, Platform } from '@/lib/platform'
   import { useBlurStore, useHomeStore } from '@/stores'
   import { useLibraryStore } from '@/stores/library'
 
@@ -432,7 +432,7 @@
 
     <GlobalSearch v-model:open='isSearchOpen' />
 
-    <WindowControls v-if='!isFullScreenPlayerOpen && !isMobile()' class='fixed top-0 right-0 z-100' />
+    <WindowControls v-if='!isFullScreenPlayerOpen && !isMobile() && getPlatform() !== Platform.MacOS' class='fixed top-0 right-0 z-100' />
 
     <!-- Exit Confirmation Dialog -->
     <Dialog v-model:open='showExitDialog'>

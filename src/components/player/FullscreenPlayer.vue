@@ -329,7 +329,7 @@
 
     <!-- Window Controls -->
     <WindowControls
-      v-if='isDesktop'
+      v-if='isDesktop && getPlatform() !== Platform.MacOS'
       :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
       class='absolute right-0 z-110'
     />

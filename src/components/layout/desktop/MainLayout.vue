@@ -1,7 +1,8 @@
 <script setup lang='ts'>
   import { ArrowLeft, ArrowRight, PanelLeft } from 'lucide-vue-next'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-  import { ref, watch } from 'vue'
+  import { getPlatform, Platform } from '@/lib/platform'
+  import { ref, watch, computed } from 'vue'
 
   import Sidebar from '@/components/layout/Sidebar.vue'
   import Button from '@/components/ui/Button.vue'
@@ -35,6 +36,8 @@
   const storedState = localStorage.getItem('sidebarCollapsed')
   const isSidebarCollapsed = ref(storedState ? JSON.parse(storedState) : false)
 
+  const isMacos = computed(() => getPlatform() === Platform.MacOS)
+
   watch(isSidebarCollapsed, newState => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(newState))
   })
@@ -55,18 +58,8 @@
       <div
         :class="[
           'flex flex-1 min-w-0',
-          {
-            'ml-16': isSidebarCollapsed &&
-              !playerState.isQueueOpen && !playerState.isEqualizerOpen && !playerState.isLyricsOpen,
-            'ml-48': !isSidebarCollapsed &&
-              !playerState.isQueueOpen && !playerState.isEqualizerOpen && !playerState.isLyricsOpen,
-            'ml-16 mr-64 lg:mr-80 xl:mr-96 2xl:mr-[448px]':
-              isSidebarCollapsed &&
-              (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen),
-            'ml-48 mr-64 lg:mr-80 xl:mr-96 2xl:mr-[448px]':
-              !isSidebarCollapsed &&
-              (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen),
-          }
+          isSidebarCollapsed ? (isMacos ? 'ml-20' : 'ml-16') : 'ml-48',
+          (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen) && 'mr-64 lg:mr-80 xl:mr-96 2xl:mr-[448px]',
         ]"
       >
         <!-- Draggable top area -->
@@ -80,7 +73,7 @@
         <div
           :class="[
             'absolute z-10 flex items-center',
-            isSidebarCollapsed ? 'left-[72px]' : 'left-[200px]'
+            isSidebarCollapsed ? (isMacos ? 'left-[88px]' : 'left-[72px]') : 'left-[200px]'
           ]"
           :style='{ top: `calc(0.5rem + env(safe-area-inset-top))` }'
         >
@@ -113,7 +106,7 @@
         <div
           :style='{
             top: `calc(env(safe-area-inset-top))`,
-            left: isSidebarCollapsed ? "64px" : "192px",
+            left: isSidebarCollapsed ? (isMacos ? "80px" : "64px") : "192px",
             right: "0",
             boxShadow: "0 1px 0 0 var(--border)"
           }'
@@ -190,24 +183,10 @@
       :class="[
         'absolute z-30 bg-background-dark border-t border-border',
         'bottom-0',
-        {
-          'left-16 right-0':
-            isSidebarCollapsed
-            && !playerState.isQueueOpen
-            && !playerState.isEqualizerOpen
-            && !playerState.isLyricsOpen,
-          'left-48 right-0':
-            !isSidebarCollapsed
-            && !playerState.isQueueOpen
-            && !playerState.isEqualizerOpen
-            && !playerState.isLyricsOpen,
-          'left-16 right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border':
-            isSidebarCollapsed
-            && (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen),
-          'left-48 right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border':
-            !isSidebarCollapsed
-            && (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen),
-        }
+        isSidebarCollapsed ? (isMacos ? 'left-20' : 'left-16') : 'left-48',
+        (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
+          ? 'right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border'
+          : 'right-0',
       ]"
     >
       <slot name='player' />

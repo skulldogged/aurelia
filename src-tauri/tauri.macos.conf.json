@@ -1,0 +1,24 @@
+{
+  "app": {
+    "windows": [
+      {
+        "decorations": true,
+        "devtools": true,
+        "dragDropEnabled": false,
+        "fullscreen": false,
+        "height": 720,
+        "hiddenTitle": true,
+        "minHeight": 350,
+        "minWidth": 450,
+        "resizable": true,
+        "title": "Aurelia",
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 11,
+          "y": 26
+        },
+        "width": 1280
+      }
+    ]
+  }
+}

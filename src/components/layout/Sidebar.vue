@@ -1,9 +1,11 @@
 <script setup lang="ts">
   import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
-  import { computed } from 'vue'
-
+  import { computed, ref, onMounted } from 'vue'
+  import { getPlatform, Platform } from '@/lib/platform'
   import { useOrientation } from '@/composables/useOrientation'
   import { useBlurStore } from '@/stores'
+
+  const isMacos = computed(() => getPlatform() === Platform.MacOS)
 
   const props = defineProps<{
     currentView:       string
@@ -27,6 +29,16 @@
       ? 'bg-transparent'
       : 'bg-background-dark',
   )
+
+  const sidebarWidthClass = computed(() => {
+    if (props.isMobilePortrait || isMobileLandscape.value)
+      return ''
+
+    if (props.isCollapsed)
+      return isMacos.value ? 'w-20' : 'w-16'
+
+    return 'w-48'
+  })
 
   const navItemClass = computed(() => (view: string) => {
     if (isMobileLandscape.value) {
@@ -61,6 +73,11 @@
       : 'w-12 shrink-0 flex justify-center items-center'
   })
 
+  const searchIconClass = computed(() => {
+    return props.isCollapsed
+      ? 'flex-1 flex justify-center items-center'
+      : 'w-12 shrink-0 flex justify-center items-center'
+  })
 </script>
 
 <template>
@@ -73,9 +90,10 @@
         : props.isMobilePortrait
           ? 'flex-row w-full justify-around items-center px-4'
           : 'flex-col h-full',
-      !(props.isMobilePortrait || isMobileLandscape) && (props.isCollapsed ? 'w-16' : 'w-48'),
+      !(props.isMobilePortrait || isMobileLandscape) && sidebarWidthClass,
     ]"
   >
+    <div :class="['flex', 'flex-col', 'h-full', isMacos && 'pt-10']">
     <!-- Search -->
     <div v-if='!(props.isMobilePortrait || isMobileLandscape)' class='m-2 mb-2'>
       <button
@@ -83,7 +101,7 @@
         class='flex items-center h-10 w-full rounded-md text-sm font-medium
                bg-background border border-border hover:border-accent transition-colors'
       >
-        <div class='w-12 shrink-0 flex justify-center items-center'>
+        <div :class="searchIconClass">
           <Search class='size-5 text-muted-foreground' />
         </div>
         <div
@@ -268,5 +286,6 @@
         </RouterLink>
       </template>
     </nav>
+    </div>
   </div>
 </template>
