@@ -185,9 +185,15 @@ pub fn run() {
             listenbrainz::listenbrainz_set_credentials,
             listenbrainz::listenbrainz_clear_credentials,
             listenbrainz::listenbrainz_is_authenticated,
+            system_tray::quit_application,
+        ]);
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        builder = builder.commands(collect_commands![
             android_now_playing::update_now_playing,
             android_now_playing::clear_now_playing,
-            system_tray::quit_application,
         ]);
     }
 
