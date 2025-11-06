@@ -85,9 +85,9 @@
             <h3 class='text-lg font-medium mb-2'>
               Clear Music Library Cache
             </h3>
-            <p class='text-sm text-muted-foreground mb-6'>
-              This action will clear your local music library cache and refresh all music data from the server.
-              Your playlists and settings will remain unchanged.
+            <p class='text-sm text-muted-foreground mb-4'>
+              Remove all cached data and refresh from the server. Your playlists and personal
+              settings remain unchanged.
             </p>
             <Button
               @click='$emit("clear-cache")'
