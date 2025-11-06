@@ -1,12 +1,12 @@
 <script setup lang='ts'>
   import { ArrowLeft, ArrowRight, PanelLeft } from 'lucide-vue-next'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
-  import { getPlatform, Platform } from '@/lib/platform'
-  import { ref, watch, computed } from 'vue'
+  import { computed, ref, watch } from 'vue'
 
   import Sidebar from '@/components/layout/Sidebar.vue'
   import Button from '@/components/ui/Button.vue'
   import { useMainLayout } from '@/composables/useMainLayout'
+  import { getPlatform, Platform } from '@/lib/platform'
   import 'overlayscrollbars/overlayscrollbars.css'
 
   defineProps<{
@@ -31,7 +31,7 @@
     'navigate-forward': []
   }>()
 
-  const { mainContentBgClass, rightPanelBgClass, scrollbarsRef } = useMainLayout()
+  const { mainContentBgClass, rightPanelBgClass, scrollbarsRef, topBarBgClass } = useMainLayout()
 
   const storedState = localStorage.getItem('sidebarCollapsed')
   const isSidebarCollapsed = ref(storedState ? JSON.parse(storedState) : false)
@@ -59,7 +59,12 @@
         :class="[
           'flex flex-1 min-w-0',
           isSidebarCollapsed ? (isMacos ? 'ml-20' : 'ml-16') : 'ml-48',
-          (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen) && 'mr-64 lg:mr-80 xl:mr-96 2xl:mr-[448px]',
+          (
+            playerState.isQueueOpen
+            || playerState.isEqualizerOpen
+            || playerState.isLyricsOpen
+          )
+            && 'mr-64 lg:mr-80 xl:mr-96 2xl:mr-[448px]',
         ]"
       >
         <!-- Draggable top area -->
@@ -104,17 +109,17 @@
 
         <!-- Top bar content slot - spans from sidebar to right edge -->
         <div
+          :class="[
+            'absolute z-5 flex items-center justify-center h-12 overflow-visible',
+            topBarBgClass
+          ]"
           :style='{
             top: `calc(env(safe-area-inset-top))`,
             left: isSidebarCollapsed ? (isMacos ? "80px" : "64px") : "192px",
-            right: "0",
-            boxShadow: "0 1px 0 0 var(--border)"
+            right: "0"
           }'
-          class='
-            absolute z-5 flex items-center justify-center h-12
-            bg-background-dark
-          '
         >
+          <div class='absolute z-10 left-0 right-0 pointer-events-none outer-shadow-bottom' />
           <div
             :class="[
               'relative w-full h-full pr-3',
@@ -136,7 +141,7 @@
         </div>
         <main
           :style='{
-            paddingTop: `calc(3rem + env(safe-area-inset-top))`
+            marginTop: `calc(3rem + env(safe-area-inset-top))`
           }'
           class='flex-1 min-w-0 bg-background'
         >
@@ -160,20 +165,30 @@
       :is-collapsed='isSidebarCollapsed'
       :is-mobile-portrait='false'
       :style='{ paddingTop: `calc(env(safe-area-inset-top))` }'
-      class='absolute left-0 top-0 h-full z-30 border-r border-border'
+      class='absolute left-0 top-0 h-full z-30'
     />
 
     <!-- Queue/Equalizer/Lyrics positioned absolutely on the right -->
     <div
       :class="[
-        'absolute right-0 top-0 h-full z-20',
+        'absolute right-0 top-0 h-full z-20 overflow-visible',
         rightPanelBgClass,
         (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
-          ? 'border-l border-border'
-          : ''
+          ? ''
+          : 'hidden'
       ]"
       :style='{ paddingTop: `calc(env(safe-area-inset-top))` }'
     >
+      <div
+        v-if='playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen'
+        :style='{
+          top: `calc(3rem + env(safe-area-inset-top))`,
+          bottom: playerState.hasPlayer ? "88px" : "0",
+          width: "0.75rem",
+          left: "-0.75rem"
+        }'
+        class='absolute z-10 pointer-events-none outer-shadow-left'
+      />
       <slot name='queue' />
     </div>
 
@@ -181,14 +196,16 @@
     <div
       v-if='playerState.hasPlayer'
       :class="[
-        'absolute z-30 bg-background-dark border-t border-border',
+        'absolute z-30 bg-background-dark overflow-visible',
         'bottom-0',
         isSidebarCollapsed ? (isMacos ? 'left-20' : 'left-16') : 'left-48',
         (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
-          ? 'right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border'
-          : 'right-0',
+          ? 'right-64 lg:right-80 xl:right-96 2xl:right-[448px]'
+          : 'right-0'
       ]"
     >
+      <!-- Shadow on top of player -->
+      <div class='absolute z-10 left-0 right-0 pointer-events-none outer-shadow-top' />
       <slot name='player' />
     </div>
   </div>

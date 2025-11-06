@@ -12,6 +12,7 @@ export interface MainLayoutComposableReturn {
   mainContentBgClass: ComputedRef<string>
   rightPanelBgClass:  ComputedRef<string>
   scrollbarsRef:      Ref<InstanceType<typeof OverlayScrollbarsComponent> | null>
+  topBarBgClass:      ComputedRef<string>
 }
 
 export const useMainLayout = (): MainLayoutComposableReturn => {
@@ -29,6 +30,12 @@ export const useMainLayout = (): MainLayoutComposableReturn => {
   )
 
   const rightPanelBgClass = computed(
+    () => blurStore.selectedBlurMode.name !== 'none'
+      ? 'bg-transparent'
+      : 'bg-background-dark',
+  )
+
+  const topBarBgClass = computed(
     () => blurStore.selectedBlurMode.name !== 'none'
       ? 'bg-transparent'
       : 'bg-background-dark',
@@ -52,5 +59,6 @@ export const useMainLayout = (): MainLayoutComposableReturn => {
     mainContentBgClass,
     rightPanelBgClass,
     scrollbarsRef,
+    topBarBgClass,
   }
 }
