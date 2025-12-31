@@ -24,7 +24,6 @@
     DropdownMenuItem,
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
-  import { Input } from '@/components/ui/input'
   import {
     Select,
     SelectContent,
@@ -93,11 +92,11 @@
   }
 
   const selectPlaylist = (playlist: Playlist): void => {
-    logger.info('Selecting playlist:', playlist)
     if (!playlist.id) {
       logger.error('Playlist has no ID:', playlist)
       return
     }
+
     router.push(`/playlists/${playlist.id}`)
   }
 
@@ -131,6 +130,13 @@
     setTopBarContent({
       component: PlaylistsPageTopBar,
       id:        'playlists-page',
+      props:     {
+        'onCreate-playlist':    createPlaylist,
+        'onUpdate:searchQuery': (value: string) => {
+          searchQuery.value = value
+        },
+        searchQuery: searchQuery.value,
+      },
     })
   })
 
@@ -141,24 +147,7 @@
 </script>
 
 <template>
-  <div class='p-4 max-w-7xl mx-auto'>
-    <div class='mb-8'>
-      <div class='flex justify-end mb-4'>
-        <Button @click='createPlaylist' class='gap-2'>
-          <Plus class='h-4 w-4' />
-          Create Playlist
-        </Button>
-      </div>
-      <div class='flex flex-col sm:flex-row gap-4 items-start sm:items-center'>
-        <Input
-          v-model='searchQuery'
-          class='max-w-sm focus-visible:ring-1 focus-visible:ring-accent border-0 focus-visible:border-accent'
-          placeholder='Search playlists...'
-          type='text'
-        />
-      </div>
-    </div>
-
+  <div class='px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8'>
     <div
       v-if='playlistStore.isLoading'
       class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'
@@ -176,6 +165,7 @@
         </div>
       </div>
     </div>
+
     <div v-else class='grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6'>
       <div
         v-for='playlist in pagedPlaylists'
@@ -265,7 +255,7 @@
       </div>
     </div>
 
-    <div v-if='!playlistStore.isLoading && filteredPlaylists.length === 0' class='text-center py-12'>
+    <section v-if='!playlistStore.isLoading && filteredPlaylists.length === 0' class='text-center py-12'>
       <p class='text-muted-foreground mb-4'>
         {{ playlistStore.playlists.length === 0 ? 'No playlists found' : 'No playlists match your search' }}
       </p>
@@ -273,10 +263,9 @@
         <Plus class='h-4 w-4' />
         Create Your First Playlist
       </Button>
-    </div>
+    </section>
 
-    <!-- Pagination Controls -->
-    <div v-if='pageCount > 1' class='flex items-center justify-between border-t border-border pt-6 mt-8'>
+    <section v-if='pageCount > 1' class='flex items-center justify-between border-t border-border pt-6 mt-8'>
       <div class='flex items-center gap-2'>
         <span class='text-sm text-muted-foreground'>Playlists per page:</span>
         <Select @update:model-value='(v) => setPageSize(Number(v))' :model-value='String(pageSize)'>
@@ -333,9 +322,8 @@
           <ChevronsRight class='h-4 w-4' />
         </Button>
       </div>
-    </div>
+    </section>
 
-    <!-- Delete Confirmation Dialog -->
     <Dialog v-model:open='showDeleteDialog'>
       <DialogContent>
         <DialogHeader>

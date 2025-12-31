@@ -99,7 +99,11 @@
       }'
       class='relative carousel-container py-6'
     >
-      <div @scroll='updateScrollButtons' ref='scrollContainer' class='overflow-x-auto scrollbar-hide'>
+      <div
+        @scroll='updateScrollButtons'
+        ref='scrollContainer'
+        class='overflow-x-auto scrollbar-hide carousel-scroll-area'
+      >
         <div class='grid grid-rows-1 grid-flow-col auto-cols-[12rem] gap-6'>
           <slot />
         </div>
@@ -118,6 +122,12 @@
   scrollbar-width: none;
 }
 
+.carousel-scroll-area {
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+  touch-action: pan-y;
+}
+
 .carousel-container::before,
 .carousel-container::after {
   content: '';
@@ -131,13 +141,13 @@
 }
 
 .carousel-container::before {
-  left: 1rem;
+  left: 0;
   background-image: linear-gradient(to right, var(--background, rgb(30, 30, 46)), transparent);
   opacity: var(--left-fade-opacity, 0);
 }
 
 .carousel-container::after {
-  right: 1rem;
+  right: 0;
   background-image: linear-gradient(to left, var(--background, rgb(30, 30, 46)), transparent);
   opacity: var(--right-fade-opacity, 0);
 }

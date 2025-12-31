@@ -23,11 +23,14 @@ export const useOptimizedVirtualScroller = ({
   viewLayout,
 }: VirtualScrollerOptions): {
   getOptimalOverscan: () => number
+  isScrolling:        ComputedRef<boolean>
   remeasure:          () => void
   rowVirtualizer: Ref<{
     getTotalSize:    () => number
     getVirtualItems: () => VirtualItem[]
+    isScrolling:     boolean
     measure:         () => void
+    measureElement:  (node: Element | null) => void
     range:           null | { endIndex: number; startIndex: number }
     scrollToIndex:   (index: number) => void
   }>
@@ -86,8 +89,11 @@ export const useOptimizedVirtualScroller = ({
     rowVirtualizer.value.scrollToIndex(index)
   }
 
+  const isScrolling = computed(() => rowVirtualizer.value.isScrolling)
+
   return {
     getOptimalOverscan,
+    isScrolling,
     remeasure,
     rowVirtualizer,
     scrollToIndex,

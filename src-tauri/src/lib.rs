@@ -3,9 +3,9 @@ mod android_now_playing;
 pub mod cache;
 pub mod database;
 pub mod db;
-pub mod domain;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod discord_rpc;
+pub mod domain;
 pub mod error;
 pub mod handlers;
 pub mod lastfm;
@@ -130,7 +130,7 @@ pub fn run() {
         ]);
     }
 
-    #[cfg(any(target_os = "android", target_os = "ios"))]
+    #[cfg(target_os = "android")]
     {
         builder = builder.commands(collect_commands![
             handlers::appearance::get_blur_mode,
@@ -186,14 +186,67 @@ pub fn run() {
             listenbrainz::listenbrainz_clear_credentials,
             listenbrainz::listenbrainz_is_authenticated,
             system_tray::quit_application,
+            android_now_playing::update_now_playing,
+            android_now_playing::clear_now_playing,
         ]);
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(target_os = "ios")]
     {
         builder = builder.commands(collect_commands![
-            android_now_playing::update_now_playing,
-            android_now_playing::clear_now_playing,
+            handlers::appearance::get_blur_mode,
+            handlers::appearance::set_blur_mode,
+            handlers::auth::login_to_jellyfin,
+            handlers::auth::save_credentials,
+            handlers::auth::get_saved_credentials,
+            handlers::auth::save_volume,
+            handlers::auth::get_saved_volume,
+            handlers::music::get_library,
+            handlers::music::get_song,
+            handlers::music::get_artist,
+            handlers::music::get_album,
+            handlers::music::get_audio_stream_url,
+            handlers::music::toggle_favorite_status,
+            handlers::music::sync_library,
+            handlers::music::clear_cache,
+            handlers::music::get_recently_played,
+            handlers::music::register_client_capabilities,
+            handlers::music::get_instant_mix,
+            handlers::music::get_related_artists,
+            handlers::music::get_home_view_data,
+            handlers::music::report_playback_start,
+            handlers::music::report_playback_progress,
+            handlers::music::report_playback_stop,
+            handlers::music::mark_item_played,
+            handlers::music::get_song_share_urls,
+            handlers::music::get_album_share_urls,
+            handlers::music::get_artist_share_urls,
+            handlers::lyrics::get_lyrics,
+            handlers::images::get_image,
+            handlers::images::clear_image_cache,
+            handlers::images::get_image_cache_stats,
+            handlers::images::clear_image_from_cache,
+            handlers::playlists::get_playlists,
+            handlers::playlists::create_playlist,
+            handlers::playlists::update_playlist,
+            handlers::playlists::delete_playlist,
+            handlers::playlists::add_playlist_items,
+            handlers::playlists::remove_playlist_items,
+            handlers::playlists::get_playlist_items,
+            lastfm::lastfm_authenticate,
+            lastfm::lastfm_scrobble,
+            lastfm::lastfm_update_now_playing,
+            lastfm::lastfm_set_credentials,
+            lastfm::lastfm_clear_credentials,
+            lastfm::lastfm_is_authenticated,
+            lastfm::lastfm_start_auth_server,
+            listenbrainz::listenbrainz_validate_token,
+            listenbrainz::listenbrainz_submit_listen,
+            listenbrainz::listenbrainz_playing_now,
+            listenbrainz::listenbrainz_set_credentials,
+            listenbrainz::listenbrainz_clear_credentials,
+            listenbrainz::listenbrainz_is_authenticated,
+            system_tray::quit_application,
         ]);
     }
 
@@ -269,27 +322,27 @@ pub fn run() {
                                 ar.len(),
                                 al.len()
                             );
-                            if s.is_empty() && ar.is_empty() && al.is_empty() {
-                                info!("Database is empty, triggering library sync.");
-                                let handle = handle.clone();
-                                tauri::async_runtime::spawn(async move {
-                                    if let Ok(Some(creds)) =
-                                        handlers::auth::get_saved_credentials(handle.clone()).await
-                                        && let Err(e) = handlers::music::sync_library(
-                                            handle.clone(),
-                                            handle.state(),
-                                            creds.server_url,
-                                            creds.token,
-                                        )
-                                        .await
-                                    {
-                                        error!("Failed to sync library: {}", e);
-                                    }
-                                });
-                            }
+
                             *songs.lock().unwrap() = s;
                             *artists.lock().unwrap() = ar;
                             *albums.lock().unwrap() = al;
+
+                            info!("Triggering library sync on startup.");
+                            let handle = handle.clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Ok(Some(creds)) =
+                                    handlers::auth::get_saved_credentials(handle.clone()).await
+                                    && let Err(e) = handlers::music::sync_library(
+                                        handle.clone(),
+                                        handle.state(),
+                                        creds.server_url,
+                                        creds.token,
+                                    )
+                                    .await
+                                {
+                                    error!("Failed to sync library: {}", e);
+                                }
+                            });
                         }
                         (Err(e), _, _) => error!("Failed to load songs from database: {}", e),
                         (_, Err(e), _) => error!("Failed to load artists from database: {}", e),

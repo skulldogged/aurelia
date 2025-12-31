@@ -36,9 +36,8 @@
 
   // Watch for query param changes
   watch(() => route.query.tab, newTab => {
-    if (newTab && typeof newTab === 'string') {
+    if (newTab && typeof newTab === 'string')
       activeTab.value = newTab
-    }
   })
 
   // Watch for tab changes and update query param

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-  import { refDebounced } from '@vueuse/core'
+  import { breakpointsTailwind, refDebounced, useBreakpoints, useWindowSize } from '@vueuse/core'
   import Fuse from 'fuse.js'
   import { Shuffle } from 'lucide-vue-next'
-  import { computed, onMounted, onUnmounted, ref } from 'vue'
+  import { computed, inject, onMounted, onUnmounted, ref, Ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Artist, Song } from '@/bindings'
@@ -12,6 +12,8 @@
   import Button from '@/components/ui/Button.vue'
   import { Skeleton } from '@/components/ui/skeleton'
   import { useLayoutPreference } from '@/composables/useLayoutPreference'
+  import { scrollElementKey } from '@/composables/useMainLayout'
+  import { useOptimizedVirtualScroller } from '@/composables/useOptimizedVirtualScroller'
   import { useTopBar } from '@/composables/useTopBar'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
@@ -80,6 +82,63 @@
       : artistsWithSongs.value,
   )
 
+  const breakpoints = useBreakpoints(breakpointsTailwind)
+  const { width: windowWidth } = useWindowSize()
+
+  const cols = computed(() => {
+    const isCompact = viewLayout.value === 'compact'
+    if (breakpoints.xl.value) return isCompact ? 8 : 7
+    if (breakpoints.lg.value) return isCompact ? 7 : 6
+    if (breakpoints.md.value) return isCompact ? 6 : 5
+    if (breakpoints.sm.value) return isCompact ? 5 : 4
+    return isCompact ? 4 : 3
+  })
+
+  const itemWidth = computed(() => {
+    // Calculate approximate item width for optimal image loading
+    const padding = breakpoints.lg.value ? 64 : breakpoints.md.value ? 48 : 32
+    const gap = viewLayout.value === 'compact' ? 16 : 24
+    const availableWidth = windowWidth.value - padding
+    const totalGapWidth = (cols.value - 1) * gap
+    return Math.round((availableWidth - totalGapWidth) / cols.value)
+  })
+
+  const artistRows = computed(() => {
+    const rows = []
+    const items = filteredArtists.value
+    for (let i = 0; i < items.length; i += cols.value) {
+      rows.push(items.slice(i, i + cols.value))
+    }
+    return rows
+  })
+
+  const scrollElement = inject(scrollElementKey) as Ref<HTMLElement | null>
+
+  const estimateSize = computed(() => viewLayout.value === 'compact' ? 250 : 300)
+
+  const {
+    isScrolling,
+    remeasure,
+    rowVirtualizer,
+    virtualItems,
+  } = useOptimizedVirtualScroller({
+    count: computed(() => artistRows.value.length),
+    estimateSize,
+    scrollElement,
+    viewLayout,
+  })
+
+  watch([artistRows, viewLayout, cols], () => {
+    remeasure()
+  })
+
+  const virtualRows = computed(() =>
+    virtualItems.value.map(item => ({
+      artists:    artistRows.value[item.index],
+      virtualRow: item.virtualRow,
+    })),
+  )
+
   const playArtistShuffle = (artist: Artist): void => {
     const artistSongs = artist.songs
 
@@ -121,99 +180,119 @@
 </script>
 
 <template>
-  <div class='px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8'>
+  <section class='px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8'>
     <div
       v-if='libraryLoading'
       :class='viewLayout === "compact"
         ? "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-4"
         : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-6"'
     >
-      <!-- Skeleton loading grid -->
       <div
         v-for='n in 20'
         :key='`skeleton-${n}`'
         class='flex flex-col gap-4'
       >
-        <!-- Artist image skeleton -->
         <Skeleton class='w-full aspect-square rounded-lg' />
-        <!-- Text content skeleton -->
         <div class='flex flex-col items-center gap-1'>
-          <!-- Artist name skeleton -->
           <Skeleton :class='viewLayout === "compact" ? "h-4 w-3/4" : "h-6 w-3/4"' />
-          <!-- Song count skeleton -->
           <Skeleton :class='viewLayout === "compact" ? "h-3 w-1/2" : "h-4 w-1/2"' />
         </div>
       </div>
     </div>
     <div
       v-else
-      :class='viewLayout === "compact"
-        ? "grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-4"
-        : "grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-6"'
+      :style="{
+        height: `${rowVirtualizer.getTotalSize()}px`,
+        width: '100%',
+        position: 'relative'
+      }"
     >
       <div
-        v-for='artist in filteredArtists'
-        @click='selectArtist(artist)'
-        :key='artist.id'
-        class='cursor-pointer group'
+        v-for='{ artists, virtualRow } in virtualRows'
+        :key='String(virtualRow.key)'
+        :ref='el => rowVirtualizer.measureElement(el as Element)'
+        :data-index='virtualRow.index'
+        :style='{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          transform: `translateY(${virtualRow.start}px)`,
+          willChange: "transform",
+          contain: "content"
+        }'
       >
-        <div :class='viewLayout === "compact" ? "relative mb-2" : "relative mb-4"'>
-          <ImageLoader
-            :alt='`${artist.name} artist image`'
-            :item-id='artist.id'
-            :server-url='serverUrl'
-            :token='token'
-            class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
-          >
-            <template #fallback>
-              <ImagePlaceholder
-                class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-                size='large'
-                type='artist'
-              />
-            </template>
-          </ImageLoader>
-
-          <!-- Play button overlay -->
+        <div
+          :class='[
+            viewLayout === "compact" ? "gap-4 pb-4" : "gap-6 pb-6",
+            "grid"
+          ]'
+          :style='{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }'
+        >
           <div
-            class='
-              absolute inset-0 bg-black/50 rounded-lg opacity-0
-              group-hover:opacity-100 transition-opacity flex items-center
-              justify-center
-            '
+            v-for='artist in artists'
+            @click='selectArtist(artist)'
+            :key='artist.id'
+            :class="['cursor-pointer', !isScrolling && 'group']"
           >
-            <Button
-              @click.stop='playArtistShuffle(artist)'
-              :size='viewLayout === "compact" ? "sm" : "icon"'
-              class='
-                bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white
-                border border-white/20
-              '
-            >
-              <Shuffle :class='viewLayout === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"' />
-            </Button>
-          </div>
-        </div>
+            <div :class='viewLayout === "compact" ? "relative mb-2" : "relative mb-4"'>
+              <ImageLoader
+                :alt='`${artist.name} artist image`'
+                :is-scrolling='isScrolling'
+                :item-id='artist.id'
+                :server-url='serverUrl'
+                :token='token'
+                :width='itemWidth'
+                class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
+              >
+                <template #fallback>
+                  <ImagePlaceholder
+                    class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
+                    size='large'
+                    type='artist'
+                  />
+                </template>
+              </ImageLoader>
 
-        <div class='text-center'>
-          <p
-            :class='viewLayout === "compact"
-              ? "text-sm font-medium truncate"
-              : "font-semibold truncate"'
-          >
-            {{ artist.name }}
-          </p>
+              <div
+                class='
+                  absolute inset-0 bg-black/50 rounded-lg opacity-0
+                  group-hover:opacity-100 transition-opacity flex items-center
+                  justify-center
+                '
+              >
+                <Button
+                  @click.stop='playArtistShuffle(artist)'
+                  :size='viewLayout === "compact" ? "sm" : "icon"'
+                  class='
+                    bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white
+                    border border-white/20
+                  '
+                >
+                  <Shuffle :class='viewLayout === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"' />
+                </Button>
+              </div>
+            </div>
+
+            <div class='text-center'>
+              <p
+                :class='viewLayout === "compact"
+                  ? "text-sm font-medium truncate"
+                  : "font-semibold truncate"'
+              >
+                {{ artist.name }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div
+    <p
       v-if='!libraryLoading && filteredArtists && filteredArtists.length === 0'
-      class='text-center py-12'
+      class='text-center py-12 text-muted-foreground'
     >
-      <p class='text-muted-foreground'>
-        No artists found
-      </p>
-    </div>
-  </div>
+      No artists found
+    </p>
+  </section>
 </template>

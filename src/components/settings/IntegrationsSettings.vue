@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { listen, type UnlistenFn } from '@tauri-apps/api/event'
   import { openUrl } from '@tauri-apps/plugin-opener'
-  import { ExternalLink, Plug, XCircle } from 'lucide-vue-next'
+  import { ExternalLink, XCircle } from 'lucide-vue-next'
   import { computed, onBeforeUnmount, ref } from 'vue'
 
   import { commands } from '@/bindings'
@@ -159,26 +159,11 @@
 </script>
 
 <template>
-  <div class='space-y-6'>
-    <!-- Header -->
-    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
-      <div class='p-2 bg-accent/10 rounded-lg'>
-        <Plug class='size-5 text-accent' />
-      </div>
-      <div>
-        <h2 class='text-xl font-semibold'>
-          Integrations
-        </h2>
-        <p class='text-sm text-muted-foreground'>
-          Connect to music scrobbling services to track your listening history
-        </p>
-      </div>
-    </div>
-
+  <div class='space-y-8'>
     <!-- Content -->
-    <div class='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+    <div class='grid grid-cols-1 lg:grid-cols-2 gap-8'>
       <!-- Last.fm Section -->
-      <div class='space-y-4'>
+      <div class='space-y-6'>
         <h3 class='text-lg font-semibold'>
           Last.fm
         </h3>
@@ -304,7 +289,7 @@
       </div>
 
       <!-- ListenBrainz Section -->
-      <div class='space-y-4'>
+      <div class='space-y-6'>
         <h3 class='text-lg font-semibold'>
           ListenBrainz
         </h3>

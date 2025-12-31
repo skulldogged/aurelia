@@ -1,9 +1,8 @@
 import { onUnmounted, watch } from 'vue'
 
+import { useSession } from '@/composables/useSession'
 import { logger } from '@/lib/logger'
 import { useAuthStore, usePlayerStore } from '@/stores'
-
-import { useSession } from './useSession'
 
 // Track current playback state to avoid duplicate reports
 const lastReportedState = {

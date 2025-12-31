@@ -133,8 +133,15 @@ pub async fn update_now_playing(
     app: AppHandle<tauri::Wry>,
     payload: NowPlayingPayload,
 ) -> std::result::Result<(), String> {
+    let sanitized_payload = NowPlayingPayload {
+        artwork_url: None,
+        artwork_path: None,
+        artwork_data: None,
+        ..payload
+    };
+
     app.android_now_playing()
-        .update(payload)
+        .update(sanitized_payload)
         .map_err(|e| e.to_string())
 }
 

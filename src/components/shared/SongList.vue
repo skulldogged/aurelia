@@ -3,6 +3,10 @@
   import { computed, ref } from 'vue'
 
   import { Song } from '@/bindings'
+  import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
+  import ImageLoader from '@/components/shared/ImageLoader.vue'
+  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
+  import ShareDialog from '@/components/shared/ShareDialog.vue'
   import Button from '@/components/ui/Button.vue'
   import {
     ContextMenu,
@@ -13,11 +17,6 @@
   import { Skeleton } from '@/components/ui/skeleton'
   import { formatDuration } from '@/lib/utils'
   import { usePlayerStore } from '@/stores'
-
-  import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
-  import ImageLoader from './ImageLoader.vue'
-  import ImagePlaceholder from './ImagePlaceholder.vue'
-  import ShareDialog from './ShareDialog.vue'
 
   const playerStore = usePlayerStore()
 

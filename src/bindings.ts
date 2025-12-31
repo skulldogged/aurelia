@@ -168,9 +168,9 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  getImage: async (itemId: string, imageType: string, serverUrl: string, token: string): Promise<Result<null | string, string>> => {
+  getImage: async (itemId: string, imageType: string, serverUrl: string, token: string, width: null | number, quality: null | number): Promise<Result<null | string, string>> => {
     try {
-      return { data: await TAURI_INVOKE('get_image', { imageType, itemId, serverUrl, token }), status: 'ok' }
+      return { data: await TAURI_INVOKE('get_image', { imageType, itemId, quality, serverUrl, token, width }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }

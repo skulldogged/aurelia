@@ -2,7 +2,6 @@
   import {
     Link,
     LogOut,
-    Server,
     User,
   } from 'lucide-vue-next'
 
@@ -25,23 +24,8 @@
 </script>
 
 <template>
-  <div class='space-y-6'>
-    <!-- Header -->
-    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
-      <div class='p-2 bg-primary/10 rounded-lg'>
-        <Server class='size-5 text-primary' />
-      </div>
-      <div>
-        <h2 class='text-xl font-semibold'>
-          Server Connection
-        </h2>
-        <p class='text-sm text-muted-foreground'>
-          Manage your Jellyfin server connection and credentials
-        </p>
-      </div>
-    </div>
-
-    <!-- Content -->
+  <div class='space-y-8'>
+    <!-- Connection Status -->
     <div class='space-y-6'>
       <!-- Connection Status -->
       <div
@@ -94,7 +78,7 @@
       </div>
 
       <!-- Actions -->
-      <div class='flex justify-end pt-2'>
+      <div class='flex justify-end pt-2 border-t border-border/20'>
         <Button
           @click='$emit("logout")'
           :disabled='!credentials'

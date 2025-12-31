@@ -3,8 +3,7 @@ import { defineStore } from 'pinia'
 import { computed, watch } from 'vue'
 
 import { type AccentColor, AccentColorName } from '@/lib/colorSchemes'
-
-import { useThemeStore } from './theme'
+import { useThemeStore } from '@/stores/theme'
 
 export const useAccentColorStore = defineStore('accentColor', () => {
   const accentColorName = useLocalStorage<AccentColorName>('accent-color', AccentColorName.Blue)

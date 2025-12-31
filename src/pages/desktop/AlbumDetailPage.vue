@@ -145,28 +145,25 @@
 
 <template>
   <div class='flex flex-col'>
-    <!-- Hero Section - Premium Design -->
-    <div
+    <section
       v-if='album || libraryLoading'
       class='
         relative isolate overflow-hidden min-h-[400px]
         bg-linear-to-b from-sidebar via-sidebar to-background
       '
     >
-      <!-- Animated Background Elements -->
       <div class='absolute inset-0 overflow-hidden'>
-        <!-- Main background image -->
         <div class='absolute inset-0 opacity-20'>
           <ImageLoader
             v-if='album && !libraryLoading'
             :item-id='album.id || album.name'
             :server-url='serverUrl'
             :token='token'
+            :width='600'
             class='size-full object-cover blur-2xl scale-110'
           />
         </div>
 
-        <!-- Fade to background at bottom -->
         <div
           class='
             absolute bottom-0 left-0 right-0 h-40 pointer-events-none
@@ -175,12 +172,9 @@
         />
       </div>
 
-      <!-- Content Container -->
       <div class='relative z-10 flex flex-col items-center py-12'>
         <div class='w-full max-w-7xl space-y-8 px-6 md:px-10 lg:px-16'>
-          <!-- Top Row: Title and Album Art -->
           <div class='flex items-start justify-between gap-8 lg:gap-12'>
-            <!-- Left Content -->
             <div class='flex-1 min-w-0 space-y-6'>
               <template v-if='libraryLoading'>
                 <Skeleton class='h-12 w-3/4 rounded-lg' />
@@ -192,12 +186,10 @@
                 </div>
               </template>
               <template v-else-if='album'>
-                <!-- Album Title -->
                 <h1 class='text-5xl lg:text-6xl font-black text-white'>
                   {{ album.name }}
                 </h1>
 
-                <!-- Album Artist(s) -->
                 <p class='text-lg text-white/90 font-semibold'>
                   <template v-if='albumArtistPairs.length'>
                     <template v-for='(pair, index) in albumArtistPairs' :key='pair.id'>
@@ -215,7 +207,6 @@
                   </template>
                 </p>
 
-                <!-- Album Metadata -->
                 <div class='flex flex-wrap gap-4 items-center text-sm text-white/70'>
                   <span v-if='albumYear'>{{ albumYear }}</span>
                   <div v-if='albumYear && albumSongs.length' class='w-px bg-white/10' />
@@ -226,7 +217,6 @@
                   <span v-if='albumSongs.length'>{{ formattedTotalDuration }}</span>
                 </div>
 
-                <!-- Genres -->
                 <div v-if='albumGenres.length > 0' class='flex flex-wrap gap-2'>
                   <span
                     v-for='genre in albumGenres.slice(0, 5)'
@@ -237,7 +227,6 @@
                   </span>
                 </div>
 
-                <!-- Action Buttons -->
                 <div class='flex items-center gap-3 pt-2'>
                   <button
                     @click='playAll'
@@ -278,14 +267,12 @@
               </template>
             </div>
 
-            <!-- Right Album Art -->
             <div class='hidden lg:flex shrink-0 items-start justify-end'>
               <template v-if='libraryLoading'>
                 <Skeleton class='w-64 h-64 rounded-2xl' />
               </template>
               <template v-else-if='album'>
                 <div class='relative group'>
-                  <!-- Glow effect -->
                   <div
                     class='
                       absolute -inset-4 rounded-3xl blur-xl opacity-0
@@ -294,11 +281,11 @@
                     '
                   />
 
-                  <!-- Album Art -->
                   <ImageLoader
                     :item-id='album.id || album.name'
                     :server-url='serverUrl'
                     :token='token'
+                    :width='400'
                     class='
                       relative w-64 h-64 rounded-2xl shadow-2xl object-cover
                       transition-shadow duration-300 group-hover:shadow-2xl
@@ -316,10 +303,9 @@
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Songs Section -->
-    <div class='flex justify-center'>
+    <section class='flex justify-center'>
       <div class='w-full max-w-7xl py-6 px-6 md:px-10 lg:px-16'>
         <SongList
           @play-instant-mix='$emit("play-instant-mix", $event)'
@@ -336,11 +322,11 @@
           :token='token'
         />
       </div>
-    </div>
+    </section>
 
-    <div v-if='!libraryLoading && !album' class='text-center py-12 text-muted-foreground px-6'>
+    <p v-if='!libraryLoading && !album' class='text-center py-12 text-muted-foreground px-6'>
       Album not found.
-    </div>
+    </p>
 
     <ShareDialog
       v-if='album'

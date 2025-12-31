@@ -26,66 +26,110 @@
   const prefetchImage = async (itemId: string): Promise<void> => {
     if (props.itemId === itemId && props.serverUrl && props.token && !imagePreloadCache.has(itemId)) {
       imagePreloadCache.set(itemId, true)
-      try {
-        const url = await getImageUrl(itemId, props.serverUrl, props.token, props.imageType)
-        if (url) {
-          // Preload the image in the background
-          const img = new Image()
-          img.src = url
+
+      // Schedule prefetch on idle to avoid blocking the main thread during scroll
+      const schedule = (cb: () => void): void => {
+        type RIC = {
+          requestIdleCallback?: (
+            cb: (...args: unknown[]) => void,
+            opts?: { timeout?: number },
+          ) => void
         }
-      } catch (error) {
-        logger.warn('Failed to prefetch image:', error)
+
+        const win = window as unknown as RIC
+        const ric = win.requestIdleCallback
+        if (typeof ric === 'function')
+          ric(cb, { timeout: 500 })
+        else
+          setTimeout(cb, 500)
       }
+
+      schedule(async () => {
+        try {
+          const url = await getImageUrl(
+            itemId,
+            props.serverUrl!,
+            props.token!,
+            props.imageType,
+            props.width,
+            props.quality,
+          )
+          if (url) {
+            // Preload the image in the background
+            const img = new Image()
+            img.src = url
+          }
+        } catch (error) {
+          logger.warn('Failed to prefetch image:', error)
+        }
+      })
     }
   }
 
-  // Set up viewport-based prefetching
+  // Set up viewport-based prefetching and per-item visibility observer
   onMounted(() => {
     window.addEventListener('prefetch-item', handlePrefetchEvent)
+
+    // Observe this component's root element to avoid fetching until visible
+    if (rootEl.value) {
+      observer = new IntersectionObserver(
+        entries => {
+          for (const entry of entries)
+            if (entry.target === rootEl.value)
+              inView.value = entry.isIntersecting
+        },
+        { root: null, rootMargin: '200px', threshold: 0.05 },
+      )
+
+      observer.observe(rootEl.value)
+    }
   })
 
   onUnmounted(() => {
     window.removeEventListener('prefetch-item', handlePrefetchEvent)
-    if (prefetchTimeout) {
+    if (prefetchTimeout)
       clearTimeout(prefetchTimeout)
+
+    if (observer) {
+      observer.disconnect()
+      observer = null
     }
   })
 
   interface Props {
-    alt?:       string
-    className?: string
-    imageType?: string
-    itemId?:    string
-    serverUrl?: string
-    token?:     string
+    alt?:         string
+    className?:   string
+    imageType?:   string
+    isScrolling?: boolean
+    itemId?:      string
+    quality?:     number
+    serverUrl?:   string
+    token?:       string
+    width?:       number
   }
 
   const props = withDefaults(defineProps<Props>(), {
-    alt:       'Image',
-    className: undefined,
-    imageType: 'Primary',
-    itemId:    undefined,
-    serverUrl: undefined,
-    token:     undefined,
+    alt:         'Image',
+    className:   undefined,
+    imageType:   'Primary',
+    isScrolling: false,
+    itemId:      undefined,
+    quality:     90,
+    serverUrl:   undefined,
+    token:       undefined,
+    width:       undefined,
   })
 
   const { getImageUrl, getImageUrlFromCache } = useImageLoader()
+  const rootEl = ref<HTMLElement | null>(null)
+  const inView = ref(false)
   const imageUrl = ref<null | string>(null)
   const hasError = ref(false)
   const isLoaded = ref(false)
   const isLoading = ref(true)
-  const supportsWebP = ref(false)
   const lowQualityUrl = ref<null | string>(null)
   const highQualityLoaded = ref(false)
-
-  const checkWebPSupport = (): boolean => {
-    const canvas = document.createElement('canvas')
-    canvas.width = 1
-    canvas.height = 1
-    return canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0
-  }
-
-  supportsWebP.value = checkWebPSupport()
+  let observer: IntersectionObserver | null = null
 
   const resetState = (): void => {
     isLoading.value = true
@@ -104,22 +148,6 @@
 
   const preloadUrl = computed(() => imageUrl.value)
 
-  const getOptimizedImageUrl = (baseUrl: string, isLowQuality = false): string => {
-    const url = new URL(baseUrl)
-
-    if (supportsWebP.value)
-      url.searchParams.set('format', 'webp')
-
-    if (isLowQuality) {
-      url.searchParams.set('quality', '20')
-      url.searchParams.set('width', '100')
-    } else {
-      url.searchParams.set('quality', '80')
-    }
-
-    return url.toString()
-  }
-
   const preloadImage = (url: string): void => {
     if (!imagePreloadCache.has(url)) {
       imagePreloadCache.set(url, true)
@@ -129,58 +157,50 @@
   }
 
   const updateImageUrl = async (): Promise<void> => {
-    if (props.itemId) {
-      const cachedUrl = getImageUrlFromCache(props.itemId, props.imageType)
-      if (cachedUrl) {
-        const wasAlreadyLoaded = loadedImageCache.has(props.itemId)
-
-        const highQualityUrl = getOptimizedImageUrl(cachedUrl, false)
-        preloadImage(highQualityUrl)
-
-        lowQualityUrl.value = getOptimizedImageUrl(cachedUrl, true)
-        imageUrl.value = highQualityUrl
-
-        if (wasAlreadyLoaded) {
-          highQualityLoaded.value = true
-        } else {
-          setTimeout(() => {
-            if (!highQualityLoaded.value && props.itemId) {
-              highQualityLoaded.value = true
-              loadedImageCache.set(props.itemId, true)
-            }
-          }, 1500)
-        }
-
-        isLoaded.value = true
-        isLoading.value = false
-        return
-      }
-    }
+    if (props.isScrolling || !inView.value) return
 
     if (props.itemId && props.serverUrl && props.token) {
+      // Check cache for high quality image first
+      const cachedHqUrl = getImageUrlFromCache(props.itemId, props.imageType, props.width, props.quality)
+      if (cachedHqUrl) {
+        imageUrl.value = cachedHqUrl
+        highQualityLoaded.value = true
+        isLoaded.value = true
+        isLoading.value = false
+
+        // Also check/set low quality URL for immediate display if needed
+        const cachedLqUrl = getImageUrlFromCache(props.itemId, props.imageType, 100, 20)
+        if (cachedLqUrl) lowQualityUrl.value = cachedLqUrl
+        return
+      }
+
       resetState()
 
       try {
-        const url = await getImageUrl(props.itemId, props.serverUrl, props.token, props.imageType)
-        if (url) {
-          const wasAlreadyLoaded = loadedImageCache.has(props.itemId)
+        // 1. Fetch low quality placeholder first
+        const lqUrl = await getImageUrl(
+          props.itemId,
+          props.serverUrl!,
+          props.token!,
+          props.imageType,
+          100,
+          20,
+        )
+        if (lqUrl)
+          lowQualityUrl.value = lqUrl
 
-          const highQualityUrl = getOptimizedImageUrl(url, false)
-          preloadImage(highQualityUrl)
-
-          lowQualityUrl.value = getOptimizedImageUrl(url, true)
-          imageUrl.value = highQualityUrl
-
-          if (wasAlreadyLoaded) {
-            highQualityLoaded.value = true
-          } else {
-            setTimeout(() => {
-              if (!highQualityLoaded.value && props.itemId) {
-                highQualityLoaded.value = true
-                loadedImageCache.set(props.itemId, true)
-              }
-            }, 1500)
-          }
+        // 2. Fetch high quality image
+        const hqUrl = await getImageUrl(
+          props.itemId,
+          props.serverUrl!,
+          props.token!,
+          props.imageType,
+          props.width,
+          props.quality,
+        )
+        if (hqUrl) {
+          imageUrl.value = hqUrl
+          preloadImage(hqUrl)
         }
       } catch (error) {
         logger.error('Failed to get image URL:', error)
@@ -206,7 +226,14 @@
   }
 
   watch(
-    [() => props.itemId, () => props.serverUrl, () => props.token, () => props.imageType],
+    [
+      () => props.itemId,
+      () => props.serverUrl,
+      () => props.token,
+      () => props.imageType,
+      () => props.isScrolling,
+      () => inView.value,
+    ],
     updateImageUrl,
     { immediate: true },
   )
@@ -214,7 +241,7 @@
 </script>
 
 <template>
-  <div :class='className'>
+  <div ref='rootEl' :class='className'>
     <div
       v-if='isLoading'
       class='size-full bg-muted rounded-lg flex items-center justify-center animate-pulse'
@@ -229,6 +256,7 @@
         :src='lowQualityUrl'
         :style='{ display: highQualityLoaded ? "none" : "block", filter: "blur(1px)" }'
         class='absolute inset-0 size-full object-cover rounded-lg'
+        decoding='async'
         loading='lazy'
       >
       <div class='absolute inset-0 bg-muted/5 rounded-lg' />
@@ -242,6 +270,7 @@
         :src='imageUrl'
         :style='{ display: highQualityLoaded ? "block" : "none" }'
         class='absolute inset-0 size-full object-cover rounded-lg'
+        decoding='async'
         loading='eager'
       >
 
@@ -249,6 +278,7 @@
       <img
         v-if='shouldPreloadAdjacent && preloadUrl'
         :src='preloadUrl'
+        decoding='async'
         loading='eager'
         style='display: none'
       >

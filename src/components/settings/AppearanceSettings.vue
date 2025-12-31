@@ -1,7 +1,4 @@
 <script setup lang="ts">
-  import {
-    Palette,
-  } from 'lucide-vue-next'
   import { storeToRefs } from 'pinia'
   import { computed, onMounted, ref } from 'vue'
 
@@ -161,22 +158,7 @@
 </script>
 
 <template>
-  <div class='space-y-6'>
-    <!-- Header -->
-    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
-      <div class='p-2 bg-accent/10 rounded-lg'>
-        <Palette class='size-5 text-accent' />
-      </div>
-      <div>
-        <h2 class='text-xl font-semibold'>
-          Appearance
-        </h2>
-        <p class='text-sm text-muted-foreground'>
-          Customize the look and feel of your music player
-        </p>
-      </div>
-    </div>
-
+  <div class='space-y-8'>
     <!-- Material You -->
     <div v-if='isAndroidPlatform' class='space-y-3'>
       <Label class='text-sm font-medium'>
@@ -203,121 +185,126 @@
     </div>
 
     <!-- Theme Settings Row -->
-    <div class='grid md:grid-cols-3 gap-6'>
-      <!-- Color Scheme -->
-      <div class='space-y-3'>
-        <Label class='text-sm font-medium'>
-          Color Scheme
-        </Label>
-        <Select
-          @update:model-value='handleColorSchemeChange'
-          v-model='selectedColorScheme'
-          :disabled='useMaterialYou'
-        >
-          <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
-            <SelectValue placeholder='Select a color scheme' />
-          </SelectTrigger>
-          <SelectContent class='border-border/30'>
-            <SelectGroup>
-              <SelectItem
-                v-for='scheme in colorSchemes'
-                :key='scheme.name'
-                :value='scheme.name'
-                class='cursor-pointer'
-              >
-                {{ formatEnumName(scheme.name) }}
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <p class='text-xs text-muted-foreground'>
-          Choose your preferred theme
-        </p>
-      </div>
+    <div class='space-y-4'>
+      <h3 class='text-lg font-medium'>
+        Theme Settings
+      </h3>
+      <div class='grid md:grid-cols-2 lg:grid-cols-3 gap-6'>
+        <!-- Color Scheme -->
+        <div class='space-y-3'>
+          <Label class='text-sm font-medium'>
+            Color Scheme
+          </Label>
+          <Select
+            @update:model-value='handleColorSchemeChange'
+            v-model='selectedColorScheme'
+            :disabled='useMaterialYou'
+          >
+            <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
+              <SelectValue placeholder='Select a color scheme' />
+            </SelectTrigger>
+            <SelectContent class='border-border/30'>
+              <SelectGroup>
+                <SelectItem
+                  v-for='scheme in colorSchemes'
+                  :key='scheme.name'
+                  :value='scheme.name'
+                  class='cursor-pointer'
+                >
+                  {{ formatEnumName(scheme.name) }}
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <p class='text-xs text-muted-foreground'>
+            Choose your preferred theme
+          </p>
+        </div>
 
-      <!-- Accent Color -->
-      <div class='space-y-3'>
-        <Label class='text-sm font-medium'>
-          Accent Color
-        </Label>
-        <Select
-          @update:model-value='handleAccentColorChange'
-          v-model='selectedAccentColorName'
-          :disabled='useMaterialYou'
-        >
-          <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
-            <SelectValue placeholder='Select an accent color' />
-          </SelectTrigger>
-          <SelectContent class='border-border/30'>
-            <SelectGroup>
-              <SelectItem
-                v-for='color in accentColors'
-                :key='color.name'
-                :value='color.name'
-                class='cursor-pointer'
-              >
-                <div class='flex items-center space-x-3'>
-                  <div
-                    :style='{ backgroundColor: color.hex }'
-                    class='size-4 rounded-full border border-border/20'
-                  />
-                  <span>{{ formatEnumName(color.name) }}</span>
-                </div>
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <p class='text-xs text-muted-foreground'>
-          Pick your favorite accent color
-        </p>
-      </div>
+        <!-- Accent Color -->
+        <div class='space-y-3'>
+          <Label class='text-sm font-medium'>
+            Accent Color
+          </Label>
+          <Select
+            @update:model-value='handleAccentColorChange'
+            v-model='selectedAccentColorName'
+            :disabled='useMaterialYou'
+          >
+            <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
+              <SelectValue placeholder='Select an accent color' />
+            </SelectTrigger>
+            <SelectContent class='border-border/30'>
+              <SelectGroup>
+                <SelectItem
+                  v-for='color in accentColors'
+                  :key='color.name'
+                  :value='color.name'
+                  class='cursor-pointer'
+                >
+                  <div class='flex items-center space-x-3'>
+                    <div
+                      :style='{ backgroundColor: color.hex }'
+                      class='size-4 rounded-full border border-border/20'
+                    />
+                    <span>{{ formatEnumName(color.name) }}</span>
+                  </div>
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <p class='text-xs text-muted-foreground'>
+            Pick your favorite accent color
+          </p>
+        </div>
 
-      <!-- Window Effects -->
-      <div v-if='!isMobile()' class='space-y-3'>
-        <Label class='text-sm font-medium'>
-          {{ isLinuxPlatform ? 'Window Transparency' : 'Window Blur' }}
-        </Label>
-        <Select @update:model-value='handleBlurModeChange' :model-value='selectedBlurModeName'>
-          <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
-            <SelectValue :placeholder='isLinuxPlatform ? "Select transparency" : "Select a blur mode"' />
-          </SelectTrigger>
-          <SelectContent class='border-border/30'>
-            <SelectGroup v-if='isLinuxPlatform'>
-              <SelectItem
-                v-for='mode in transparencyModes'
-                :key='mode.name'
-                :value='mode.name'
-                class='cursor-pointer'
-              >
-                {{ mode.displayName }}
-              </SelectItem>
-            </SelectGroup>
-            <SelectGroup v-else>
-              <SelectItem
-                v-for='mode in blurModes'
-                :key='mode.name'
-                :disabled='!mode.supported'
-                :value='mode.name'
-                class='cursor-pointer'
-              >
-                {{ mode.displayName }}
-              </SelectItem>
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <p class='text-xs text-muted-foreground'>
-          {{ isLinuxPlatform ? 'Toggle window transparency effect' : 'Choose the background blur effect' }}
-        </p>
+        <!-- Window Effects -->
+        <div v-if='!isMobile()' class='space-y-3'>
+          <Label class='text-sm font-medium'>
+            {{ isLinuxPlatform ? 'Window Transparency' : 'Window Blur' }}
+          </Label>
+          <Select @update:model-value='handleBlurModeChange' :model-value='selectedBlurModeName'>
+            <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
+              <SelectValue :placeholder='isLinuxPlatform ? "Select transparency" : "Select a blur mode"' />
+            </SelectTrigger>
+            <SelectContent class='border-border/30'>
+              <SelectGroup v-if='isLinuxPlatform'>
+                <SelectItem
+                  v-for='mode in transparencyModes'
+                  :key='mode.name'
+                  :value='mode.name'
+                  class='cursor-pointer'
+                >
+                  {{ mode.displayName }}
+                </SelectItem>
+              </SelectGroup>
+              <SelectGroup v-else>
+                <SelectItem
+                  v-for='mode in blurModes'
+                  :key='mode.name'
+                  :disabled='!mode.supported'
+                  :value='mode.name'
+                  class='cursor-pointer'
+                >
+                  {{ mode.displayName }}
+                </SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <p class='text-xs text-muted-foreground'>
+            {{ isLinuxPlatform ? 'Toggle window transparency effect' : 'Choose the background blur effect' }}
+          </p>
+        </div>
       </div>
     </div>
 
     <!-- Audio Visualizer -->
     <div class='space-y-4 pt-4 border-t border-border/20'>
-      <Label class='text-sm font-medium'>
+      <h3 class='text-lg font-medium'>
         Audio Visualizer
-      </Label>
+      </h3>
 
-      <div class='grid md:grid-cols-2 gap-4'>
+      <div class='grid md:grid-cols-2 gap-6'>
         <div
           class='
             flex items-center justify-between p-4 bg-background/40 rounded-lg
@@ -366,9 +353,9 @@
 
     <!-- System Tray -->
     <div v-if='!isMobile()' class='space-y-4 pt-4 border-t border-border/20'>
-      <Label class='text-sm font-medium'>
+      <h3 class='text-lg font-medium'>
         System Tray
-      </Label>
+      </h3>
 
       <div class='space-y-3'>
         <div

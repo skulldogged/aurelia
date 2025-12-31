@@ -20,7 +20,7 @@ export const useViewportPrefetching = (
   const {
     enabled = true,
     observerMargin = '200px',
-    preloadCount = 5,
+    preloadCount = 2,
   } = config
 
   const prefetchedItems = ref<Set<string>>(new Set())

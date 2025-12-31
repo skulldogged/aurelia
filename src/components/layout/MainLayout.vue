@@ -3,6 +3,7 @@
 
   import MainLayoutDesktop from './desktop/MainLayout.vue'
   import MainLayoutMobile from './mobile/MainLayout.vue'
+
   defineProps<{
     navigationState: {
       canGoBack:    boolean

@@ -5,7 +5,6 @@
   import {
     ExternalLink,
     Github,
-    Info,
   } from 'lucide-vue-next'
   import { onMounted, ref } from 'vue'
 
@@ -41,46 +40,35 @@
 </script>
 
 <template>
-  <div class='space-y-6'>
-    <!-- Header -->
-    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
-      <div class='p-2 bg-primary/10 rounded-lg'>
-        <Info class='size-5 text-primary' />
-      </div>
-      <div>
-        <h2 class='text-xl font-semibold'>
-          About
-        </h2>
-        <p class='text-sm text-muted-foreground'>
-          Information about Aurelia and its components
-        </p>
-      </div>
-    </div>
-
-    <!-- Content -->
-    <div class='space-y-6'>
+  <div class='space-y-8'>
+    <!-- App Info -->
+    <div class='space-y-8'>
       <!-- App Info -->
       <div class='space-y-4'>
-        <div class='flex items-center space-x-4'>
+        <div class='flex items-center space-x-6'>
           <div
             class='
-              shrink-0 size-20 bg-linear-to-br from-primary to-accent rounded-xl
-              flex items-center justify-center text-4xl font-bold text-primary-foreground
+              shrink-0 size-24 bg-linear-to-br from-primary to-accent rounded-xl
+              flex items-center justify-center text-5xl font-bold text-primary-foreground
             '
           >
             A
           </div>
           <div class='flex-1'>
-            <h3 class='text-2xl font-bold'>
+            <h3 class='text-3xl font-bold'>
               Aurelia
             </h3>
-            <p class='text-sm text-muted-foreground mt-1'>
+            <p class='text-base text-muted-foreground mt-2'>
               A modern desktop music player for Jellyfin
             </p>
-            <div class='flex items-center space-x-4 mt-1 text-sm'>
+            <div class='flex items-center space-x-6 mt-3 text-sm'>
               <div>
                 <span class='text-muted-foreground'>Version:</span>
-                <span class='ml-2 font-mono'>{{ appVersion }}</span>
+                <span class='ml-2 font-mono font-medium'>{{ appVersion }}</span>
+              </div>
+              <div>
+                <span class='text-muted-foreground'>Platform:</span>
+                <span class='ml-2 font-mono font-medium'>{{ platformInfo }}</span>
               </div>
             </div>
           </div>
@@ -88,27 +76,29 @@
       </div>
 
       <!-- Links -->
-      <div class='space-y-3 pt-2 border-t border-border/20'>
-        <h3 class='text-sm font-medium text-muted-foreground'>
+      <div class='space-y-4 pt-4 border-t border-border/20'>
+        <h3 class='text-lg font-medium'>
           Links
         </h3>
-        <div class='grid md:grid-cols-2 gap-3'>
+        <div class='grid md:grid-cols-2 gap-4'>
           <Button
             @click='openLink("https://github.com/pupbrained/aurelia")'
+            class='justify-between h-auto p-4'
             variant='outline'
           >
-            <span class='flex items-center space-x-2'>
-              <Github class='size-4' />
+            <span class='flex items-center space-x-3'>
+              <Github class='size-5' />
               <span>GitHub Repository</span>
             </span>
             <ExternalLink class='size-4' />
           </Button>
           <Button
             @click='openLink("https://github.com/pupbrained/aurelia/issues")'
+            class='justify-between h-auto p-4'
             variant='outline'
           >
-            <span class='flex items-center space-x-2'>
-              <Info class='size-4' />
+            <span class='flex items-center space-x-3'>
+              <Info class='size-5' />
               <span>Report an Issue</span>
             </span>
             <ExternalLink class='size-4' />
@@ -117,20 +107,20 @@
       </div>
 
       <!-- Tech Stack -->
-      <div class='space-y-3 pt-2 border-t border-border/20'>
-        <h3 class='text-sm font-medium text-muted-foreground'>
+      <div class='space-y-4 pt-4 border-t border-border/20'>
+        <h3 class='text-lg font-medium'>
           Built With
         </h3>
-        <div class='grid md:grid-cols-2 gap-3'>
+        <div class='grid md:grid-cols-2 lg:grid-cols-3 gap-4'>
           <div
             v-for='tech in techStack'
             :key='tech.name'
-            class='p-3 bg-background/40 rounded-lg border border-border/20'
+            class='p-4 bg-background/40 rounded-lg border border-border/20 hover:border-border/40 transition-colors'
           >
-            <div class='font-medium text-sm'>
+            <div class='font-medium text-base'>
               {{ tech.name }}
             </div>
-            <div class='text-xs text-muted-foreground mt-1'>
+            <div class='text-sm text-muted-foreground mt-2'>
               {{ tech.description }}
             </div>
           </div>

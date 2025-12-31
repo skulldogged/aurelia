@@ -7,6 +7,12 @@
   import type { Credentials, Song } from '@/bindings'
 
   import { commands } from '@/bindings'
+  import MainLayout from '@/components/layout/MainLayout.vue'
+  import Equalizer from '@/components/player/Equalizer.vue'
+  import FullscreenPlayer from '@/components/player/FullscreenPlayer.vue'
+  import LyricsSidebar from '@/components/player/LyricsSidebar.vue'
+  import MusicPlayer from '@/components/player/MusicPlayer.vue'
+  import Queue from '@/components/player/Queue.vue'
   import GlobalSearch from '@/components/shared/GlobalSearch.vue'
   import WindowControls from '@/components/shared/WindowControls.vue'
   import Button from '@/components/ui/Button.vue'
@@ -32,16 +38,9 @@
   import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { setAuthLogout } from '@/lib/auth-interceptor'
   import { getPlatform, isMobile, Platform } from '@/lib/platform'
+  import Login from '@/pages/login.vue'
   import { useBlurStore, useHomeStore } from '@/stores'
   import { useLibraryStore } from '@/stores/library'
-
-  import MainLayout from './components/layout/MainLayout.vue'
-  import Equalizer from './components/player/Equalizer.vue'
-  import FullscreenPlayer from './components/player/FullscreenPlayer.vue'
-  import LyricsSidebar from './components/player/LyricsSidebar.vue'
-  import MusicPlayer from './components/player/MusicPlayer.vue'
-  import Queue from './components/player/Queue.vue'
-  import Login from './pages/login.vue'
 
   useColorMode()
 
@@ -432,7 +431,10 @@
 
     <GlobalSearch v-model:open='isSearchOpen' />
 
-    <WindowControls v-if='!isFullScreenPlayerOpen && !isMobile() && getPlatform() !== Platform.MacOS' class='fixed top-0 right-0 z-100' />
+    <WindowControls
+      v-if='!isFullScreenPlayerOpen && !isMobile() && getPlatform() !== Platform.MacOS'
+      class='fixed top-0 right-0 z-100'
+    />
 
     <!-- Exit Confirmation Dialog -->
     <Dialog v-model:open='showExitDialog'>

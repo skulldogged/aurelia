@@ -96,30 +96,25 @@
 
 <template>
   <div class='flex flex-col'>
-    <!-- Featured Album Section - Premium Hero Design (full-width, no padding) -->
-    <div
+    <section
       v-if='featuredAlbum || isLoading'
       class='
         relative isolate overflow-hidden min-h-[400px]
         bg-linear-to-b from-sidebar via-sidebar to-background
       '
     >
-      <!-- Animated Background Elements -->
       <div class='absolute inset-0 overflow-hidden'>
-        <!-- Main background image -->
         <div class='absolute inset-0 opacity-20'>
           <ImageLoader
             v-if='featuredAlbum && !isLoading'
             :item-id='featuredAlbum.id || featuredAlbum.name'
             :server-url='serverUrl'
             :token='token'
+            :width='600'
             class='size-full object-cover blur-2xl scale-110'
           />
         </div>
 
-        <!-- Gradient overlays -->
-
-        <!-- Fade to background at bottom -->
         <div
           class='
             absolute bottom-0 left-0 right-0 h-40 pointer-events-none
@@ -128,10 +123,8 @@
         />
       </div>
 
-      <!-- Content Container -->
       <div class='relative z-10 flex flex-col items-center py-12 px-6 md:px-10 lg:px-16'>
         <div class='flex items-center justify-between w-full gap-8 lg:gap-12 max-w-7xl mb-8'>
-          <!-- Left Content -->
           <div class='flex-1 min-w-0 space-y-6'>
             <template v-if='isLoading'>
               <Skeleton class='h-12 w-3/4 rounded-lg' />
@@ -143,14 +136,11 @@
               </div>
             </template>
             <template v-else-if='featuredAlbum'>
-              <!-- Left Content with consistent spacing -->
               <div class='flex-1 min-w-0 flex flex-col gap-6'>
-                <!-- Featured Label -->
                 <span class='inline-block px-3 py-1 bg-accent/20 text-accent text-xs font-semibold rounded-full w-fit'>
                   Featured Album
                 </span>
 
-                <!-- Album Title and Metadata -->
                 <div>
                   <h1 class='text-5xl lg:text-6xl font-black text-white truncate max-w-2xl'>
                     <RouterLink
@@ -165,7 +155,6 @@
                     </span>
                   </h1>
 
-                  <!-- Album Metadata -->
                   <div class='flex flex-wrap gap-4 mt-2'>
                     <div class='flex items-center gap-2'>
                       <span class='text-sm text-white/90 font-semibold'>
@@ -199,7 +188,6 @@
                   </div>
                 </div>
 
-                <!-- Action Buttons -->
                 <div class='flex items-center gap-3'>
                   <button
                     @click='playFeaturedAlbum'
@@ -228,14 +216,12 @@
             </template>
           </div>
 
-          <!-- Right Album Art -->
           <div class='hidden lg:flex shrink-0 items-center justify-end'>
             <template v-if='isLoading'>
               <Skeleton class='w-64 h-64 rounded-2xl' />
             </template>
             <template v-else-if='featuredAlbum'>
               <div class='relative group'>
-                <!-- Glow effect -->
                 <div
                   class='
                     absolute -inset-4 rounded-3xl blur-xl opacity-0
@@ -244,12 +230,12 @@
                   '
                 />
 
-                <!-- Album Art -->
                 <ImageLoader
                   :alt='`${featuredAlbum.name} album art`'
                   :item-id='featuredAlbum.id || featuredAlbum.name'
                   :server-url='serverUrl'
                   :token='token'
+                  :width='400'
                   class='
                     relative w-64 h-64 rounded-2xl shadow-2xl object-cover
                     transition-shadow duration-300 group-hover:shadow-2xl
@@ -268,12 +254,10 @@
           </div>
         </div>
 
-        <!-- Navigation Controls -->
         <div
           v-if='featuredAlbums.length > 1'
           class='flex w-full items-center justify-between max-w-7xl'
         >
-          <!-- Carousel dots -->
           <div class='flex gap-2'>
             <template v-for='(_, idx) in featuredAlbums' :key='idx'>
               <button
@@ -288,7 +272,6 @@
             </template>
           </div>
 
-          <!-- Arrow buttons -->
           <div class='flex gap-2'>
             <button
               @click='prevFeaturedAlbum'
@@ -315,12 +298,10 @@
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Carousels Section - With page-level padding -->
-    <div class='flex flex-col px-6 md:px-10 lg:px-16'>
-      <!-- Carousels - Edge-to-edge layout -->
-      <div class='flex justify-center'>
+    <section class='flex flex-col px-6 md:px-10 lg:px-16'>
+      <section class='flex justify-center'>
         <div class='w-full max-w-7xl'>
           <Carousel :disabled='isLoading' title='Most Played'>
             <template v-if='isLoading || mostPlayed.length === 0'>
@@ -348,6 +329,7 @@
                         :item-id='song.albumId || song.id'
                         :server-url='serverUrl'
                         :token='token'
+                        :width='400'
                         alt='Album art'
                         class='album-art-image'
                       >
@@ -356,7 +338,6 @@
                         </template>
                       </ImageLoader>
 
-                      <!-- Play button overlay -->
                       <div
                         class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
                          transition-opacity duration-200 flex items-center justify-center'
@@ -407,9 +388,9 @@
             </template>
           </Carousel>
         </div>
-      </div>
+      </section>
 
-      <div class='flex justify-center'>
+      <section class='flex justify-center'>
         <div class='w-full max-w-7xl'>
           <Carousel :disabled='isLoading' title='Recently Played'>
             <template v-if='isLoading || recentlyPlayed.length === 0'>
@@ -437,6 +418,7 @@
                         :item-id='song.albumId || song.id'
                         :server-url='serverUrl'
                         :token='token'
+                        :width='400'
                         alt='Album art'
                         class='album-art-image'
                       >
@@ -445,7 +427,6 @@
                         </template>
                       </ImageLoader>
 
-                      <!-- Play button overlay -->
                       <div
                         class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
                          transition-opacity duration-200 flex items-center justify-center'
@@ -496,9 +477,9 @@
             </template>
           </Carousel>
         </div>
-      </div>
+      </section>
 
-      <div class='flex justify-center'>
+      <section class='flex justify-center'>
         <div class='w-full max-w-7xl'>
           <Carousel :disabled='isLoading' title='Recently Added'>
             <template v-if='isLoading || recentlyAdded.length === 0'>
@@ -527,6 +508,7 @@
                         :item-id='album.id || album.name'
                         :server-url='serverUrl'
                         :token='token'
+                        :width='400'
                         class='album-art-image'
                       >
                         <template #fallback>
@@ -534,7 +516,6 @@
                         </template>
                       </ImageLoader>
 
-                      <!-- Play button overlay -->
                       <div
                         class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
                          transition-opacity duration-200 flex items-center justify-center'
@@ -588,7 +569,6 @@
                 </ContextMenuContent>
               </ContextMenu>
 
-              <!-- Load More Button -->
               <div
                 @click='loadMoreData'
                 v-if='hasMoreData.recentlyAdded && loadingStage !== "full"'
@@ -614,9 +594,9 @@
             </template>
           </Carousel>
         </div>
-      </div>
+      </section>
 
-      <div class='flex justify-center'>
+      <section class='flex justify-center'>
         <div class='w-full max-w-7xl'>
           <Carousel :disabled='isLoading' title='From Your Library'>
             <template v-if='isLoading || randomAlbums.length === 0'>
@@ -645,6 +625,7 @@
                         :item-id='album.id || album.name'
                         :server-url='serverUrl'
                         :token='token'
+                        :width='400'
                         class='album-art-image'
                       >
                         <template #fallback>
@@ -652,7 +633,6 @@
                         </template>
                       </ImageLoader>
 
-                      <!-- Play button overlay -->
                       <div
                         class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
                          transition-opacity duration-200 flex items-center justify-center'
@@ -708,8 +688,8 @@
             </template>
           </Carousel>
         </div>
-      </div>
-    </div>
+      </section>
+    </section>
   </div>
 </template>
 

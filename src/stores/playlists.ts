@@ -7,8 +7,7 @@ import { commands } from '@/bindings'
 import { useImageLoader } from '@/composables/useImageLoader'
 import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
-
-import { usePlayerStore } from './player'
+import { usePlayerStore } from '@/stores/player'
 
 const STORAGE_KEYS = {
   CURRENT_PLAYLIST_ID: 'playlists-current-id',

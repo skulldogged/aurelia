@@ -244,11 +244,10 @@
 </script>
 
 <template>
-  <div class='p-4 max-w-7xl mx-auto space-y-8'>
-    <!-- Header -->
-    <div>
-      <div class='mb-8'>
-        <h1 class='text-4xl font-bold mb-2 text-foreground'>
+  <div class='px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8'>
+    <div class='max-w-7xl mx-auto space-y-8'>
+      <section class='space-y-2 mb-8'>
+        <h1 class='text-4xl font-bold text-foreground'>
           {{ isCreate ? 'Create Playlist' : 'Edit Playlist' }}
         </h1>
         <p class='text-muted-foreground text-lg'>
@@ -258,16 +257,14 @@
               : 'Update your playlist details and song selection'
           }}
         </p>
-      </div>
-    </div>
+      </section>
 
-    <!-- Form -->
-    <div class='space-y-8'>
-      <!-- Playlist Details Card -->
-      <div class='bg-sidebar rounded-lg p-6 space-y-4'>
-        <h2 class='text-2xl font-semibold mb-4'>
-          Playlist Details
-        </h2>
+      <section class='bg-sidebar rounded-lg p-6 space-y-4'>
+        <header class='mb-4'>
+          <h2 class='text-2xl font-semibold'>
+            Playlist Details
+          </h2>
+        </header>
         <div class='space-y-2'>
           <Label class='text-base' for='name'>
             Playlist Name *
@@ -283,11 +280,10 @@
             Give your playlist a memorable name
           </p>
         </div>
-      </div>
+      </section>
 
-      <!-- Selected Songs Card -->
-      <div class='bg-sidebar rounded-lg p-6 space-y-6'>
-        <div class='flex items-center justify-between'>
+      <section class='bg-sidebar rounded-lg p-6 space-y-6'>
+        <header class='flex items-center justify-between'>
           <div>
             <h2 class='text-2xl font-semibold'>
               Songs
@@ -340,7 +336,6 @@
                             : 'hover:bg-accent/10 border-2 border-transparent hover:border-accent/30'
                         ]"
                       >
-                        <!-- Album Art -->
                         <div class='size-14 shrink-0 rounded-md overflow-hidden shadow-md'>
                           <ImageLoader
                             :alt='`${song.album || song.name} album art`'
@@ -359,7 +354,6 @@
                           </ImageLoader>
                         </div>
 
-                        <!-- Song Info -->
                         <div class='flex-1 min-w-0'>
                           <div class='font-semibold truncate text-base'>
                             {{ song.name }}
@@ -377,7 +371,6 @@
                           </div>
                         </div>
 
-                        <!-- Selection Indicator -->
                         <div
                           :class="[
                             'shrink-0 size-7 rounded-full flex items-center justify-center',
@@ -411,9 +404,9 @@
               </div>
             </DialogContent>
           </Dialog>
-        </div>
+        </header>
 
-        <div
+        <section
           v-if='selectedSongs.length === 0'
           class='text-center py-16 text-muted-foreground border-2 border-dashed border-border/50 rounded-lg'
         >
@@ -430,9 +423,9 @@
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div v-else class='space-y-1.5'>
+        <section v-else class='space-y-1.5'>
           <Sortable
             @end='handleDragEnd'
             @start='handleDragStart'
@@ -446,7 +439,6 @@
                 class='flex items-center gap-3 p-3 rounded-lg bg-card/30 border border-border/30
                        hover:bg-card/50 hover:border-border/50 transition-all group mb-1.5'
               >
-                <!-- Drag Handle -->
                 <Button
                   class='handle cursor-grab shrink-0 p-1 opacity-0 group-hover:opacity-100
                          transition-opacity'
@@ -456,7 +448,6 @@
                   <GripVertical class='size-4 text-muted-foreground' />
                 </Button>
 
-                <!-- Album Art -->
                 <div class='size-14 shrink-0 rounded-md overflow-hidden shadow-md'>
                   <ImageLoader
                     :alt='`${song.album || song.name} album art`'
@@ -475,7 +466,6 @@
                   </ImageLoader>
                 </div>
 
-                <!-- Song Info -->
                 <div class='flex-1 min-w-0'>
                   <div class='font-semibold truncate text-base'>
                     {{ song.name }}
@@ -493,7 +483,6 @@
                   </div>
                 </div>
 
-                <!-- Duration -->
                 <div
                   v-if='song.duration'
                   class='text-sm text-muted-foreground font-medium shrink-0 w-16 text-right'
@@ -501,7 +490,6 @@
                   {{ formatDuration(song.duration) }}
                 </div>
 
-                <!-- Remove Button -->
                 <Button
                   @click='removeSongFromPlaylist(song)'
                   class='shrink-0 opacity-0 group-hover:opacity-100 transition-opacity'
@@ -513,11 +501,10 @@
               </div>
             </template>
           </Sortable>
-        </div>
-      </div>
+        </section>
+      </section>
 
-      <!-- Actions -->
-      <div class='flex items-center gap-4 pt-2'>
+      <footer class='flex items-center gap-4 pt-2'>
         <Button
           @click='savePlaylist'
           :disabled='isSaving || !name.trim()'
@@ -535,10 +522,9 @@
         >
           Cancel
         </Button>
-      </div>
+      </footer>
     </div>
 
-    <!-- Error Dialogs -->
     <Dialog v-model:open='showNameErrorDialog'>
       <DialogContent>
         <DialogHeader>

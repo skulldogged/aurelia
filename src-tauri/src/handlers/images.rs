@@ -22,8 +22,20 @@ fn get_image_cache_dir(app: &AppHandle) -> AppResult<std::path::PathBuf> {
     Ok(cache_dir)
 }
 
-fn generate_cache_key(item_id: &str, image_type: &str) -> String {
-    format!("{item_id}_{image_type}")
+fn generate_cache_key(
+    item_id: &str,
+    image_type: &str,
+    width: Option<u32>,
+    quality: Option<u32>,
+) -> String {
+    let mut key = format!("{item_id}_{image_type}");
+    if let Some(w) = width {
+        key.push_str(&format!("_w{w}"));
+    }
+    if let Some(q) = quality {
+        key.push_str(&format!("_q{q}"));
+    }
+    key
 }
 
 #[tauri::command]
@@ -34,12 +46,14 @@ pub async fn get_image(
     image_type: String,
     server_url: String,
     token: String,
+    width: Option<u32>,
+    quality: Option<u32>,
 ) -> Result<Option<String>, String> {
     let cache_dir = match get_image_cache_dir(&app) {
         Ok(dir) => dir,
         Err(e) => return Err(e.to_string()),
     };
-    let cache_key = generate_cache_key(&item_id, &image_type);
+    let cache_key = generate_cache_key(&item_id, &image_type, width, quality);
     let cache_path = cache_dir.join(format!("{cache_key}.jpg"));
     let marker_path = cache_dir.join(format!("{cache_key}.404"));
 
@@ -52,12 +66,22 @@ pub async fn get_image(
         return Ok(Some(asset_url));
     }
 
-    let image_url = format!(
+    let mut image_url = format!(
         "{}/Items/{}/Images/{}",
         server_url.trim_end_matches('/'),
         item_id,
         image_type
     );
+
+    if width.is_some() || quality.is_some() {
+        image_url.push('?');
+        if let Some(w) = width {
+            image_url.push_str(&format!("width={}&", w));
+        }
+        if let Some(q) = quality {
+            image_url.push_str(&format!("quality={}&", q));
+        }
+    }
 
     let client = reqwest::Client::new();
     let response = match client
@@ -182,29 +206,21 @@ pub async fn clear_image_from_cache(
         Ok(dir) => dir,
         Err(e) => return Err(e.to_string()),
     };
-    let cache_key = generate_cache_key(&item_id, &image_type);
-    let cache_path = cache_dir.join(format!("{cache_key}.jpg"));
-    let marker_path = cache_dir.join(format!("{cache_key}.404"));
 
-    tracing::info!("Attempting to delete cached image: {:?}", cache_path);
+    let prefix = format!("{item_id}_{image_type}");
 
-    if cache_path.exists() {
-        fs::remove_file(&cache_path)
-            .await
-            .map_err(|e| format!("Failed to delete cached image: {e}"))?;
-        tracing::info!("Successfully deleted cached image: {:?}", cache_path);
-    } else {
-        tracing::info!("Cached image does not exist: {:?}", cache_path);
-    }
-
-    if marker_path.exists() {
-        fs::remove_file(&marker_path)
-            .await
-            .map_err(|e| format!("Failed to delete cached image marker: {e}"))?;
-        tracing::info!(
-            "Successfully deleted cached image marker: {:?}",
-            marker_path
-        );
+    let mut entries = fs::read_dir(&cache_dir).await.map_err(|e| e.to_string())?;
+    while let Some(entry) = entries.next_entry().await.map_err(|e| e.to_string())? {
+        let path = entry.path();
+        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+            if file_name.starts_with(&prefix) {
+                if let Err(e) = fs::remove_file(&path).await {
+                    tracing::warn!("Failed to delete cached file {:?}: {}", path, e);
+                } else {
+                    tracing::info!("Successfully deleted cached file: {:?}", path);
+                }
+            }
+        }
     }
 
     Ok(())

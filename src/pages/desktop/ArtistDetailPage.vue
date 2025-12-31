@@ -269,28 +269,25 @@
 
 <template>
   <div class='flex flex-col'>
-    <!-- Hero Section - Premium Design (full-width, no padding) -->
-    <div
+    <section
       v-if='artist || isLoading'
       class='
         relative isolate overflow-hidden min-h-[400px]
         bg-linear-to-b from-sidebar via-sidebar to-background
       '
     >
-      <!-- Animated Background Elements -->
       <div class='absolute inset-0 overflow-hidden'>
-        <!-- Main background image -->
         <div class='absolute inset-0 opacity-20'>
           <ImageLoader
             v-if='artist && !isLoading'
             :item-id='artist.id'
             :server-url='serverUrl'
             :token='token'
+            :width='600'
             class='size-full object-cover blur-2xl scale-110'
           />
         </div>
 
-        <!-- Fade to background at bottom -->
         <div
           class='
             absolute bottom-0 left-0 right-0 h-40 pointer-events-none
@@ -299,12 +296,9 @@
         />
       </div>
 
-      <!-- Content Container -->
       <div class='relative z-10 flex flex-col items-center py-12 px-6 md:px-10 lg:px-16'>
         <div class='w-full max-w-7xl space-y-8'>
-          <!-- Top Row: Title and Artist Image -->
           <div class='flex items-start justify-between gap-8 lg:gap-12'>
-            <!-- Left Content -->
             <div class='flex-1 min-w-0 space-y-6'>
               <template v-if='isLoading'>
                 <Skeleton class='h-12 w-3/4 rounded-lg' />
@@ -316,12 +310,10 @@
                 </div>
               </template>
               <template v-else-if='artist'>
-                <!-- Artist Name -->
                 <h1 class='text-5xl lg:text-6xl font-black text-white'>
                   {{ artist.name }}
                 </h1>
 
-                <!-- Artist Metadata -->
                 <div class='flex flex-wrap gap-4 items-center'>
                   <div v-if='artist.communityRating' class='flex items-center gap-1'>
                     <Star class='size-4 text-yellow-500' />
@@ -339,7 +331,6 @@
                   </p>
                 </div>
 
-                <!-- Genres -->
                 <div v-if='artistGenres.length > 0' class='flex flex-wrap gap-2'>
                   <span
                     v-for='genre in artistGenres.slice(0, 5)'
@@ -350,7 +341,6 @@
                   </span>
                 </div>
 
-                <!-- Action Buttons -->
                 <div class='flex items-center gap-3 pt-2'>
                   <button
                     @click='playArtistShuffle'
@@ -387,14 +377,12 @@
               </template>
             </div>
 
-            <!-- Right Artist Art -->
             <div class='hidden lg:flex shrink-0 items-start justify-end'>
               <template v-if='isLoading'>
                 <Skeleton class='w-64 h-64 rounded-2xl' />
               </template>
               <template v-else-if='artist'>
                 <div class='relative group'>
-                  <!-- Glow effect -->
                   <div
                     class='
                       absolute -inset-4 rounded-3xl blur-xl opacity-0
@@ -403,11 +391,11 @@
                     '
                   />
 
-                  <!-- Artist Art -->
                   <ImageLoader
                     :item-id='artist.id'
                     :server-url='serverUrl'
                     :token='token'
+                    :width='400'
                     class='
                       relative w-64 h-64 rounded-2xl shadow-2xl object-cover
                       transition-shadow duration-300 group-hover:shadow-2xl
@@ -424,7 +412,6 @@
             </div>
           </div>
 
-          <!-- Bottom Row: Overview Section -->
           <div v-if='artist && artist.overview && !isLoading' class='prose dark:prose-invert max-w-none'>
             <p
               :class="[
@@ -444,11 +431,9 @@
           </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- Content Sections - With page-level padding -->
-    <div class='flex flex-col px-6 md:px-10 lg:px-16'>
-      <!-- Data Error Alert -->
+    <section class='flex flex-col px-6 md:px-10 lg:px-16'>
       <div
         v-if='artistDataError && artist'
         class='py-4 bg-destructive/10 border-b border-destructive/20 flex items-start gap-3'
@@ -467,8 +452,7 @@
         </div>
       </div>
 
-      <!-- Top Songs Section - Carousel -->
-      <div class='flex justify-center'>
+      <section class='flex justify-center'>
         <div class='w-full max-w-7xl'>
           <Carousel :disabled='isLoading || libraryLoading' :title="isFeaturedOnlyArtist ? 'Features' : 'Top Songs'">
             <template v-if='isLoading || artistSongs.length === 0'>
@@ -496,6 +480,7 @@
                     :item-id='song.albumId || song.id'
                     :server-url='serverUrl'
                     :token='token'
+                    :width='400'
                     alt='Album art'
                     class='album-art-image'
                   >
@@ -504,7 +489,6 @@
                     </template>
                   </ImageLoader>
 
-                  <!-- Play button overlay -->
                   <div
                     class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
                          transition-opacity duration-200 flex items-center justify-center'
@@ -554,10 +538,9 @@
             </template>
           </Carousel>
         </div>
-      </div>
+      </section>
 
-      <!-- Albums Carousel -->
-      <div class='flex justify-center'>
+      <section class='flex justify-center'>
         <div class='w-full max-w-7xl'>
           <Carousel
             v-if='artistAlbums.length > 0'
@@ -576,6 +559,7 @@
                   :item-id='album.id || album.name'
                   :server-url='serverUrl'
                   :token='token'
+                  :width='400'
                   class='album-art-image group-hover:scale-105 transition-transform duration-300'
                 >
                   <template #fallback>
@@ -583,7 +567,6 @@
                   </template>
                 </ImageLoader>
 
-                <!-- Album indicator overlay -->
                 <div
                   class='absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80
                    to-transparent p-2 flex items-center gap-1'
@@ -592,7 +575,6 @@
                   <span class='text-xs text-white opacity-80'>{{ album.songs?.length || 0 }}</span>
                 </div>
 
-                <!-- Play button overlay -->
                 <div
                   class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
                    transition-opacity duration-200 flex items-center justify-center'
@@ -633,10 +615,9 @@
             </div>
           </Carousel>
         </div>
-      </div>
+      </section>
 
-      <!-- Related Artists Carousel -->
-      <div class='flex justify-center'>
+      <section class='flex justify-center'>
         <div class='w-full max-w-7xl'>
           <Carousel
             v-if='relatedArtists.length > 0'
@@ -654,6 +635,7 @@
                   :item-id='relatedArtist.id'
                   :server-url='serverUrl'
                   :token='token'
+                  :width='400'
                   alt='Artist art'
                   class='
                     w-full aspect-square rounded-lg object-cover
@@ -680,12 +662,12 @@
             </div>
           </Carousel>
         </div>
-      </div>
-    </div>
+      </section>
+    </section>
 
-    <div v-if='!libraryLoading && !artist' class='text-center py-12 text-muted-foreground px-6'>
+    <p v-if='!libraryLoading && !artist' class='text-center py-12 text-muted-foreground px-6'>
       Artist not found.
-    </div>
+    </p>
 
     <ShareDialog
       v-if='artist'
@@ -736,5 +718,4 @@
   background-image: linear-gradient(to left, var(--background), transparent);
   opacity: var(--right-fade-opacity, 0);
 }
-
 </style>

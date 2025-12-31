@@ -5,8 +5,7 @@ import { computed, watch } from 'vue'
 import { COLOR_SCHEMES } from '@/lib/colorSchemes'
 import { logger } from '@/lib/logger'
 import { getPlatform, Platform } from '@/lib/platform'
-
-import { useMaterialYouStore } from './materialYou'
+import { useMaterialYouStore } from '@/stores/materialYou'
 
 export const useThemeStore = defineStore('theme', () => {
   // Determine default theme based on system preference if no saved preference exists

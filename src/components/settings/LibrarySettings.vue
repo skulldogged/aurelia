@@ -1,7 +1,6 @@
 <script setup lang="ts">
   import {
     AlertTriangle,
-    HardDrive,
     RefreshCw,
     Trash2,
   } from 'lucide-vue-next'
@@ -20,32 +19,17 @@
 </script>
 
 <template>
-  <div class='space-y-6'>
-    <!-- Header -->
-    <div class='flex items-center space-x-3 pb-4 border-b border-border/30'>
-      <div class='p-2 bg-accent/10 rounded-lg'>
-        <HardDrive class='size-5 text-accent' />
-      </div>
-      <div>
-        <h2 class='text-xl font-semibold'>
-          Library Management
-        </h2>
-        <p class='text-sm text-muted-foreground'>
-          Sync or clear your local music library cache
-        </p>
-      </div>
-    </div>
-
-    <!-- Content -->
+  <div class='space-y-8'>
+    <!-- Sync Library Card -->
     <div class='space-y-6'>
       <!-- Sync Library Card -->
       <div
         class='
-          bg-background/40 border border-border/20 rounded-lg p-6
+          bg-background/40 border border-border/20 rounded-lg p-8
           hover:border-border/40 transition-colors
         '
       >
-        <div class='flex items-start space-x-4'>
+        <div class='flex items-start space-x-6'>
           <div class='p-3 bg-primary/10 rounded-lg shrink-0'>
             <RefreshCw class='size-6 text-primary' />
           </div>
@@ -73,11 +57,11 @@
       <!-- Clear Cache Card -->
       <div
         class='
-          bg-background/40 border border-border/20 rounded-lg p-6
+          bg-background/40 border border-border/20 rounded-lg p-8
           hover:border-border/40 transition-colors
         '
       >
-        <div class='flex items-start space-x-4'>
+        <div class='flex items-start space-x-6'>
           <div class='p-3 bg-accent/10 rounded-lg shrink-0'>
             <AlertTriangle class='size-6 text-accent' />
           </div>

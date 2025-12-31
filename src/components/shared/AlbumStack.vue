@@ -10,16 +10,22 @@
   interface Props {
     album:           Album
     disabled?:       boolean
+    isScrolling?:    boolean
+    quality?:        number
     serverUrl:       string
     showPlayButton?: boolean
     size?:           'fixed' | 'responsive'
     token:           string
+    width?:          number
   }
 
   const props = withDefaults(defineProps<Props>(), {
     disabled:       false,
+    isScrolling:    false,
+    quality:        90,
     showPlayButton: true,
     size:           'fixed',
+    width:          400,
   })
 
   defineEmits<{
@@ -40,7 +46,8 @@
   <div
     :key='shouldUpdate'
     :class="[
-      'relative album-card group',
+      'relative album-card',
+      !isScrolling && 'group',
       size === 'responsive' ? 'aspect-square w-full' : ''
     ]"
   >
@@ -48,9 +55,12 @@
     <div class='album-cover-wrapper'>
       <ImageLoader
         :alt='`${album.name} album art`'
+        :is-scrolling='isScrolling'
         :item-id='albumKey'
+        :quality='quality'
         :server-url='serverUrl'
         :token='token'
+        :width='width'
         class='album-cover-image'
       >
         <template #fallback>

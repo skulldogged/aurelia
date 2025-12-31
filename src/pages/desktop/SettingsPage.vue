@@ -2,8 +2,8 @@
   import type { Component } from 'vue'
 
   import { BookOpen, Info, Palette, Plug, Server } from 'lucide-vue-next'
-  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-  import { useRoute, useRouter } from 'vue-router'
+  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
+  import { onMounted, onUnmounted, ref } from 'vue'
 
   import SettingsPageTopBar from '@/components/desktop/SettingsPageTopBar.vue'
   import AboutSettings from '@/components/settings/AboutSettings.vue'
@@ -39,13 +39,8 @@
     (e: 'clear-cache'): void
   }>()
 
-  const route = useRoute()
-  const router = useRouter()
-
-  // Use top bar for title display
   const { clearTopBarContent, setTopBarContent } = useTopBar()
 
-  // Settings navigation items
   const settingsTabs: SettingTab[] = [
     { description: 'Customize the app', icon: Palette, id: 'appearance', label: 'Appearance' },
     { description: 'Music services', icon: Plug, id: 'integrations', label: 'Integrations' },
@@ -54,44 +49,56 @@
     { description: 'About this app', icon: Info, id: 'about', label: 'About' },
   ]
 
-  // Get initial tab from query param or default to 'appearance'
-  const activeTab = ref(route.query.tab as string || 'appearance')
+  const sectionRefs = ref<Record<string, HTMLElement | null>>({})
+  const mainContentRef = ref<HTMLElement | null>(null)
+  const activeTab = ref('appearance')
 
-  const currentTabInfo = computed(
-    () => settingsTabs.find(tab => tab.id === activeTab.value),
-  )
+  const scrollToSection = (tabId: string): void => {
+    const element = sectionRefs.value[tabId]
+    if (element) {
+      activeTab.value = tabId
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setTopBarContent({
+        component: SettingsPageTopBar,
+        id:        'settings-page',
+        props:     {
+          activeTabLabel: settingsTabs.find(t => t.id === tabId)?.label || 'Settings',
+        },
+      })
+    }
+  }
 
-  // Watch for query param changes
-  watch(() => route.query.tab, newTab => {
-    if (newTab && typeof newTab === 'string')
-      activeTab.value = newTab
-  })
+  const handleScroll = (event: Event): void => {
+    const target = event.target as HTMLElement
+    if (!target)
+      return
 
-  // Watch for tab changes and update query param + top bar
-  watch(activeTab, newTab => {
-    router.replace({ query: { tab: newTab } })
-    // Update top bar props when tab changes
-    setTopBarContent({
-      component: SettingsPageTopBar,
-      id:        'settings-page',
-      props:     {
-        activeTabLabel: currentTabInfo.value?.label || 'Settings',
-      },
-    })
-  })
+    // Find which section is currently in view
+    const scrollTop = target.scrollTop
+    const threshold = 100
 
-  // Set up top bar content when component mounts
+    for (const tab of settingsTabs) {
+      const element = sectionRefs.value[tab.id]
+      if (element) {
+        const rect = element.getBoundingClientRect()
+        const elementTop = rect.top + scrollTop
+
+        if (scrollTop >= elementTop - threshold)
+          activeTab.value = tab.id
+      }
+    }
+  }
+
   onMounted(() => {
     setTopBarContent({
       component: SettingsPageTopBar,
       id:        'settings-page',
       props:     {
-        activeTabLabel: currentTabInfo.value?.label || 'Settings',
+        activeTabLabel: 'Settings',
       },
     })
   })
 
-  // Clean up top bar content when component unmounts
   onUnmounted(() => {
     clearTopBarContent()
   })
@@ -99,64 +106,180 @@
 
 <template>
   <div class='flex gap-8 h-full'>
-    <!-- Sidebar Navigation -->
-    <aside class='w-56 shrink-0 border-r border-border/20 pt-4 pb-8 px-4'>
-      <div class='space-y-1'>
-        <button
-          v-for='tab in settingsTabs'
-          @click='activeTab = tab.id'
-          :key='tab.id'
-          :class='[
-            "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left group",
-            activeTab === tab.id
-              ? "bg-accent/10 text-accent"
-              : "text-foreground/70 hover:bg-accent/5 hover:text-foreground"
-          ]'
-        >
-          <component :is='tab.icon' class='h-5 w-5 shrink-0' />
-          <div class='flex-1 min-w-0'>
-            <div class='font-medium text-sm leading-snug'>
-              {{ tab.label }}
-            </div>
-            <div
-              :class='[
-                "text-xs leading-snug mt-0.5",
-                activeTab === tab.id ? "text-accent/70" : "text-muted-foreground"
-              ]'
-            >
-              {{ tab.description }}
-            </div>
+    <nav class='w-56 shrink-0 border-r border-border/20 pt-4 pb-8 px-4 space-y-1 overflow-y-auto'>
+      <button
+        v-for='tab in settingsTabs'
+        @click='scrollToSection(tab.id)'
+        :key='tab.id'
+        :class='[
+          "w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all text-left group",
+          activeTab === tab.id
+            ? "bg-accent/10 text-accent"
+            : "text-foreground/70 hover:bg-accent/5 hover:text-foreground"
+        ]'
+      >
+        <component :is='tab.icon' class='h-5 w-5 shrink-0' />
+        <div class='flex-1 min-w-0'>
+          <div class='font-medium text-sm leading-snug'>
+            {{ tab.label }}
           </div>
-        </button>
-      </div>
-    </aside>
+          <div
+            :class='[
+              "text-xs leading-snug mt-0.5",
+              activeTab === tab.id ? "text-accent/70" : "text-muted-foreground"
+            ]'
+          >
+            {{ tab.description }}
+          </div>
+        </div>
+      </button>
+    </nav>
 
-    <!-- Main Content Area -->
-    <main class='flex-1 py-8 pr-8 overflow-y-auto'>
-      <!-- Dynamic Content -->
-      <div class='space-y-6'>
-        <!-- Current Section -->
-        <component
-          :is='activeTab === "appearance" ? AppearanceSettings
-            : activeTab === "integrations" ? IntegrationsSettings
-              : activeTab === "server" ? ServerSettings
-                : activeTab === "library" ? LibrarySettings
-                  : activeTab === "about" ? AboutSettings
-                    : AppearanceSettings'
-          @clear-cache='$emit("clear-cache")'
-          @logout='$emit("logout")'
-          @sync-library='$emit("sync-library")'
-          :credentials='credentials'
-          :is-clearing='isClearing'
-          :is-syncing='isSyncing'
-        />
+    <OverlayScrollbarsComponent
+      @scroll='handleScroll'
+      ref='mainContentRef'
+      :options='{ scrollbars: { autoHide: "scroll" } }'
+      class='flex-1 py-8'
+      defer
+    >
+      <div class='flex justify-center px-8'>
+        <div class='w-full max-w-4xl space-y-16'>
+          <!-- Appearance Section -->
+          <section
+            :ref="el => sectionRefs['appearance'] = el as HTMLElement"
+            class='space-y-8'
+          >
+            <div class='py-4'>
+              <div class='flex items-start space-x-4'>
+                <div class='p-3 bg-accent/10 rounded-lg shrink-0'>
+                  <Palette class='size-6 text-accent' />
+                </div>
+                <div>
+                  <h1 class='text-3xl font-semibold'>
+                    Appearance
+                  </h1>
+                </div>
+              </div>
+            </div>
+            <AppearanceSettings
+              @clear-cache='$emit("clear-cache")'
+              @logout='$emit("logout")'
+              @sync-library='$emit("sync-library")'
+              :credentials='credentials'
+              :is-clearing='isClearing'
+              :is-syncing='isSyncing'
+            />
+          </section>
+
+          <!-- Integrations Section -->
+          <section
+            :ref="el => sectionRefs['integrations'] = el as HTMLElement"
+            class='space-y-8'
+          >
+            <div class='py-4'>
+              <div class='flex items-start space-x-4'>
+                <div class='p-3 bg-accent/10 rounded-lg shrink-0'>
+                  <Plug class='size-6 text-accent' />
+                </div>
+                <div>
+                  <h1 class='text-3xl font-semibold'>
+                    Integrations
+                  </h1>
+                </div>
+              </div>
+            </div>
+            <IntegrationsSettings
+              @clear-cache='$emit("clear-cache")'
+              @logout='$emit("logout")'
+              @sync-library='$emit("sync-library")'
+              :credentials='credentials'
+              :is-clearing='isClearing'
+              :is-syncing='isSyncing'
+            />
+          </section>
+
+          <!-- Server Section -->
+          <section
+            :ref="el => sectionRefs['server'] = el as HTMLElement"
+            class='space-y-8'
+          >
+            <div class='py-4'>
+              <div class='flex items-start space-x-4'>
+                <div class='p-3 bg-accent/10 rounded-lg shrink-0'>
+                  <Server class='size-6 text-accent' />
+                </div>
+                <div>
+                  <h1 class='text-3xl font-semibold'>
+                    Server
+                  </h1>
+                </div>
+              </div>
+            </div>
+            <ServerSettings
+              @clear-cache='$emit("clear-cache")'
+              @logout='$emit("logout")'
+              @sync-library='$emit("sync-library")'
+              :credentials='credentials'
+              :is-clearing='isClearing'
+              :is-syncing='isSyncing'
+            />
+          </section>
+
+          <!-- Library Section -->
+          <section
+            :ref="el => sectionRefs['library'] = el as HTMLElement"
+            class='space-y-8'
+          >
+            <div class='py-4'>
+              <div class='flex items-start space-x-4'>
+                <div class='p-3 bg-accent/10 rounded-lg shrink-0'>
+                  <BookOpen class='size-6 text-accent' />
+                </div>
+                <div>
+                  <h1 class='text-3xl font-semibold'>
+                    Library
+                  </h1>
+                </div>
+              </div>
+            </div>
+            <LibrarySettings
+              @clear-cache='$emit("clear-cache")'
+              @logout='$emit("logout")'
+              @sync-library='$emit("sync-library")'
+              :credentials='credentials'
+              :is-clearing='isClearing'
+              :is-syncing='isSyncing'
+            />
+          </section>
+
+          <!-- About Section -->
+          <section
+            :ref="el => sectionRefs['about'] = el as HTMLElement"
+            class='space-y-8 pb-8'
+          >
+            <div class='py-4'>
+              <div class='flex items-start space-x-4'>
+                <div class='p-3 bg-accent/10 rounded-lg shrink-0'>
+                  <Info class='size-6 text-accent' />
+                </div>
+                <div>
+                  <h1 class='text-3xl font-semibold'>
+                    About
+                  </h1>
+                </div>
+              </div>
+            </div>
+            <AboutSettings
+              @clear-cache='$emit("clear-cache")'
+              @logout='$emit("logout")'
+              @sync-library='$emit("sync-library")'
+              :credentials='credentials'
+              :is-clearing='isClearing'
+              :is-syncing='isSyncing'
+            />
+          </section>
+        </div>
       </div>
-    </main>
+    </OverlayScrollbarsComponent>
   </div>
 </template>
-
-<style scoped>
-  main {
-    max-width: 900px;
-  }
-</style>
