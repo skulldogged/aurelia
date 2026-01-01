@@ -510,430 +510,445 @@
     @touchmove='handleSwipeMove'
     @touchstart='startTracking'
     v-if='playerStore.currentSong'
-    class='px-2 py-3 relative'
+    class='player-bar'
   >
-    <!-- Swipe hint overlay -->
-    <div
-      v-if='false'
-      :style='{ opacity: swipeOpacity }'
-      class='fixed inset-0 bg-black/20 backdrop-blur-sm z-40 pointer-events-none'
-    >
-      <div class='flex items-center justify-center h-full'>
-        <div
-          :style='{ transform: swipeTransform }'
-          class='bg-background/90 backdrop-blur-md border border-border rounded-xl p-6 shadow-2xl'
-        >
-          <div class='text-center'>
-            <div class='w-16 h-16 mx-auto mb-4 bg-primary/20 rounded-full flex items-center justify-center'>
-              <Expand class='w-8 h-8 text-primary' />
-            </div>
-
-            <p class='text-sm font-medium'>
-              Swipe up to open fullscreen
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div ref='containerRef' class='mx-auto max-w-full relative' style='z-index: 1;'>
-      <div :class="isMobilePortraitMode ? 'flex items-center px-2' : 'grid grid-cols-3 items-center px-2'">
-        <div
-          @mouseenter='onTitleMouseEnter'
-          @mouseleave='onTitleMouseLeave'
-          :class="['flex items-center space-x-4 min-w-0', shouldMarquee ? 'marquee-enabled' : '']"
-        >
-          <div @click="emit('toggle-fullscreen')" class='shrink-0'>
+    <div ref='containerRef' class='player-bar-inner'>
+      <!-- Mobile layout -->
+      <template v-if='isMobilePortraitMode'>
+        <div class='flex items-center gap-3 flex-1 min-w-0'>
+          <!-- Album art -->
+          <div @click="emit('toggle-fullscreen')" class='shrink-0 player-album-art'>
             <ImageLoader
-              v-if='playerStore.currentSong'
               :item-id='playerStore.currentSong.albumId || playerStore.currentSong.id'
               :server-url='serverUrl'
               :token='token'
               alt='Album art'
-              class='size-12 rounded-md cursor-pointer'
+              class='size-12 rounded-lg'
             >
               <template #fallback>
-                <div
-                  class='size-12 bg-muted rounded-md flex items-center justify-center cursor-pointer'
-                >
-                  <Music2 class='size-6 text-muted-foreground' />
+                <div class='size-12 bg-muted rounded-lg flex items-center justify-center'>
+                  <Music2 class='size-5 text-muted-foreground' />
                 </div>
               </template>
             </ImageLoader>
           </div>
-          <div class='flex-1 min-w-0'>
-            <div ref='titleContainerRef' class='text-foreground font-medium select-text overflow-hidden'>
+
+          <!-- Song info -->
+          <div class='flex-1 min-w-0' @click="emit('toggle-fullscreen')">
+            <p class='font-medium text-sm truncate'>{{ playerStore.currentSong.name }}</p>
+            <p class='text-xs text-muted-foreground truncate'>
+              {{ playerStore.currentSong.artists?.join(', ') || 'Unknown Artist' }}
+            </p>
+          </div>
+
+          <!-- Play button -->
+          <Button
+            @click.stop='togglePlayPause'
+            :disabled='!playerStore.audioReady || playerStore.isBuffering'
+            class='shrink-0 rounded-full! size-11'
+            size='icon'
+            variant='default'
+          >
+            <Loader2 v-if='playerStore.isBuffering' class='size-5 animate-spin' />
+            <Play v-else-if='!playerStore.isPlaying' class='size-5 ml-0.5' />
+            <Pause v-else class='size-5' />
+          </Button>
+        </div>
+      </template>
+
+      <!-- Desktop layout -->
+      <template v-else>
+        <!-- Left: Song info -->
+        <div
+          @mouseenter='onTitleMouseEnter'
+          @mouseleave='onTitleMouseLeave'
+          class='flex items-center gap-3 min-w-0 flex-1'
+        >
+          <div @click="emit('toggle-fullscreen')" class='shrink-0 player-album-art'>
+            <ImageLoader
+              :item-id='playerStore.currentSong.albumId || playerStore.currentSong.id'
+              :server-url='serverUrl'
+              :token='token'
+              alt='Album art'
+              class='size-12 rounded-lg'
+            >
+              <template #fallback>
+                <div class='size-12 bg-muted rounded-lg flex items-center justify-center'>
+                  <Music2 class='size-5 text-muted-foreground' />
+                </div>
+              </template>
+            </ImageLoader>
+          </div>
+
+          <div class='min-w-0 flex-1'>
+            <div ref='titleContainerRef' class='overflow-hidden'>
               <div
                 @animationiteration='handleMarqueeIteration'
                 ref='marqueeTrackRef'
-                :class="[
-                  'marquee-track',
-                  isMarqueePaused ? 'marquee-paused' : ''
-                ]"
+                :class="['marquee-track', isMarqueePaused && 'marquee-paused']"
                 :style='marqueeStyle'
               >
-                <span
-                  ref='titleTextRef'
-                  class='whitespace-nowrap'
-                >
+                <span ref='titleTextRef' class='font-medium text-sm whitespace-nowrap'>
                   {{ playerStore.currentSong.name }}
                 </span>
-                <span
-                  v-if='shouldMarquee'
-                  aria-hidden='true'
-                  class='whitespace-nowrap'
-                >
+                <span v-if='shouldMarquee' aria-hidden='true' class='font-medium text-sm whitespace-nowrap'>
                   {{ playerStore.currentSong.name }}
                 </span>
               </div>
             </div>
-            <p class='text-muted-foreground text-sm truncate select-text'>
-              <template
-                v-if='
-                  playerStore.currentSong.artists
-                    && playerStore.currentSong.artistIds
-                    && playerStore.currentSong.artists.length === playerStore.currentSong.artistIds.length
-                '
-              >
-                <template
-                  v-for='(artist, index) in playerStore.currentSong.artists'
-                  :key='playerStore.currentSong.artistIds[index]'
-                >
+            <p class='text-xs text-muted-foreground truncate'>
+              <template v-if='playerStore.currentSong.artists?.length'>
+                <template v-for='(artist, i) in playerStore.currentSong.artists' :key='i'>
                   <RouterLink
-                    :to='`/artists/${playerStore.currentSong.artistIds[index]}`'
+                    v-if='playerStore.currentSong.artistIds?.[i]'
+                    :to='`/artists/${playerStore.currentSong.artistIds[i]}`'
                     class='hover:underline'
-                  >
-                    {{ artist }}
-                  </RouterLink>
-                  <span v-if='index < playerStore.currentSong.artists.length - 1'>, </span>
+                  >{{ artist }}</RouterLink>
+                  <span v-else>{{ artist }}</span>
+                  <span v-if='i < playerStore.currentSong.artists.length - 1'>, </span>
                 </template>
               </template>
-              <template v-else>
-                {{ playerStore.currentSong.artists?.join(', ') || 'Unknown Artist' }}
+              <template v-if='playerStore.currentSong.album'>
+                <span class='mx-1 opacity-50'>·</span>
+                <RouterLink
+                  v-if='playerStore.currentSong.albumId'
+                  :to='`/albums/${playerStore.currentSong.albumId}`'
+                  class='hover:underline'
+                >{{ playerStore.currentSong.album }}</RouterLink>
+                <span v-else>{{ playerStore.currentSong.album }}</span>
               </template>
-              •
-              <RouterLink
-                v-if='playerStore.currentSong.album && playerStore.currentSong.albumId'
-                :to='`/albums/${playerStore.currentSong.albumId}`'
-                class='hover:underline'
-              >
-                {{ playerStore.currentSong.album }}
-              </RouterLink>
-              <span v-else>{{ 'Unknown Album' }}</span>
             </p>
-            <p v-if='songFormatInfo' class='text-xs text-muted-foreground/80 truncate select-text'>
+            <p v-if='songFormatInfo' class='text-[10px] text-muted-foreground/60 truncate'>
               {{ songFormatInfo }}
             </p>
           </div>
         </div>
 
-        <div v-if='!isMobilePortraitMode' class='grow px-4'>
-          <div class='flex justify-center'>
-            <div class='flex items-center space-x-2'>
-              <button
-                @click='playerStore.toggleShuffle'
-                :class="[
-                  'inline-flex items-center justify-center rounded-button text-sm font-medium',
-                  'transition-colors h-8 w-8',
-                  playerStore.isShuffled
-                    ? 'bg-accent text-accent-foreground hover:bg-accent/90'
-                    : 'hover:bg-accent/20',
-                ]"
-              >
-                <Shuffle
-                  :class="['size-4', playerStore.isShuffled ? '' : 'text-muted-foreground']"
-                />
-              </button>
-              <Button
-                @click='previousSong'
-                :disabled='!hasPrevious'
-                size='icon'
-                variant='ghost'
-              >
-                <SkipBack class='size-4' />
-              </Button>
+        <!-- Center: Controls & Progress -->
+        <div class='flex-1 max-w-lg px-4'>
+          <div class='flex items-center justify-center gap-1'>
+            <Button
+              @click='playerStore.toggleShuffle'
+              :class="['player-control-btn', playerStore.isShuffled && 'is-active']"
+              size='icon'
+              variant='ghost'
+            >
+              <Shuffle class='size-4' />
+            </Button>
 
-              <Button
-                @click='togglePlayPause'
-                :disabled='!playerStore.audioReady || playerStore.isBuffering'
-                class='rounded-full! size-10'
-                size='icon'
-                variant='default'
-              >
-                <Loader2 v-if='playerStore.isBuffering' class='size-4 animate-spin' />
-                <Play v-else-if='!playerStore.isPlaying' class='size-4' />
-                <Pause v-else class='size-4' />
-              </Button>
+            <Button
+              @click='previousSong'
+              :disabled='!hasPrevious'
+              class='player-control-btn'
+              size='icon'
+              variant='ghost'
+            >
+              <SkipBack class='size-4' />
+            </Button>
 
-              <Button
-                @click='nextSong'
-                :disabled='!hasNext'
-                size='icon'
-                variant='ghost'
-              >
-                <SkipForward class='size-4' />
-              </Button>
-              <button
-                @click='playerStore.cycleRepeatMode'
-                :class="[
-                  'inline-flex items-center justify-center rounded-button text-sm font-medium',
-                  'transition-colors h-8 w-8',
-                  playerStore.repeatMode !== 'none'
-                    ? 'bg-accent text-accent-foreground hover:bg-accent/90'
-                    : 'hover:bg-accent/20',
-                ]"
-              >
-                <Repeat1
-                  v-if="playerStore.repeatMode === 'one'"
-                  class='size-4'
-                />
-                <Repeat
-                  v-else
-                  :class="[
-                    'size-4',
-                    playerStore.repeatMode === 'none' ? 'text-muted-foreground' : '',
-                  ]"
-                />
-              </button>
-            </div>
+            <Button
+              @click='togglePlayPause'
+              :disabled='!playerStore.audioReady || playerStore.isBuffering'
+              class='player-play-btn'
+              size='icon'
+              variant='default'
+            >
+              <Loader2 v-if='playerStore.isBuffering' class='size-4 animate-spin' />
+              <Play v-else-if='!playerStore.isPlaying' class='size-4 ml-0.5' />
+              <Pause v-else class='size-4' />
+            </Button>
+
+            <Button
+              @click='nextSong'
+              :disabled='!hasNext'
+              class='player-control-btn'
+              size='icon'
+              variant='ghost'
+            >
+              <SkipForward class='size-4' />
+            </Button>
+
+            <Button
+              @click='playerStore.cycleRepeatMode'
+              :class="['player-control-btn', playerStore.repeatMode !== 'none' && 'is-active']"
+              size='icon'
+              variant='ghost'
+            >
+              <Repeat1 v-if="playerStore.repeatMode === 'one'" class='size-4' />
+              <Repeat v-else class='size-4' />
+            </Button>
           </div>
-          <div class='flex items-center space-x-2 mt-2 text-sm text-muted-foreground'>
-            <span>{{ formatTime(playerStore.currentTime) }}</span>
+
+          <div class='flex items-center gap-2 mt-1.5'>
+            <span class='text-[10px] text-muted-foreground tabular-nums w-8 text-right'>
+              {{ formatTime(playerStore.currentTime) }}
+            </span>
             <Slider
               @update:model-value='onSeek'
               :max='100'
               :model-value='[playerStore.progress]'
               :step='0.1'
-              class='w-full'
+              class='flex-1'
             />
-            <span>{{ formatTime(playerStore.duration) }}</span>
+            <span class='text-[10px] text-muted-foreground tabular-nums w-8'>
+              {{ formatTime(playerStore.duration) }}
+            </span>
           </div>
         </div>
 
-        <div :class="isMobilePortraitMode ? 'flex justify-end flex-1' : 'flex justify-end'">
-          <!-- Mobile portrait: only play button -->
+        <!-- Right: Secondary controls -->
+        <div class='flex items-center justify-end gap-1 flex-1'>
           <Button
-            @click='togglePlayPause'
-            v-if='isMobilePortraitMode'
-            :disabled='!playerStore.audioReady || playerStore.isBuffering'
-            class='rounded-full! size-12'
+            @click="emit('toggle-queue')"
+            v-if="visibleIcons.includes('queue')"
+            :class="['player-control-btn', activeView === 'queue' && 'is-active']"
             size='icon'
-            variant='default'
+            variant='ghost'
           >
-            <Loader2 v-if='playerStore.isBuffering' class='size-5 animate-spin' />
-            <Play v-else-if='!playerStore.isPlaying' class='size-5' />
-            <Pause v-else class='size-5' />
+            <ListMusic class='size-4' />
           </Button>
 
-          <!-- Desktop: all buttons -->
-          <div v-else class='flex items-center space-x-2'>
-            <!-- Queue button -->
-            <Button
-              @click="emit('toggle-queue')"
-              v-if="visibleIcons.includes('queue')"
-              :variant="activeView === 'queue' ? 'default' : 'ghost'"
-              size='icon'
-            >
-              <ListMusic class='size-4' />
-            </Button>
+          <Button
+            @click="emit('toggle-lyrics')"
+            v-if="visibleIcons.includes('lyrics')"
+            :class="['player-control-btn', activeView === 'lyrics' && 'is-active']"
+            :disabled='!hasLyrics'
+            size='icon'
+            variant='ghost'
+          >
+            <Mic2 class='size-4' />
+          </Button>
 
-            <!-- Lyrics button -->
-            <Button
-              @click="emit('toggle-lyrics')"
-              v-if="visibleIcons.includes('lyrics')"
-              :disabled='!hasLyrics'
-              :variant="activeView === 'lyrics' ? 'default' : 'ghost'"
-              size='icon'
-            >
-              <Mic2 class='size-4' />
-            </Button>
+          <Button
+            @click="emit('toggle-favorite', playerStore.currentSong)"
+            v-if="visibleIcons.includes('favorite')"
+            :class="['player-control-btn', playerStore.currentSong.isFavorite && 'is-active']"
+            size='icon'
+            variant='ghost'
+          >
+            <Heart :class="['size-4', playerStore.currentSong.isFavorite && 'fill-current']" />
+          </Button>
 
-            <!-- Favorite button -->
+          <Button
+            @click="emit('toggle-fullscreen')"
+            v-if="visibleIcons.includes('fullscreen')"
+            class='player-control-btn'
+            size='icon'
+            variant='ghost'
+          >
+            <Expand class='size-4' />
+          </Button>
+
+          <Button
+            @click="emit('toggle-equalizer')"
+            v-if="visibleIcons.includes('equalizer')"
+            :class="['player-control-btn', activeView === 'equalizer' && 'is-active']"
+            size='icon'
+            variant='ghost'
+          >
+            <Sliders class='size-4' />
+          </Button>
+
+          <!-- Volume -->
+          <div v-if="visibleIcons.includes('volume')" class='relative'>
             <Button
-              @click="emit('toggle-favorite', playerStore.currentSong)"
-              v-if="visibleIcons.includes('favorite')"
+              @click='handleVolumeClick'
+              :class="['player-control-btn', isVolumePopupVisible && 'is-active']"
               size='icon'
               variant='ghost'
+              data-volume-button
             >
-              <Heart
-                :class="[
-                  'size-4',
-                  playerStore.currentSong.isFavorite
-                    ? 'fill-current'
-                    : '',
-                ]"
-              />
+              <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
+              <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
+              <VolumeX v-else class='size-4' />
             </Button>
+            <Transition name='pop'>
+              <div v-if='isVolumePopupVisible' ref='volumePopupRef' class='volume-popup'>
+                <span class='text-xs text-muted-foreground tabular-nums'>
+                  {{ Math.round(playerStore.volume * 100) }}%
+                </span>
+                <Slider
+                  @update:model-value='onVolumeInput'
+                  :max='100'
+                  :model-value='[playerStore.volume * 100]'
+                  :step='1'
+                  class='h-20 w-1.5'
+                  orientation='vertical'
+                />
+                <button
+                  @click.stop='playerStore.toggleMute'
+                  class='p-1 text-muted-foreground hover:text-foreground transition-colors'
+                >
+                  <VolumeX v-if='playerStore.volume === 0' class='size-4' />
+                  <Volume2 v-else class='size-4' />
+                </button>
+              </div>
+            </Transition>
+          </div>
 
-            <!-- Fullscreen button -->
-            <Button
-              @click="emit('toggle-fullscreen')"
-              v-if="visibleIcons.includes('fullscreen')"
-              size='icon'
-              variant='ghost'
-            >
-              <Expand class='size-4' />
-            </Button>
-
-            <!-- Equalizer button - always available with Rust backend -->
-            <Button
-              @click="emit('toggle-equalizer')"
-              v-if="visibleIcons.includes('equalizer')"
-              :variant="activeView === 'equalizer' ? 'default' : 'ghost'"
-              size='icon'
-            >
-              <Sliders class='size-4' />
-            </Button>
-
-            <!-- Volume button -->
-            <div v-if="visibleIcons.includes('volume')" class='relative'>
-              <Button
-                @click='handleVolumeClick'
-                :class='isVolumePopupVisible ? "bg-accent/20" : ""'
-                size='icon'
-                variant='ghost'
-                data-volume-button
-              >
-                <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
-                <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
-                <VolumeX v-else class='size-4' />
+          <!-- Overflow menu -->
+          <DropdownMenu v-if='hasHiddenIcons'>
+            <DropdownMenuTrigger as-child>
+              <Button class='player-control-btn' size='icon' variant='ghost'>
+                <MoreHorizontal class='size-4' />
               </Button>
-              <div
-                v-if='isVolumePopupVisible'
-                ref='volumePopupRef'
-                class='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 p-3
-                       bg-card border border-border rounded-md shadow-lg z-50'
-              >
-                <div class='flex flex-col items-center gap-2'>
-                  <span class='text-xs text-muted-foreground font-medium'>
-                    {{ Math.round(playerStore.volume * 100) }}%
-                  </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              <DropdownMenuItem v-if="!visibleIcons.includes('volume')">
+                <div class='flex items-center gap-2 w-full'>
+                  <button @click='playerStore.toggleMute' class='text-muted-foreground hover:text-foreground'>
+                    <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
+                    <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
+                    <VolumeX v-else class='size-4' />
+                  </button>
                   <Slider
                     @update:model-value='onVolumeInput'
                     :max='100'
                     :model-value='[playerStore.volume * 100]'
                     :step='1'
-                    class='h-16 w-1.5'
-                    orientation='vertical'
+                    class='w-24 flex-1'
                   />
-                  <button
-                    @click.stop='playerStore.toggleMute'
-                    class='text-muted-foreground hover:text-foreground transition-colors p-1 rounded'
-                  >
-                    <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
-                    <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
-                    <VolumeX v-else class='size-4' />
-                  </button>
                 </div>
-              </div>
-            </div>
-
-            <!-- Three-dot menu for hidden icons -->
-            <DropdownMenu v-if='hasHiddenIcons'>
-              <DropdownMenuTrigger as-child>
-                <Button size='icon' variant='ghost'>
-                  <MoreHorizontal class='size-4' />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuItem v-if="!visibleIcons.includes('volume')">
-                  <div class='flex items-center space-x-2 w-full'>
-                    <button
-                      @click='playerStore.toggleMute'
-                      class='text-muted-foreground hover:text-foreground'
-                    >
-                      <Volume2 v-if='playerStore.volume > 0.5' class='h-4 w-4' />
-                      <Volume1 v-else-if='playerStore.volume > 0' class='h-4 w-4' />
-                      <VolumeX v-else class='h-4 w-4' />
-                    </button>
-                    <Slider
-                      @update:model-value='onVolumeInput'
-                      :max='100'
-                      :model-value='[playerStore.volume * 100]'
-                      :step='1'
-                      class='w-24 flex-1'
-                    />
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  @click="emit('toggle-equalizer')"
-                  v-if="!visibleIcons.includes('equalizer')"
-                >
-                  <Sliders class='size-4 mr-2' />
-                  Equalizer
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  @click="emit('toggle-fullscreen')"
-                  v-if="!visibleIcons.includes('fullscreen')"
-                >
-                  <Expand class='size-4 mr-2' />
-                  Fullscreen
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  @click="emit('toggle-favorite', playerStore.currentSong)"
-                  v-if="!visibleIcons.includes('favorite')"
-                >
-                  <Heart
-                    :class="[
-                      'size-4 mr-2',
-                      playerStore.currentSong.isFavorite
-                        ? 'fill-current'
-                        : '',
-                    ]"
-                  />
-                  Favorite
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  @click="emit('toggle-lyrics')"
-                  v-if="!visibleIcons.includes('lyrics')"
-                  :disabled='!hasLyrics'
-                >
-                  <Mic2 class='size-4 mr-2' />
-                  Lyrics
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  @click="emit('toggle-queue')"
-                  v-if="!visibleIcons.includes('queue')"
-                >
-                  <ListMusic class='size-4 mr-2' />
-                  Queue
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="emit('toggle-equalizer')" v-if="!visibleIcons.includes('equalizer')">
+                <Sliders class='size-4 mr-2' />
+                Equalizer
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="emit('toggle-fullscreen')" v-if="!visibleIcons.includes('fullscreen')">
+                <Expand class='size-4 mr-2' />
+                Fullscreen
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                @click="emit('toggle-favorite', playerStore.currentSong)"
+                v-if="!visibleIcons.includes('favorite')"
+              >
+                <Heart :class="['size-4 mr-2', playerStore.currentSong.isFavorite && 'fill-current']" />
+                Favorite
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                @click="emit('toggle-lyrics')"
+                v-if="!visibleIcons.includes('lyrics')"
+                :disabled='!hasLyrics'
+              >
+                <Mic2 class='size-4 mr-2' />
+                Lyrics
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="emit('toggle-queue')" v-if="!visibleIcons.includes('queue')">
+                <ListMusic class='size-4 mr-2' />
+                Queue
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </div>
+      </template>
     </div>
   </div>
 </template>
 <style scoped>
-.slider::-webkit-slider-thumb {
-  appearance: none;
-  height: 12px;
-  width: 12px;
-  border-radius: 50%;
-  background: #4b5563;
-  cursor: pointer;
+/* Player bar container */
+.player-bar {
+  padding: 0.625rem 0.75rem;
+  position: relative;
 }
 
-.slider::-moz-range-thumb {
-  height: 12px;
-  width: 12px;
-  border-radius: 50%;
-  background: #4b5563;
-  cursor: pointer;
-  border: none;
+.player-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  margin: 0 auto;
 }
 
+/* Album art with hover effect */
+.player-album-art {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 0.5rem;
+}
+
+.player-album-art:hover {
+  transform: scale(1.03);
+}
+
+.player-album-art:active {
+  transform: scale(0.98);
+}
+
+/* Control buttons */
+.player-control-btn {
+  transition: all 0.15s ease;
+}
+
+.player-control-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.player-control-btn.is-active {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.player-control-btn:disabled {
+  opacity: 0.4;
+}
+
+/* Play button */
+.player-play-btn {
+  border-radius: 9999px !important;
+  width: 2.5rem;
+  height: 2.5rem;
+  transition: all 0.15s ease;
+}
+
+.player-play-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.player-play-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Volume popup */
+.volume-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.375rem;
+  padding: 0.625rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  z-index: 50;
+}
+
+/* Pop transition */
+.pop-enter-active,
+.pop-leave-active {
+  transition: all 0.15s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.pop-enter-from,
+.pop-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.9) translateY(0.25rem);
+}
+
+/* Marquee animation */
 .marquee-track {
   display: inline-flex;
   align-items: center;
   gap: var(--marquee-gap, 24px);
   will-change: transform;
-  transform: translateX(0);
 }
 
-.marquee-running {
+.marquee-track:hover {
   animation: marquee-scroll var(--marquee-duration, 10s) linear infinite;
 }
 
@@ -941,16 +956,8 @@
   animation-play-state: paused;
 }
 
-.marquee-enabled:hover .marquee-track {
-  animation: marquee-scroll var(--marquee-duration, 10s) linear infinite;
-}
-
 @keyframes marquee-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(calc(-1 * var(--scroll-distance, 300px)));
-  }
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-1 * var(--scroll-distance, 300px))); }
 }
 </style>

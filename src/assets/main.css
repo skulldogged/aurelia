@@ -73,13 +73,31 @@
     overscroll-behavior: none;
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
-    @apply text-foreground;
+    @apply text-foreground bg-background;
     font-family: var(--font-family);
     user-select: none;
     touch-action: manipulation;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Smooth transitions for interactive elements */
+  button, a, [role="button"] {
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  /* Focus visible improvements */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 
   /* Custom button rounding for Material You */
@@ -100,10 +118,25 @@
     height: var(--safe-vh);
   }
 
+  /* Subtle text selection */
+  ::selection {
+    background: var(--accent);
+    color: var(--accent-foreground);
+  }
+
   /* Hide OverlayScrollbars on mobile devices */
   @media (max-width: 768px) {
     .os-scrollbar {
       display: none !important;
+    }
+  }
+
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
     }
   }
 }
@@ -165,4 +198,89 @@ body.songs-page-active .os-scrollbar-vertical {
   background: linear-gradient(to left, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0));
   pointer-events: none;
   z-index: 1;
+}
+
+/* Enhanced skeleton animation */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    var(--muted) 40%,
+    color-mix(in srgb, var(--muted) 70%, var(--foreground) 30%) 50%,
+    var(--muted) 60%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Music-focused visual enhancements */
+.album-shadow {
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.album-shadow-lg {
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* Glassmorphism utilities */
+.glass {
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.glass-dark {
+  background: color-mix(in srgb, var(--background-dark) 85%, transparent);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+}
+
+/* Smooth hover lift effect */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -8px rgba(0, 0, 0, 0.2);
+}
+
+/* Press effect */
+.press-effect:active {
+  transform: scale(0.98);
+}
+
+/* Subtle glow for accent elements */
+.accent-glow {
+  box-shadow: 0 0 20px -5px var(--accent);
+}
+
+/* Image loading fade-in */
+.img-fade-in {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.img-fade-in.loaded {
+  opacity: 1;
+}
+
+/* Tabular numbers for time displays */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

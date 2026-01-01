@@ -42,25 +42,31 @@
   })
 
   const navItemClass = computed(() => (view: string) => {
+    const isActive = props.currentView === view
+    const baseClasses = 'nav-item flex items-center rounded-lg text-sm font-medium transition-all duration-200'
+
     if (isMobileLandscape.value) {
       return [
-        'flex items-center justify-center rounded-md text-sm font-medium px-3 py-4',
-        props.currentView === view ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/20',
+        baseClasses,
+        'justify-center px-3 py-4',
+        isActive ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
       ]
     }
 
     if (props.isMobilePortrait) {
       return [
-        'flex items-center justify-center rounded-md text-sm font-medium flex-1 h-10',
-        props.currentView === view ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/20',
+        baseClasses,
+        'justify-center flex-1 h-11',
+        isActive ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
       ]
     }
 
     // Desktop
     return [
-      'flex items-center h-10 rounded-md text-sm font-medium',
+      baseClasses,
+      'h-10',
       props.isCollapsed ? 'justify-center px-0' : 'pl-3 gap-x-3',
-      props.currentView === view ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/20',
+      isActive ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
     ]
   })
 
@@ -89,7 +95,7 @@
   <div
     :class="[
       sidebarBgClass,
-      'flex shrink-0 ease-in-out overflow-visible',
+      'sidebar flex shrink-0 overflow-visible transition-[width] duration-200 ease-out',
       isMobileLandscape
         ? 'flex-col h-full justify-around items-center py-4'
         : props.isMobilePortrait

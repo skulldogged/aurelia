@@ -19,7 +19,7 @@
     VolumeX,
   } from 'lucide-vue-next'
   import { storeToRefs } from 'pinia'
-  import { computed, ref, watch } from 'vue'
+  import { computed, onUnmounted, ref, watch } from 'vue'
   import { PropType } from 'vue'
 
   import { Song } from '@/bindings'
@@ -83,39 +83,52 @@
 
   const emit = defineEmits<{
     (e: 'close'): void
-    (e: 'toggle-play-pause'): void
-    (e: 'previous-song'): void
     (e: 'next-song'): void
-    (e: 'toggle-shuffle'): void
-    (e: 'toggle-repeat'): void
+    (e: 'previous-song'): void
+    (e: 'remove-song', song: Song): void
     (e: 'seek', value: number): void
     (e: 'toggle-equalizer'): void
-    (e: 'toggle-lyrics'): void
-    (e: 'toggle-queue'): void
     (e: 'toggle-favorite', song: Song): void
-    (e: 'volume-change', value: number): void
+    (e: 'toggle-lyrics'): void
     (e: 'toggle-mute'): void
-    (e: 'remove-song', song: Song): void
+    (e: 'toggle-play-pause'): void
+    (e: 'toggle-queue'): void
+    (e: 'toggle-repeat'): void
+    (e: 'toggle-shuffle'): void
     (e: 'update:playlist', playlist: Song[]): void
+    (e: 'volume-change', value: number): void
   }>()
 
-  const showLyrics = ref(false)
-  const showEqualizer = ref(false)
-  const showQueue = ref(false)
+  // Reactive state
   const volumePopupRef = ref<HTMLDivElement | null>(null)
   const isVolumePopupVisible = ref(false)
-  const { getImageUrl } = useImageLoader()
-  const isLargeScreen = useMediaQuery('(min-width: 1081px)')
-  const isSmallScreen = useMediaQuery('(max-width: 768px)')
+  const isAnimating = ref(false)
 
+  // Composables
+  const { getImageUrl } = useImageLoader()
   const playerStore = usePlayerStore()
   const { hasLyrics, visualizerEnabled, visualizerStyle } = storeToRefs(playerStore)
+  const { startTracking, stopTracking, swipeProgress, updateTracking } = useSwipe({ maxTime: 300 })
 
+  // Media queries
+  const isLargeScreen = useMediaQuery('(min-width: 1024px)')
+  const isSmallScreen = useMediaQuery('(max-width: 768px)')
+
+  // Platform detection
+  const isDesktop = computed(() => {
+    const current = getPlatform()
+    return current !== Platform.Android && current !== Platform.IOS
+  })
+  const isMobilePortraitMode = computed(() => isMobilePortrait())
+  const isMobileLandscapeMode = computed(() => {
+    const platform = getPlatform()
+    return (platform === Platform.Android || platform === Platform.IOS) &&
+      !isMobilePortrait() &&
+      window.innerWidth > window.innerHeight
+  })
+
+  // Background image
   const backgroundImageData = ref<null | string>(null)
-
-  const onLyricsLoaded = (lyricsFound: boolean): void => {
-    playerStore.setHasLyrics(lyricsFound)
-  }
 
   watch(() => props.playerState.currentSong, async newSong => {
     if (newSong && props.serverUrl && props.token) {
@@ -134,63 +147,7 @@
     }
   }, { immediate: true })
 
-  watch(() => props.show, newVal => {
-    if (newVal) {
-      // Show lyrics if they were open before
-      if (props.isLyricsOpen)
-        showLyrics.value = true
-    } else {
-      showLyrics.value = false
-      showEqualizer.value = false
-      showQueue.value = false
-    }
-  })
-
-  watch(() => props.isLyricsOpen, newVal => {
-    showLyrics.value = newVal
-  })
-
-  watch(() => props.isEqualizerOpen, newVal => {
-    showEqualizer.value = newVal
-  })
-
-  watch(() => props.isQueueOpen, newVal => {
-    showQueue.value = newVal
-  })
-
-  const handleLyricsSeek = (time: number): void => {
-    if (props.playerState.duration > 0) {
-      const percentage = (time / props.playerState.duration) * 100
-      emit('seek', percentage)
-    }
-  }
-
-  const toggleVolumePopup = (): void => {
-    isVolumePopupVisible.value = !isVolumePopupVisible.value
-  }
-
-  const closeVolumePopup = (): void => {
-    isVolumePopupVisible.value = false
-  }
-
-  const handleClickOutside = (event: Event): void => {
-    const target = event.target as Element
-    const volumeButton = target.closest('[data-volume-button]')
-    const insidePopup = volumePopupRef.value && volumePopupRef.value.contains(target)
-
-    if (volumeButton || insidePopup) return
-
-    if (isVolumePopupVisible.value)
-      closeVolumePopup()
-  }
-
-  watch(isVolumePopupVisible, visible => {
-    if (visible)
-      document.addEventListener('click', handleClickOutside)
-    else
-      document.removeEventListener('click', handleClickOutside)
-  })
-
+  // Computed values
   const formatTime = formatDuration
   const songFormatInfo = computed(() => getSongFormatInfo(props.playerState.currentSong))
   const effectiveVolume = computed(() => props.playerState.isMuted ? 0 : props.playerState.volume)
@@ -200,229 +157,278 @@
       : 0,
   )
 
-  const isDesktop = computed(() => {
-    const current = getPlatform()
-    return current !== Platform.Android && current !== Platform.IOS
+  // Visibility - simplified logic
+  const isVisible = computed(() =>
+    props.show || (props.previewProgress && props.previewProgress.direction === 'up'),
+  )
+
+  // Animation state
+  watch(() => props.show, (newVal, oldVal) => {
+    if (newVal !== oldVal) {
+      isAnimating.value = true
+      setTimeout(() => { isAnimating.value = false }, 400)
+    }
   })
 
-  const isMobilePortraitMode = computed(() => isMobilePortrait())
-  const isMobileLandscapeMode = computed(() => {
-    const platform = getPlatform()
-    return (platform === Platform.Android || platform === Platform.IOS) &&
-      !isMobilePortrait() &&
-      window.innerWidth > window.innerHeight
-  })
-
-  const { startTracking, stopTracking, swipeProgress, updateTracking } = useSwipe({ maxTime: 300 })
-
-  const settledTransform = ref('')
-  const settledOpacity = ref(1)
-
-  const swipeTransform = computed(() => {
-    if (props.previewProgress && props.previewProgress.direction === 'up')
-      return `translateY(${Math.max(0, props.previewProgress.startY + props.previewProgress.deltaY)}px)`
-
-    if (!props.show) return 'translateY(100vh)' // Off-screen when not shown
-    if (!swipeProgress.value || swipeProgress.value.direction !== 'down')
-      return settledTransform.value
-
-    return `translateY(${Math.max(0, swipeProgress.value.deltaY)}px)`
+  // Swipe handling - simplified
+  const swipeOffset = computed(() => {
+    // Preview from mini player (swiping up)
+    if (props.previewProgress?.direction === 'up') {
+      return Math.max(0, props.previewProgress.startY + props.previewProgress.deltaY)
+    }
+    // Swiping down to close
+    if (swipeProgress.value?.direction === 'down') {
+      return Math.max(0, swipeProgress.value.deltaY)
+    }
+    return 0
   })
 
   const swipeOpacity = computed(() => {
-    if (props.previewProgress && props.previewProgress.direction === 'up')
-      return Math.min(Math.abs(props.previewProgress.deltaY) / 100, 0.9)
-
-    if (!props.show) return 0 // Invisible when not shown
-    if (!swipeProgress.value || swipeProgress.value.direction !== 'down')
-      return settledTransform.value ? settledOpacity.value : 1
-
-    return Math.max(1 - Math.max(0, swipeProgress.value.deltaY) / 200, 0.3)
+    if (props.previewProgress?.direction === 'up') {
+      return Math.min(Math.abs(props.previewProgress.deltaY) / 150, 1)
+    }
+    if (swipeProgress.value?.direction === 'down') {
+      return Math.max(1 - swipeProgress.value.deltaY / 300, 0.2)
+    }
+    return 1
   })
+
+  const isDragging = computed(() =>
+    !!swipeProgress.value?.direction || !!props.previewProgress?.direction,
+  )
+
+  const handleSwipeStart = (event: TouchEvent): void => {
+    startTracking(event)
+  }
 
   const handleSwipeMove = (event: TouchEvent): void => {
     updateTracking(event)
   }
 
-  const handleSwipeStart = (event: TouchEvent): void => {
-    // Reset settled state when starting a new swipe
-    settledTransform.value = ''
-    settledOpacity.value = 1
-    startTracking(event)
-  }
-
   const handleSwipeEnd = (event: TouchEvent): void => {
-    const currentProgress = swipeProgress.value
-    const swipeResult = stopTracking(event)
-    if (swipeResult?.direction === 'down' && swipeResult.isIntentional) {
+    const result = stopTracking(event)
+    if (result?.direction === 'down' && result.isIntentional) {
       emit('close')
-      // Reset settled state
-      settledTransform.value = ''
-      settledOpacity.value = 1
-    } else {
-      // Keep current position
-      if (currentProgress) {
-        settledTransform.value = `translateY(${Math.max(0, currentProgress.deltaY)}px)`
-        settledOpacity.value = Math.max(1 - Math.max(0, currentProgress.deltaY) / 200, 0.3)
-      }
     }
   }
+
+  // Lyrics seek handler
+  const handleLyricsSeek = (time: number): void => {
+    if (props.playerState.duration > 0) {
+      const percentage = (time / props.playerState.duration) * 100
+      emit('seek', percentage)
+    }
+  }
+
+  const onLyricsLoaded = (lyricsFound: boolean): void => {
+    playerStore.setHasLyrics(lyricsFound)
+  }
+
+  // Volume popup handling
+  const toggleVolumePopup = (): void => {
+    isVolumePopupVisible.value = !isVolumePopupVisible.value
+  }
+
+  const handleClickOutside = (event: Event): void => {
+    const target = event.target as Element
+    if (target.closest('[data-volume-button]')) return
+    if (volumePopupRef.value?.contains(target)) return
+    isVolumePopupVisible.value = false
+  }
+
+  watch(isVolumePopupVisible, visible => {
+    if (visible) {
+      document.addEventListener('click', handleClickOutside)
+    } else {
+      document.removeEventListener('click', handleClickOutside)
+    }
+  })
+
+  onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside)
+  })
+
+  // Panel visibility (synced with props, with delayed unmount for animations)
+  const showLyrics = computed(() => props.isLyricsOpen)
+
+  // Track last active side panel for delayed unmount
+  const lastSidePanel = ref<'equalizer' | 'queue' | null>(null)
+  const isSidePanelAnimating = ref(false)
+
+  watch([() => props.isEqualizerOpen, () => props.isQueueOpen], ([eq, queue], [prevEq, prevQueue]) => {
+    if (eq && !prevEq) lastSidePanel.value = 'equalizer'
+    else if (queue && !prevQueue) lastSidePanel.value = 'queue'
+
+    // Panel just closed
+    if (!eq && !queue && (prevEq || prevQueue)) {
+      isSidePanelAnimating.value = true
+      setTimeout(() => {
+        isSidePanelAnimating.value = false
+        lastSidePanel.value = null
+      }, 350) // Match slide animation duration
+    }
+  })
+
+  const showEqualizer = computed(() => props.isEqualizerOpen || (isSidePanelAnimating.value && lastSidePanel.value === 'equalizer'))
+  const showQueue = computed(() => props.isQueueOpen || (isSidePanelAnimating.value && lastSidePanel.value === 'queue'))
+  const hasActivePanel = computed(() => props.isEqualizerOpen || props.isQueueOpen)
 </script>
 
 <template>
-  <div
-    @touchend='handleSwipeEnd'
-    @touchmove='handleSwipeMove'
-    @touchstart='handleSwipeStart'
-    v-show='show || (previewProgress && previewProgress.direction === "up")'
-    :class="[
-      'fullscreen-player fixed inset-0 bg-background z-50 flex flex-col',
-      { 'lyrics-active': isLyricsOpen, 'justify-center': isMobilePortraitMode, 'mobile': !isDesktop }
-    ]"
-    :style="{
-      transform: swipeTransform,
-      opacity: swipeOpacity,
-      transition: swipeProgress ? 'none' : 'transform 0.3s ease-out, opacity 0.3s ease-out'
-    }"
-  >
-    <!-- Draggable Top Bar -->
+  <Transition name="fullscreen-player">
     <div
-      :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
-      class='fixed left-0 right-0 z-100 h-16'
-      data-tauri-drag-region
-    />
-
-    <!-- Top Bar Controls -->
-    <div
-      :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
-      class='fixed left-0 right-0 z-101 h-16 pointer-events-none'
+      @touchend='handleSwipeEnd'
+      @touchmove='handleSwipeMove'
+      @touchstart='handleSwipeStart'
+      v-if='isVisible'
+      :class="[
+        'fullscreen-player fixed inset-0 z-50 flex flex-col overflow-hidden',
+        { 'is-mobile': !isDesktop }
+      ]"
+      :style="{
+        '--swipe-offset': `${swipeOffset}px`,
+        '--swipe-opacity': swipeOpacity,
+        transform: isDragging ? `translateY(var(--swipe-offset))` : undefined,
+        opacity: isDragging ? 'var(--swipe-opacity)' : undefined,
+      }"
     >
-      <div class='p-4 h-full flex items-center'>
-        <div
-          @touchmove.stop
-          @touchstart.stop
-          :class="['flex items-center pointer-events-auto', isMobilePortraitMode ? 'gap-4' : 'gap-2']"
-        >
+      <!-- Background layers -->
+      <div class='absolute inset-0 z-0'>
+        <!-- Album art background -->
+        <Transition name="fade" mode="out-in">
+          <div
+            v-if='backgroundImageData'
+            :key='backgroundImageData'
+            :style='{ backgroundImage: `url(${backgroundImageData})` }'
+            class='absolute inset-0 bg-cover bg-center scale-110'
+          />
+        </Transition>
+        <!-- Overlay -->
+        <div class='absolute inset-0 bg-black/60 backdrop-blur-3xl' />
+        <!-- Visualizer -->
+        <Transition name="fade">
+          <div
+            v-if='visualizerEnabled && analyserNode && playerState.isPlaying'
+            class='absolute bottom-0 left-0 right-0 h-40 opacity-40'
+          >
+            <AudioVisualizer
+              :analyser-node='analyserNode'
+              :is-playing='playerState.isPlaying'
+              :style='visualizerStyle'
+            />
+          </div>
+        </Transition>
+      </div>
+
+      <!-- Top bar with controls -->
+      <header
+        class='relative z-30 flex items-center justify-between p-4'
+        :style='isMobilePortraitMode ? { paddingTop: `calc(1rem + env(safe-area-inset-top))` } : {}'
+      >
+        <!-- Left controls -->
+        <div class='flex items-center gap-2' @touchstart.stop @touchmove.stop>
           <Button
             @click="$emit('close')"
-            :size="isMobilePortraitMode ? 'lg' : 'icon'"
-            class='bg-black/20 backdrop-blur-sm text-white border-white/20 hover:bg-white/10 hover:text-white'
+            class='fs-control-btn'
+            size='icon'
             variant='ghost'
           >
-            <ChevronDown class='size-4' />
+            <ChevronDown class='size-5' />
           </Button>
           <Button
             @click="$emit('toggle-lyrics')"
-            :class="[
-              'bg-black/20 backdrop-blur-sm text-white border-white/20 hover:bg-white/10 hover:text-white',
-              isLyricsOpen ? 'bg-black/40' : ''
-            ]"
+            :class="['fs-control-btn', showLyrics && 'is-active']"
             :disabled='!hasLyrics'
-            :size="isMobilePortraitMode ? 'lg' : 'icon'"
+            size='icon'
             variant='ghost'
           >
-            <Mic2 class='size-4' />
+            <Mic2 class='size-5' />
           </Button>
         </div>
-      </div>
-    </div>
 
-    <!-- Window Controls -->
-    <WindowControls
-      v-if='isDesktop && getPlatform() !== Platform.MacOS'
-      :style='isMobilePortraitMode ? { top: `env(safe-area-inset-top)` } : {}'
-      class='absolute right-0 z-110'
-    />
-
-    <!-- Simplified Background -->
-    <div
-      v-if='backgroundImageData'
-      :style='{ backgroundImage: `url(${backgroundImageData})` }'
-      class='absolute inset-0 z-0 bg-cover bg-center'
-    />
-    <div class='absolute inset-0 z-0 bg-black/50 backdrop-blur-xl' />
-
-    <div
-      v-if='visualizerEnabled && analyserNode && playerState.isPlaying'
-      class='absolute bottom-0 left-0 right-0 h-[150px] z-0 opacity-30'
-    >
-      <AudioVisualizer :analyser-node='analyserNode' :is-playing='playerState.isPlaying' :style='visualizerStyle' />
-    </div>
-
-    <div
-      :class="[
-        'relative z-10 flex flex-col h-full',
-        isMobilePortraitMode ? 'justify-center pt-safe-top pb-20' : 'pt-16'
-      ]"
-    >
-      <!-- Floating EQ/Queue Panel -->
-      <div
-        v-if='(showEqualizer || showQueue) && !isMobilePortraitMode'
-        class='absolute left-6 top-1/2 -translate-y-1/2 z-10'
-      >
+        <!-- Draggable region for desktop (between controls) -->
         <div
-          class='w-[400px] max-h-[80vh] bg-background/90 backdrop-blur-md border border-border/50
-                 rounded-xl shadow-2xl overflow-hidden'
-        >
-          <FullscreenEqualizer v-if='showEqualizer' class='h-full' />
-          <FullscreenQueue
-            @remove-song='$emit("remove-song", $event)'
-            @update:playlist='$emit("update:playlist", $event)'
-            v-if='showQueue'
-            class='h-full'
-          />
-        </div>
-      </div>
+          v-if='isDesktop'
+          class='absolute inset-0 -z-10'
+          data-tauri-drag-region
+        />
 
-      <!-- Main Content -->
-      <div :class="['flex overflow-hidden flex-1']">
-        <!-- Center - Player controls and album art -->
-        <div
+        <!-- Window controls (Windows/Linux) -->
+        <WindowControls
+          v-if='isDesktop && getPlatform() !== Platform.MacOS'
+          class='z-10'
+        />
+      </header>
+
+      <!-- Main content area -->
+      <main class='relative z-10 flex-1 flex overflow-hidden'>
+        <!-- Side panel (EQ/Queue) - Desktop only -->
+        <aside
           :class="[
-            'flex flex-col items-center overflow-y-auto flex-1',
-            isMobilePortraitMode
-              ? 'p-4 gap-4'
-              : isSmallScreen
-                ? 'p-4 gap-4 justify-center'
-                : 'p-8 gap-8 justify-center'
+            'side-panel shrink-0 overflow-hidden',
+            hasActivePanel && !isMobilePortraitMode && !isMobileLandscapeMode
+              ? 'w-80 xl:w-96 p-4 pl-6'
+              : 'w-0'
           ]"
         >
+          <div class='side-panel-content h-full w-72 xl:w-80 bg-background/80 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-2xl'>
+            <FullscreenEqualizer v-if='showEqualizer' class='h-full' />
+            <FullscreenQueue
+              @remove-song='$emit("remove-song", $event)'
+              @update:playlist='$emit("update:playlist", $event)'
+              v-if='showQueue'
+              class='h-full'
+            />
+          </div>
+        </aside>
+
+        <!-- Center content -->
+        <div
+          :class="[
+            'center-content flex-1 flex flex-col items-center justify-center p-6',
+            isMobilePortraitMode ? 'pb-28' : 'pb-8',
+          ]"
+        >
+          <!-- Inner wrapper that shifts left when lyrics open -->
           <div
             :class="[
-              'relative w-full flex flex-col items-center',
-              isMobileLandscapeMode ? 'gap-4 justify-start' : 'gap-6',
-              isSmallScreen ? 'mt-auto' : 'max-w-4xl',
-              isSmallScreen && !isLyricsOpen ? 'max-w-md' : '',
-              isMobilePortraitMode ? 'gap-4' : ''
+              'center-items flex flex-col items-center w-full max-w-md',
+              showLyrics && isLargeScreen ? 'lyrics-mode' : ''
             ]"
           >
-            <!-- Album Art (when not showing lyrics and not mobile landscape) -->
-            <div
-              v-if='(isLargeScreen || !isLyricsOpen) && !isMobileLandscapeMode'
-              class='album-art-container aspect-square'
-            >
-              <ImageLoader
-                v-if='playerState.currentSong'
-                :item-id='playerState.currentSong.albumId || undefined'
-                :server-url='serverUrl'
-                :token='token'
-                alt='Album art'
-                class='size-full object-cover rounded-lg shadow-2xl'
+            <!-- Album art -->
+            <Transition name="scale-fade" mode="out-in">
+              <div
+                v-if='(!showLyrics || isLargeScreen) && !isMobileLandscapeMode'
+                :key='playerState.currentSong?.albumId'
+                :class="[
+                  'album-art-wrapper mb-8',
+                  showLyrics && isLargeScreen ? 'album-art-small' : ''
+                ]"
               >
-                <template #fallback>
-                  <div class='flex items-center justify-center size-full rounded-lg bg-muted'>
-                    <Music2 class='size-24 text-muted-foreground' />
-                  </div>
-                </template>
-              </ImageLoader>
-            </div>
+                <ImageLoader
+                  v-if='playerState.currentSong'
+                  :item-id='playerState.currentSong.albumId || undefined'
+                  :server-url='serverUrl'
+                  :token='token'
+                  alt='Album art'
+                  class='album-art'
+                >
+                  <template #fallback>
+                    <div class='album-art bg-muted/50 flex items-center justify-center'>
+                      <Music2 class='size-20 text-muted-foreground/50' />
+                    </div>
+                  </template>
+                </ImageLoader>
+              </div>
+            </Transition>
 
-            <!-- Full-width Lyrics on small screens in portrait mode -->
+            <!-- Lyrics for mobile portrait (replaces album art) -->
             <div
-              @touchmove.stop
+              v-if='showLyrics && !isLargeScreen && isMobilePortraitMode'
+              class='w-full h-64 mb-6'
               @touchstart.stop
-              v-if='!isLargeScreen && isLyricsOpen && isMobilePortraitMode'
-              class='w-full h-80 p-4'
+              @touchmove.stop
             >
               <LyricsView
                 @lyrics-loaded='onLyricsLoaded'
@@ -436,48 +442,24 @@
               />
             </div>
 
-            <!-- Constrained Lyrics on small screens in landscape/other modes (but not mobile landscape) -->
-            <div
-              @touchmove.stop
-              @touchstart.stop
-              v-if='!isLargeScreen && isLyricsOpen && !isMobilePortraitMode && !isMobileLandscapeMode'
-              class='w-full h-96'
-            >
-              <div class='w-full h-full p-4'>
-                <LyricsView
-                  @lyrics-loaded='onLyricsLoaded'
-                  @seek='handleLyricsSeek'
-                  :current-time='playerState.currentTime'
-                  :duration='playerState.duration'
-                  :is-in-sidebar='false'
-                  :song='playerState.currentSong'
-                  :visible='showLyrics'
-                  class='h-full'
-                />
-              </div>
-            </div>
-
-            <!-- Song Info -->
-            <div class='w-full text-center'>
-              <h1 class='text-2xl font-bold text-foreground truncate mb-1'>
+            <!-- Song info -->
+            <div :class="['song-info w-full text-center mb-6', showLyrics && isLargeScreen ? 'text-left' : '']">
+              <h1 class='text-xl sm:text-2xl font-bold text-white truncate'>
                 {{ playerState.currentSong?.name || 'Unknown Song' }}
               </h1>
-              <p class='text-lg text-muted-foreground truncate mb-1'>
+              <p class='text-base text-white/70 truncate mt-1'>
                 {{ playerState.currentSong?.artists?.join(', ') || 'Unknown Artist' }}
               </p>
-              <p class='text-base text-muted-foreground/80 truncate'>
+              <p class='text-sm text-white/50 truncate'>
                 {{ playerState.currentSong?.album || 'Unknown Album' }}
               </p>
-              <p v-if='songFormatInfo' class='text-xs text-muted-foreground/60 truncate mt-1'>
+              <p v-if='songFormatInfo' class='text-xs text-white/40 mt-1'>
                 {{ songFormatInfo }}
               </p>
             </div>
-          </div>
 
-          <!-- Progress Bar & Controls -->
-          <div @touchmove.stop @touchstart.stop class='w-full flex flex-col gap-4'>
-            <!-- Progress Bar -->
-            <div :class="isMobilePortraitMode ? 'w-full' : 'w-full max-w-96 mx-auto'">
+            <!-- Progress bar -->
+            <div class='w-full' @touchstart.stop @touchmove.stop>
               <Slider
                 @update:model-value='$event && $emit("seek", $event[0])'
                 :max='100'
@@ -485,145 +467,148 @@
                 :step='0.1'
                 class='w-full'
               />
-              <div class='flex justify-between text-xs text-muted-foreground mt-2'>
+              <div class='flex justify-between text-xs text-white/60 mt-2 font-mono'>
                 <span>{{ formatTime(playerState.currentTime) }}</span>
                 <span>{{ formatTime(playerState.duration) }}</span>
               </div>
             </div>
 
-            <!-- Main Controls -->
-            <div :class="['flex items-center justify-center w-full']">
-              <div :class="['flex items-center', isMobilePortraitMode ? 'space-x-4' : 'space-x-2']">
-                <!-- Favorite and Volume on desktop -->
-                <template v-if='!isMobilePortraitMode'>
-                  <Button
-                    @click="$emit('toggle-favorite', playerState.currentSong)"
-                    v-if='playerState.currentSong'
-                    :class="[playerState.currentSong.isFavorite ? 'text-white' : 'text-white hover:text-black']"
-                    size='icon'
-                    variant='ghost'
-                  >
-                    <Heart :class="['size-4', playerState.currentSong.isFavorite ? 'fill-current' : '']" />
-                  </Button>
-                  <div class='relative'>
-                    <Button
-                      @click='toggleVolumePopup'
-                      :class="isVolumePopupVisible ? 'bg-accent/20' : ''"
-                      size='icon'
-                      variant='ghost'
-                      data-volume-button
-                    >
-                      <Volume2 v-if='effectiveVolume > 0.5' class='size-4' />
-                      <Volume1 v-else-if='effectiveVolume > 0' class='size-4' />
-                      <VolumeX v-else class='size-4' />
-                    </Button>
-                    <div
-                      v-if='isVolumePopupVisible'
-                      ref='volumePopupRef'
-                      class='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3
-                             bg-card border border-border rounded-md shadow-lg z-50'
-                    >
-                      <div class='flex flex-col items-center gap-2'>
-                        <span class='text-xs text-muted-foreground font-medium'>
-                          {{ Math.round(effectiveVolume) }}%
-                        </span>
-                        <Slider
-                          @update:model-value="$event && $emit('volume-change', $event[0])"
-                          :max='100'
-                          :model-value='[effectiveVolume]'
-                          :step='1'
-                          class='h-16 w-1.5'
-                          orientation='vertical'
-                        />
-                        <button
-                          @click.stop="$emit('toggle-mute')"
-                          class='text-muted-foreground hover:text-foreground transition-colors p-1 rounded'
-                        >
-                          <Volume2 v-if='effectiveVolume > 0.5' class='size-4' />
-                          <Volume1 v-else-if='effectiveVolume > 0' class='size-4' />
-                          <VolumeX v-else class='size-4' />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </template>
+            <!-- Playback controls -->
+            <div class='flex items-center gap-2 mt-6' @touchstart.stop @touchmove.stop>
+            <!-- Secondary controls (desktop) -->
+            <template v-if='!isMobilePortraitMode'>
+              <Button
+                @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"
+                :class="['fs-control-btn mr-2', playerState.currentSong?.isFavorite && 'is-active']"
+                size='icon'
+                variant='ghost'
+              >
+                <Heart :class="['size-5', playerState.currentSong?.isFavorite && 'fill-current']" />
+              </Button>
+              <div class='relative mr-2'>
                 <Button
-                  @click="$emit('toggle-shuffle')"
-                  :class="[playerState.isShuffled ? 'text-primary' : 'text-white hover:text-black']"
-                  :size="isMobilePortraitMode ? 'lg' : 'icon'"
-                  variant='ghost'
-                >
-                  <Shuffle class='size-4' />
-                </Button>
-                <Button
-                  @click="$emit('previous-song')"
-                  :disabled='!playerState.hasPrevious'
-                  :size="isMobilePortraitMode ? 'lg' : 'icon'"
-                  variant='ghost'
-                >
-                  <SkipBack :class="isMobilePortraitMode ? 'size-6' : 'size-5'" />
-                </Button>
-
-                <Button
-                  @click="$emit('toggle-play-pause')"
-                  :class="['rounded-full!', isMobilePortraitMode ? 'size-16' : 'size-14']"
+                  @click='toggleVolumePopup'
+                  :class="['fs-control-btn', isVolumePopupVisible && 'is-active']"
                   size='icon'
-                  variant='default'
-                >
-                  <Pause v-if='playerState.isPlaying' :class="isMobilePortraitMode ? 'size-7' : 'size-6'" />
-                  <Play v-else :class="isMobilePortraitMode ? 'size-7' : 'size-6'" />
-                </Button>
-
-                <Button
-                  @click="$emit('next-song')"
-                  :disabled='!playerState.hasNext'
-                  :size="isMobilePortraitMode ? 'lg' : 'icon'"
                   variant='ghost'
+                  data-volume-button
                 >
-                  <SkipForward :class="isMobilePortraitMode ? 'size-6' : 'size-5'" />
+                  <Volume2 v-if='effectiveVolume > 50' class='size-5' />
+                  <Volume1 v-else-if='effectiveVolume > 0' class='size-5' />
+                  <VolumeX v-else class='size-5' />
                 </Button>
-                <Button
-                  @click="$emit('toggle-repeat')"
-                  :class="[playerState.repeatMode !== 'none' ? 'text-primary' : 'text-white hover:text-black']"
-                  :size="isMobilePortraitMode ? 'lg' : 'icon'"
-                  variant='ghost'
-                >
-                  <Repeat1 v-if="playerState.repeatMode === 'one'" class='size-4' />
-                  <Repeat v-else class='size-4' />
-                </Button>
-
-                <!-- Queue and EQ on desktop -->
-                <template v-if='!isMobilePortraitMode'>
-                  <Button @click="$emit('toggle-queue')" :variant="isQueueOpen ? 'default' : 'ghost'" size='icon'>
-                    <ListMusic class='size-4' />
-                  </Button>
-                  <Button
-                    @click="$emit('toggle-equalizer')"
-                    :variant="isEqualizerOpen ? 'default' : 'ghost'"
-                    size='icon'
+                <Transition name="pop">
+                  <div
+                    v-if='isVolumePopupVisible'
+                    ref='volumePopupRef'
+                    class='volume-popup'
                   >
-                    <Sliders class='size-4' />
-                  </Button>
-                </template>
+                    <span class='text-xs text-white/70 font-medium tabular-nums'>
+                      {{ Math.round(effectiveVolume) }}%
+                    </span>
+                    <Slider
+                      @update:model-value="$event && $emit('volume-change', $event[0])"
+                      :max='100'
+                      :model-value='[effectiveVolume]'
+                      :step='1'
+                      class='h-20 w-1.5'
+                      orientation='vertical'
+                    />
+                    <button
+                      @click.stop="$emit('toggle-mute')"
+                      class='p-1 text-white/60 hover:text-white transition-colors'
+                    >
+                      <VolumeX v-if='effectiveVolume === 0' class='size-4' />
+                      <Volume2 v-else class='size-4' />
+                    </button>
+                  </div>
+                </Transition>
               </div>
+            </template>
+
+            <!-- Primary controls -->
+            <Button
+              @click="$emit('toggle-shuffle')"
+              :class="['fs-control-btn', playerState.isShuffled && 'is-active']"
+              size='icon'
+              variant='ghost'
+            >
+              <Shuffle class='size-5' />
+            </Button>
+
+            <Button
+              @click="$emit('previous-song')"
+              :disabled='!playerState.hasPrevious'
+              class='fs-control-btn'
+              size='icon'
+              variant='ghost'
+            >
+              <SkipBack class='size-6' />
+            </Button>
+
+            <Button
+              @click="$emit('toggle-play-pause')"
+              :class="['play-btn', isMobilePortraitMode ? 'size-16' : 'size-14']"
+            >
+              <Pause v-if='playerState.isPlaying' class='size-7' />
+              <Play v-else class='size-7 ml-0.5' />
+            </Button>
+
+            <Button
+              @click="$emit('next-song')"
+              :disabled='!playerState.hasNext'
+              class='fs-control-btn'
+              size='icon'
+              variant='ghost'
+            >
+              <SkipForward class='size-6' />
+            </Button>
+
+            <Button
+              @click="$emit('toggle-repeat')"
+              :class="['fs-control-btn', playerState.repeatMode !== 'none' && 'is-active']"
+              size='icon'
+              variant='ghost'
+            >
+              <Repeat1 v-if="playerState.repeatMode === 'one'" class='size-5' />
+              <Repeat v-else class='size-5' />
+            </Button>
+
+            <!-- Secondary controls (desktop) -->
+            <template v-if='!isMobilePortraitMode'>
+              <Button
+                @click="$emit('toggle-queue')"
+                :class="['fs-control-btn ml-2', showQueue && 'is-active']"
+                size='icon'
+                variant='ghost'
+              >
+                <ListMusic class='size-5' />
+              </Button>
+              <Button
+                @click="$emit('toggle-equalizer')"
+                :class="['fs-control-btn', showEqualizer && 'is-active']"
+                size='icon'
+                variant='ghost'
+              >
+                <Sliders class='size-5' />
+              </Button>
+            </template>
             </div>
           </div>
         </div>
 
-        <!-- Right side - Lyrics (when active) -->
-        <div
-          @touchmove.stop
+        <!-- Lyrics panel (large screens) - clips from right edge -->
+        <aside
+          :class="[
+            'lyrics-panel',
+            showLyrics && (isLargeScreen || isMobileLandscapeMode)
+              ? 'w-[40%] max-w-2xl p-6'
+              : 'w-0'
+          ]"
           @touchstart.stop
-          v-if='showLyrics && (isLargeScreen || isMobileLandscapeMode)'
-          class='flex-1 flex justify-center items-center p-8'
+          @touchmove.stop
         >
-          <div
-            :class="
-              isMobileLandscapeMode
-                ? 'w-[300px] h-full'
-                : 'w-[600px] xl:w-[700px] 2xl:w-[800px] h-full max-h-224'
-            "
-          >
+          <div class='lyrics-panel-content h-full overflow-hidden'>
             <LyricsView
               @lyrics-loaded='onLyricsLoaded'
               @seek='handleLyricsSeek'
@@ -632,53 +617,45 @@
               :is-in-sidebar='false'
               :size='isMobileLandscapeMode ? "small" : "large"'
               :song='playerState.currentSong'
-              :visible='showLyrics'
+              :visible='showLyrics && (isLargeScreen || isMobileLandscapeMode)'
               class='h-full'
             />
           </div>
-        </div>
-      </div>
+        </aside>
+      </main>
 
-      <div
-        @touchmove.stop
-        @touchstart.stop
+      <!-- Mobile bottom bar -->
+      <footer
         v-if='isMobilePortraitMode'
-        :class="[
-          'absolute bottom-0 left-0 right-0 flex items-center justify-center p-4 z-50 pb-safe-bottom',
-          'space-x-4'
-        ]"
+        class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-4 p-4'
+        :style='{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }'
+        @touchstart.stop
+        @touchmove.stop
       >
         <Button
-          @click="$emit('toggle-favorite', playerState.currentSong)"
-          v-if='playerState.currentSong'
-          :class="[playerState.currentSong.isFavorite ? 'text-white' : 'text-white hover:text-black']"
-          :size="isMobilePortraitMode ? 'lg' : 'icon'"
+          @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"
+          :class="['fs-control-btn', playerState.currentSong?.isFavorite && 'is-active']"
+          size='icon'
           variant='ghost'
         >
-          <Heart :class="['size-4', playerState.currentSong.isFavorite ? 'fill-current' : '']" />
+          <Heart :class="['size-5', playerState.currentSong?.isFavorite && 'fill-current']" />
         </Button>
 
-        <!-- Volume button -->
         <div class='relative'>
           <Button
             @click='toggleVolumePopup'
-            :class="isVolumePopupVisible ? 'bg-accent/20' : ''"
-            :size="isMobilePortraitMode ? 'lg' : 'icon'"
+            :class="['fs-control-btn', isVolumePopupVisible && 'is-active']"
+            size='icon'
             variant='ghost'
             data-volume-button
           >
-            <Volume2 v-if='effectiveVolume > 0.5' class='size-4' />
-            <Volume1 v-else-if='effectiveVolume > 0' class='size-4' />
-            <VolumeX v-else class='size-4' />
+            <Volume2 v-if='effectiveVolume > 50' class='size-5' />
+            <Volume1 v-else-if='effectiveVolume > 0' class='size-5' />
+            <VolumeX v-else class='size-5' />
           </Button>
-          <div
-            v-if='isVolumePopupVisible'
-            ref='volumePopupRef'
-            class='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 p-3
-    bg-card border border-border rounded-md shadow-lg z-50'
-          >
-            <div class='flex flex-col items-center gap-2'>
-              <span class='text-xs text-muted-foreground font-medium'>
+          <Transition name="pop">
+            <div v-if='isVolumePopupVisible' ref='volumePopupRef' class='volume-popup'>
+              <span class='text-xs text-white/70 font-medium tabular-nums'>
                 {{ Math.round(effectiveVolume) }}%
               </span>
               <Slider
@@ -686,107 +663,240 @@
                 :max='100'
                 :model-value='[effectiveVolume]'
                 :step='1'
-                class='h-16 w-1.5'
+                class='h-20 w-1.5'
                 orientation='vertical'
               />
               <button
                 @click.stop="$emit('toggle-mute')"
-                class='text-muted-foreground hover:text-foreground transition-colors p-1 rounded'
+                class='p-1 text-white/60 hover:text-white transition-colors'
               >
-                <Volume2 v-if='effectiveVolume > 0.5' class='size-4' />
-                <Volume1 v-else-if='effectiveVolume > 0' class='size-4' />
-                <VolumeX v-else class='size-4' />
+                <VolumeX v-if='effectiveVolume === 0' class='size-4' />
+                <Volume2 v-else class='size-4' />
               </button>
             </div>
-          </div>
+          </Transition>
         </div>
 
         <Button
           @click="$emit('toggle-queue')"
-          :size="isMobilePortraitMode ? 'lg' : 'icon'"
-          :variant="isQueueOpen ? 'default' : 'ghost'"
+          :class="['fs-control-btn', showQueue && 'is-active']"
+          size='icon'
+          variant='ghost'
         >
-          <ListMusic class='size-4' />
+          <ListMusic class='size-5' />
         </Button>
+
         <Button
           @click="$emit('toggle-equalizer')"
-          :size="isMobilePortraitMode ? 'lg' : 'icon'"
-          :variant="isEqualizerOpen ? 'default' : 'ghost'"
+          :class="['fs-control-btn', showEqualizer && 'is-active']"
+          size='icon'
+          variant='ghost'
         >
-          <Sliders class='size-4' />
+          <Sliders class='size-5' />
         </Button>
-      </div>
+      </footer>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <style scoped>
-  .album-art-container {
-    /* Always maintain square aspect ratio */
-    aspect-ratio: 1;
-    /* Size based on available space, responsive */
-    width: min(40vw, 40vh, 35rem);
-    height: min(40vw, 40vh, 35rem);
-    max-width: 35rem;
-    max-height: 35rem;
-  }
+/* Main container */
+.fullscreen-player {
+  background: var(--background);
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1),
+              opacity 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform, opacity;
+}
 
-  /* Responsive adjustments for mobile portrait */
-  @media (max-width: 1024px) and (orientation: portrait) {
-    .mobile .album-art-container {
-      width: min(35vw, 35vh, 20rem);
-      height: min(35vw, 35vh, 20rem);
-      max-width: 20rem;
-      max-height: 20rem;
-    }
-  }
+/* Album art */
+.album-art-wrapper {
+  width: min(45vw, 45vh, 24rem);
+  aspect-ratio: 1;
+}
 
-  @media (max-width: 640px) and (orientation: portrait) {
-    .mobile .album-art-container {
-      width: min(50vw, 50vh, 15rem);
-      height: min(50vw, 50vh, 15rem);
-      max-width: 15rem;
-      max-height: 15rem;
-    }
-  }
+.album-art-small {
+  width: min(30vw, 30vh, 16rem);
+}
 
-  /* Safe area padding for mobile */
-  .pt-safe-top {
-    padding-top: calc(4rem + env(safe-area-inset-top));
-  }
+.album-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
 
-  /* Mobile portrait specific adjustments */
-  @media (max-width: 768px) and (orientation: portrait) {
-    .fullscreen-player.mobile {
-      padding-bottom: env(safe-area-inset-bottom);
-    }
+/* Mobile adjustments */
+.is-mobile .album-art-wrapper {
+  width: min(65vw, 50vh, 18rem);
+}
 
-    .fullscreen-player.mobile .relative.z-10 {
-      max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-      height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    }
+/* Control buttons - subtle ghost style */
+.fs-control-btn {
+  color: rgba(255, 255, 255, 0.6) !important;
+  background: transparent !important;
+  border: none !important;
+  transition: color 0.15s ease;
+}
 
-    .album-art-container {
-      width: min(60vw, 60vh, 20rem);
-      height: min(60vw, 60vh, 20rem);
-      max-width: 20rem;
-      max-height: 20rem;
-    }
+.fs-control-btn:hover:not(:disabled) {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
 
-    /* Bottom controls safe area */
-    .pb-safe-bottom {
-      padding-bottom: calc(1rem + env(safe-area-inset-bottom));
-    }
-  }
+.fs-control-btn:disabled {
+  opacity: 0.3;
+}
 
-  /* Mobile portrait adjustments */
-  @media (max-width: 768px) and (orientation: portrait) {
-    .mobile .album-art-container {
-      display: block;
-      width: min(70vw, 50vh, 18rem);
-      height: min(70vw, 50vh, 18rem);
-      max-width: 18rem;
-      max-height: 18rem;
-    }
-  }
+.fs-control-btn.is-active {
+  color: white !important;
+}
+
+/* Play button - rounded, accent colored, no scale */
+.play-btn {
+  background: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+  border: none !important;
+  border-radius: 9999px !important;
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 0.15s ease, opacity 0.15s ease;
+}
+
+.play-btn:hover {
+  box-shadow: 0 6px 20px -4px rgba(0, 0, 0, 0.4);
+}
+
+.play-btn:active {
+  opacity: 0.9;
+}
+
+/* Volume popup */
+.volume-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 100;
+}
+
+/* Transitions */
+.fullscreen-player-enter-active,
+.fullscreen-player-leave-active {
+  transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1),
+              opacity 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.fullscreen-player-enter-from {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.fullscreen-player-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.scale-fade-enter-active,
+.scale-fade-leave-active {
+  transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.scale-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.95);
+}
+
+.scale-fade-leave-to {
+  opacity: 0;
+  transform: scale(1.02);
+}
+
+/* Side panel (EQ/Queue) - slides in from left, content stays fixed width */
+.side-panel {
+  transition: width 0.35s cubic-bezier(0.32, 0.72, 0, 1),
+              padding 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Side panel content - fixed size, just gets clipped */
+.side-panel-content {
+  flex-shrink: 0;
+}
+
+/* Lyrics panel - clips content from right edge */
+.lyrics-panel {
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: width 0.35s cubic-bezier(0.32, 0.72, 0, 1),
+              padding 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Lyrics content - fixed width so it reveals instead of reflows */
+.lyrics-panel-content {
+  width: calc(40vw - 3rem); /* Match panel width minus padding */
+  max-width: calc(42rem - 3rem); /* Match max-w-2xl minus padding */
+  flex-shrink: 0;
+}
+
+/* Center content area */
+.center-content {
+  transition: padding 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Inner wrapper that shifts when lyrics open */
+.center-items {
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* When lyrics are open, shift left and align left */
+.center-items.lyrics-mode {
+  transform: translateX(-25%);
+  align-items: flex-start;
+}
+
+/* Song info text alignment animates */
+.song-info {
+  transition: text-align 0s; /* text-align can't animate, handled by transform */
+}
+
+.center-items.lyrics-mode .song-info {
+  text-align: left;
+}
+
+/* Album art size transition */
+.album-art-wrapper {
+  transition: width 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.pop-enter-active,
+.pop-leave-active {
+  transition: all 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.pop-enter-from,
+.pop-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) scale(0.9) translateY(0.5rem);
+}
 </style>

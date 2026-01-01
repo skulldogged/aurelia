@@ -57,7 +57,7 @@
     >
       <div
         :class="[
-          'flex flex-1 min-w-0',
+          'main-content flex flex-1 min-w-0',
           isSidebarCollapsed ? (isMacos ? 'ml-20' : 'ml-16') : 'ml-48',
           (
             playerState.isQueueOpen
@@ -165,38 +165,44 @@
       :is-collapsed='isSidebarCollapsed'
       :is-mobile-portrait='false'
       :style='{ paddingTop: `calc(env(safe-area-inset-top))` }'
-      class='absolute left-0 top-0 h-full z-30'
+      class='absolute left-0 top-0 h-full z-30 border-r border-border/20'
     />
 
     <!-- Queue/Equalizer/Lyrics positioned absolutely on the right -->
     <div
       :class="[
-        'absolute right-0 top-0 h-full z-20 overflow-visible',
+        'right-panel absolute right-0 top-0 h-full z-20 overflow-hidden',
         rightPanelBgClass,
         (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
-          ? ''
-          : 'hidden'
+          ? 'w-64 lg:w-80 xl:w-96 2xl:w-[448px]'
+          : 'w-0'
       ]"
       :style='{ paddingTop: `calc(env(safe-area-inset-top))` }'
     >
       <div
-        v-if='playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen'
+        :class="[
+          'absolute z-10 pointer-events-none outer-shadow-left transition-opacity duration-300',
+          (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
+            ? 'opacity-100'
+            : 'opacity-0'
+        ]"
         :style='{
           top: `calc(3rem + env(safe-area-inset-top))`,
           bottom: playerState.hasPlayer ? "88px" : "0",
           width: "0.75rem",
           left: "-0.75rem"
         }'
-        class='absolute z-10 pointer-events-none outer-shadow-left'
       />
-      <slot name='queue' />
+      <div class='h-full min-w-64 lg:min-w-80 xl:min-w-96 2xl:min-w-[448px]'>
+        <slot name='queue' />
+      </div>
     </div>
 
     <!-- Player positioned absolutely at bottom -->
     <div
       v-if='playerState.hasPlayer'
       :class="[
-        'absolute z-30 bg-background-dark overflow-visible',
+        'player-bar absolute z-30 bg-sidebar/95 backdrop-blur-lg overflow-visible border-t border-border/20',
         'bottom-0',
         isSidebarCollapsed ? (isMacos ? 'left-20' : 'left-16') : 'left-48',
         (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
@@ -204,9 +210,24 @@
           : 'right-0'
       ]"
     >
-      <!-- Shadow on top of player -->
-      <div class='absolute z-10 left-0 right-0 pointer-events-none outer-shadow-top' />
       <slot name='player' />
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Main content area smoothly adjusts with panels */
+.main-content {
+  transition: margin-left 0.2s ease, margin-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Smooth slide animation for right panel */
+.right-panel {
+  transition: width 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Player bar smoothly adjusts with panel */
+.player-bar {
+  transition: left 0.2s ease, right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+</style>

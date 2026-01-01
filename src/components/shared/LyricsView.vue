@@ -30,6 +30,7 @@
   const error = ref<null | string>(null)
   const parsedLyrics = ref<LyricLine[]>([])
   const activeLineRef = ref<HTMLParagraphElement | null>(null)
+  const lyricsContainerRef = ref<HTMLDivElement | null>(null)
   const currentLyricsRequestToken = ref<null | symbol>(null)
 
   const { getLyrics } = commands
@@ -133,45 +134,52 @@
     return -1
   })
 
+  // Scroll to center an element within the lyrics container
+  const scrollToCenter = (element: HTMLElement, smooth = true): void => {
+    const container = lyricsContainerRef.value
+    if (!container || !element) return
+
+    const containerRect = container.getBoundingClientRect()
+    const elementRect = element.getBoundingClientRect()
+
+    // Calculate the scroll position to center the element
+    const elementCenter = elementRect.top + elementRect.height / 2
+    const containerCenter = containerRect.top + containerRect.height / 2
+    const scrollOffset = elementCenter - containerCenter
+
+    container.scrollBy({
+      top:      scrollOffset,
+      behavior: smooth ? 'smooth' : 'instant',
+    })
+  }
+
   watch(currentLineIndex, async (newIndex, oldIndex) => {
     if (newIndex !== oldIndex && newIndex !== -1) {
       await nextTick()
-      activeLineRef.value?.scrollIntoView({
-        behavior: 'smooth',
-        block:    'center',
-      })
+      if (activeLineRef.value) {
+        scrollToCenter(activeLineRef.value, true)
+      }
     }
   })
 
   watch(() => props.visible, async (isVisible, wasVisible) => {
     if (isVisible && !wasVisible && areLyricsSynced.value && currentLineIndex.value !== -1) {
       await nextTick()
-      activeLineRef.value?.scrollIntoView({
-        block: 'center',
-      })
+      if (activeLineRef.value) {
+        scrollToCenter(activeLineRef.value, false)
+      }
     }
   })
 
   watch(parsedLyrics, async newLyrics => {
     if (newLyrics && newLyrics.length > 0 && currentLineIndex.value === -1) {
       await nextTick()
-      const firstLineRef = getFirstLineRef()
-      if (firstLineRef) {
-        firstLineRef.scrollIntoView({
-          behavior: 'smooth',
-          block:    'center',
-        })
+      // Scroll to top of lyrics content
+      if (lyricsContainerRef.value) {
+        lyricsContainerRef.value.scrollTop = 0
       }
     }
   }, { immediate: true })
-
-  const getFirstLineRef = (): HTMLParagraphElement | null => {
-    const lyricsContainer = document.querySelector('.lyrics-content')
-    if (lyricsContainer) {
-      return lyricsContainer.querySelector('p.lyric-line') as HTMLParagraphElement
-    }
-    return null
-  }
 </script>
 
 <template>

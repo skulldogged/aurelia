@@ -110,13 +110,16 @@
     <Sidebar
       @global-search="$emit('global-search')"
       @navigate="(view: string) => emit('navigate', view)"
-      :class="isMobilePortraitMode
-        ? 'shrink-0 h-16 border-t border-border/50'
-        : 'absolute left-0 top-0 h-full w-16 z-30 border-l border-border/50'"
+      :class="[
+        'mobile-nav transition-colors duration-200',
+        isMobilePortraitMode
+          ? 'shrink-0 h-14 border-t border-border/30 bg-sidebar/95 backdrop-blur-lg'
+          : 'absolute left-0 top-0 h-full w-16 z-30 border-r border-border/30 bg-sidebar/95 backdrop-blur-lg'
+      ]"
       :current-view='navigationState.currentView'
       :is-collapsed='true'
       :is-mobile-portrait='isMobilePortraitMode'
-      :style='isMobilePortraitMode ? { marginBottom: `env(safe-area-inset-bottom)` } : {}'
+      :style='isMobilePortraitMode ? { paddingBottom: `env(safe-area-inset-bottom)` } : {}'
     />
 
     <!-- Queue/Equalizer/Lyrics positioned absolutely on the right -->
@@ -137,8 +140,8 @@
     <div
       v-if='playerState.hasPlayer'
       :class="[
-        'absolute z-30 border-t border-border/50 bg-sidebar',
-        isMobilePortraitMode ? 'bottom-16' : 'bottom-0',
+        'absolute z-30 border-t border-border/30 bg-sidebar/95 backdrop-blur-lg transition-all duration-200',
+        isMobilePortraitMode ? 'bottom-14' : 'bottom-0',
         {
           'left-0 right-0': isMobilePortraitMode,
           'left-16 right-0':
@@ -146,12 +149,12 @@
             && !playerState.isQueueOpen
             && !playerState.isEqualizerOpen
             && !playerState.isLyricsOpen,
-          'left-16 right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border/50':
+          'left-16 right-64 lg:right-80 xl:right-96 2xl:right-[448px] border-r border-border/30':
             isMobileLandscapeMode
             && (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen),
         }
       ]"
-      :style='isMobilePortraitMode ? { bottom: `calc(4rem + env(safe-area-inset-bottom))` } : {}'
+      :style='isMobilePortraitMode ? { bottom: `calc(3.5rem + env(safe-area-inset-bottom))` } : {}'
     >
       <slot name='player' />
     </div>

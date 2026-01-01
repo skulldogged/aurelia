@@ -356,19 +356,26 @@
       </RouterView>
 
       <template #queue>
-        <Queue
-          @remove-song='removeSongFromPlaylist'
-          v-if='isQueueOpen'
-        />
-        <Equalizer v-if='isEqualizerOpen' />
-        <LyricsSidebar
-          @lyrics-loaded='handleLyricsLoaded'
-          @seek='handleSeek'
-          v-if='isLyricsOpen'
-          :current-song='currentSong as any'
-          :current-time='currentTime'
-          :duration='duration'
-        />
+        <div class='sidebar-panels h-full relative'>
+          <Queue
+            @remove-song='removeSongFromPlaylist'
+            v-show='isQueueOpen'
+            class='absolute inset-0'
+          />
+          <Equalizer
+            v-show='isEqualizerOpen'
+            class='absolute inset-0'
+          />
+          <LyricsSidebar
+            @lyrics-loaded='handleLyricsLoaded'
+            @seek='handleSeek'
+            v-show='isLyricsOpen'
+            :current-song='currentSong as any'
+            :current-time='currentTime'
+            :duration='duration'
+            class='absolute inset-0'
+          />
+        </div>
       </template>
 
       <template #player>

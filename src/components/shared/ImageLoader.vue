@@ -241,10 +241,10 @@
 </script>
 
 <template>
-  <div ref='rootEl' :class='className'>
+  <div ref='rootEl' :class='[className, "overflow-hidden"]'>
     <div
       v-if='isLoading'
-      class='size-full bg-muted rounded-lg flex items-center justify-center animate-pulse'
+      class='size-full bg-muted flex items-center justify-center animate-pulse'
     >
       <div class='size-8 bg-muted-foreground/20 rounded-full' />
     </div>
@@ -255,11 +255,11 @@
         :alt='alt'
         :src='lowQualityUrl'
         :style='{ display: highQualityLoaded ? "none" : "block", filter: "blur(1px)" }'
-        class='absolute inset-0 size-full object-cover rounded-lg'
+        class='absolute inset-0 size-full object-cover'
         decoding='async'
         loading='lazy'
       >
-      <div class='absolute inset-0 bg-muted/5 rounded-lg' />
+      <div class='absolute inset-0 bg-muted/5' />
 
       <!-- High quality image overlaid -->
       <img
@@ -269,7 +269,7 @@
         :alt='alt'
         :src='imageUrl'
         :style='{ display: highQualityLoaded ? "block" : "none" }'
-        class='absolute inset-0 size-full object-cover rounded-lg'
+        class='absolute inset-0 size-full object-cover'
         decoding='async'
         loading='eager'
       >
@@ -285,7 +285,7 @@
     </div>
 
     <slot v-else-if='!imageUrl || hasError' name='fallback'>
-      <div class='size-full bg-muted rounded-lg flex items-center justify-center' />
+      <div class='size-full bg-muted flex items-center justify-center' />
     </slot>
   </div>
 </template>
