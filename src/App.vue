@@ -35,7 +35,6 @@
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useTopBar } from '@/composables/useTopBar'
-  import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
   import { setAuthLogout } from '@/lib/auth-interceptor'
   import { getPlatform, isMobile, Platform } from '@/lib/platform'
   import Login from '@/pages/login.vue'
@@ -65,8 +64,6 @@
     if (v)
       isSearchOpen.value = !isSearchOpen.value
   })
-
-  const webAudioPlayer = useWebAudioPlayer()
 
   const {
     canGoBack,
@@ -418,7 +415,6 @@
       @toggle-shuffle='handleToggleShuffle'
       @update:playlist='updatePlaylist'
       @volume-change='handleVolumeChange'
-      :analyser-node='webAudioPlayer.getAnalyserNode()'
       :is-equalizer-open='isFsEqualizerOpen'
       :is-lyrics-open='isFsLyricsOpen'
       :is-queue-open='isFsQueueOpen'

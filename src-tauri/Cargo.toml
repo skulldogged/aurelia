@@ -22,6 +22,7 @@ toml_edit = "0.23"
 anyhow = "1.0"
 base64 = "0.22"
 bincode = "2"
+biquad = "0.5.0"
 chrono = { version = "0.4.38", features = ["serde"] }
 derive_more = { version = "2.0.1", features = ["display"] }
 dirs = "6.0"
@@ -37,10 +38,12 @@ reqwest = { version = "0.12", default-features = false, features = [
   "rustls-tls",
   "stream",
 ] }
+rodio = { version = "0.21.1", default-features = false, features = ["playback", "symphonia-all"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 specta = "=2.0.0-rc.22"
 specta-typescript = "=0.0.9"
+stream-download = { version = "0.22.9", features = ["reqwest-rustls"] }
 tauri = { version = "2", features = [
   "protocol-asset",
   "macos-private-api",

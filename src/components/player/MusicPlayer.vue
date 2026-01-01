@@ -19,11 +19,10 @@
     Volume2,
     VolumeX,
   } from 'lucide-vue-next'
-  import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+  import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 
   import { commands } from '@/bindings'
   import { Song } from '@/bindings'
-  import AudioVisualizer from '@/components/player/AudioVisualizer.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import Button from '@/components/ui/Button.vue'
   import {
@@ -64,27 +63,11 @@
   const playerStore = usePlayerStore()
 
   const {
-    activePlayer,
-    audioPlayer1,
-    audioPlayer2,
     initializePlayer,
     isGaplessTransition,
-    loadSong,
-    nextPlayer,
     nextSong,
-    nextSongInQueue,
-    onCanPlay,
-    onEnded,
-    onError,
-    onLoadedMetadata,
-    onPause,
-    onPlay,
-    onTimeUpdate,
     playManuallyChangedSong,
-    startWebAudioTimeUpdates,
-    stopWebAudioTimeUpdates,
-    useWebAudio,
-    webAudioPlayer,
+    rustAudioPlayer,
   } = useAudioEngine(props)
 
   const containerRef = ref<HTMLDivElement | null>(null)
@@ -133,11 +116,7 @@
     if (newIndex !== oldIndex && playerStore.currentSong) {
       // Reset playback position when switching to same song at different index
       playerStore.setCurrentTime(0)
-      if (useWebAudio.value && webAudioPlayer.getIsReady()) {
-        webAudioPlayer.seek(0)
-      } else if (activePlayer.value) {
-        activePlayer.value.currentTime = 0
-      }
+      // Rust audio player handles seeking internally
     }
   })
 
@@ -180,6 +159,7 @@
     let usedWidth = 0
     const newVisibleIcons: string[] = []
 
+    // EQ is always available with Rust backend
     const allIcons = ['volume', 'equalizer', 'fullscreen', 'favorite', 'lyrics', 'queue']
 
     for (const icon of allIcons) {
@@ -198,11 +178,9 @@
   }
 
   const hasHiddenIcons = computed(() =>
-    (
-      useWebAudio.value
-        ? ['favorite', 'fullscreen', 'volume', 'equalizer', 'lyrics', 'queue']
-        : ['favorite', 'fullscreen', 'volume', 'lyrics', 'queue']
-    ).some(icon => !visibleIcons.value.includes(icon)),
+    // EQ is always available with Rust backend
+    ['favorite', 'fullscreen', 'volume', 'equalizer', 'lyrics', 'queue']
+      .some(icon => !visibleIcons.value.includes(icon)),
   )
 
   const songFormatInfo = computed(() => getSongFormatInfo(playerStore.currentSong))
@@ -338,31 +316,22 @@
     if (!playerStore.audioReady) return
 
     try {
-      if (useWebAudio.value) {
-        if (playerStore.isPlaying) {
-          webAudioPlayer.pause()
-          playerStore.pause()
-          stopWebAudioTimeUpdates()
-        } else {
-          const success = await webAudioPlayer.play()
-          if (success) {
-            playerStore.play()
-            startWebAudioTimeUpdates()
-          }
-        }
+      if (playerStore.isPlaying) {
+        await rustAudioPlayer.pause()
+        playerStore.pause()
       } else {
-        if (!activePlayer.value) return
-
-        if (playerStore.isPlaying) {
-          activePlayer.value.pause()
-        } else {
-          await activePlayer.value.play()
-        }
+        await rustAudioPlayer.resume()
+        playerStore.play()
       }
     } catch (error) {
       logger.error('Playback error:', error)
     }
   }
+
+  // Throttle seek updates to prevent audio crackling during slider drags
+  const SEEK_THROTTLE_MS = 100
+  let pendingSeekTime: null | number = null
+  let seekThrottleTimer: null | ReturnType<typeof setTimeout> = null
 
   const onSeek = async (value: number[] | undefined): Promise<void> => {
     if (!value || !playerStore.audioReady) return
@@ -371,20 +340,36 @@
     const seekTime = (progressValue / 100) * playerStore.duration
 
     if (isFinite(seekTime)) {
-      if (useWebAudio.value) {
-        const success = await webAudioPlayer.seek(seekTime)
-        if (success)
-          playerStore.setCurrentTime(seekTime, true)
-      } else {
-        if (!activePlayer.value) return
-        activePlayer.value.currentTime = seekTime
-        playerStore.setCurrentTime(seekTime, true)
-      }
+      // Update UI immediately for responsiveness, mark as seeking to pause polling
+      playerStore.setCurrentTime(seekTime, true)
+
+      // Store the pending seek position
+      pendingSeekTime = seekTime
+
+      // If there's already a pending timer, let it handle the seek
+      if (seekThrottleTimer) return
+
+      // Set up throttled backend seek
+      seekThrottleTimer = setTimeout(async () => {
+        if (pendingSeekTime !== null) {
+          await rustAudioPlayer.seek(pendingSeekTime)
+          pendingSeekTime = null
+        }
+        // Clear seeking state after backend seek completes
+        playerStore.setIsSeeking(false)
+        seekThrottleTimer = null
+      }, SEEK_THROTTLE_MS)
     }
   }
 
+  // Volume updates go through the store, which has a throttled watcher in useAudioEngine
   const onVolumeInput = (value: number[] | undefined): void =>
     void(value?.length && playerStore.setVolume(value[0] / 100))
+
+  // Cleanup throttle timer
+  onBeforeUnmount(() => {
+    if (seekThrottleTimer) clearTimeout(seekThrottleTimer)
+  })
 
   const previousSong = (): void => {
     if (hasPrevious.value)
@@ -400,53 +385,13 @@
 
       if (isGaplessTransition.value) {
         isGaplessTransition.value = false
-        if (useWebAudio.value) {
-          playerStore.setBuffering(true)
-          webAudioPlayer.play()
-            .then(success => {
-              if (success) {
-                playerStore.play()
-                startWebAudioTimeUpdates()
-              } else {
-                logger.error('Failed to play WebAudio in gapless transition')
-                playerStore.pause()
-              }
-            })
-            .catch(error => {
-              logger.error('Failed to play WebAudio in gapless transition:', error)
-              playerStore.pause()
-            })
-            .finally(() => {
-              playerStore.setBuffering(false)
-            })
-        } else if (activePlayer.value) {
-          playerStore.setBuffering(true)
-          activePlayer.value.play()
-            .then(() => {
-            })
-            .catch(error => {
-              logger.error('Failed to play audio:', error)
-              playerStore.pause()
-            })
-            .finally(() => {
-              playerStore.setBuffering(false)
-            })
-        } else {
-          loadSong(nextSongInQueue.value, nextPlayer.value)
-        }
+        // Gapless transition is handled by Rust backend
+        playerStore.play()
       } else {
         playManuallyChangedSong(newSong)
       }
     } else if (!playerStore.currentSong) {
-      stopWebAudioTimeUpdates()
-      webAudioPlayer.stop()
-
-      if (audioPlayer1.value) {
-        audioPlayer1.value.src = ''; audioPlayer1.value.pause()
-      }
-      if (audioPlayer2.value) {
-        audioPlayer2.value.src = ''; audioPlayer2.value.pause()
-      }
+      rustAudioPlayer.stop()
       playerStore.pause()
     }
   })
@@ -457,8 +402,7 @@
       if (playerStore.currentSong) {
         const index = newPlaylist.findIndex(song => song.id === playerStore.currentSong!.id)
         playerStore.setCurrentIndex(index)
-        if (nextSongInQueue.value)
-          loadSong(nextSongInQueue.value, nextPlayer.value)
+        // Next song loading is handled by useAudioEngine
       } else {
         playerStore.setCurrentIndex(-1)
       }
@@ -487,32 +431,13 @@
     }
   })
 
-  watch(() => playerStore.volume, newVolume => {
-    if (useWebAudio.value) {
-      webAudioPlayer.setVolume(newVolume)
-    } else {
-      if (audioPlayer1.value) audioPlayer1.value.volume = newVolume
-      if (audioPlayer2.value) audioPlayer2.value.volume = newVolume
-    }
-  })
-
   // Watch active view changes to update visible icons
   watch(activeView, () => {
     updateVisibleIcons()
   })
 
   onUnmounted(() => {
-    stopWebAudioTimeUpdates()
-
-    webAudioPlayer.cleanup()
-
-    if (audioPlayer1.value) audioPlayer1.value.pause()
-    if (audioPlayer2.value) audioPlayer2.value.pause()
-
-    if (typeof window !== 'undefined') {
-      const w = window as typeof window & { advanceToNextSong?: () => void }
-      delete w.advanceToNextSong
-    }
+    rustAudioPlayer.stop()
 
     window.removeEventListener('resize', measureMarquee)
     window.removeEventListener('resize', updateVisibleIcons)
@@ -570,19 +495,6 @@
           </div>
         </div>
       </div>
-    </div>
-    <!-- Audio Visualizer Background -->
-    <div
-      v-if='playerStore.visualizerEnabled'
-      class='absolute inset-0 overflow-hidden opacity-30 pointer-events-none'
-      style='z-index: 0;'
-    >
-      <AudioVisualizer
-        v-if='useWebAudio && playerStore.isPlaying'
-        :analyser-node='webAudioPlayer.getAnalyserNode()'
-        :is-playing='playerStore.isPlaying'
-        :style='playerStore.visualizerStyle'
-      />
     </div>
 
     <div ref='containerRef' class='mx-auto max-w-full relative' style='z-index: 1;'>
@@ -824,10 +736,10 @@
               <Expand class='size-4' />
             </Button>
 
-            <!-- Equalizer button -->
+            <!-- Equalizer button - always available with Rust backend -->
             <Button
               @click="emit('toggle-equalizer')"
-              v-if="visibleIcons.includes('equalizer') && useWebAudio"
+              v-if="visibleIcons.includes('equalizer')"
               :variant="activeView === 'equalizer' ? 'default' : 'ghost'"
               size='icon'
             >
@@ -906,7 +818,7 @@
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   @click="emit('toggle-equalizer')"
-                  v-if="!visibleIcons.includes('equalizer') && useWebAudio"
+                  v-if="!visibleIcons.includes('equalizer')"
                 >
                   <Sliders class='size-4 mr-2' />
                   Equalizer
@@ -953,33 +865,6 @@
         </div>
       </div>
     </div>
-
-    <audio
-      @canplaythrough='onCanPlay(0)'
-      @ended='onEnded(0)'
-      @error='onError(0)'
-      @loadedmetadata='onLoadedMetadata(0)'
-      @pause='onPause(0)'
-      @play='onPlay(0)'
-      @timeupdate='onTimeUpdate(0)'
-      id='audio-player-1'
-      ref='audioPlayer1'
-      crossorigin='anonymous'
-      preload='auto'
-    />
-    <audio
-      @canplaythrough='onCanPlay(1)'
-      @ended='onEnded(1)'
-      @error='onError(1)'
-      @loadedmetadata='onLoadedMetadata(1)'
-      @pause='onPause(1)'
-      @play='onPlay(1)'
-      @timeupdate='onTimeUpdate(1)'
-      id='audio-player-2'
-      ref='audioPlayer2'
-      crossorigin='anonymous'
-      preload='auto'
-    />
   </div>
 </template>
 <style scoped>

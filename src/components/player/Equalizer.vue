@@ -2,7 +2,7 @@
   import { RotateCcw, Sliders } from 'lucide-vue-next'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import { storeToRefs } from 'pinia'
-  import { computed } from 'vue'
+  import { computed, onUnmounted, ref } from 'vue'
 
   import Button from '@/components/ui/Button.vue'
   import {
@@ -16,18 +16,29 @@
   } from '@/components/ui/select'
   import { Slider } from '@/components/ui/slider'
   import { usePlayerControls } from '@/composables/usePlayerControls'
-  import { useWebAudioPlayer } from '@/composables/useWebAudioPlayer'
+  import { useRustAudioPlayer } from '@/composables/useRustAudioPlayer'
   import { isMobile } from '@/lib/platform'
 
   // Get player store
   const { playerStore } = usePlayerControls()
   const { eqBands, eqEnabled } = storeToRefs(playerStore)
 
-  // WebAudio player instance
-  const webAudioPlayer = useWebAudioPlayer()
+  // Rust audio player instance
+  const rustAudioPlayer = useRustAudioPlayer()
 
-  // EQ presets (from WebAudio)
-  const eqPresets = computed(() => webAudioPlayer.getEQPresets())
+  // EQ presets - defined here since they're simple frequency/gain combinations
+  const EQ_PRESETS = [
+    { bands: [0, 0, 0, 0, 0], name: 'Flat' },
+    { bands: [4, 2, 0, 2, 4], name: 'Bass Boost' },
+    { bands: [-2, 0, 0, 2, 4], name: 'Treble Boost' },
+    { bands: [3, 1, -1, 1, 3], name: 'V-Shape' },
+    { bands: [-2, 0, 2, 0, -2], name: 'Vocal Boost' },
+    { bands: [2, 3, 2, 1, 0], name: 'Rock' },
+    { bands: [4, 3, 0, 3, 4], name: 'Electronic' },
+    { bands: [3, 1, 0, 2, 3], name: 'Pop' },
+    { bands: [1, 0, -1, 2, 3], name: 'Jazz' },
+    { bands: [2, 1, 0, 1, 2], name: 'Classical' },
+  ]
 
   // Selected preset state
   const selectedPreset = computed({
@@ -38,45 +49,93 @@
     },
   })
 
-  const setEQEnabled = (enabled: boolean): void => {
-    webAudioPlayer.setEQEnabled(enabled)
+  const setEQEnabled = async (enabled: boolean): Promise<void> => {
+    console.log('[EQ] setEQEnabled called with:', enabled)
+    await rustAudioPlayer.setEQEnabled(enabled)
     playerStore.setEQEnabled(enabled)
   }
 
-  const setEQBandGain = (bandIndex: number, gain: number): void => {
-    webAudioPlayer.setEQBandGain(bandIndex, gain)
+  // Throttle EQ updates to prevent audio crackling during slider drags
+  const EQ_THROTTLE_MS = 50
+  const pendingEQUpdates = ref<Map<number, number>>(new Map())
+  const eqThrottleTimers = ref<Map<number, ReturnType<typeof setTimeout>>>(new Map())
+
+  const setEQBandGain = async (bandIndex: number, gain: number): Promise<void> => {
+    console.log('[EQ] setEQBandGain called with band:', bandIndex, 'gain:', gain)
+    await rustAudioPlayer.setEQBand(bandIndex, gain)
     playerStore.setEQBandGain(bandIndex, gain)
   }
 
-  const resetEQ = (): void => {
-    webAudioPlayer.resetEQ()
+  const throttledSetEQBandGain = (bandIndex: number, gain: number): void => {
+    // Always update the store immediately for responsive UI
+    playerStore.setEQBandGain(bandIndex, gain)
+
+    // Store the pending value
+    pendingEQUpdates.value.set(bandIndex, gain)
+
+    // If there's already a pending timer for this band, let it handle the update
+    if (eqThrottleTimers.value.has(bandIndex)) return
+
+    // Set up throttled backend update
+    const timer = setTimeout(async () => {
+      const pendingGain = pendingEQUpdates.value.get(bandIndex)
+      if (pendingGain !== undefined) {
+        await rustAudioPlayer.setEQBand(bandIndex, pendingGain)
+        pendingEQUpdates.value.delete(bandIndex)
+      }
+      eqThrottleTimers.value.delete(bandIndex)
+    }, EQ_THROTTLE_MS)
+
+    eqThrottleTimers.value.set(bandIndex, timer)
+  }
+
+  // Cleanup throttle timers on unmount
+  onUnmounted(() => {
+    for (const timer of eqThrottleTimers.value.values()) {
+      clearTimeout(timer)
+    }
+  })
+
+  const resetEQ = async (): Promise<void> => {
+    console.log('[EQ] resetEQ called')
+    // Clear any pending throttled updates
+    for (const timer of eqThrottleTimers.value.values()) {
+      clearTimeout(timer)
+    }
+    eqThrottleTimers.value.clear()
+    pendingEQUpdates.value.clear()
+
+    await rustAudioPlayer.resetEQ()
     playerStore.resetEQ()
   }
 
   const updateEQBand = (bandIndex: number, value: number[] | undefined): void => {
+    console.log('[EQ] updateEQBand called with band:', bandIndex, 'value:', value)
     if (value && value.length > 0)
-      setEQBandGain(bandIndex, value[0])
+      throttledSetEQBandGain(bandIndex, value[0])
   }
 
-  const applyEQPreset = (presetName: string): void => {
-    const success = webAudioPlayer.applyEQPreset(presetName)
-    if (success) {
-      const newBands = webAudioPlayer.getEQBands()
-      for (let i = 0; i < newBands.length; i++)
-        setEQBandGain(i, newBands[i].gain)
+  const applyEQPreset = async (presetName: string): Promise<void> => {
+    console.log('[EQ] applyEQPreset called with:', presetName)
+    const preset = EQ_PRESETS.find(p => p.name === presetName)
+    if (preset) {
+      for (let i = 0; i < preset.bands.length; i++) {
+        await setEQBandGain(i, preset.bands[i])
+      }
     }
   }
 
   const handlePresetChange = (value: unknown): void => {
+    console.log('[EQ] handlePresetChange called with:', value)
     if (value && typeof value === 'string' && value !== 'Custom')
       applyEQPreset(value)
   }
 
   // Check if current bands match any preset
   const getCurrentPreset = (): string =>
-    eqPresets.value.find(preset =>
-      preset.bands.every((band, index) =>
-        Math.abs(band.gain - eqBands.value[index].gain) < 0.1,
+    EQ_PRESETS.find(preset =>
+      preset.bands.every((gain, index) =>
+        Math.abs(gain - eqBands.value[index].gain) < 0.1,
       ),
     )?.name ?? 'Custom'
 
@@ -133,7 +192,7 @@
                   <SelectGroup>
                     <SelectLabel>Available Presets</SelectLabel>
                     <SelectItem
-                      v-for='preset in eqPresets'
+                      v-for='preset in EQ_PRESETS'
                       :key='preset.name'
                       :value='preset.name'
                       class='cursor-pointer'
@@ -176,7 +235,7 @@
                 class='flex flex-col items-center space-y-2 min-w-0'
               >
                 <!-- Slider Container -->
-                <div class='relative flex flex-col items-center flex-1'>
+                <div class='relative flex flex-col items-center h-40'>
                   <!-- Background Track -->
                   <div class='absolute w-1 h-full bg-border/30 rounded-full' />
 
@@ -187,7 +246,7 @@
                     :min='-20'
                     :model-value='[band.gain]'
                     :step='0.5'
-                    class='h-full'
+                    class='h-40'
                     orientation='vertical'
                   />
                 </div>

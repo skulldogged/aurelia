@@ -1,5 +1,6 @@
 #[cfg(target_os = "android")]
 mod android_now_playing;
+pub mod audio;
 pub mod cache;
 pub mod database;
 pub mod db;
@@ -127,6 +128,26 @@ pub fn run() {
             system_tray::quit_application,
             system_tray::set_minimize_to_tray,
             system_tray::set_close_to_tray,
+            // Audio commands
+            audio::audio_init,
+            audio::audio_play,
+            audio::audio_pause,
+            audio::audio_resume,
+            audio::audio_stop,
+            audio::audio_set_volume,
+            audio::audio_get_volume,
+            audio::audio_is_playing,
+            audio::audio_is_finished,
+            audio::audio_get_position,
+            audio::audio_seek,
+            audio::audio_prepare_next,
+            audio::audio_advance_gapless,
+            audio::audio_set_eq_enabled,
+            audio::audio_is_eq_enabled,
+            audio::audio_set_eq_band,
+            audio::audio_get_eq_band,
+            audio::audio_get_all_eq_bands,
+            audio::audio_reset_eq,
         ]);
     }
 
@@ -269,7 +290,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(lastfm::LastFmState::new())
         .manage(listenbrainz::ListenBrainzState::new())
-        .manage(state::AppState::new());
+        .manage(state::AppState::new())
+        .manage(audio::AudioState::default());
 
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {

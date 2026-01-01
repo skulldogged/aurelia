@@ -158,11 +158,11 @@ export const usePlayerStore = defineStore('player', () => {
     currentTime.value = time
     if (isSeek) {
       isSeeking.value = true
-      // Reset the flag after a short delay to allow watchers to detect it
-      setTimeout(() => {
-        isSeeking.value = false
-      }, 0)
     }
+  }
+
+  const setIsSeeking = (seeking: boolean): void => {
+    isSeeking.value = seeking
   }
 
   const setDuration = (time: number): void => {
@@ -379,6 +379,7 @@ export const usePlayerStore = defineStore('player', () => {
     setHasLyrics,
     setHasNext,
     setHasPrevious,
+    setIsSeeking,
     setPlaylist,
     setRepeatMode,
     setVisualizerEnabled,

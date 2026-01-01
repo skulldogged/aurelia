@@ -16,6 +16,215 @@ export const commands = {
     }
   },
   /**
+ * Advance to the prepared next track (gapless)
+ */
+  audioAdvanceGapless: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_advance_gapless'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Get all EQ band gains
+ */
+  audioGetAllEqBands: async (): Promise<Result<number[], string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_get_all_eq_bands'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Get EQ band gain
+ */
+  audioGetEqBand: async (band: number): Promise<Result<number, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_get_eq_band', { band }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Get current playback position in seconds
+ */
+  audioGetPosition: async (): Promise<Result<number, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_get_position'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Get current volume
+ */
+  audioGetVolume: async (): Promise<Result<number, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_get_volume'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Initialize the audio player
+ */
+  audioInit: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_init'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Check if EQ is enabled
+ */
+  audioIsEqEnabled: async (): Promise<Result<boolean, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_is_eq_enabled'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Check if playback is finished
+ */
+  audioIsFinished: async (): Promise<Result<boolean, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_is_finished'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Check if audio is currently playing
+ */
+  audioIsPlaying: async (): Promise<Result<boolean, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_is_playing'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Pause audio playback
+ */
+  audioPause: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_pause'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Play audio from a URL
+ */
+  audioPlay: async (url: string, token: string): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_play', { token, url }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Prepare next track for gapless playback
+ */
+  audioPrepareNext: async (url: string, token: string): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_prepare_next', { token, url }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Reset EQ to flat
+ */
+  audioResetEq: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_reset_eq'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Resume audio playback
+ */
+  audioResume: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_resume'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Seek to a position in seconds (with fallback to stream restart for backward seeks)
+ */
+  audioSeek: async (positionSecs: number): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_seek', { positionSecs }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Set EQ band gain (band: 0-4, gain: -20 to +20 dB)
+ */
+  audioSetEqBand: async (band: number, gainDb: number): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_set_eq_band', { band, gainDb }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Enable or disable EQ
+ */
+  audioSetEqEnabled: async (enabled: boolean): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_set_eq_enabled', { enabled }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Set audio volume (0.0 to 1.0)
+ */
+  audioSetVolume: async (volume: number): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_set_volume', { volume }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Stop audio playback
+ */
+  audioStop: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_stop'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
  * Clear the music cache, then re-fetch and cache the library
  */
   clearCache: async (serverUrl: string, token: string): Promise<Result<null, string>> => {
