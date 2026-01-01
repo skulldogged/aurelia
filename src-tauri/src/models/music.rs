@@ -1,13 +1,12 @@
 //! Music-related data models
 
-use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 /// Generic name-ID pair used for artists and other entities
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, Eq, Hash, Encode, Decode)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, Eq, Hash)]
 #[specta(rename_all = "camelCase")]
 pub struct NameIdPair {
     /// Display name
@@ -17,7 +16,7 @@ pub struct NameIdPair {
 }
 
 /// User data for items (play count, favorites, etc.)
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, Encode, Decode)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
 #[serde(rename_all = "camelCase")]
 #[specta(rename_all = "camelCase")]
 pub struct UserData {
@@ -41,7 +40,7 @@ pub struct ItemsResponse<T> {
 }
 
 /// Song representing a music track or audio file
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, Encode, Decode)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
@@ -120,7 +119,7 @@ impl Hash for Song {
 }
 
 /// Consolidated artist type with all information
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, Encode, Decode)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct Artist {
@@ -153,7 +152,7 @@ impl Hash for Artist {
 }
 
 /// Consolidated album type with all information
-#[derive(Serialize, Deserialize, Debug, Clone, Type, Encode, Decode)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct Album {

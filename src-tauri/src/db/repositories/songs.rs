@@ -15,9 +15,9 @@ impl SongRepository {
     pub fn get(&self, id: &str) -> Result<Option<Song>> {
         let read_txn = self.db.begin_read()?;
         let table = read_txn.open_table(SONGS)?;
-        
+
         if let Some(bytes) = table.get(id)? {
-            let (song, _) = bincode::decode_from_slice(bytes.value(), bincode::config::standard())?;
+            let song = postcard::from_bytes(bytes.value())?;
             Ok(Some(song))
         } else {
             Ok(None)
@@ -27,17 +27,17 @@ impl SongRepository {
     pub fn get_all(&self) -> Result<Vec<Song>> {
         let read_txn = self.db.begin_read()?;
         let table = read_txn.open_table(SONGS)?;
-        
+
         let songs: Vec<Song> = table
             .iter()?
             .filter_map(|result| {
                 result.ok().and_then(|(_, bytes)| {
-                    let (song, _) = bincode::decode_from_slice(bytes.value(), bincode::config::standard()).ok()?;
+                    let song = postcard::from_bytes(bytes.value()).ok()?;
                     Some(song)
                 })
             })
             .collect();
-        
+
         Ok(songs)
     }
 
@@ -45,7 +45,7 @@ impl SongRepository {
         let write_txn = self.db.begin_write()?;
         {
             let mut table = write_txn.open_table(SONGS)?;
-            let encoded = bincode::encode_to_vec(item, bincode::config::standard())?;
+            let encoded = postcard::to_stdvec(item)?;
             table.insert(id, encoded.as_slice())?;
         }
         write_txn.commit()?;
@@ -57,7 +57,7 @@ impl SongRepository {
         {
             // Insert/update song
             let mut songs_table = write_txn.open_table(SONGS)?;
-            let encoded = bincode::encode_to_vec(song, bincode::config::standard())?;
+            let encoded = postcard::to_stdvec(song)?;
             songs_table.insert(song.id.as_str(), encoded.as_slice())?;
 
             // Update album index
@@ -78,7 +78,7 @@ impl SongRepository {
             if let Some(true) = song.is_favorite {
                 let mut favorites = write_txn.open_table(FAVORITES)?;
                 let timestamp = chrono::Utc::now().to_rfc3339();
-                let encoded_ts = bincode::encode_to_vec(&timestamp, bincode::config::standard())?;
+                let encoded_ts = postcard::to_stdvec(&timestamp)?;
                 favorites.insert(song.id.as_str(), encoded_ts.as_slice())?;
             }
         }
@@ -90,21 +90,21 @@ impl SongRepository {
         let read_txn = self.db.begin_read()?;
         let index = read_txn.open_table(SONGS_BY_ALBUM)?;
         let songs_table = read_txn.open_table(SONGS)?;
-        
+
         let mut songs = Vec::new();
-        
+
         let range_start = (album_id, "");
         let range_end = (album_id, "\u{10ffff}");
-        
+
         for result in index.range(range_start..=range_end)? {
             let (key, _) = result?;
             let (_, song_id) = key.value();
             if let Some(bytes) = songs_table.get(song_id)? {
-                let (song, _) = bincode::decode_from_slice(bytes.value(), bincode::config::standard())?;
+                let song = postcard::from_bytes(bytes.value())?;
                 songs.push(song);
             }
         }
-        
+
         Ok(songs)
     }
 
@@ -112,21 +112,21 @@ impl SongRepository {
         let read_txn = self.db.begin_read()?;
         let index = read_txn.open_table(SONGS_BY_ARTIST)?;
         let songs_table = read_txn.open_table(SONGS)?;
-        
+
         let mut songs = Vec::new();
-        
+
         let range_start = (artist_id, "");
         let range_end = (artist_id, "\u{10ffff}");
-        
+
         for result in index.range(range_start..=range_end)? {
             let (key, _) = result?;
             let (_, song_id) = key.value();
             if let Some(bytes) = songs_table.get(song_id)? {
-                let (song, _) = bincode::decode_from_slice(bytes.value(), bincode::config::standard())?;
+                let song = postcard::from_bytes(bytes.value())?;
                 songs.push(song);
             }
         }
-        
+
         Ok(songs)
     }
 
@@ -134,16 +134,16 @@ impl SongRepository {
         let read_txn = self.db.begin_read()?;
         let favorites = read_txn.open_table(FAVORITES)?;
         let songs_table = read_txn.open_table(SONGS)?;
-        
+
         let mut result = Vec::new();
         for item in favorites.iter()? {
             let (id, _) = item?;
             if let Some(bytes) = songs_table.get(id.value())? {
-                let (song, _) = bincode::decode_from_slice(bytes.value(), bincode::config::standard())?;
+                let song = postcard::from_bytes(bytes.value())?;
                 result.push(song);
             }
         }
-        
+
         Ok(result)
     }
 
@@ -152,12 +152,14 @@ impl SongRepository {
         {
             // Update song's favorite status
             let mut songs_table = write_txn.open_table(SONGS)?;
-            let song_bytes = songs_table.get(song_id)?.map(|bytes| bytes.value().to_vec());
+            let song_bytes = songs_table
+                .get(song_id)?
+                .map(|bytes| bytes.value().to_vec());
 
             if let Some(bytes) = song_bytes {
-                let (mut song, _): (Song, _) = bincode::decode_from_slice(&bytes, bincode::config::standard())?;
+                let mut song: Song = postcard::from_bytes(&bytes)?;
                 song.is_favorite = Some(is_favorite);
-                let encoded = bincode::encode_to_vec(&song, bincode::config::standard())?;
+                let encoded = postcard::to_stdvec(&song)?;
                 songs_table.insert(song_id, encoded.as_slice())?;
             }
 
@@ -165,7 +167,7 @@ impl SongRepository {
             let mut favorites = write_txn.open_table(FAVORITES)?;
             if is_favorite {
                 let timestamp = chrono::Utc::now().to_rfc3339();
-                let encoded_ts = bincode::encode_to_vec(&timestamp, bincode::config::standard())?;
+                let encoded_ts = postcard::to_stdvec(&timestamp)?;
                 favorites.insert(song_id, encoded_ts.as_slice())?;
             } else {
                 favorites.remove(song_id)?;
@@ -181,18 +183,18 @@ impl SongRepository {
             let mut songs_table = write_txn.open_table(SONGS)?;
             let mut album_index = write_txn.open_table(SONGS_BY_ALBUM)?;
             let mut artist_index = write_txn.open_table(SONGS_BY_ARTIST)?;
-            
+
             // Clear main table
             let mut keys = Vec::new();
             for item in songs_table.iter()? {
                 let (key, _) = item?;
                 keys.push(key.value().to_string());
             }
-            
+
             for key in keys {
                 songs_table.remove(key.as_str())?;
             }
-            
+
             // Clear indexes
             let mut album_keys = Vec::new();
             for item in album_index.iter()? {
@@ -200,18 +202,18 @@ impl SongRepository {
                 let (album_id, song_id) = key.value();
                 album_keys.push((album_id.to_string(), song_id.to_string()));
             }
-            
+
             for (album_id, song_id) in album_keys {
                 album_index.remove((album_id.as_str(), song_id.as_str()))?;
             }
-            
+
             let mut artist_keys = Vec::new();
             for item in artist_index.iter()? {
                 let (key, _) = item?;
                 let (artist_id, song_id) = key.value();
                 artist_keys.push((artist_id.to_string(), song_id.to_string()));
             }
-            
+
             for (artist_id, song_id) in artist_keys {
                 artist_index.remove((artist_id.as_str(), song_id.as_str()))?;
             }

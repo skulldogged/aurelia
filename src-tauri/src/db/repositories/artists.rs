@@ -15,9 +15,9 @@ impl ArtistRepository {
     pub fn get(&self, id: &str) -> Result<Option<Artist>> {
         let read_txn = self.db.begin_read()?;
         let table = read_txn.open_table(ARTISTS)?;
-        
+
         if let Some(bytes) = table.get(id)? {
-            let (artist, _) = bincode::decode_from_slice(bytes.value(), bincode::config::standard())?;
+            let artist = postcard::from_bytes(bytes.value())?;
             Ok(Some(artist))
         } else {
             Ok(None)
@@ -27,17 +27,17 @@ impl ArtistRepository {
     pub fn get_all(&self) -> Result<Vec<Artist>> {
         let read_txn = self.db.begin_read()?;
         let table = read_txn.open_table(ARTISTS)?;
-        
+
         let artists: Vec<Artist> = table
             .iter()?
             .filter_map(|result| {
                 result.ok().and_then(|(_, bytes)| {
-                    let (artist, _) = bincode::decode_from_slice(bytes.value(), bincode::config::standard()).ok()?;
+                    let artist = postcard::from_bytes(bytes.value()).ok()?;
                     Some(artist)
                 })
             })
             .collect();
-        
+
         Ok(artists)
     }
 
@@ -45,7 +45,7 @@ impl ArtistRepository {
         let write_txn = self.db.begin_write()?;
         {
             let mut table = write_txn.open_table(ARTISTS)?;
-            let encoded = bincode::encode_to_vec(item, bincode::config::standard())?;
+            let encoded = postcard::to_stdvec(item)?;
             table.insert(id, encoded.as_slice())?;
         }
         write_txn.commit()?;
@@ -56,7 +56,7 @@ impl ArtistRepository {
         let write_txn = self.db.begin_write()?;
         {
             let mut table = write_txn.open_table(ARTISTS)?;
-            let encoded = bincode::encode_to_vec(artist, bincode::config::standard())?;
+            let encoded = postcard::to_stdvec(artist)?;
             table.insert(artist.id.as_str(), encoded.as_slice())?;
         }
         write_txn.commit()?;
@@ -72,7 +72,7 @@ impl ArtistRepository {
                 .filter_map(|result| result.ok())
                 .map(|(key, _)| key.value().to_string())
                 .collect();
-            
+
             for key in keys {
                 table.remove(key.as_str())?;
             }

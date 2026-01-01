@@ -1,7 +1,6 @@
-use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SyncState {
     pub last_sync_time: String,
     pub last_sync_version: Option<String>,

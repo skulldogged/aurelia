@@ -1,7 +1,7 @@
 use crate::db;
 use crate::models::{Album, Artist, Song};
 use anyhow::{Result, anyhow};
-use bincode::Decode;
+
 use once_cell::sync::OnceCell;
 use redb::{Database, ReadOnlyTable, ReadableDatabase, ReadableTable, TableDefinition};
 use serde::de::DeserializeOwned;
@@ -43,7 +43,7 @@ pub fn init(app: &AppHandle) -> Result<()> {
         let _ = write_txn
             .open_table(ALBUMS_TABLE)
             .map_err(|e| anyhow!("Failed to open albums table: {}", e))?;
-        
+
         // Initialize new index tables
         let _ = write_txn.open_table(db::schema::SONGS_BY_ALBUM)?;
         let _ = write_txn.open_table(db::schema::SONGS_BY_ARTIST)?;
@@ -63,16 +63,14 @@ pub fn init(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-fn get_all_items<T: DeserializeOwned + Decode<()>>(
-    table: &ReadOnlyTable<&str, &[u8]>,
-) -> Result<Vec<T>> {
+fn get_all_items<T: DeserializeOwned>(table: &ReadOnlyTable<&str, &[u8]>) -> Result<Vec<T>> {
     debug!("Getting all items from table");
     let items: Vec<T> = table
         .iter()
         .map_err(|e| anyhow!("Failed to iterate over table: {}", e))?
         .map(|res| {
             let (_, bytes) = res.map_err(|e| anyhow!("Failed to get table item: {}", e))?;
-            let (item, _) = bincode::decode_from_slice(bytes.value(), bincode::config::standard())
+            let item = postcard::from_bytes(bytes.value())
                 .map_err(|e| anyhow!("Failed to decode table item: {}", e))?;
             Ok(item)
         })
@@ -100,13 +98,13 @@ fn clear_table(table: &mut redb::Table<&str, &[u8]>) -> Result<()> {
 
 pub fn sync_all(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Result<()> {
     let db = DB.get().ok_or(anyhow!("Database not initialized"))?;
-    
+
     // Use the LibraryService for sync operations
     let service = crate::domain::services::LibraryService::new(db);
     service
         .sync_library(songs, artists, albums, true)
         .map_err(|e| anyhow!("Sync failed: {}", e))?;
-    
+
     Ok(())
 }
 
@@ -123,34 +121,34 @@ fn sync_all_legacy(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Resu
             .open_table(SONGS_TABLE)
             .map_err(|e| anyhow!("Failed to open songs table: {}", e))?;
         clear_table(&mut songs_table)?;
-        
+
         // Sync and build indexes
         let mut songs_by_album = write_txn.open_table(db::schema::SONGS_BY_ALBUM)?;
         let mut songs_by_artist = write_txn.open_table(db::schema::SONGS_BY_ARTIST)?;
         let mut favorites = write_txn.open_table(db::schema::FAVORITES)?;
-        
+
         for item in songs {
             let id = item.id.clone();
-            let encoded = bincode::encode_to_vec(item, bincode::config::standard())
-                .map_err(|e| anyhow!("Failed to encode song: {}", e))?;
+            let encoded =
+                postcard::to_stdvec(item).map_err(|e| anyhow!("Failed to encode song: {}", e))?;
             songs_table
                 .insert(id.as_str(), encoded.as_slice())
                 .map_err(|e| anyhow!("Failed to insert song into table: {}", e))?;
-            
+
             // Build indexes
             if let Some(album_id) = &item.album_id {
                 songs_by_album.insert((album_id.as_str(), id.as_str()), ())?;
             }
-            
+
             if let Some(artist_ids) = &item.artist_ids {
                 for artist_id in artist_ids {
                     songs_by_artist.insert((artist_id.as_str(), id.as_str()), ())?;
                 }
             }
-            
+
             if let Some(true) = item.is_favorite {
                 let timestamp = chrono::Utc::now().to_rfc3339();
-                let encoded_ts = bincode::encode_to_vec(&timestamp, bincode::config::standard())?;
+                let encoded_ts = postcard::to_stdvec(&timestamp)?;
                 favorites.insert(id.as_str(), encoded_ts.as_slice())?;
             }
         }
@@ -162,8 +160,8 @@ fn sync_all_legacy(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Resu
         clear_table(&mut artists_table)?;
         for item in artists {
             let id = item.id.clone();
-            let encoded = bincode::encode_to_vec(item, bincode::config::standard())
-                .map_err(|e| anyhow!("Failed to encode artist: {}", e))?;
+            let encoded =
+                postcard::to_stdvec(item).map_err(|e| anyhow!("Failed to encode artist: {}", e))?;
             artists_table
                 .insert(id.as_str(), encoded.as_slice())
                 .map_err(|e| anyhow!("Failed to insert artist into table: {}", e))?;
@@ -174,9 +172,9 @@ fn sync_all_legacy(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Resu
             .open_table(ALBUMS_TABLE)
             .map_err(|e| anyhow!("Failed to open albums table: {}", e))?;
         clear_table(&mut albums_table)?;
-        
+
         let mut albums_by_artist = write_txn.open_table(db::schema::ALBUMS_BY_ARTIST)?;
-        
+
         let mut albums_processed: Vec<Album> = Vec::new();
         for album in albums {
             let mut new_album = album.clone();
@@ -192,12 +190,12 @@ fn sync_all_legacy(songs: &[Song], artists: &[Artist], albums: &[Album]) -> Resu
         }
         for item in &albums_processed {
             let id = item.id.clone().unwrap_or_default();
-            let encoded = bincode::encode_to_vec(item, bincode::config::standard())
-                .map_err(|e| anyhow!("Failed to encode album: {}", e))?;
+            let encoded =
+                postcard::to_stdvec(item).map_err(|e| anyhow!("Failed to encode album: {}", e))?;
             albums_table
                 .insert(id.as_str(), encoded.as_slice())
                 .map_err(|e| anyhow!("Failed to insert album into table: {}", e))?;
-            
+
             // Build album-artist index
             if let Some(artist_id) = &item.artist_id {
                 albums_by_artist.insert((artist_id.as_str(), id.as_str()), ())?;

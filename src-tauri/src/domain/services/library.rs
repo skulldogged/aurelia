@@ -20,9 +20,8 @@ impl LibraryService {
         let table = read_txn.open_table(SYNC_STATE)?;
 
         if let Some(bytes) = table.get("library")? {
-            let (state, _) =
-                bincode::decode_from_slice(bytes.value(), bincode::config::standard())
-                    .map_err(|e| DomainError::DatabaseError(e.to_string()))?;
+            let state = postcard::from_bytes(bytes.value())
+                .map_err(|e| DomainError::DatabaseError(e.to_string()))?;
             Ok(state)
         } else {
             Ok(SyncState::default())
@@ -33,7 +32,7 @@ impl LibraryService {
         let write_txn = self.db.begin_write()?;
         {
             let mut table = write_txn.open_table(SYNC_STATE)?;
-            let encoded = bincode::encode_to_vec(state, bincode::config::standard())
+            let encoded = postcard::to_stdvec(state)
                 .map_err(|e| DomainError::DatabaseError(e.to_string()))?;
             table.insert("library", encoded.as_slice())?;
         }
@@ -73,7 +72,7 @@ impl LibraryService {
             let mut favorites = write_txn.open_table(FAVORITES)?;
 
             for song in songs {
-                let encoded = bincode::encode_to_vec(song, bincode::config::standard())
+                let encoded = postcard::to_stdvec(song)
                     .map_err(|e| DomainError::DatabaseError(e.to_string()))?;
                 songs_table.insert(song.id.as_str(), encoded.as_slice())?;
 
@@ -92,7 +91,7 @@ impl LibraryService {
                 // Update favorites
                 if let Some(true) = song.is_favorite {
                     let timestamp = chrono::Utc::now().to_rfc3339();
-                    let encoded_ts = bincode::encode_to_vec(&timestamp, bincode::config::standard())
+                    let encoded_ts = postcard::to_stdvec(&timestamp)
                         .map_err(|e| DomainError::DatabaseError(e.to_string()))?;
                     favorites.insert(song.id.as_str(), encoded_ts.as_slice())?;
                 }
@@ -101,7 +100,7 @@ impl LibraryService {
             // Sync artists
             let mut artists_table = write_txn.open_table(ARTISTS)?;
             for artist in artists {
-                let encoded = bincode::encode_to_vec(artist, bincode::config::standard())
+                let encoded = postcard::to_stdvec(artist)
                     .map_err(|e| DomainError::DatabaseError(e.to_string()))?;
                 artists_table.insert(artist.id.as_str(), encoded.as_slice())?;
             }
@@ -111,11 +110,12 @@ impl LibraryService {
             let mut albums_by_artist = write_txn.open_table(ALBUMS_BY_ARTIST)?;
 
             for album in albums {
-                let album_id = album.id.clone().unwrap_or_else(|| {
-                    format!("{}-{}", album.artist, album.name)
-                });
+                let album_id = album
+                    .id
+                    .clone()
+                    .unwrap_or_else(|| format!("{}-{}", album.artist, album.name));
 
-                let encoded = bincode::encode_to_vec(album, bincode::config::standard())
+                let encoded = postcard::to_stdvec(album)
                     .map_err(|e| DomainError::DatabaseError(e.to_string()))?;
                 albums_table.insert(album_id.as_str(), encoded.as_slice())?;
 
@@ -135,7 +135,7 @@ impl LibraryService {
             };
 
             let mut sync_state_table = write_txn.open_table(SYNC_STATE)?;
-            let encoded_state = bincode::encode_to_vec(&new_state, bincode::config::standard())
+            let encoded_state = postcard::to_stdvec(&new_state)
                 .map_err(|e| DomainError::DatabaseError(e.to_string()))?;
             sync_state_table.insert("library", encoded_state.as_slice())?;
         }
@@ -160,10 +160,7 @@ impl LibraryService {
         })
     }
 
-    fn clear_all_tables(
-        &self,
-        write_txn: &redb::WriteTransaction,
-    ) -> Result<(), DomainError> {
+    fn clear_all_tables(&self, write_txn: &redb::WriteTransaction) -> Result<(), DomainError> {
         // Clear main tables
         self.clear_table(write_txn, SONGS)?;
         self.clear_table(write_txn, ARTISTS)?;
@@ -217,7 +214,7 @@ impl LibraryService {
 
     pub fn get_library_stats(&self) -> Result<(u32, u32, u32), DomainError> {
         let read_txn = self.db.begin_read()?;
-        
+
         let songs_table = read_txn.open_table(SONGS)?;
         let artists_table = read_txn.open_table(ARTISTS)?;
         let albums_table = read_txn.open_table(ALBUMS)?;
