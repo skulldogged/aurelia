@@ -32,11 +32,14 @@ export interface PlayerState {
 export type RepeatMode = 'all' | 'none' | 'one'
 
 const STORAGE_KEYS = {
+  CURRENT_INDEX:      'player-current-index',
+  CURRENT_SONG:       'player-current-song',
   EQ_BANDS:           'player-eq-bands',
   EQ_ENABLED:         'player-eq-enabled',
   IS_MUTED:           'player-muted',
   IS_SHUFFLED:        'player-shuffled',
   MUTED_VOLUME:       'player-muted-volume',
+  PLAYLIST:           'player-playlist',
   REPEAT_MODE:        'player-repeat-mode',
   VISUALIZER_ENABLED: 'player-visualizer-enabled',
   VISUALIZER_STYLE:   'player-visualizer-style',
@@ -107,6 +110,44 @@ const getRandomIndex = (array: unknown[], excludeIndex: number): number => {
   return availableIndices[Math.floor(Math.random() * availableIndices.length)] ?? 0
 }
 
+// Session state helpers
+const getStoredSession = (): { currentIndex: number; currentSong: null | Song; playlist: Song[] } => {
+  try {
+    const songStr = localStorage.getItem(STORAGE_KEYS.CURRENT_SONG)
+    const playlistStr = localStorage.getItem(STORAGE_KEYS.PLAYLIST)
+    const indexStr = localStorage.getItem(STORAGE_KEYS.CURRENT_INDEX)
+
+    const currentSong = songStr ? JSON.parse(songStr) as Song : null
+    const playlist = playlistStr ? JSON.parse(playlistStr) as Song[] : []
+    const currentIndex = indexStr ? parseInt(indexStr, 10) : -1
+
+    return { currentIndex, currentSong, playlist }
+  } catch (error) {
+    logger.warn('Failed to load session from localStorage:', error)
+    return { currentIndex: -1, currentSong: null, playlist: [] }
+  }
+}
+
+const saveSessionState = (currentSong: null | Song, playlist: Song[], currentIndex: number): void => {
+  try {
+    if (currentSong) {
+      localStorage.setItem(STORAGE_KEYS.CURRENT_SONG, JSON.stringify(currentSong))
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_SONG)
+    }
+
+    if (playlist.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.PLAYLIST, JSON.stringify(playlist))
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.PLAYLIST)
+    }
+
+    localStorage.setItem(STORAGE_KEYS.CURRENT_INDEX, String(currentIndex))
+  } catch (error) {
+    logger.warn('Failed to save session to localStorage:', error)
+  }
+}
+
 export const usePlayerStore = defineStore('player', () => {
   const isPlaying = ref(false)
   const currentTime = ref(0)
@@ -130,9 +171,11 @@ export const usePlayerStore = defineStore('player', () => {
     getStoredValue(STORAGE_KEYS.VISUALIZER_STYLE, 'bars') as 'bars' | 'curve' | 'wave',
   )
 
-  const currentSong = ref<null | Song>(null)
-  const playlist = ref<Song[]>([])
-  const currentIndex = ref(-1)
+  // Restore session state from localStorage
+  const storedSession = getStoredSession()
+  const currentSong = ref<null | Song>(storedSession.currentSong)
+  const playlist = ref<Song[]>(storedSession.playlist)
+  const currentIndex = ref(storedSession.currentIndex)
   const audioReady = ref(false)
   const isBuffering = ref(false)
 
@@ -243,6 +286,8 @@ export const usePlayerStore = defineStore('player', () => {
       duration.value = 0
       hasLyrics.value = false
     }
+    // Persist session state
+    saveSessionState(currentSong.value, playlist.value, currentIndex.value)
   }
 
   const setHasLyrics = (value: boolean): void => {
@@ -251,6 +296,8 @@ export const usePlayerStore = defineStore('player', () => {
 
   const setPlaylist = (songs: Song[]): void => {
     playlist.value = songs
+    // Persist session state
+    saveSessionState(currentSong.value, playlist.value, currentIndex.value)
   }
 
   const setCurrentIndex = (index: number): void => {
@@ -268,6 +315,8 @@ export const usePlayerStore = defineStore('player', () => {
       currentTime.value = 0
       duration.value = 0
     }
+    // Persist session state
+    saveSessionState(currentSong.value, playlist.value, currentIndex.value)
   }
 
   const setAudioReady = (ready: boolean): void => {

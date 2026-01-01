@@ -65,10 +65,14 @@
   const {
     initializePlayer,
     isGaplessTransition,
+    loadSong,
     nextSong,
     playManuallyChangedSong,
     rustAudioPlayer,
   } = useAudioEngine(props)
+
+  // Track whether audio has been loaded (vs just restored from session)
+  const audioLoaded = ref(false)
 
   const containerRef = ref<HTMLDivElement | null>(null)
   const resizeObserver = ref<null | ResizeObserver>(null)
@@ -320,8 +324,15 @@
         await rustAudioPlayer.pause()
         playerStore.pause()
       } else {
-        await rustAudioPlayer.resume()
-        playerStore.play()
+        // If audio hasn't been loaded yet (restored session), load it first
+        if (!audioLoaded.value && playerStore.currentSong) {
+          await loadSong(playerStore.currentSong)
+          audioLoaded.value = true
+          playerStore.play()
+        } else {
+          await rustAudioPlayer.resume()
+          playerStore.play()
+        }
       }
     } catch (error) {
       logger.error('Playback error:', error)
@@ -386,13 +397,16 @@
       if (isGaplessTransition.value) {
         isGaplessTransition.value = false
         // Gapless transition is handled by Rust backend
+        audioLoaded.value = true
         playerStore.play()
       } else {
         playManuallyChangedSong(newSong)
+        audioLoaded.value = true
       }
     } else if (!playerStore.currentSong) {
       rustAudioPlayer.stop()
       playerStore.pause()
+      audioLoaded.value = false
     }
   })
 
@@ -412,10 +426,35 @@
   onMounted(async () => {
     await initializePlayer()
 
+    // If there's a restored session, sync UI state with backend
     if (playerStore.currentSong) {
       const index = playerStore.playlist.findIndex(song => song.id === playerStore.currentSong!.id)
-      playerStore.setCurrentIndex(index)
-      playManuallyChangedSong(playerStore.currentSong)
+      if (index !== -1) {
+        playerStore.setCurrentIndex(index)
+      }
+      // Set duration from the restored song for proper seekbar display
+      playerStore.setDuration(playerStore.currentSong.duration || 0)
+
+      // Query backend for current playback state
+      const [isPlaying, position] = await Promise.all([
+        rustAudioPlayer.isPlaying(),
+        rustAudioPlayer.getPosition(),
+      ])
+
+      // If backend has audio loaded (position > 0 or is playing), sync state
+      if (isPlaying || position > 0) {
+        audioLoaded.value = true
+        playerStore.setCurrentTime(position)
+        playerStore.setAudioReady(true)
+        if (isPlaying) {
+          playerStore.play()
+        } else {
+          playerStore.pause()
+        }
+      } else {
+        // Backend has no audio loaded, mark as ready for lazy loading on first play
+        playerStore.setAudioReady(true)
+      }
     }
 
     measureMarquee()
@@ -755,7 +794,7 @@
                 variant='ghost'
                 data-volume-button
               >
-                <Volume2 v-if='playerStore.volume > 50' class='size-4' />
+                <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
                 <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
                 <VolumeX v-else class='size-4' />
               </Button>
@@ -781,7 +820,7 @@
                     @click.stop='playerStore.toggleMute'
                     class='text-muted-foreground hover:text-foreground transition-colors p-1 rounded'
                   >
-                    <Volume2 v-if='playerStore.volume > 50' class='size-4' />
+                    <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
                     <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
                     <VolumeX v-else class='size-4' />
                   </button>
@@ -803,7 +842,7 @@
                       @click='playerStore.toggleMute'
                       class='text-muted-foreground hover:text-foreground'
                     >
-                      <Volume2 v-if='playerStore.volume > 50' class='h-4 w-4' />
+                      <Volume2 v-if='playerStore.volume > 0.5' class='h-4 w-4' />
                       <Volume1 v-else-if='playerStore.volume > 0' class='h-4 w-4' />
                       <VolumeX v-else class='h-4 w-4' />
                     </button>

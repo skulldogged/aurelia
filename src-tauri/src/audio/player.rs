@@ -113,21 +113,21 @@ impl AudioPlayer {
             .build()
             .context("Failed to decode audio stream")?;
 
-        // Get sample rate for EQ
+        // Update EQ sample rate (preserves band gains and enabled state)
         let sample_rate = decoder.sample_rate();
         if let Ok(mut eq) = self.eq.lock() {
-            *eq = ParametricEQ::new(sample_rate);
+            eq.update_sample_rate(sample_rate);
         }
 
         // Apply EQ to the source
         let eq_source = EQSource::new(decoder, Arc::clone(&self.eq));
 
-        // Apply volume amplification
-        let volume_source = eq_source.amplify(self.volume);
-
         // Create a sink connected to the stream's mixer
+        // Volume is controlled via sink.set_volume() only (not amplify) to avoid
+        // multiplicative volume issues when tracks are reloaded
         let sink = Sink::connect_new(&self._stream.mixer());
-        sink.append(volume_source);
+        sink.set_volume(self.volume);
+        sink.append(eq_source);
 
         self.sink = Some(sink);
         self.current_url = Some(url.to_string());

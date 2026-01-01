@@ -170,6 +170,17 @@ impl ParametricEQ {
         }
     }
 
+    /// Update sample rate while preserving current band gains and enabled state
+    pub fn update_sample_rate(&mut self, sample_rate: u32) {
+        if self.sample_rate == sample_rate {
+            return;
+        }
+        self.sample_rate = sample_rate;
+        // Recalculate all filter coefficients with new sample rate
+        self.filters_left = Self::create_filters(&self.bands, sample_rate);
+        self.filters_right = Self::create_filters(&self.bands, sample_rate);
+    }
+
     /// Process a stereo sample pair through the EQ
     #[inline]
     pub fn process_stereo(&mut self, left: f32, right: f32) -> (f32, f32) {

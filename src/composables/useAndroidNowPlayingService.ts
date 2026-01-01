@@ -145,7 +145,7 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
 
     try {
       const imageId = song.albumId ?? song.id
-      const result = await commands.getImage(imageId, 'Primary', serverUrl.value, token.value)
+      const result = await commands.getImage(imageId, 'Primary', serverUrl.value, token.value, null, null)
       if (result.status === 'ok')
         artworkPath.value = result.data ?? null
       else

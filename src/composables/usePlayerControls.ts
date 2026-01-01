@@ -69,11 +69,9 @@ export const usePlayerControls = (): PlayerControls => {
     if (!isEqualizerOpen.value)
       closePanels('equalizer')
 
-    const newState = !isEqualizerOpen.value
-
-    isEqualizerOpen.value = newState
-
-    playerStore.setEQEnabled(newState)
+    isEqualizerOpen.value = !isEqualizerOpen.value
+    // Note: EQ enabled state is independent of panel visibility
+    // and is controlled via the toggle button inside the Equalizer panel
   }
 
   const toggleLyrics = (): void => {

@@ -205,6 +205,14 @@ export const useAudioEngine = (
       // Set initial volume
       await rustAudioPlayer.setVolume(playerStore.volume)
 
+      // Restore EQ settings from store (bands first, then enabled state)
+      // Always sync bands so toggling EQ on/off is instant
+      for (let i = 0; i < playerStore.eqBands.length; i++) {
+        await rustAudioPlayer.setEQBand(i, playerStore.eqBands[i].gain)
+      }
+      await rustAudioPlayer.setEQEnabled(playerStore.eqEnabled)
+      logger.debug(`EQ restored: enabled=${playerStore.eqEnabled}, bands synced`)
+
       // Start polling for track end
       startPolling()
     } else {
