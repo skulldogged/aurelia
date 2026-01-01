@@ -164,8 +164,8 @@
 
 
 body.songs-page-active .os-scrollbar-vertical {
-  margin-top: 40px;
-  height: calc(100% - 40px);
+  margin-top: 56px;
+  height: calc(100% - 56px);
 }
 
 .outer-shadow-right {

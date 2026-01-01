@@ -4,10 +4,10 @@
 //! that starts playback before the full file is downloaded.
 
 use anyhow::{Context, Result};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use std::io::{Read, Seek, SeekFrom};
 use stream_download::{
-    http::HttpStream, storage::temp::TempStorageProvider, Settings, StreamDownload,
+    Settings, StreamDownload, http::HttpStream, storage::temp::TempStorageProvider,
 };
 
 /// A streaming audio source that downloads from HTTP while playing

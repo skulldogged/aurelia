@@ -75,9 +75,12 @@ const toggleFavorite = async (
     return
   }
 
-  // Optimistic update
-  const oldFavoriteStatus = song.isFavorite
-  song.isFavorite = !oldFavoriteStatus
+  const oldFavoriteStatus = !!song.isFavorite
+  const newFavoriteStatus = !oldFavoriteStatus
+
+  // Optimistic update using store methods
+  playerStore.updateSongFavorite(song.id, newFavoriteStatus)
+  libraryStore.updateSongFavorite(song.id, newFavoriteStatus)
 
   await withCustomState(
     () => commands.toggleFavoriteStatus(
@@ -85,39 +88,20 @@ const toggleFavorite = async (
       credentials.value!.token,
       credentials.value!.userId,
       song.id,
-      !!song.isFavorite,
+      newFavoriteStatus,
     ),
     {
       onError: error => {
         // Revert optimistic update on error
-        song.isFavorite = oldFavoriteStatus
+        playerStore.updateSongFavorite(song.id, oldFavoriteStatus)
+        libraryStore.updateSongFavorite(song.id, oldFavoriteStatus)
         logger.error('Failed to toggle favorite status:', error)
       },
       onSuccess: newStatus => {
         logger.debug('Successfully toggled favorite status', { newStatus, songId: song.id })
-
-        // Update all references to ensure consistency
-        song.isFavorite = newStatus
-
-        if (playerStore.currentSong && playerStore.currentSong.id === song.id) {
-          playerStore.currentSong.isFavorite = newStatus
-          logger.debug('Updated current song favorite status')
-        }
-
-        const playlistSong = playerStore.playlist.find((s: Song) => s.id === song.id)
-        if (playlistSong) {
-          playlistSong.isFavorite = newStatus
-          logger.debug('Updated playlist song favorite status')
-        }
-
-        const librarySong = libraryStore.allSongs.find((s: Song) => s.id === song.id)
-        if (librarySong) {
-          librarySong.isFavorite = newStatus
-          logger.debug('Updated library song favorite status')
-        } else {
-          const count = libraryStore.allSongs.length
-          logger.debug('Library song not found', { count, songId: song.id })
-        }
+        // Ensure final state matches server response
+        playerStore.updateSongFavorite(song.id, newStatus)
+        libraryStore.updateSongFavorite(song.id, newStatus)
       },
     },
   )

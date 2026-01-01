@@ -3,6 +3,7 @@
   import {
     Database, Disc, Home, Library, Link, Loader2, Music, Palette, Search, Server, Users, X,
   } from 'lucide-vue-next'
+  import { ListboxFilter } from 'reka-ui'
   import { storeToRefs } from 'pinia'
   import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
@@ -11,7 +12,7 @@
 
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import {
+import {
     CommandDialog,
     CommandEmpty,
     CommandGroup,
@@ -49,7 +50,6 @@
   const { playSong } = useSongInteractions(computed(() => credentials.value))
 
   const searchTerm = ref('')
-  const searchInput = ref<HTMLInputElement>()
 
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
@@ -116,9 +116,7 @@
   watch(() => props.open, async isOpen => {
     logger.debug('dialog open state changed:', isOpen)
 
-    if (isOpen)
-      setTimeout(((): void => searchInput.value?.focus()), 5)
-    else
+    if (!isOpen)
       searchTerm.value = ''
   })
 
@@ -147,70 +145,94 @@
       router.push(`/albums/${album.id}`)
     closeDialog()
   }
+
+  const handleKeydown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      closeDialog()
+    }
+  }
 </script>
 
 <template>
   <CommandDialog @update:open="emit('update:open', $event)" :hide-close-button='true' :open='props.open'>
-    <!-- Custom close button - spinner when searching, X when not -->
-    <button
-      @click='handleCloseClick'
-      :disabled='isSearching'
-      class='ring-offset-background focus:ring-ring data-[state=open]:bg-accent
-             data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs
-             opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2
-             focus:outline-hidden disabled:pointer-events-none disabled:opacity-50 z-10'
-    >
-      <Loader2 v-if='isSearching' class='size-4 animate-spin' />
-      <X v-else class='size-4' />
-      <span class='sr-only'>{{ isSearching ? 'Searching...' : 'Close' }}</span>
-    </button>
-
     <DialogTitle class='sr-only'>
       Global Search
     </DialogTitle>
     <DialogDescription class='sr-only'>
       Search for songs, artists, and albums across your entire library.
     </DialogDescription>
-    <div class='flex items-center border-b border-border/50 px-3' cmdk-input-wrapper>
-      <Search class='mr-2 h-5 w-5 shrink-0 opacity-50' />
-      <input
-        ref='searchInput'
+
+    <!-- Enhanced search input area -->
+    <div class='relative flex items-center gap-3 border-b border-border/40 bg-muted/20 px-4' cmdk-input-wrapper>
+      <Search class='size-5 shrink-0 text-muted-foreground/70' />
+      <ListboxFilter
         v-model='searchTerm'
-        class='flex h-12 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground'
-        placeholder='Search for songs, artists, or albums...'
+        @keydown='handleKeydown'
+        class='flex h-14 w-full bg-transparent py-3 text-base outline-none placeholder:text-muted-foreground/60'
+        placeholder='Search songs, artists, or albums...'
         auto-focus
+      />
+      <!-- Integrated close/loading button -->
+      <button
+        @click='handleCloseClick'
+        :disabled='isSearching'
+        class='flex size-7 items-center justify-center rounded-md text-muted-foreground/70
+               transition-colors hover:bg-muted/50 hover:text-foreground
+               disabled:pointer-events-none focus:outline-none'
       >
+        <Loader2 v-if='isSearching' class='size-4 animate-spin' />
+        <X v-else class='size-4' />
+        <span class='sr-only'>{{ isSearching ? 'Searching...' : 'Close' }}</span>
+      </button>
     </div>
+
     <CommandList use-overlay-scrollbar>
+      <!-- Enhanced empty state -->
       <CommandEmpty v-if='!debouncedSearchTerm'>
-        Start typing to search your library.
+        <div class='flex flex-col items-center gap-3 py-8 text-center'>
+          <div class='flex size-12 items-center justify-center rounded-full bg-muted/30'>
+            <Search class='size-5 text-muted-foreground/60' />
+          </div>
+          <div class='space-y-1'>
+            <p class='text-sm font-medium text-foreground/80'>Search your library</p>
+            <p class='text-xs text-muted-foreground'>Find songs, artists, and albums</p>
+          </div>
+        </div>
       </CommandEmpty>
 
-      <!-- No results message -->
-      <div v-else-if='debouncedSearchTerm && !hasSearchResults' class='py-6 text-center text-sm text-muted-foreground'>
-        No results found for "{{ debouncedSearchTerm }}".
+      <!-- Enhanced no results message -->
+      <div v-else-if='debouncedSearchTerm && !hasSearchResults' class='flex flex-col items-center gap-3 py-8 text-center'>
+        <div class='flex size-12 items-center justify-center rounded-full bg-muted/30'>
+          <Search class='size-5 text-muted-foreground/60' />
+        </div>
+        <div class='space-y-1'>
+          <p class='text-sm font-medium text-foreground/80'>No results found</p>
+          <p class='max-w-[200px] text-xs text-muted-foreground'>
+            No matches for "<span class='text-foreground/70'>{{ debouncedSearchTerm }}</span>"
+          </p>
+        </div>
       </div>
 
       <!-- Navigation Commands -->
       <CommandGroup v-if='!debouncedSearchTerm' heading='Navigation'>
         <CommandItem @select='() => { router.push("/"); closeDialog() }' value='home'>
-          <Home class='h-5 w-5' />
+          <Home class='size-4' />
           <span>Home</span>
         </CommandItem>
         <CommandItem @select='() => { router.push("/songs"); closeDialog() }' value='songs'>
-          <Music class='h-5 w-5' />
+          <Music class='size-4' />
           <span>Songs</span>
         </CommandItem>
         <CommandItem @select='() => { router.push("/artists"); closeDialog() }' value='artists'>
-          <Users class='h-5 w-5' />
+          <Users class='size-4' />
           <span>Artists</span>
         </CommandItem>
         <CommandItem @select='() => { router.push("/albums"); closeDialog() }' value='albums'>
-          <Disc class='h-5 w-5' />
+          <Disc class='size-4' />
           <span>Albums</span>
         </CommandItem>
         <CommandItem @select='() => { router.push("/playlists"); closeDialog() }' value='playlists'>
-          <Library class='h-5 w-5' />
+          <Library class='size-4' />
           <span>Playlists</span>
         </CommandItem>
       </CommandGroup>
@@ -221,28 +243,28 @@
           @select='() => { router.push("/settings?tab=appearance"); closeDialog() }'
           value='settings-appearance'
         >
-          <Palette class='h-5 w-5' />
+          <Palette class='size-4' />
           <span>Appearance</span>
         </CommandItem>
         <CommandItem
           @select='() => { router.push("/settings?tab=integrations"); closeDialog() }'
           value='settings-integrations'
         >
-          <Link class='h-5 w-5' />
+          <Link class='size-4' />
           <span>Integrations</span>
         </CommandItem>
         <CommandItem
           @select='() => { router.push("/settings?tab=server"); closeDialog() }'
           value='settings-server'
         >
-          <Server class='h-5 w-5' />
+          <Server class='size-4' />
           <span>Server</span>
         </CommandItem>
         <CommandItem
           @select='() => { router.push("/settings?tab=library"); closeDialog() }'
           value='settings-library'
         >
-          <Database class='h-5 w-5' />
+          <Database class='size-4' />
           <span>Library</span>
         </CommandItem>
       </CommandGroup>
@@ -254,19 +276,20 @@
           @select='() => handleSelectArtist(artist as Artist)'
           :key='`artist-${artist.id}`'
           :value='`artist-${artist.name}`'
+          class='gap-3'
         >
           <ImageLoader
             :alt='artist.name'
             :item-id='artist.id'
             :server-url='credentials.serverUrl'
             :token='credentials.token'
-            class='size-12 rounded-full'
+            class='size-10 rounded-full ring-1 ring-border/30'
           >
             <template #fallback>
-              <ImagePlaceholder class='size-12' type='artist' />
+              <ImagePlaceholder class='size-10' type='artist' />
             </template>
           </ImageLoader>
-          <span class='truncate'>{{ artist.name }}</span>
+          <span class='truncate font-medium'>{{ artist.name }}</span>
         </CommandItem>
       </CommandGroup>
 
@@ -277,23 +300,24 @@
           @select='() => handleSelectAlbum(album as Album)'
           :key='`album-${album.id}`'
           :value='`album-${album.name}`'
+          class='gap-3'
         >
           <ImageLoader
             :alt='album.name'
             :item-id='album.id || undefined'
             :server-url='credentials.serverUrl'
             :token='credentials.token'
-            class='size-12 rounded-sm'
+            class='size-10 rounded-md ring-1 ring-border/30'
           >
             <template #fallback>
-              <ImagePlaceholder class='size-12' type='album' />
+              <ImagePlaceholder class='size-10' type='album' />
             </template>
           </ImageLoader>
-          <div class='flex-1 overflow-hidden'>
-            <p class='truncate'>
+          <div class='min-w-0 flex-1'>
+            <p class='truncate font-medium'>
               {{ album.name }}
             </p>
-            <p class='text-xs text-muted-foreground truncate'>
+            <p class='truncate text-xs text-muted-foreground'>
               {{ album.artist }}
             </p>
           </div>
@@ -307,23 +331,24 @@
           @select='() => handleSelectSong(song)'
           :key='`song-${song.id}`'
           :value='`song-${song.name}`'
+          class='gap-3'
         >
           <ImageLoader
             :alt='song.album || "Unknown album"'
             :item-id='song.albumId || undefined'
             :server-url='credentials.serverUrl'
             :token='credentials.token'
-            class='size-12 rounded-sm'
+            class='size-10 rounded-md ring-1 ring-border/30'
           >
             <template #fallback>
-              <ImagePlaceholder class='size-12' type='album' />
+              <ImagePlaceholder class='size-10' type='album' />
             </template>
           </ImageLoader>
-          <div class='flex-1 overflow-hidden'>
-            <p class='truncate'>
+          <div class='min-w-0 flex-1'>
+            <p class='truncate font-medium'>
               {{ song.name }}
             </p>
-            <p class='text-xs text-muted-foreground truncate'>
+            <p class='truncate text-xs text-muted-foreground'>
               {{ song.artists?.join(', ') }}
             </p>
           </div>

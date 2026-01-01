@@ -122,7 +122,7 @@ pub async fn get_playlist_items(
 
 /// Helper function to get authenticated Jellyfin client
 pub async fn get_jellyfin_client(app: &tauri::AppHandle) -> Result<JellyfinClient, String> {
-    let creds = crate::handlers::auth::get_saved_credentials(app.clone())
+    let creds = crate::handlers::auth::get_credentials_cached(app)
         .await
         .map_err(|e| format!("No saved credentials found: {}", e))?
         .ok_or("No saved credentials found")?;
@@ -132,7 +132,7 @@ pub async fn get_jellyfin_client(app: &tauri::AppHandle) -> Result<JellyfinClien
 
 /// Helper function to get current user ID
 pub async fn get_current_user_id(app: &tauri::AppHandle) -> Result<String, String> {
-    let creds = crate::handlers::auth::get_saved_credentials(app.clone())
+    let creds = crate::handlers::auth::get_credentials_cached(app)
         .await
         .map_err(|e| format!("No saved credentials found: {}", e))?
         .ok_or("No saved credentials found")?;

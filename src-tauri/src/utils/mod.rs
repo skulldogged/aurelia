@@ -17,7 +17,6 @@ pub mod constants {
     pub const JELLYFIN_DEVICE: &str = "Mobile";
     pub const JELLYFIN_VERSION: &str = "0.1.0";
 
-
     /// `LrcLib` API endpoint
     pub const LRCLIB_SEARCH_URL: &str = "https://lrclib.net/api/search";
 

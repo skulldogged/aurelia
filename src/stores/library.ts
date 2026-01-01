@@ -191,6 +191,17 @@ export const useLibraryStore = defineStore('library', () => {
     error.value = null
   }
 
+  const updateSongFavorite = (songId: string, isFavorite: boolean): void => {
+    const index = allSongs.value.findIndex(s => s.id === songId)
+    if (index !== -1) {
+      allSongs.value = [
+        ...allSongs.value.slice(0, index),
+        { ...allSongs.value[index], isFavorite },
+        ...allSongs.value.slice(index + 1),
+      ]
+    }
+  }
+
   return {
     albumArtistsWithSongs: readonly(albumArtistsWithSongs),
     allAlbums:             readonly(allAlbums),
@@ -206,5 +217,6 @@ export const useLibraryStore = defineStore('library', () => {
     // Actions
     loadLibrary,
     syncLibrary,
+    updateSongFavorite,
   }
 })

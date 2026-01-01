@@ -459,7 +459,7 @@ export const commands = {
     }
   },
   /**
- * Load saved credentials from disk
+ * Load saved credentials - checks memory cache first, then disk
  */
   getSavedCredentials: async (): Promise<Result<Credentials | null, string>> => {
     try {
@@ -705,7 +705,7 @@ export const commands = {
     }
   },
   /**
- * Save user credentials to disk
+ * Save user credentials to disk and cache in memory
  */
   saveCredentials: async (serverUrl: string, username: string, token: string, userId: string): Promise<Result<null, string>> => {
     try {

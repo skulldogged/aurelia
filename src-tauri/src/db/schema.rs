@@ -5,9 +5,12 @@ pub const ARTISTS: TableDefinition<&str, &[u8]> = TableDefinition::new("artists"
 pub const ALBUMS: TableDefinition<&str, &[u8]> = TableDefinition::new("albums");
 pub const PLAYLISTS: TableDefinition<&str, &[u8]> = TableDefinition::new("playlists");
 
-pub const SONGS_BY_ALBUM: TableDefinition<(&str, &str), ()> = TableDefinition::new("songs_by_album");
-pub const SONGS_BY_ARTIST: TableDefinition<(&str, &str), ()> = TableDefinition::new("songs_by_artist");
-pub const ALBUMS_BY_ARTIST: TableDefinition<(&str, &str), ()> = TableDefinition::new("albums_by_artist");
+pub const SONGS_BY_ALBUM: TableDefinition<(&str, &str), ()> =
+    TableDefinition::new("songs_by_album");
+pub const SONGS_BY_ARTIST: TableDefinition<(&str, &str), ()> =
+    TableDefinition::new("songs_by_artist");
+pub const ALBUMS_BY_ARTIST: TableDefinition<(&str, &str), ()> =
+    TableDefinition::new("albums_by_artist");
 
 pub const FAVORITES: TableDefinition<&str, &[u8]> = TableDefinition::new("favorites");
 pub const RECENTLY_PLAYED: TableDefinition<&str, &[u8]> = TableDefinition::new("recently_played");

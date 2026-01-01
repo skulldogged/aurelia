@@ -1,7 +1,7 @@
-pub mod songs;
-pub mod artists;
 pub mod albums;
+pub mod artists;
+pub mod songs;
 
-pub use songs::SongRepository;
-pub use artists::ArtistRepository;
 pub use albums::AlbumRepository;
+pub use artists::ArtistRepository;
+pub use songs::SongRepository;

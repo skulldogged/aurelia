@@ -53,7 +53,7 @@ export const useMainLayout = (): MainLayoutComposableReturn => {
         }
       }
     }, 100)
-  })
+  }, { immediate: true })
 
   return {
     mainContentBgClass,

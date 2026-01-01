@@ -2,11 +2,14 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 
 import { commands, type Result } from '@/bindings'
 import { logger } from '@/lib/logger'
+import { LRUCache } from '@/lib/lru-cache'
 import { isMobile } from '@/lib/platform'
 import { err, ok } from '@/lib/result'
 
-// In-memory cache for asset URLs to avoid flicker
-const assetUrlCache = new Map<string, string>()
+// LRU cache for asset URLs with bounded size to prevent memory leaks
+// 2000 entries covers typical browsing patterns while limiting memory usage
+const MAX_CACHE_SIZE = 2000
+const assetUrlCache = new LRUCache<string, string>(MAX_CACHE_SIZE)
 
 const generateCacheKey = (itemId: string, imageType: string, width?: number, quality?: number): string => {
   let key = `${itemId}_${imageType}`
@@ -57,13 +60,9 @@ const getImageUrl = async (
 }
 
 const clearImageFromCache = async (itemId: string, imageType: string = 'Primary'): Promise<void> => {
-  // Clear all variations from memory cache
+  // Clear all variations from memory cache using LRU deleteByPrefix
   const prefix = `${itemId}_${imageType}`
-  for (const key of assetUrlCache.keys()) {
-    if (key.startsWith(prefix)) {
-      assetUrlCache.delete(key)
-    }
-  }
+  assetUrlCache.deleteByPrefix(prefix)
   await commands.clearImageFromCache(itemId, imageType)
 }
 

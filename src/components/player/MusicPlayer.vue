@@ -847,6 +847,7 @@
 <style scoped>
 /* Player bar container */
 .player-bar {
+  height: 88px;
   padding: 0.625rem 0.75rem;
   position: relative;
 }
@@ -857,6 +858,7 @@
   gap: 0.5rem;
   max-width: 100%;
   margin: 0 auto;
+  height: 100%;
 }
 
 /* Album art with hover effect */

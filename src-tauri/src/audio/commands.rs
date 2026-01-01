@@ -3,6 +3,7 @@
 //! Exposes audio player functionality to the frontend.
 
 use crate::audio::AudioPlayer;
+use crate::audio::events::start_audio_event_loop;
 use std::sync::Mutex;
 use tauri::State;
 use tracing::{error, info};
@@ -23,7 +24,10 @@ impl Default for AudioState {
 /// Initialize the audio player
 #[tauri::command]
 #[specta::specta]
-pub async fn audio_init(audio_state: State<'_, AudioState>) -> Result<(), String> {
+pub async fn audio_init(
+    app: tauri::AppHandle,
+    audio_state: State<'_, AudioState>,
+) -> Result<(), String> {
     let mut player_guard = audio_state.player.lock().map_err(|e| e.to_string())?;
 
     if player_guard.is_none() {
@@ -33,6 +37,10 @@ pub async fn audio_init(audio_state: State<'_, AudioState>) -> Result<(), String
         })?;
         *player_guard = Some(player);
         info!("Audio player initialized");
+
+        // Start the audio event loop for position updates
+        drop(player_guard); // Release lock before starting event loop
+        start_audio_event_loop(app);
     }
 
     Ok(())

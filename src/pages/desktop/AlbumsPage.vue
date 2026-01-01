@@ -109,7 +109,7 @@
     viewLayout,
   })
 
-  watch([albumRows, viewLayout, cols], () => {
+  watch([albumRows, viewLayout, cols, scrollElement], () => {
     remeasure()
   })
 

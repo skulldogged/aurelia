@@ -3,13 +3,13 @@
 //! Core audio playback engine using Rodio for output and
 //! stream-download for HTTP streaming.
 
-use crate::audio::eq::{EQSource, ParametricEQ};
+use crate::audio::eq::{EQSettings, EQSource};
 use crate::audio::streaming::StreamingSource;
 use anyhow::{Context, Result};
 use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink, Source};
 use std::io::BufReader;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use tracing::{debug, info, trace, warn};
 
 /// Prepared audio source ready for gapless transition
@@ -31,7 +31,8 @@ pub struct AudioPlayer {
     _stream: OutputStream,
     sink: Option<Sink>,
     next_source: Option<PreparedSource>,
-    eq: Arc<Mutex<ParametricEQ>>,
+    /// Lock-free EQ settings shared with audio processing thread
+    eq_settings: Arc<EQSettings>,
     volume: f32,
     // Playback state
     is_playing: Arc<AtomicBool>,
@@ -47,7 +48,8 @@ impl AudioPlayer {
         let stream = OutputStreamBuilder::open_default_stream()
             .context("Failed to open audio output device")?;
 
-        let eq = Arc::new(Mutex::new(ParametricEQ::new(44100)));
+        // Create lock-free EQ settings
+        let eq_settings = Arc::new(EQSettings::new(44100));
 
         info!("Audio player initialized with default output device");
 
@@ -55,7 +57,7 @@ impl AudioPlayer {
             _stream: stream,
             sink: None,
             next_source: None,
-            eq,
+            eq_settings,
             volume: 1.0,
             is_playing: Arc::new(AtomicBool::new(false)),
             current_url: None,
@@ -113,14 +115,12 @@ impl AudioPlayer {
             .build()
             .context("Failed to decode audio stream")?;
 
-        // Update EQ sample rate (preserves band gains and enabled state)
+        // Update EQ sample rate (lock-free, preserves band gains and enabled state)
         let sample_rate = decoder.sample_rate();
-        if let Ok(mut eq) = self.eq.lock() {
-            eq.update_sample_rate(sample_rate);
-        }
+        self.eq_settings.update_sample_rate(sample_rate);
 
-        // Apply EQ to the source
-        let eq_source = EQSource::new(decoder, Arc::clone(&self.eq));
+        // Apply EQ to the source (lock-free processing)
+        let eq_source = EQSource::new(decoder, Arc::clone(&self.eq_settings));
 
         // Create a sink connected to the stream's mixer
         // Volume is controlled via sink.set_volume() only (not amplify) to avoid
@@ -258,10 +258,7 @@ impl AudioPlayer {
                     return Ok(());
                 }
                 Err(e) => {
-                    warn!(
-                        "Native seek failed ({}), falling back to stream restart",
-                        e
-                    );
+                    warn!("Native seek failed ({}), falling back to stream restart", e);
                 }
             }
         } else {
@@ -274,19 +271,13 @@ impl AudioPlayer {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("No track info available for seek restart"))?;
 
-        info!(
-            "Restarting stream from position {} seconds",
-            position_secs
-        );
+        info!("Restarting stream from position {} seconds", position_secs);
 
         // Restart playback from the target position
         self.play_url_from_position(&track.url, &track.token, Some(position_secs))
             .await?;
 
-        debug!(
-            "Stream restart seek to {} seconds completed",
-            position_secs
-        );
+        debug!("Stream restart seek to {} seconds completed", position_secs);
         Ok(())
     }
 
@@ -295,62 +286,38 @@ impl AudioPlayer {
         self.current_track.is_some()
     }
 
-    /// Set EQ band gain
+    /// Set EQ band gain (lock-free)
     pub fn set_eq_band(&self, band: usize, gain_db: f32) -> Result<()> {
-        let mut eq = self
-            .eq
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to lock EQ"))?;
-        eq.set_band_gain(band, gain_db);
+        self.eq_settings.set_band_gain(band, gain_db);
         debug!("EQ band {} set to {} dB", band, gain_db);
         Ok(())
     }
 
-    /// Get EQ band gain
+    /// Get EQ band gain (lock-free)
     pub fn get_eq_band(&self, band: usize) -> f32 {
-        if let Ok(eq) = self.eq.lock() {
-            eq.get_band_gain(band)
-        } else {
-            0.0
-        }
+        self.eq_settings.get_band_gain(band)
     }
 
-    /// Get all EQ band gains
+    /// Get all EQ band gains (lock-free)
     pub fn get_all_eq_bands(&self) -> [f32; 5] {
-        if let Ok(eq) = self.eq.lock() {
-            eq.get_all_gains()
-        } else {
-            [0.0; 5]
-        }
+        self.eq_settings.get_all_gains()
     }
 
-    /// Enable or disable EQ
+    /// Enable or disable EQ (lock-free)
     pub fn set_eq_enabled(&self, enabled: bool) -> Result<()> {
-        let mut eq = self
-            .eq
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to lock EQ"))?;
-        eq.set_enabled(enabled);
+        self.eq_settings.set_enabled(enabled);
         debug!("EQ enabled: {}", enabled);
         Ok(())
     }
 
-    /// Check if EQ is enabled
+    /// Check if EQ is enabled (lock-free)
     pub fn is_eq_enabled(&self) -> bool {
-        if let Ok(eq) = self.eq.lock() {
-            eq.is_enabled()
-        } else {
-            false
-        }
+        self.eq_settings.is_enabled()
     }
 
-    /// Reset EQ to flat
+    /// Reset EQ to flat (lock-free)
     pub fn reset_eq(&self) -> Result<()> {
-        let mut eq = self
-            .eq
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Failed to lock EQ"))?;
-        eq.reset();
+        self.eq_settings.reset();
         debug!("EQ reset to flat");
         Ok(())
     }

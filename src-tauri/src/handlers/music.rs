@@ -113,11 +113,11 @@ pub async fn get_home_view_data(
         }
     }
 
-    let (server_url, token, user_id) = match crate::handlers::auth::get_saved_credentials(app).await
-    {
-        Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
-        _ => return Err("No saved credentials found".to_string()),
-    };
+    let (server_url, token, user_id) =
+        match crate::handlers::auth::get_credentials_cached(&app).await {
+            Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
+            _ => return Err("No saved credentials found".to_string()),
+        };
     let recently_played = get_recently_played(server_url, token, user_id).await?;
 
     let result = HomeViewData {
@@ -165,7 +165,7 @@ pub async fn get_album(
         // Use server-side filtering via AlbumIds query parameter
         // Includes workaround for Jellyfin bug where it also matches album names
         let (server_url, token, user_id) =
-            match crate::handlers::auth::get_saved_credentials(app).await {
+            match crate::handlers::auth::get_credentials_cached(&app).await {
                 Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
                 _ => return Err("No saved credentials found".to_string()),
             };
@@ -198,7 +198,7 @@ pub async fn get_artist(
     if include_songs.unwrap_or(false) {
         // Use server-side filtering via AlbumArtistIds query parameter
         let (server_url, token, user_id) =
-            match crate::handlers::auth::get_saved_credentials(app).await {
+            match crate::handlers::auth::get_credentials_cached(&app).await {
                 Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
                 _ => return Err("No saved credentials found".to_string()),
             };
@@ -357,7 +357,7 @@ pub async fn get_recently_played(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_instant_mix(app: tauri::AppHandle, item_id: String) -> Result<Vec<Song>, String> {
-    let (server_url, token) = match crate::handlers::auth::get_saved_credentials(app).await {
+    let (server_url, token) = match crate::handlers::auth::get_credentials_cached(&app).await {
         Ok(Some(creds)) => (creds.server_url, creds.token),
         _ => return Err("No saved credentials found".to_string()),
     };
@@ -424,7 +424,7 @@ pub async fn sync_library(
     info!("Starting library sync...");
 
     // Get user_id from saved credentials
-    let user_id = match crate::handlers::auth::get_saved_credentials(app).await {
+    let user_id = match crate::handlers::auth::get_credentials_cached(&app).await {
         Ok(Some(creds)) => creds.user_id,
         _ => return Err("No saved credentials found".to_string()),
     };

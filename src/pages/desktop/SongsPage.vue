@@ -1,17 +1,14 @@
 <script setup lang="ts">
   import { refDebounced } from '@vueuse/core'
-  import { computed, inject, onMounted, onUnmounted, ref, Ref, watch } from 'vue'
+  import { computed, onMounted, onUnmounted, ref } from 'vue'
 
   import type { Credentials, Song } from '@/bindings'
 
-  import SongListItem from '@/components/desktop/SongListItem.vue'
-  import ShareDialog from '@/components/shared/ShareDialog.vue'
+  import SongList from '@/components/shared/SongList.vue'
   import { useDebouncedTopBar } from '@/composables/useDebouncedTopBar'
   import { useLayoutPreference, useSortPreference } from '@/composables/useLayoutPreference'
-  import { scrollElementKey } from '@/composables/useMainLayout'
   import { useMemoizedSearch } from '@/composables/useMemoizedSearch'
   import { useMemoizedSort } from '@/composables/useMemoizedSort'
-  import { useOptimizedVirtualScroller } from '@/composables/useOptimizedVirtualScroller'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
 
@@ -34,13 +31,6 @@
   const serverUrl = computed(() => authStore.serverUrl)
   const token = computed(() => authStore.token)
 
-  const showShareDialog = ref(false)
-  const shareDialogItem = ref<null | { id: string; name: string; type: 'album' | 'artist' | 'song' }>(null)
-  const openShareDialog = (song: Song): void => {
-    shareDialogItem.value = { id: song.id, name: song.name, type: 'song' }
-    showShareDialog.value = true
-  }
-
   const searchQuery = ref('')
   const debouncedSearchQuery = refDebounced(searchQuery, 300)
 
@@ -58,40 +48,11 @@
     songs:       allSongs,
   })
 
-  const scrollElement = inject(scrollElementKey) as Ref<HTMLElement | null>
-
   // Use memoized sorting for better performance
   const { sortedSongs } = useMemoizedSort({
     songs:      filteredSongs,
     sortOption: sortOption,
   })
-
-  // Use optimized virtual scroller with dynamic overscan
-  const estimateSize = computed(() => viewLayout.value === 'comfy' ? 72 : 48)
-  const songCount = computed(() => sortedSongs.value.length)
-
-  const {
-    remeasure,
-    rowVirtualizer,
-    virtualItems,
-  } = useOptimizedVirtualScroller({
-    count: songCount,
-    estimateSize,
-    scrollElement,
-    viewLayout,
-  })
-
-  // Watch for changes and remeasure
-  watch([sortedSongs, viewLayout], () => {
-    remeasure()
-  })
-
-  const virtualSongs = computed(() =>
-    virtualItems.value.map(item => ({
-      ...sortedSongs.value[item.index],
-      virtualRow: item.virtualRow,
-    })),
-  )
 
   // Set up component lifecycle
   onMounted(() => {
@@ -105,91 +66,22 @@
 </script>
 
 <template>
-  <div class='h-screen flex flex-col'>
-    <header
-      v-if='!libraryLoading'
-      :class="[
-        'bg-sidebar/80 backdrop-blur-sm px-2 py-1 sticky top-0 z-10',
-        viewLayout === 'compact'
-          ? 'flex items-center gap-2 text-xs text-muted-foreground'
-          : 'flex items-center gap-3 text-xs text-muted-foreground px-1'
-      ]"
-    >
-      <div
-        :class="[
-          'text-center text-muted-foreground font-medium',
-          viewLayout === 'compact' ? 'w-6 text-xs' : 'w-8 text-sm'
-        ]"
-      >
-        #
-      </div>
-
-      <div :class="['shrink-0', viewLayout === 'compact' ? 'w-8' : 'w-12']" />
-
-      <div class='flex-1 min-w-0'>
-        <div class='flex items-center justify-between'>
-          <div class='flex-1 min-w-0 font-medium'>
-            Song
-            <div class='text-xs opacity-70'>
-              Artist • Album
-            </div>
-          </div>
-
-          <div
-            :class="[
-              'flex items-center',
-              viewLayout === 'compact' ? 'gap-3 ml-2' : 'gap-2 ml-4'
-            ]"
-          >
-            <div class='w-8 text-right hidden sm:block'>
-              Year
-            </div>
-            <div class='w-8 text-right'>
-              Plays
-            </div>
-            <div class='w-8 text-right'>
-              Time
-            </div>
-            <div class='w-8 text-center'>
-              <div class='size-3.5 opacity-0' />
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
-    <section
-      :style="{
-        height: `${rowVirtualizer.getTotalSize()}px`,
-        width: '100%',
-        position: 'relative'
-      }"
-      class='flex-1'
-    >
-      <div
-        v-for='song in virtualSongs'
-        :key='String(song.virtualRow.key)'
-        :style='{ transform: `translateY(${song.virtualRow.start}px)` }'
-        class='absolute top-0 left-0 w-full'
-      >
-        <SongListItem
-          @play-instant-mix="$emit('play-instant-mix', $event)"
-          @play-song="$emit('play-song', $event)"
-          @share-song='openShareDialog($event)'
-          @toggle-favorite="$emit('toggle-favorite', $event)"
-          v-if='song'
-          :index='song.virtualRow.index'
-          :server-url='serverUrl'
-          :song='song'
-          :token='token'
-          :view-layout='viewLayout'
-        />
-      </div>
-    </section>
-    <ShareDialog
-      v-model:open='showShareDialog'
-      :item-id='shareDialogItem?.id || ""'
-      :item-name='shareDialogItem?.name || ""'
-      :item-type='shareDialogItem?.type || "song"'
+  <div class='h-full flex flex-col'>
+    <SongList
+      @play-instant-mix="$emit('play-instant-mix', $event)"
+      @play-song="$emit('play-song', $event)"
+      @toggle-favorite="$emit('toggle-favorite', $event)"
+      :layout='viewLayout'
+      :loading='libraryLoading'
+      :server-url='serverUrl'
+      :show-album='true'
+      :show-album-art='true'
+      :show-artist='true'
+      :show-duration='true'
+      :show-track-number='true'
+      :show-year='true'
+      :songs='sortedSongs'
+      :token='token'
     />
   </div>
 </template>

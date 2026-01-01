@@ -36,7 +36,7 @@
       return ''
 
     if (props.isCollapsed)
-      return isMacos.value ? 'w-20' : 'w-16'
+      return isMacos.value ? 'w-[81px]' : 'w-[65px]'
 
     return 'w-48'
   })
@@ -61,11 +61,11 @@
       ]
     }
 
-    // Desktop
+    // Desktop - transition padding for smooth collapse animation
     return [
       baseClasses,
-      'h-10',
-      props.isCollapsed ? 'justify-center px-0' : 'pl-3 gap-x-3',
+      'h-10 gap-x-3 transition-[padding] duration-200 ease-out',
+      props.isCollapsed ? 'pl-0' : 'pl-3',
       isActive ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
     ]
   })
@@ -74,15 +74,13 @@
     if (props.isMobilePortrait || isMobileLandscape.value)
       return 'flex justify-center items-center'
 
-    // Desktop
-    return props.isCollapsed
-      ? 'flex-1 flex justify-center items-center'
-      : 'w-12 shrink-0 flex justify-center items-center'
+    // Desktop - always use fixed width to prevent shifting during collapse animation
+    return 'w-12 shrink-0 flex justify-center items-center'
   })
 
-  const searchIconClass = computed(() => props.isCollapsed
-    ? 'flex-1 flex justify-center items-center'
-    : 'w-12 shrink-0 flex justify-center items-center')
+  // Offset by -1px to compensate for the button's left border
+  // so the search icon aligns with nav icons (which have no border)
+  const searchIconClass = computed(() => 'w-12 shrink-0 flex justify-center items-center -ml-px')
 
   const playerStore = usePlayerStore()
 

@@ -136,16 +136,32 @@ const saveSessionState = (currentSong: null | Song, playlist: Song[], currentInd
       localStorage.removeItem(STORAGE_KEYS.CURRENT_SONG)
     }
 
-    if (playlist.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.PLAYLIST, JSON.stringify(playlist))
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.PLAYLIST)
-    }
-
     localStorage.setItem(STORAGE_KEYS.CURRENT_INDEX, String(currentIndex))
   } catch (error) {
     logger.warn('Failed to save session to localStorage:', error)
   }
+}
+
+// Debounced playlist save to avoid serializing large playlists on every change
+let playlistSaveTimeout: ReturnType<typeof setTimeout> | null = null
+const PLAYLIST_SAVE_DEBOUNCE_MS = 500
+
+const savePlaylistDebounced = (playlist: Song[]): void => {
+  if (playlistSaveTimeout) {
+    clearTimeout(playlistSaveTimeout)
+  }
+  playlistSaveTimeout = setTimeout(() => {
+    try {
+      if (playlist.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.PLAYLIST, JSON.stringify(playlist))
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.PLAYLIST)
+      }
+    } catch (error) {
+      logger.warn('Failed to save playlist to localStorage:', error)
+    }
+    playlistSaveTimeout = null
+  }, PLAYLIST_SAVE_DEBOUNCE_MS)
 }
 
 export const usePlayerStore = defineStore('player', () => {
@@ -286,7 +302,7 @@ export const usePlayerStore = defineStore('player', () => {
       duration.value = 0
       hasLyrics.value = false
     }
-    // Persist session state
+    // Persist session state (playlist is saved separately with debounce)
     saveSessionState(currentSong.value, playlist.value, currentIndex.value)
   }
 
@@ -296,8 +312,9 @@ export const usePlayerStore = defineStore('player', () => {
 
   const setPlaylist = (songs: Song[]): void => {
     playlist.value = songs
-    // Persist session state
+    // Persist session state - playlist saved with debounce to avoid expensive serialization
     saveSessionState(currentSong.value, playlist.value, currentIndex.value)
+    savePlaylistDebounced(songs)
   }
 
   const setCurrentIndex = (index: number): void => {
@@ -315,7 +332,7 @@ export const usePlayerStore = defineStore('player', () => {
       currentTime.value = 0
       duration.value = 0
     }
-    // Persist session state
+    // Persist session state (playlist is saved separately with debounce)
     saveSessionState(currentSong.value, playlist.value, currentIndex.value)
   }
 
@@ -386,6 +403,25 @@ export const usePlayerStore = defineStore('player', () => {
     setStoredValue(STORAGE_KEYS.VISUALIZER_STYLE, style)
   }
 
+  const updateSongFavorite = (songId: string, isFavorite: boolean): void => {
+    // Update current song if it matches
+    if (currentSong.value?.id === songId) {
+      currentSong.value = { ...currentSong.value, isFavorite }
+      saveSessionState(currentSong.value, playlist.value, currentIndex.value)
+    }
+
+    // Update song in playlist if present
+    const playlistIndex = playlist.value.findIndex(s => s.id === songId)
+    if (playlistIndex !== -1) {
+      playlist.value = [
+        ...playlist.value.slice(0, playlistIndex),
+        { ...playlist.value[playlistIndex], isFavorite },
+        ...playlist.value.slice(playlistIndex + 1),
+      ]
+      savePlaylistDebounced(playlist.value)
+    }
+  }
+
   return {
     audioReady,
     currentIndex,
@@ -437,6 +473,7 @@ export const usePlayerStore = defineStore('player', () => {
     toggleMute,
     togglePlay,
     toggleShuffle,
+    updateSongFavorite,
     visualizerEnabled,
     visualizerStyle,
     volume,

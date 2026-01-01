@@ -2,10 +2,16 @@
   import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
   import { useImageLoader } from '@/composables/useImageLoader'
+  import { useSharedIntersectionObserver } from '@/composables/useSharedIntersectionObserver'
+  import { LRUCache } from '@/lib/lru-cache'
   import { logger } from '@/lib/logger'
 
-  const loadedImageCache = new Map<string, boolean>()
-  const imagePreloadCache = new Map<string, boolean>()
+  // Bounded caches to prevent memory leaks
+  const MAX_LOADED_CACHE_SIZE = 1000
+  const MAX_PRELOAD_CACHE_SIZE = 500
+
+  const loadedImageCache = new LRUCache<string, boolean>(MAX_LOADED_CACHE_SIZE)
+  const imagePreloadCache = new LRUCache<string, boolean>(MAX_PRELOAD_CACHE_SIZE)
   const prefetchQueue = new Set<string>()
   let prefetchTimeout: null | ReturnType<typeof setTimeout> = null
 
@@ -67,21 +73,18 @@
   }
 
   // Set up viewport-based prefetching and per-item visibility observer
+  // Uses shared IntersectionObserver to avoid creating thousands of observers
+  const { observeElement } = useSharedIntersectionObserver()
+  let cleanupObserver: (() => void) | null = null
+
   onMounted(() => {
     window.addEventListener('prefetch-item', handlePrefetchEvent)
 
-    // Observe this component's root element to avoid fetching until visible
+    // Use shared observer instead of creating a new one per component
     if (rootEl.value) {
-      observer = new IntersectionObserver(
-        entries => {
-          for (const entry of entries)
-            if (entry.target === rootEl.value)
-              inView.value = entry.isIntersecting
-        },
-        { root: null, rootMargin: '200px', threshold: 0.05 },
-      )
-
-      observer.observe(rootEl.value)
+      cleanupObserver = observeElement(rootEl.value, isIntersecting => {
+        inView.value = isIntersecting
+      })
     }
   })
 
@@ -90,9 +93,10 @@
     if (prefetchTimeout)
       clearTimeout(prefetchTimeout)
 
-    if (observer) {
-      observer.disconnect()
-      observer = null
+    // Cleanup shared observer registration
+    if (cleanupObserver) {
+      cleanupObserver()
+      cleanupObserver = null
     }
   })
 
@@ -129,7 +133,6 @@
   const isLoading = ref(true)
   const lowQualityUrl = ref<null | string>(null)
   const highQualityLoaded = ref(false)
-  let observer: IntersectionObserver | null = null
 
   const resetState = (): void => {
     isLoading.value = true

@@ -38,12 +38,12 @@ pub fn init(app: &AppHandle) -> Result<()> {
         let _ = write_txn.open_table(schema::ARTISTS)?;
         let _ = write_txn.open_table(schema::ALBUMS)?;
         let _ = write_txn.open_table(schema::PLAYLISTS)?;
-        
+
         // Index tables
         let _ = write_txn.open_table(schema::SONGS_BY_ALBUM)?;
         let _ = write_txn.open_table(schema::SONGS_BY_ARTIST)?;
         let _ = write_txn.open_table(schema::ALBUMS_BY_ARTIST)?;
-        
+
         // Metadata tables
         let _ = write_txn.open_table(schema::FAVORITES)?;
         let _ = write_txn.open_table(schema::SYNC_STATE)?;

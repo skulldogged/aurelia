@@ -15,7 +15,7 @@ pub struct LoginResponse {
 }
 
 /// User credentials for Jellyfin authentication
-#[derive(Serialize, Deserialize, Debug, Type)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
 #[specta(rename_all = "camelCase")]
 pub struct Credentials {
     /// Jellyfin server URL

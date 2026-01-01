@@ -353,7 +353,7 @@ pub fn run() {
                             let handle = handle.clone();
                             tauri::async_runtime::spawn(async move {
                                 if let Ok(Some(creds)) =
-                                    handlers::auth::get_saved_credentials(handle.clone()).await
+                                    handlers::auth::get_credentials_cached(&handle).await
                                     && let Err(e) = handlers::music::sync_library(
                                         handle.clone(),
                                         handle.state(),

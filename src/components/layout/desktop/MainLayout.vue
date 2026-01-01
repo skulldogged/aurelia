@@ -58,7 +58,7 @@
       <div
         :class="[
           'main-content flex flex-1 min-w-0',
-          isSidebarCollapsed ? (isMacos ? 'ml-20' : 'ml-16') : 'ml-48',
+          isSidebarCollapsed ? (isMacos ? 'ml-[81px]' : 'ml-[65px]') : 'ml-48',
           (
             playerState.isQueueOpen
             || playerState.isEqualizerOpen
@@ -77,8 +77,8 @@
         <!-- Navigation buttons positioned relative to sidebar -->
         <div
           :class="[
-            'absolute z-10 flex items-center',
-            isSidebarCollapsed ? (isMacos ? 'left-[88px]' : 'left-[72px]') : 'left-[200px]'
+            'nav-buttons absolute z-10 flex items-center',
+            isSidebarCollapsed ? (isMacos ? 'left-[89px]' : 'left-[73px]') : 'left-[200px]'
           ]"
           :style='{ top: `calc(0.5rem + env(safe-area-inset-top))` }'
         >
@@ -110,19 +110,19 @@
         <!-- Top bar content slot - spans from sidebar to right edge -->
         <div
           :class="[
-            'absolute z-5 flex items-center justify-center h-12 overflow-visible',
+            'top-bar absolute z-5 flex items-center justify-center h-12 overflow-visible',
             topBarBgClass
           ]"
           :style='{
             top: `calc(env(safe-area-inset-top))`,
-            left: isSidebarCollapsed ? (isMacos ? "80px" : "64px") : "192px",
+            left: isSidebarCollapsed ? (isMacos ? "81px" : "65px") : "192px",
             right: "0"
           }'
         >
           <div class='absolute z-10 left-0 right-0 pointer-events-none outer-shadow-bottom' />
           <div
             :class="[
-              'relative w-full h-full pr-3',
+              'top-bar-content relative w-full h-full pr-3',
               {
                 'mr-[138px]': !playerState.isQueueOpen && !playerState.isEqualizerOpen && !playerState.isLyricsOpen,
                 'mr-64 lg:mr-80 xl:mr-96 2xl:mr-[448px]':
@@ -204,7 +204,7 @@
       :class="[
         'player-bar absolute z-30 bg-sidebar/95 backdrop-blur-lg overflow-visible border-t border-border/20',
         'bottom-0',
-        isSidebarCollapsed ? (isMacos ? 'left-20' : 'left-16') : 'left-48',
+        isSidebarCollapsed ? (isMacos ? 'left-[81px]' : 'left-[65px]') : 'left-48',
         (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
           ? 'right-64 lg:right-80 xl:right-96 2xl:right-[448px]'
           : 'right-0'
@@ -229,5 +229,20 @@
 /* Player bar smoothly adjusts with panel */
 .player-bar {
   transition: left 0.2s ease, right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Top bar smoothly adjusts with sidebar */
+.top-bar {
+  transition: left 0.2s ease;
+}
+
+/* Top bar content smoothly adjusts with right panel */
+.top-bar-content {
+  transition: margin-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Navigation buttons smoothly adjust with sidebar */
+.nav-buttons {
+  transition: left 0.2s ease;
 }
 </style>

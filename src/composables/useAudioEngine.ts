@@ -1,10 +1,16 @@
-import { computed, type ComputedRef, ref, type Ref, watch } from 'vue'
+import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
 import { commands } from '@/bindings'
 import { Song } from '@/bindings'
 import { useRustAudioPlayer } from '@/composables/useRustAudioPlayer'
 import { logger } from '@/lib/logger'
 import { usePlayerStore } from '@/stores'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+
+interface AudioPositionEvent {
+  isFinished: boolean
+  position:   number
+}
 
 interface UseAudioEngineReturn {
   initializePlayer:        () => Promise<void>;
@@ -28,7 +34,7 @@ export const useAudioEngine = (
 
   // State
   const isGaplessTransition = ref(false)
-  const pollInterval = ref<null | number>(null)
+  const eventUnlisten = ref<UnlistenFn | null>(null)
 
   const hasNext = computed(() =>
     playerStore.playlist.length > 1
@@ -48,24 +54,39 @@ export const useAudioEngine = (
     return playerStore.playlist[nextIndex]
   })
 
-  // Start polling for playback state and position
-  const startPolling = (): void => {
-    if (pollInterval.value)
-      clearInterval(pollInterval.value)
+  // Subscribe to audio position events from Rust backend
+  // This replaces frontend polling with push-based events
+  const setupEventListener = async (): Promise<void> => {
+    // Clean up existing listener
+    if (eventUnlisten.value) {
+      eventUnlisten.value()
+      eventUnlisten.value = null
+    }
 
-    pollInterval.value = window.setInterval(async () => {
-      // Update current position from Rust backend (skip while user is seeking)
-      if (playerStore.isPlaying && !playerStore.isSeeking) {
-        const position = await rustAudioPlayer.getPosition()
+    eventUnlisten.value = await listen<AudioPositionEvent>('audio:position', async event => {
+      const { position, isFinished } = event.payload
+      
+      // Update current position (skip while user is seeking)
+      if (!playerStore.isSeeking) {
         playerStore.setCurrentTime(position)
       }
 
-      // Check if track finished
-      const finished = await rustAudioPlayer.isFinished()
-      if (finished && playerStore.isPlaying)
+      // Handle track end
+      if (isFinished && playerStore.isPlaying) {
         await handleTrackEnded()
-    }, 250) // Poll more frequently for smooth progress bar
+      }
+    })
+    
+    logger.debug('Audio position event listener registered')
   }
+
+  // Cleanup on unmount
+  onUnmounted(() => {
+    if (eventUnlisten.value) {
+      eventUnlisten.value()
+      eventUnlisten.value = null
+    }
+  })
 
   const handleTrackEnded = async (): Promise<void> => {
     logger.debug('Track ended')
@@ -213,8 +234,8 @@ export const useAudioEngine = (
       await rustAudioPlayer.setEQEnabled(playerStore.eqEnabled)
       logger.debug(`EQ restored: enabled=${playerStore.eqEnabled}, bands synced`)
 
-      // Start polling for track end
-      startPolling()
+      // Setup event listener for position updates from Rust backend
+      await setupEventListener()
     } else {
       logger.error('Failed to initialize Rust audio player')
     }

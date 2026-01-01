@@ -1,7 +1,7 @@
 import type { ComputedRef, Ref } from 'vue'
 
 import { useVirtualizer } from '@tanstack/vue-virtual'
-import { computed } from 'vue'
+import { computed, isRef } from 'vue'
 
 interface VirtualItem {
   index: number
@@ -10,8 +10,8 @@ interface VirtualItem {
 }
 
 interface VirtualScrollerOptions {
-  count:         Ref<number>
-  estimateSize:  (() => number) | Ref<number>
+  count:         ComputedRef<number> | Ref<number>
+  estimateSize:  (() => number) | ComputedRef<number> | Ref<number>
   scrollElement: Ref<HTMLElement | null>
   viewLayout:    Ref<'comfy' | 'compact'>
 }
@@ -55,14 +55,17 @@ export const useOptimizedVirtualScroller = ({
     return isCompact ? 5 : 4
   }
 
-  // Create the virtualizer with dynamic parameters
-  const rowVirtualizer = useVirtualizer({
-    count:            count.value,
-    enabled:          true,
-    estimateSize:     typeof estimateSize === 'function' ? estimateSize : () => estimateSize.value,
-    getScrollElement: () => scrollElement.value,
-    overscan:         getOptimalOverscan(),
-  })
+  // Create the virtualizer with reactive options
+  // Wrapping in computed ensures the library's internal watchers can track dependencies
+  const rowVirtualizer = useVirtualizer(
+    computed(() => ({
+      count:            count.value,
+      enabled:          true,
+      estimateSize:     isRef(estimateSize) ? () => estimateSize.value : estimateSize,
+      getScrollElement: () => scrollElement.value,
+      overscan:         getOptimalOverscan(),
+    })),
+  )
 
   // Computed property for virtual items
   const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())

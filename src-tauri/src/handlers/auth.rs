@@ -2,8 +2,9 @@
 
 use crate::models::{Credentials, LoginResponse};
 use crate::services::JellyfinClient;
+use crate::state::AppState;
 use crate::utils::error_handling;
-use tauri::Manager;
+use tauri::{Manager, State};
 
 use tracing::error;
 
@@ -28,11 +29,12 @@ pub async fn login_to_jellyfin(
     }
 }
 
-/// Save user credentials to disk
+/// Save user credentials to disk and cache in memory
 #[tauri::command]
 #[specta::specta]
 pub async fn save_credentials(
     app: tauri::AppHandle,
+    app_state: State<'_, AppState>,
     server_url: String,
     username: String,
     token: String,
@@ -53,6 +55,9 @@ pub async fn save_credentials(
         user_id,
     };
 
+    // Cache in memory for fast access
+    app_state.set_credentials(Some(credentials.clone()));
+
     let json = match serde_json::to_string_pretty(&credentials) {
         Ok(json) => json,
         Err(e) => return Err(format!("Failed to serialize credentials: {e}")),
@@ -63,10 +68,27 @@ pub async fn save_credentials(
         .map_err(|e| format!("Failed to save credentials: {e}"))
 }
 
-/// Load saved credentials from disk
+/// Load saved credentials - checks memory cache first, then disk
 #[tauri::command]
 #[specta::specta]
-pub async fn get_saved_credentials(app: tauri::AppHandle) -> Result<Option<Credentials>, String> {
+pub async fn get_saved_credentials(
+    app: tauri::AppHandle,
+    _app_state: State<'_, AppState>,
+) -> Result<Option<Credentials>, String> {
+    get_credentials_cached(&app).await
+}
+
+/// Internal helper for getting cached credentials
+/// Can be called from other handlers that have access to AppHandle
+pub async fn get_credentials_cached(app: &tauri::AppHandle) -> Result<Option<Credentials>, String> {
+    let app_state: tauri::State<'_, AppState> = app.state();
+
+    // Check memory cache first (fast path)
+    if let Some(creds) = app_state.get_credentials() {
+        return Ok(Some(creds));
+    }
+
+    // Cache miss - load from disk
     let app_dir = match app.path().app_data_dir() {
         Ok(dir) => dir,
         Err(e) => return Err(format!("Application data directory not accessible: {e}")),
@@ -86,6 +108,9 @@ pub async fn get_saved_credentials(app: tauri::AppHandle) -> Result<Option<Crede
         Ok(credentials) => credentials,
         Err(e) => return Err(format!("Saved credentials are corrupted: {e}")),
     };
+
+    // Cache for future requests
+    app_state.set_credentials(Some(credentials.clone()));
 
     Ok(Some(credentials))
 }
