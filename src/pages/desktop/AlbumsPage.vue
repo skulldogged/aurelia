@@ -1,15 +1,13 @@
 <script setup lang="ts">
   import { breakpointsTailwind, refDebounced, useBreakpoints, useWindowSize } from '@vueuse/core'
   import Fuse from 'fuse.js'
-  import { Play } from 'lucide-vue-next'
   import { computed, inject, onMounted, onUnmounted, ref, Ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Album, Song } from '@/bindings'
   import AlbumsPageTopBar from '@/components/desktop/AlbumsPageTopBar.vue'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
-  import AlbumStack from '@/components/shared/AlbumStack.vue'
-  import Button from '@/components/ui/Button.vue'
+  import AlbumCard from '@/components/shared/AlbumCard.vue'
   import {
     ContextMenu,
     ContextMenuContent,
@@ -101,7 +99,6 @@
   const estimateSize = computed(() => viewLayout.value === 'compact' ? 250 : 300)
 
   const {
-    isScrolling,
     remeasure,
     rowVirtualizer,
     virtualItems,
@@ -212,67 +209,17 @@
         >
           <ContextMenu v-for='album in albums' :key='album.name'>
             <ContextMenuTrigger as-child>
-              <div
+              <AlbumCard
                 @click='selectAlbum(album)'
-                class='cursor-pointer group'
-              >
-                <div
-                  :class='viewLayout === "compact"
-                    ? "relative mb-2"
-                    : "relative mb-4"'
-                >
-                  <AlbumStack
-                    @play='playAlbum'
-                    :album='album'
-                    :is-scrolling='isScrolling'
-                    :server-url='serverUrl'
-                    :show-play-button='false'
-                    :size='"responsive"'
-                    :token='token'
-                    :width='itemWidth'
-                  />
-
-                  <div
-                    class='
-                      absolute inset-0 bg-black/25 rounded-xl opacity-0
-                      group-hover:opacity-100 transition-opacity flex items-center
-                      justify-center z-10
-                    '
-                  >
-                    <Button
-                      @click.stop='playAlbum(album)'
-                      class='
-                        bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border
-                        border-white/20
-                      '
-                      size='icon'
-                    >
-                      <Play :class='viewLayout === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"' />
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <p
-                    :class='viewLayout === "compact"
-                      ? "text-sm font-medium truncate"
-                      : "font-semibold truncate"'
-                  >
-                    {{ album.name }}
-                  </p>
-                  <p
-                    :class='viewLayout === "compact"
-                      ? "text-xs text-muted-foreground truncate"
-                      : "text-sm text-muted-foreground truncate"'
-                  >
-                    {{ album.artist }}
-                  </p>
-                </div>
-              </div>
+                @play='playAlbum'
+                :album='album'
+                :server-url='serverUrl'
+                :token='token'
+                :width='itemWidth'
+              />
             </ContextMenuTrigger>
             <ContextMenuContent>
               <ContextMenuItem @click='playAlbum(album)'>
-                <Play class='size-4 mr-2' />
                 Play Album
               </ContextMenuItem>
               <AddToPlaylistMenu

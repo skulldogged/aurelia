@@ -1,10 +1,11 @@
 <script setup lang="ts">
-  import { Disc, MoreHorizontal, Music, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
+  import { MoreHorizontal, Music, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
   import { computed, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
   import { Album, Artist, commands, Song } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
+  import AlbumCard from '@/components/shared/AlbumCard.vue'
   import Carousel from '@/components/shared/Carousel.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
@@ -206,25 +207,6 @@
     const sameName = (song.album || '').trim().toLowerCase() === (song.name || '').trim().toLowerCase()
     const trackCount = song.albumId ? (albumTrackCountsById.value.get(song.albumId) || 0) : 0
     return !!song.album && sameName && trackCount <= 1
-  }
-
-  const isAlbumSingle = (album: Album): boolean => {
-    if (!album) return false
-
-    const tracks = album.songs || []
-
-    if (tracks.length === 1) {
-      const only = tracks[0]
-      const sameName = (album.name || '').trim().toLowerCase() === (only.name || '').trim().toLowerCase()
-      return sameName
-    }
-
-    if (album.id) {
-      const count = albumTrackCountsById.value.get(album.id) || 0
-      if (count === 1) return true
-    }
-
-    return false
   }
 
   type NameId = { id: null | string, name: string }
@@ -547,72 +529,16 @@
             :disabled='libraryLoading || !libraryLoaded || !artist'
             :title="isFeaturedOnlyArtist ? 'Appears On' : 'Albums'"
           >
-            <div
+            <AlbumCard
               v-for='album in artistAlbums'
               @click="$emit('select-album', { ...album })"
+              @play='playAlbum'
               :key='album.name'
-              class='cursor-pointer group'
-            >
-              <div class='relative mb-3 overflow-hidden rounded-lg'>
-                <ImageLoader
-                  :alt='`${album.name} album art`'
-                  :item-id='album.id || album.name'
-                  :server-url='serverUrl'
-                  :token='token'
-                  :width='400'
-                  class='album-art-image group-hover:scale-105 transition-transform duration-300'
-                >
-                  <template #fallback>
-                    <ImagePlaceholder class='album-art-image' size='large' type='album' />
-                  </template>
-                </ImageLoader>
-
-                <div
-                  class='absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80
-                   to-transparent p-2 flex items-center gap-1'
-                >
-                  <Disc class='h-3 w-3 text-white opacity-90' />
-                  <span class='text-xs text-white opacity-80'>{{ album.songs?.length || 0 }}</span>
-                </div>
-
-                <div
-                  class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
-                   transition-opacity duration-200 flex items-center justify-center'
-                >
-                  <Button
-                    @click.stop='playAlbum(album)'
-                    class='bg-white/30 hover:bg-white/40 backdrop-blur-sm text-white border border-white/40 shadow-lg'
-                    size='icon'
-                  >
-                    <Play class='h-5 w-5 fill-current' />
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <h3 class='font-semibold truncate group-hover:text-accent transition-colors'>
-                  {{ album.name }}
-                </h3>
-                <p v-if='albumCollaboratorsFor(album).length' class='text-sm text-muted-foreground truncate'>
-                  with
-                  <template v-for='(pair, idx) in albumCollaboratorsFor(album)' :key='pair.id || pair.name'>
-                    <RouterLink
-                      @click.stop
-                      v-if='pair.id'
-                      :to='`/artists/${pair.id}`'
-                      class='hover:underline'
-                    >
-                      {{ pair.name }}
-                    </RouterLink>
-                    <span v-else>{{ pair.name }}</span>
-                    <span v-if='idx < albumCollaboratorsFor(album).length - 1'>, </span>
-                  </template>
-                </p>
-                <p class='text-xs text-muted-foreground'>
-                  <span v-if='isAlbumSingle(album)'>Single</span>
-                  <span v-else>{{ album.songs?.length || 0 }} songs</span>
-                </p>
-              </div>
-            </div>
+              :album='album'
+              :collaborators='albumCollaboratorsFor(album)'
+              :server-url='serverUrl'
+              :token='token'
+            />
           </Carousel>
         </div>
       </section>

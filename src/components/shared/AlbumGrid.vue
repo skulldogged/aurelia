@@ -1,11 +1,11 @@
 <script setup lang="ts">
-  import { Disc, Play, Shuffle } from 'lucide-vue-next'
+  import { Play, Shuffle } from 'lucide-vue-next'
   import { computed } from 'vue'
 
   import { Album, Song } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
+  import AlbumCard from '@/components/shared/AlbumCard.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import Button from '@/components/ui/Button.vue'
   import {
     ContextMenu,
@@ -74,42 +74,6 @@
       emit('play-songs', sortSongsByTrackOrder(album.songs))
     else
       logger.warn('No songs found for album', album.name)
-  }
-
-  const getAlbumArtists = (album: Album): { id: string, name: string }[] => {
-    const idToName = new Map<string, string>()
-    const albumSongs = album.songs || []
-
-    for (const song of albumSongs) {
-      if (song.albumArtists) {
-        for (const pair of song.albumArtists) {
-          if (pair.id && pair.name) {
-            idToName.set(pair.id, pair.name)
-          }
-        }
-      }
-    }
-
-    if (idToName.size === 0) {
-      const first = albumSongs[0]
-      if (first?.artistIds && first.artists && first.artistIds.length === first.artists.length) {
-        first.artistIds.forEach((id, idx) => {
-          const name = first.artists![idx]
-          if (id && name) {
-            idToName.set(id, name)
-          }
-        })
-      } else if (album.artist && album.artistId) {
-        idToName.set(album.artistId, album.artist)
-      }
-    }
-
-    if (idToName.size === 0 && album.artist) {
-      // Final fallback for albums that might not have songs attached in this context
-      idToName.set(album.artistId || album.artist, album.artist)
-    }
-
-    return Array.from(idToName, ([id, name]) => ({ id, name }))
   }
 </script>
 
@@ -210,75 +174,13 @@
       <template v-else-if="type === 'album'">
         <ContextMenu v-for='album in (items as Album[]).slice(0, 6)' :key='album.name'>
           <ContextMenuTrigger as-child>
-            <div
+            <AlbumCard
               @click="$emit('select-album', album)"
-              class='cursor-pointer group'
-            >
-              <div class='relative mb-3 overflow-hidden rounded-lg'>
-                <ImageLoader
-                  :alt='`${album.name} album art`'
-                  :item-id='album.id || album.name'
-                  :server-url='serverUrl'
-                  :token='token'
-                  class='album-art-image group-hover:scale-105 transition-transform duration-300'
-                >
-                  <template #fallback>
-                    <ImagePlaceholder class='album-art-image' size='large' type='album' />
-                  </template>
-                </ImageLoader>
-
-                <!-- Album indicator overlay -->
-                <div
-                  class='absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80
-                         to-transparent p-2 flex items-center gap-1'
-                >
-                  <Disc class='h-3 w-3 text-white opacity-90' />
-                  <span class='text-xs text-white opacity-80'>{{ album.songs?.length || 0 }}</span>
-                </div>
-
-                <!-- Play button overlay -->
-                <div
-                  class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
-                         transition-opacity duration-200 flex items-center justify-center'
-                >
-                  <Button
-                    @click.stop='playAlbumSongs(album)'
-                    class='bg-white/30 hover:bg-white/40 backdrop-blur-sm text-white border border-white/40 shadow-lg'
-                    size='icon'
-                  >
-                    <Play class='h-5 w-5 fill-current' />
-                  </Button>
-                </div>
-              </div>
-              <p class='font-semibold text-sm truncate group-hover:text-accent transition-colors'>
-                {{ album.name }}
-              </p>
-              <p class='text-xs text-muted-foreground truncate mt-1'>
-                <template v-if='getAlbumArtists(album).length > 0'>
-                  <template v-for='(artist, index) in getAlbumArtists(album)' :key='artist.id'>
-                    <RouterLink
-                      @click.stop
-                      :to='`/artists/${artist.id}`'
-                      class='hover:underline'
-                    >
-                      {{ artist.name }}
-                    </RouterLink>
-                    <span v-if='index < getAlbumArtists(album).length - 1'>, </span>
-                  </template>
-                </template>
-                <template v-else-if='album.artist'>
-                  <RouterLink
-                    @click.stop
-                    v-if='album.artistId'
-                    :to='`/artists/${album.artistId}`'
-                    class='hover:underline'
-                  >
-                    {{ album.artist }}
-                  </RouterLink>
-                  <span v-else>{{ album.artist }}</span>
-                </template>
-              </p>
-            </div>
+              @play='playAlbumSongs'
+              :album='album'
+              :server-url='serverUrl'
+              :token='token'
+            />
           </ContextMenuTrigger>
           <ContextMenuContent>
             <ContextMenuItem @click='playAlbumSongs(album)'>

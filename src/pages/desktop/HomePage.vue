@@ -1,11 +1,12 @@
 <script setup lang="ts">
-  import { ChevronLeft, ChevronRight, Disc, Play, Shuffle } from 'lucide-vue-next'
+  import { ChevronLeft, ChevronRight, Play, Shuffle } from 'lucide-vue-next'
   import { computed, onMounted, onUnmounted, ref } from 'vue'
 
   import type { Album, Song } from '@/bindings'
 
   import HomePageTopBar from '@/components/desktop/HomePageTopBar.vue'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
+  import AlbumCard from '@/components/shared/AlbumCard.vue'
   import Carousel from '@/components/shared/Carousel.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
@@ -498,65 +499,13 @@
             <template v-else>
               <ContextMenu v-for='album in recentlyAdded' :key='album.id || album.name'>
                 <ContextMenuTrigger as-child>
-                  <div
+                  <AlbumCard
                     @click="$emit('select-album', album)"
-                    class='cursor-pointer group'
-                  >
-                    <div class='relative mb-3 overflow-hidden rounded-lg'>
-                      <ImageLoader
-                        :alt='`${album.name} album art`'
-                        :item-id='album.id || album.name'
-                        :server-url='serverUrl'
-                        :token='token'
-                        :width='400'
-                        class='album-art-image'
-                      >
-                        <template #fallback>
-                          <ImagePlaceholder class='album-art-image' size='large' type='album' />
-                        </template>
-                      </ImageLoader>
-
-                      <div
-                        class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
-                         transition-opacity duration-200 flex items-center justify-center'
-                      >
-                        <Button
-                          @click.stop='playAlbumSongs(album)'
-                          class='
-                            bg-white/30 hover:bg-white/40 backdrop-blur-sm
-                            text-white border border-white/40 shadow-lg
-                          '
-                          size='icon'
-                        >
-                          <Play class='h-5 w-5 fill-current' />
-                        </Button>
-                      </div>
-                    </div>
-                    <div class='grid grid-cols-[1fr_auto] gap-2 items-start'>
-                      <div class='min-w-0'>
-                        <p class='font-semibold text-sm truncate group-hover:text-accent transition-colors'>
-                          {{ album.name }}
-                        </p>
-                        <p class='text-xs text-muted-foreground truncate mt-1'>
-                          <RouterLink
-                            @click.stop
-                            v-if='album.artistId'
-                            :to='`/artists/${album.artistId}`'
-                            class='hover:underline'
-                          >
-                            {{ album.artist }}
-                          </RouterLink>
-                          <span v-else>{{ album.artist }}</span>
-                        </p>
-                      </div>
-                      <div class='flex flex-col items-end gap-1'>
-                        <div class='flex items-center gap-1'>
-                          <span class='text-xs text-muted-foreground'>{{ album.songs?.length || 0 }}</span>
-                          <Disc class='h-3 w-3 text-muted-foreground' />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    @play='playAlbumSongs'
+                    :album='album'
+                    :server-url='serverUrl'
+                    :token='token'
+                  />
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem @click='playAlbumSongs(album)'>
@@ -615,65 +564,13 @@
             <template v-else>
               <ContextMenu v-for='album in randomAlbums' :key='album.id || album.name'>
                 <ContextMenuTrigger as-child>
-                  <div
+                  <AlbumCard
                     @click="$emit('select-album', album)"
-                    class='cursor-pointer group'
-                  >
-                    <div class='relative mb-3 overflow-hidden rounded-lg'>
-                      <ImageLoader
-                        :alt='`${album.name} album art`'
-                        :item-id='album.id || album.name'
-                        :server-url='serverUrl'
-                        :token='token'
-                        :width='400'
-                        class='album-art-image'
-                      >
-                        <template #fallback>
-                          <ImagePlaceholder class='album-art-image' size='large' type='album' />
-                        </template>
-                      </ImageLoader>
-
-                      <div
-                        class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
-                         transition-opacity duration-200 flex items-center justify-center'
-                      >
-                        <Button
-                          @click.stop='playAlbumSongs(album)'
-                          class='
-                            bg-white/30 hover:bg-white/40 backdrop-blur-sm
-                            text-white border border-white/40 shadow-lg
-                          '
-                          size='icon'
-                        >
-                          <Play class='h-5 w-5 fill-current' />
-                        </Button>
-                      </div>
-                    </div>
-                    <div class='grid grid-cols-[1fr_auto] gap-2 items-start'>
-                      <div class='min-w-0'>
-                        <p class='font-semibold text-sm truncate group-hover:text-accent transition-colors'>
-                          {{ album.name }}
-                        </p>
-                        <p class='text-xs text-muted-foreground truncate mt-1'>
-                          <RouterLink
-                            @click.stop
-                            v-if='album.artistId'
-                            :to='`/artists/${album.artistId}`'
-                            class='hover:underline'
-                          >
-                            {{ album.artist }}
-                          </RouterLink>
-                          <span v-else>{{ album.artist }}</span>
-                        </p>
-                      </div>
-                      <div class='flex flex-col items-end gap-1'>
-                        <div class='flex items-center gap-1'>
-                          <span class='text-xs text-muted-foreground'>{{ album.songs?.length || 0 }}</span>
-                          <Disc class='h-3 w-3 text-muted-foreground' />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    @play='playAlbumSongs'
+                    :album='album'
+                    :server-url='serverUrl'
+                    :token='token'
+                  />
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem @click='playAlbumSongs(album)'>
