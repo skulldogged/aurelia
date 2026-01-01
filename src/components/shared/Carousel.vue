@@ -180,7 +180,9 @@
 
 .carousel-track {
   overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
