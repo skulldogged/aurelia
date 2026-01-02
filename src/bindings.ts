@@ -658,6 +658,17 @@ export const commands = {
     }
   },
   /**
+ * Enable or disable a media control button
+ */
+  mediaSetButtonEnabled: async (button: string, enabled: boolean): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('media_set_button_enabled', { button, enabled }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
  * Update playback state (playing/paused)
  */
   mediaSetPlaybackStatus: async (isPlaying: boolean, positionSecs: null | number): Promise<Result<null, string>> => {

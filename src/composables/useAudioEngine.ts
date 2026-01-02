@@ -43,6 +43,10 @@ export const useAudioEngine = (
     && playerStore.currentIndex < playerStore.playlist.length - 1,
   )
 
+  const hasPrevious = computed(() =>
+    playerStore.playlist.length > 1 && playerStore.currentIndex > 0,
+  )
+
   const nextSongInQueue = computed(() => {
     if (!hasNext.value) return null
 
@@ -134,6 +138,22 @@ export const useAudioEngine = (
       logger.debug(`Updated OS Now Playing: ${song.name}`)
     } catch (error) {
       logger.error('Failed to update Now Playing:', error)
+    }
+  }
+
+  // Update OS media control button states based on queue position
+  const updateMediaButtonStates = async (): Promise<void> => {
+    try {
+      const canGoNext = hasNext.value || playerStore.repeatMode === 'all'
+      const canGoPrevious = hasPrevious.value
+
+      await Promise.all([
+        commands.mediaSetButtonEnabled('next', canGoNext),
+        commands.mediaSetButtonEnabled('previous', canGoPrevious),
+      ])
+      logger.debug(`Updated media buttons: next=${canGoNext}, previous=${canGoPrevious}`)
+    } catch (error) {
+      logger.error('Failed to update media button states:', error)
     }
   }
 
@@ -276,6 +296,9 @@ export const useAudioEngine = (
         // Update OS Now Playing
         await updateNowPlaying(song)
 
+        // Update media button states based on queue position
+        await updateMediaButtonStates()
+
         // Prepare next track for gapless playback
         await prepareNextTrack()
       } else {
@@ -364,6 +387,14 @@ export const useAudioEngine = (
   // Watch for EQ enabled changes
   watch(() => playerStore.eqEnabled, async enabled => {
     await rustAudioPlayer.setEQEnabled(enabled)
+  })
+
+  // Watch for queue position changes to update media button states
+  watch([hasNext, hasPrevious, () => playerStore.repeatMode], () => {
+    // Only update if we have a current song (player is active)
+    if (playerStore.currentSong) {
+      updateMediaButtonStates()
+    }
   })
 
   return {

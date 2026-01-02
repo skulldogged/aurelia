@@ -7,7 +7,7 @@
 
 use crate::audio::AudioState;
 use serde::{Deserialize, Serialize};
-use souvlaki::{MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig};
+use souvlaki::{MediaButton, MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -47,22 +47,6 @@ impl Default for MediaControlsState {
 /// Initialize media controls with the app's window handle
 pub fn init_media_controls(app: &AppHandle) -> Result<MediaControlsState, String> {
     info!("Initializing OS media controls");
-
-    // Set AppUserModelId on Windows so SMTC shows "Aurelia" instead of "Unknown app"
-    #[cfg(target_os = "windows")]
-    {
-        use windows::core::HSTRING;
-        use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
-
-        let app_id = HSTRING::from("dev.pupbrained.aurelia");
-        unsafe {
-            if let Err(e) = SetCurrentProcessExplicitAppUserModelID(&app_id) {
-                warn!("Failed to set AppUserModelId: {:?}", e);
-            } else {
-                info!("Set AppUserModelId to dev.pupbrained.aurelia");
-            }
-        }
-    }
 
     // Get the HWND on Windows, which is required for SMTC
     #[cfg(target_os = "windows")]
@@ -105,6 +89,7 @@ pub fn init_media_controls(app: &AppHandle) -> Result<MediaControlsState, String
         dbus_name: "aurelia",
         display_name: "Aurelia",
         hwnd,
+        app_id: Some("dev.pupbrained.aurelia"),
     };
 
     let controls = MediaControls::new(config).map_err(|e| {
@@ -274,6 +259,37 @@ pub fn media_clear_now_playing(state: State<'_, MediaControlsState>) -> Result<(
         controls
             .set_playback(MediaPlayback::Stopped)
             .map_err(|e| format!("Failed to clear playback: {:?}", e))?;
+    }
+
+    Ok(())
+}
+
+/// Enable or disable a media control button
+#[tauri::command]
+#[specta::specta]
+pub fn media_set_button_enabled(
+    state: State<'_, MediaControlsState>,
+    button: String,
+    enabled: bool,
+) -> Result<(), String> {
+    debug!("Setting button {} enabled: {}", button, enabled);
+
+    let media_button = match button.as_str() {
+        "play" => MediaButton::Play,
+        "pause" => MediaButton::Pause,
+        "stop" => MediaButton::Stop,
+        "next" => MediaButton::Next,
+        "previous" => MediaButton::Previous,
+        "seek" => MediaButton::Seek,
+        _ => return Err(format!("Unknown button: {}", button)),
+    };
+
+    let mut guard = state.controls.lock().map_err(|e| e.to_string())?;
+
+    if let Some(controls) = guard.as_mut() {
+        controls
+            .set_button_enabled(media_button, enabled)
+            .map_err(|e| format!("Failed to set button enabled: {:?}", e))?;
     }
 
     Ok(())

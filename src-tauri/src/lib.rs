@@ -152,6 +152,7 @@ pub fn run() {
             audio::media_controls::media_update_now_playing,
             audio::media_controls::media_set_playback_status,
             audio::media_controls::media_clear_now_playing,
+            audio::media_controls::media_set_button_enabled,
         ]);
     }
 
