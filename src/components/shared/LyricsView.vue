@@ -150,8 +150,8 @@
     const scrollOffset = elementCenter - containerCenter
 
     container.scrollBy({
-      top:      scrollOffset,
       behavior: smooth ? 'smooth' : 'instant',
+      top:      scrollOffset,
     })
   }
 

@@ -235,18 +235,6 @@
       closeVolumePopup()
   }
 
-  const swipeTransform = computed(() => {
-    if (!swipeProgress.value || swipeProgress.value.direction !== 'up') return ''
-    // Allow unlimited upward movement following the finger
-    return `translateY(${Math.min(0, swipeProgress.value.deltaY)}px)`
-  })
-
-  const swipeOpacity = computed(() => {
-    if (!swipeProgress.value || swipeProgress.value.direction !== 'up') return 0
-    // Fade in hint based on upward movement (deltaY is negative for up)
-    return Math.min(Math.abs(swipeProgress.value.deltaY) / 100, 0.8)
-  })
-
   watch(isVolumePopupVisible, visible => {
     if (visible)
       document.addEventListener('click', handleClickOutside)
@@ -408,7 +396,9 @@
   watch(() => playerStore.currentSong?.id, (newSongId, oldSongId) => {
     if (newSongId !== oldSongId) {
       const newSong = playerStore.currentSong!
-      console.debug(`[Watcher] Song changed: ${oldSongId} -> ${newSongId}, isGaplessTransition: ${isGaplessTransition.value}`)
+      console.debug(
+        `[Watcher] Song changed: ${oldSongId} -> ${newSongId}, isGaplessTransition: ${isGaplessTransition.value}`,
+      )
       const newIndex = playerStore.playlist.findIndex(s => s.id === newSongId)
       if (newIndex !== -1)
         playerStore.setCurrentIndex(newIndex)

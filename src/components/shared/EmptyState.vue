@@ -9,9 +9,9 @@
     /** Description text explaining the empty state */
     description?: string
     /** Icon component to display */
-    icon?: Component
+    icon?:        Component
     /** Title text for the empty state */
-    title: string
+    title:        string
   }
 
   const props = withDefaults(defineProps<Props>(), {
@@ -38,8 +38,8 @@
       {{ description }}
     </p>
     <button
-      v-if='actionLabel'
       @click='emit("action")'
+      v-if='actionLabel'
       class='mt-4 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-md hover:bg-primary/90 transition-colors'
     >
       {{ actionLabel }}

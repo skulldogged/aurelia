@@ -143,7 +143,7 @@ const saveSessionState = (currentSong: null | Song, playlist: Song[], currentInd
 }
 
 // Debounced playlist save to avoid serializing large playlists on every change
-let playlistSaveTimeout: ReturnType<typeof setTimeout> | null = null
+let playlistSaveTimeout: null | ReturnType<typeof setTimeout> = null
 const PLAYLIST_SAVE_DEBOUNCE_MS = 500
 
 const savePlaylistDebounced = (playlist: Song[]): void => {

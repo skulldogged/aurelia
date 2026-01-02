@@ -49,7 +49,9 @@
   <section class='carousel-section'>
     <!-- Header -->
     <div class='carousel-header'>
-      <h2 class='carousel-title'>{{ title }}</h2>
+      <h2 class='carousel-title'>
+        {{ title }}
+      </h2>
       <div class='carousel-controls'>
         <button
           @click='scrollLeft'

@@ -83,7 +83,9 @@
                 v-if='pair.id'
                 :to='`/artists/${pair.id}`'
                 class='hover:underline'
-              >{{ pair.name }}</RouterLink>
+              >
+                {{ pair.name }}
+              </RouterLink>
               <span v-else>{{ pair.name }}</span>
               <span v-if='idx < collaborators.length - 1'>, </span>
             </template>
@@ -94,7 +96,9 @@
               v-if='album.artistId'
               :to='`/artists/${album.artistId}`'
               class='hover:underline'
-            >{{ album.artist }}</RouterLink>
+            >
+              {{ album.artist }}
+            </RouterLink>
             <span v-else>{{ album.artist }}</span>
           </template>
         </p>

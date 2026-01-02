@@ -1,7 +1,7 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
-import { commands } from '@/bindings'
+import { commands, NowPlayingPayload } from '@/bindings'
 import { Song } from '@/bindings'
 import { useRustAudioPlayer } from '@/composables/useRustAudioPlayer'
 import { logger } from '@/lib/logger'
@@ -35,6 +35,7 @@ export const useAudioEngine = (
   // State
   const isGaplessTransition = ref(false)
   const eventUnlisten = ref<null | UnlistenFn>(null)
+  const mediaEventUnlisteners = ref<UnlistenFn[]>([])
 
   const hasNext = computed(() =>
     playerStore.playlist.length > 1
@@ -80,12 +81,75 @@ export const useAudioEngine = (
     logger.debug('Audio position event listener registered')
   }
 
+  // Subscribe to media control events from backend (OS media keys)
+  const setupMediaEventListeners = async (): Promise<void> => {
+    // Clean up existing listeners
+    for (const unlisten of mediaEventUnlisteners.value) {
+      unlisten()
+    }
+    mediaEventUnlisteners.value = []
+
+    // Listen for play/pause events from OS media keys
+    mediaEventUnlisteners.value.push(
+      await listen('media:play', () => {
+        logger.debug('Media key: Play')
+        playerStore.play()
+      }),
+      await listen('media:pause', () => {
+        logger.debug('Media key: Pause')
+        playerStore.pause()
+      }),
+      await listen('media:next', () => {
+        logger.debug('Media key: Next')
+        nextSong()
+      }),
+      await listen('media:previous', () => {
+        logger.debug('Media key: Previous')
+        if (playerStore.currentIndex > 0) {
+          playerStore.previousSong()
+          const song = playerStore.playlist[playerStore.currentIndex]
+          if (song) loadSong(song)
+        }
+      }),
+      await listen('media:stop', () => {
+        logger.debug('Media key: Stop')
+        playerStore.pause()
+      }),
+    )
+
+    logger.debug('Media control event listeners registered')
+  }
+
+  // Update OS Now Playing with current song metadata
+  const updateNowPlaying = async (song: Song): Promise<void> => {
+    try {
+      const payload: NowPlayingPayload = {
+        album:        song.album ?? null,
+        artist:       song.artists?.join(', ') ?? null,
+        coverUrl:     song.albumArtUrl ?? null,
+        durationSecs: song.duration ?? null,
+        title:        song.name,
+      }
+      await commands.mediaUpdateNowPlaying(payload)
+      logger.debug(`Updated OS Now Playing: ${song.name}`)
+    } catch (error) {
+      logger.error('Failed to update Now Playing:', error)
+    }
+  }
+
   // Cleanup on unmount
   onUnmounted(() => {
     if (eventUnlisten.value) {
       eventUnlisten.value()
       eventUnlisten.value = null
     }
+    // Cleanup media event listeners
+    for (const unlisten of mediaEventUnlisteners.value) {
+      unlisten()
+    }
+    mediaEventUnlisteners.value = []
+    // Clear Now Playing on unmount
+    commands.mediaClearNowPlaying().catch(() => {})
   })
 
   const handleTrackEnded = async (): Promise<void> => {
@@ -209,6 +273,9 @@ export const useAudioEngine = (
         playerStore.setCurrentTime(0)
         logger.info(`Now playing: ${song.name}`)
 
+        // Update OS Now Playing
+        await updateNowPlaying(song)
+
         // Prepare next track for gapless playback
         await prepareNextTrack()
       } else {
@@ -255,6 +322,9 @@ export const useAudioEngine = (
 
       // Setup event listener for position updates from Rust backend
       await setupEventListener()
+
+      // Setup media control event listeners (OS media keys)
+      await setupMediaEventListeners()
     } else {
       logger.error('Failed to initialize Rust audio player')
     }
@@ -286,6 +356,9 @@ export const useAudioEngine = (
       await rustAudioPlayer.resume()
     else if (!isPlaying && currentlyPlaying)
       await rustAudioPlayer.pause()
+
+    // Sync playback status to OS Now Playing widget
+    commands.mediaSetPlaybackStatus(isPlaying, playerStore.currentTime).catch(() => {})
   })
 
   // Watch for EQ enabled changes

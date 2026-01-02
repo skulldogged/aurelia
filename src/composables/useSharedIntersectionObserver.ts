@@ -8,11 +8,6 @@
 
 type IntersectionCallback = (isIntersecting: boolean) => void
 
-interface ObservedElement {
-  callback: IntersectionCallback
-  element: Element
-}
-
 // Single shared observer instance
 let sharedObserver: IntersectionObserver | null = null
 const observedElements = new Map<Element, IntersectionCallback>()
@@ -76,6 +71,8 @@ export const observeElement = (
 /**
  * Vue composable for using the shared IntersectionObserver
  */
-export const useSharedIntersectionObserver = () => ({
+export const useSharedIntersectionObserver = (): {
+  observeElement: (element: Element, callback: IntersectionCallback) => (() => void)
+} => ({
   observeElement,
 })

@@ -3,8 +3,8 @@
 
   import { useImageLoader } from '@/composables/useImageLoader'
   import { useSharedIntersectionObserver } from '@/composables/useSharedIntersectionObserver'
-  import { LRUCache } from '@/lib/lru-cache'
   import { logger } from '@/lib/logger'
+  import { LRUCache } from '@/lib/lru-cache'
 
   // Bounded caches to prevent memory leaks
   const MAX_LOADED_CACHE_SIZE = 1000

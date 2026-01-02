@@ -3,8 +3,8 @@
   import {
     Database, Disc, Home, Library, Link, Loader2, Music, Palette, Search, Server, Users, X,
   } from 'lucide-vue-next'
-  import { ListboxFilter } from 'reka-ui'
   import { storeToRefs } from 'pinia'
+  import { ListboxFilter } from 'reka-ui'
   import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
@@ -12,7 +12,7 @@
 
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-import {
+  import {
     CommandDialog,
     CommandEmpty,
     CommandGroup,
@@ -166,8 +166,8 @@ import {
     <div class='relative flex items-center gap-3 border-b border-border/40 bg-muted/20 px-4' cmdk-input-wrapper>
       <Search class='size-5 shrink-0 text-muted-foreground/70' />
       <ListboxFilter
-        v-model='searchTerm'
         @keydown='handleKeydown'
+        v-model='searchTerm'
         class='flex h-14 w-full bg-transparent py-3 text-base outline-none placeholder:text-muted-foreground/60'
         placeholder='Search songs, artists, or albums...'
         auto-focus
@@ -194,8 +194,12 @@ import {
             <Search class='size-5 text-muted-foreground/60' />
           </div>
           <div class='space-y-1'>
-            <p class='text-sm font-medium text-foreground/80'>Search your library</p>
-            <p class='text-xs text-muted-foreground'>Find songs, artists, and albums</p>
+            <p class='text-sm font-medium text-foreground/80'>
+              Search your library
+            </p>
+            <p class='text-xs text-muted-foreground'>
+              Find songs, artists, and albums
+            </p>
           </div>
         </div>
       </CommandEmpty>
@@ -206,7 +210,9 @@ import {
           <Search class='size-5 text-muted-foreground/60' />
         </div>
         <div class='space-y-1'>
-          <p class='text-sm font-medium text-foreground/80'>No results found</p>
+          <p class='text-sm font-medium text-foreground/80'>
+            No results found
+          </p>
           <p class='max-w-[200px] text-xs text-muted-foreground'>
             No matches for "<span class='text-foreground/70'>{{ debouncedSearchTerm }}</span>"
           </p>

@@ -112,7 +112,6 @@
 
   // Media queries
   const isLargeScreen = useMediaQuery('(min-width: 1024px)')
-  const isSmallScreen = useMediaQuery('(max-width: 768px)')
 
   // Platform detection
   const isDesktop = computed(() => {
@@ -168,7 +167,9 @@
   watch(() => props.show, (newVal, oldVal) => {
     if (newVal !== oldVal) {
       isAnimating.value = true
-      setTimeout(() => { isAnimating.value = false }, 400)
+      setTimeout(() => {
+        isAnimating.value = false
+      }, 400)
     }
   })
 
@@ -277,7 +278,7 @@
 </script>
 
 <template>
-  <Transition name="fullscreen-player">
+  <Transition name='fullscreen-player'>
     <div
       @touchend='handleSwipeEnd'
       @touchmove='handleSwipeMove'
@@ -297,7 +298,7 @@
       <!-- Background layers -->
       <div class='absolute inset-0 z-0'>
         <!-- Album art background -->
-        <Transition name="fade" mode="out-in">
+        <Transition mode='out-in' name='fade'>
           <div
             v-if='backgroundImageData'
             :key='backgroundImageData'
@@ -308,7 +309,7 @@
         <!-- Overlay -->
         <div class='absolute inset-0 bg-black/60 backdrop-blur-3xl' />
         <!-- Visualizer -->
-        <Transition name="fade">
+        <Transition name='fade'>
           <div
             v-if='visualizerEnabled && analyserNode && playerState.isPlaying'
             class='absolute bottom-0 left-0 right-0 h-40 opacity-40'
@@ -324,11 +325,11 @@
 
       <!-- Top bar with controls -->
       <header
-        class='relative z-30 flex items-center justify-between p-4'
         :style='isMobilePortraitMode ? { paddingTop: `calc(1rem + env(safe-area-inset-top))` } : {}'
+        class='relative z-30 flex items-center justify-between p-4'
       >
         <!-- Left controls -->
-        <div class='flex items-center gap-2' @touchstart.stop @touchmove.stop>
+        <div @touchmove.stop @touchstart.stop class='flex items-center gap-2'>
           <Button
             @click="$emit('close')"
             class='fs-control-btn'
@@ -399,10 +400,10 @@
             ]"
           >
             <!-- Album art -->
-            <Transition name="scale-fade" mode="out-in">
+            <Transition mode='out-in' name='scale-fade'>
               <div
                 v-if='(!showLyrics || isLargeScreen) && !isMobileLandscapeMode'
-                :key='playerState.currentSong?.albumId'
+                :key='playerState.currentSong?.albumId || undefined'
                 :class="[
                   'album-art-wrapper mb-8',
                   showLyrics && isLargeScreen ? 'album-art-small' : ''
@@ -427,10 +428,10 @@
 
             <!-- Lyrics for mobile portrait (replaces album art) -->
             <div
+              @touchmove.stop
+              @touchstart.stop
               v-if='showLyrics && !isLargeScreen && isMobilePortraitMode'
               class='w-full h-64 mb-6'
-              @touchstart.stop
-              @touchmove.stop
             >
               <LyricsView
                 @lyrics-loaded='onLyricsLoaded'
@@ -461,7 +462,7 @@
             </div>
 
             <!-- Progress bar -->
-            <div class='w-full' @touchstart.stop @touchmove.stop>
+            <div @touchmove.stop @touchstart.stop class='w-full'>
               <Slider
                 @update:model-value='$event && $emit("seek", $event[0])'
                 :max='100'
@@ -476,139 +477,139 @@
             </div>
 
             <!-- Playback controls -->
-            <div class='flex items-center gap-2 mt-6' @touchstart.stop @touchmove.stop>
-            <!-- Secondary controls (desktop) -->
-            <template v-if='!isMobilePortraitMode'>
-              <Button
-                @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"
-                :class="['fs-control-btn mr-2', playerState.currentSong?.isFavorite && 'is-active']"
-                size='icon'
-                variant='ghost'
-              >
-                <Heart :class="['size-5', playerState.currentSong?.isFavorite && 'fill-current']" />
-              </Button>
-              <div class='relative mr-2'>
+            <div @touchmove.stop @touchstart.stop class='flex items-center gap-2 mt-6'>
+              <!-- Secondary controls (desktop) -->
+              <template v-if='!isMobilePortraitMode'>
                 <Button
-                  @click='toggleVolumePopup'
-                  :class="['fs-control-btn', isVolumePopupVisible && 'is-active']"
+                  @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"
+                  :class="['fs-control-btn mr-2', playerState.currentSong?.isFavorite && 'is-active']"
                   size='icon'
                   variant='ghost'
-                  data-volume-button
                 >
-                  <Volume2 v-if='effectiveVolume > 50' class='size-5' />
-                  <Volume1 v-else-if='effectiveVolume > 0' class='size-5' />
-                  <VolumeX v-else class='size-5' />
+                  <Heart :class="['size-5', playerState.currentSong?.isFavorite && 'fill-current']" />
                 </Button>
-                <Transition name="pop">
-                  <div
-                    v-if='isVolumePopupVisible'
-                    ref='volumePopupRef'
-                    class='volume-popup'
+                <div class='relative mr-2'>
+                  <Button
+                    @click='toggleVolumePopup'
+                    :class="['fs-control-btn', isVolumePopupVisible && 'is-active']"
+                    size='icon'
+                    variant='ghost'
+                    data-volume-button
                   >
-                    <span class='text-xs text-white/70 font-medium tabular-nums'>
-                      {{ Math.round(effectiveVolume) }}%
-                    </span>
-                    <Slider
-                      @update:model-value="$event && $emit('volume-change', $event[0])"
-                      :max='100'
-                      :model-value='[effectiveVolume]'
-                      :step='1'
-                      class='h-20 w-1.5'
-                      orientation='vertical'
-                    />
-                    <button
-                      @click.stop="$emit('toggle-mute')"
-                      class='p-1 text-white/60 hover:text-white transition-colors'
+                    <Volume2 v-if='effectiveVolume > 50' class='size-5' />
+                    <Volume1 v-else-if='effectiveVolume > 0' class='size-5' />
+                    <VolumeX v-else class='size-5' />
+                  </Button>
+                  <Transition name='pop'>
+                    <div
+                      v-if='isVolumePopupVisible'
+                      ref='volumePopupRef'
+                      class='volume-popup'
                     >
-                      <VolumeX v-if='effectiveVolume === 0' class='size-4' />
-                      <Volume2 v-else class='size-4' />
-                    </button>
-                  </div>
-                </Transition>
-              </div>
-            </template>
+                      <span class='text-xs text-white/70 font-medium tabular-nums'>
+                        {{ Math.round(effectiveVolume) }}%
+                      </span>
+                      <Slider
+                        @update:model-value="$event && $emit('volume-change', $event[0])"
+                        :max='100'
+                        :model-value='[effectiveVolume]'
+                        :step='1'
+                        class='h-20 w-1.5'
+                        orientation='vertical'
+                      />
+                      <button
+                        @click.stop="$emit('toggle-mute')"
+                        class='p-1 text-white/60 hover:text-white transition-colors'
+                      >
+                        <VolumeX v-if='effectiveVolume === 0' class='size-4' />
+                        <Volume2 v-else class='size-4' />
+                      </button>
+                    </div>
+                  </Transition>
+                </div>
+              </template>
 
-            <!-- Primary controls -->
-            <Button
-              @click="$emit('toggle-shuffle')"
-              :class="['fs-control-btn', playerState.isShuffled && 'is-active']"
-              size='icon'
-              variant='ghost'
-            >
-              <Shuffle class='size-5' />
-            </Button>
-
-            <Button
-              @click="$emit('previous-song')"
-              :disabled='!playerState.hasPrevious'
-              class='fs-control-btn'
-              size='icon'
-              variant='ghost'
-            >
-              <SkipBack class='size-6' />
-            </Button>
-
-            <Button
-              @click="$emit('toggle-play-pause')"
-              :class="['play-btn', isMobilePortraitMode ? 'size-16' : 'size-14']"
-            >
-              <Pause v-if='playerState.isPlaying' class='size-7' />
-              <Play v-else class='size-7 ml-0.5' />
-            </Button>
-
-            <Button
-              @click="$emit('next-song')"
-              :disabled='!playerState.hasNext'
-              class='fs-control-btn'
-              size='icon'
-              variant='ghost'
-            >
-              <SkipForward class='size-6' />
-            </Button>
-
-            <Button
-              @click="$emit('toggle-repeat')"
-              :class="['fs-control-btn', playerState.repeatMode !== 'none' && 'is-active']"
-              size='icon'
-              variant='ghost'
-            >
-              <Repeat1 v-if="playerState.repeatMode === 'one'" class='size-5' />
-              <Repeat v-else class='size-5' />
-            </Button>
-
-            <!-- Secondary controls (desktop) -->
-            <template v-if='!isMobilePortraitMode'>
+              <!-- Primary controls -->
               <Button
-                @click="$emit('toggle-queue')"
-                :class="['fs-control-btn ml-2', showQueue && 'is-active']"
+                @click="$emit('toggle-shuffle')"
+                :class="['fs-control-btn', playerState.isShuffled && 'is-active']"
                 size='icon'
                 variant='ghost'
               >
-                <ListMusic class='size-5' />
+                <Shuffle class='size-5' />
               </Button>
+
               <Button
-                @click="$emit('toggle-equalizer')"
-                :class="['fs-control-btn', showEqualizer && 'is-active']"
+                @click="$emit('previous-song')"
+                :disabled='!playerState.hasPrevious'
+                class='fs-control-btn'
                 size='icon'
                 variant='ghost'
               >
-                <Sliders class='size-5' />
+                <SkipBack class='size-6' />
               </Button>
-            </template>
+
+              <Button
+                @click="$emit('toggle-play-pause')"
+                :class="['play-btn', isMobilePortraitMode ? 'size-16' : 'size-14']"
+              >
+                <Pause v-if='playerState.isPlaying' class='size-7' />
+                <Play v-else class='size-7 ml-0.5' />
+              </Button>
+
+              <Button
+                @click="$emit('next-song')"
+                :disabled='!playerState.hasNext'
+                class='fs-control-btn'
+                size='icon'
+                variant='ghost'
+              >
+                <SkipForward class='size-6' />
+              </Button>
+
+              <Button
+                @click="$emit('toggle-repeat')"
+                :class="['fs-control-btn', playerState.repeatMode !== 'none' && 'is-active']"
+                size='icon'
+                variant='ghost'
+              >
+                <Repeat1 v-if="playerState.repeatMode === 'one'" class='size-5' />
+                <Repeat v-else class='size-5' />
+              </Button>
+
+              <!-- Secondary controls (desktop) -->
+              <template v-if='!isMobilePortraitMode'>
+                <Button
+                  @click="$emit('toggle-queue')"
+                  :class="['fs-control-btn ml-2', showQueue && 'is-active']"
+                  size='icon'
+                  variant='ghost'
+                >
+                  <ListMusic class='size-5' />
+                </Button>
+                <Button
+                  @click="$emit('toggle-equalizer')"
+                  :class="['fs-control-btn', showEqualizer && 'is-active']"
+                  size='icon'
+                  variant='ghost'
+                >
+                  <Sliders class='size-5' />
+                </Button>
+              </template>
             </div>
           </div>
         </div>
 
         <!-- Lyrics panel (large screens) - clips from right edge -->
         <aside
+          @touchmove.stop
+          @touchstart.stop
           :class="[
             'lyrics-panel',
             showLyrics && (isLargeScreen || isMobileLandscapeMode)
               ? 'w-[40%] max-w-2xl p-6'
               : 'w-0'
           ]"
-          @touchstart.stop
-          @touchmove.stop
         >
           <div class='lyrics-panel-content h-full overflow-hidden'>
             <LyricsView
@@ -628,11 +629,11 @@
 
       <!-- Mobile bottom bar -->
       <footer
-        v-if='isMobilePortraitMode'
-        class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-4 p-4'
-        :style='{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }'
-        @touchstart.stop
         @touchmove.stop
+        @touchstart.stop
+        v-if='isMobilePortraitMode'
+        :style='{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }'
+        class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-4 p-4'
       >
         <Button
           @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"
@@ -655,7 +656,7 @@
             <Volume1 v-else-if='effectiveVolume > 0' class='size-5' />
             <VolumeX v-else class='size-5' />
           </Button>
-          <Transition name="pop">
+          <Transition name='pop'>
             <div v-if='isVolumePopupVisible' ref='volumePopupRef' class='volume-popup'>
               <span class='text-xs text-white/70 font-medium tabular-nums'>
                 {{ Math.round(effectiveVolume) }}%

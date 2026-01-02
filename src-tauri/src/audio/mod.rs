@@ -10,9 +10,16 @@
 mod commands;
 mod eq;
 mod events;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub mod media_controls;
 mod player;
 mod streaming;
 
 pub use commands::*;
 pub use events::*;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub use media_controls::{
+    MediaControlsState, media_clear_now_playing, media_set_playback_status,
+    media_update_now_playing,
+};
 pub use player::AudioPlayer;

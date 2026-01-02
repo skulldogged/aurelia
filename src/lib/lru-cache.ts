@@ -5,7 +5,14 @@
  * when the cache exceeds its maximum size.
  */
 export class LRUCache<K, V> {
+  /**
+   * Get the current size of the cache
+   */
+  get size(): number {
+    return this.cache.size
+  }
   private cache: Map<K, V>
+
   private readonly maxSize: number
 
   constructor(maxSize: number) {
@@ -14,46 +21,10 @@ export class LRUCache<K, V> {
   }
 
   /**
-   * Get a value from the cache.
-   * Accessing a value moves it to the "most recently used" position.
+   * Clear the entire cache
    */
-  get(key: K): V | undefined {
-    if (!this.cache.has(key)) {
-      return undefined
-    }
-
-    // Move to end (most recently used) by deleting and re-adding
-    const value = this.cache.get(key)!
-    this.cache.delete(key)
-    this.cache.set(key, value)
-    return value
-  }
-
-  /**
-   * Check if a key exists in the cache (without affecting LRU order)
-   */
-  has(key: K): boolean {
-    return this.cache.has(key)
-  }
-
-  /**
-   * Set a value in the cache.
-   * If the cache is full, the least recently used item is evicted.
-   */
-  set(key: K, value: V): void {
-    // If key exists, delete first to update LRU position
-    if (this.cache.has(key)) {
-      this.cache.delete(key)
-    }
-    // If at capacity, delete the oldest (first) entry
-    else if (this.cache.size >= this.maxSize) {
-      const oldestKey = this.cache.keys().next().value
-      if (oldestKey !== undefined) {
-        this.cache.delete(oldestKey)
-      }
-    }
-
-    this.cache.set(key, value)
+  clear(): void {
+    this.cache.clear()
   }
 
   /**
@@ -75,17 +46,33 @@ export class LRUCache<K, V> {
   }
 
   /**
-   * Clear the entire cache
+   * Iterate over all entries
    */
-  clear(): void {
-    this.cache.clear()
+  entries(): IterableIterator<[K, V]> {
+    return this.cache.entries()
   }
 
   /**
-   * Get the current size of the cache
+   * Get a value from the cache.
+   * Accessing a value moves it to the "most recently used" position.
    */
-  get size(): number {
-    return this.cache.size
+  get(key: K): undefined | V {
+    if (!this.cache.has(key)) {
+      return undefined
+    }
+
+    // Move to end (most recently used) by deleting and re-adding
+    const value = this.cache.get(key)!
+    this.cache.delete(key)
+    this.cache.set(key, value)
+    return value
+  }
+
+  /**
+   * Check if a key exists in the cache (without affecting LRU order)
+   */
+  has(key: K): boolean {
+    return this.cache.has(key)
   }
 
   /**
@@ -96,16 +83,27 @@ export class LRUCache<K, V> {
   }
 
   /**
+   * Set a value in the cache.
+   * If the cache is full, the least recently used item is evicted.
+   */
+  set(key: K, value: V): void {
+    if (this.cache.has(key)){
+      // If key exists, delete first to update LRU position
+      this.cache.delete(key)
+    } else if (this.cache.size >= this.maxSize) {
+      // If at capacity, delete the oldest (first) entry
+      const oldestKey = this.cache.keys().next().value
+      if (oldestKey !== undefined)
+        this.cache.delete(oldestKey)
+    }
+
+    this.cache.set(key, value)
+  }
+
+  /**
    * Iterate over all values
    */
   values(): IterableIterator<V> {
     return this.cache.values()
-  }
-
-  /**
-   * Iterate over all entries
-   */
-  entries(): IterableIterator<[K, V]> {
-    return this.cache.entries()
   }
 }

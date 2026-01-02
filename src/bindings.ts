@@ -646,6 +646,39 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
+  /**
+ * Clear the Now Playing display
+ */
+  mediaClearNowPlaying: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('media_clear_now_playing'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Update playback state (playing/paused)
+ */
+  mediaSetPlaybackStatus: async (isPlaying: boolean, positionSecs: null | number): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('media_set_playback_status', { isPlaying, positionSecs }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Update the Now Playing metadata displayed by the OS
+ */
+  mediaUpdateNowPlaying: async (payload: NowPlayingPayload): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('media_update_now_playing', { payload }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
   quitApplication: async (): Promise<void> => {
     await TAURI_INVOKE('quit_application')
   },
@@ -918,6 +951,10 @@ export type NameIdPair = {
  * Display name
  */
   name: string; }
+/**
+ * Payload for updating Now Playing metadata
+ */
+export type NowPlayingPayload = { album?: null | string; artist?: null | string; coverUrl?: null | string; durationSecs?: null | number; title: string; }
 /**
  * Playlist representing a collection of items
  */

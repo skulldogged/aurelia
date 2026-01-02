@@ -148,6 +148,10 @@ pub fn run() {
             audio::audio_get_eq_band,
             audio::audio_get_all_eq_bands,
             audio::audio_reset_eq,
+            // Media controls commands
+            audio::media_controls::media_update_now_playing,
+            audio::media_controls::media_set_playback_status,
+            audio::media_controls::media_clear_now_playing,
         ]);
     }
 
@@ -305,7 +309,9 @@ pub fn run() {
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        tauri_builder = tauri_builder.manage(discord_rpc::DiscordRpcState::new());
+        tauri_builder = tauri_builder
+            .manage(discord_rpc::DiscordRpcState::new())
+            .manage(audio::MediaControlsState::default());
     }
 
     tauri_builder
@@ -380,6 +386,28 @@ pub fn run() {
                     error!("Failed to setup system tray: {}", e);
                 }
                 system_tray::setup_window_behavior(handle);
+
+                // Initialize OS media controls (SMTC on Windows, MPRIS on Linux, etc.)
+                match audio::media_controls::init_media_controls(handle) {
+                    Ok(media_state) => {
+                        // Attach event handlers
+                        if let Err(e) = audio::media_controls::attach_media_handlers(
+                            &media_state,
+                            handle.clone(),
+                        ) {
+                            error!("Failed to attach media control handlers: {}", e);
+                        }
+                        // Replace the default state with the initialized one
+                        // Note: The state was already managed with default, we update the inner controls
+                        let managed_state = handle.state::<audio::MediaControlsState>();
+                        *managed_state.controls.lock().unwrap() =
+                            media_state.controls.into_inner().unwrap();
+                        info!("OS media controls initialized");
+                    }
+                    Err(e) => {
+                        error!("Failed to initialize media controls: {}", e);
+                    }
+                }
             }
 
             info!("Application setup finished.");
