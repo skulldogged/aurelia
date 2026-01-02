@@ -6,10 +6,12 @@
 use crate::audio::eq::{EQSettings, EQSource};
 use crate::audio::streaming::StreamingSource;
 use anyhow::{Context, Result};
-use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink, Source};
+use rodio::{Decoder, OutputStreamBuilder, Sink, Source};
 use std::io::BufReader;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::sync::mpsc::{channel, Sender};
 use tracing::{debug, info, trace, warn};
 
 /// Prepared audio source ready for gapless transition
@@ -25,10 +27,15 @@ struct CurrentTrack {
     token: String,
 }
 
+/// Command sent to the audio thread
+enum AudioThreadCommand {
+    CreateSink(Sender<Sink>),
+}
+
 /// Main audio player for the application
 pub struct AudioPlayer {
-    // The stream must be kept alive for playback to work
-    _stream: OutputStream,
+    // Command channel to the audio thread
+    cmd_tx: Sender<AudioThreadCommand>,
     sink: Option<Sink>,
     next_source: Option<PreparedSource>,
     /// Lock-free EQ settings shared with audio processing thread
@@ -44,9 +51,41 @@ pub struct AudioPlayer {
 impl AudioPlayer {
     /// Create a new audio player
     pub fn new() -> Result<Self> {
-        // Create output stream with default device using builder pattern
-        let stream = OutputStreamBuilder::open_default_stream()
-            .context("Failed to open audio output device")?;
+        let (cmd_tx, cmd_rx) = channel::<AudioThreadCommand>();
+        let (init_tx, init_rx) = channel::<Result<()>>();
+
+        // Spawn a thread to own the stream (which is !Send on macOS)
+        thread::spawn(move || {
+            // Create output stream with default device using builder pattern
+            let stream_result = OutputStreamBuilder::open_default_stream()
+                .context("Failed to open audio output device");
+
+            let stream = match stream_result {
+                Ok(s) => {
+                    let _ = init_tx.send(Ok(()));
+                    s
+                }
+                Err(e) => {
+                    let _ = init_tx.send(Err(e));
+                    return;
+                }
+            };
+
+            // Loop to handle commands and keep stream alive
+            while let Ok(cmd) = cmd_rx.recv() {
+                match cmd {
+                    AudioThreadCommand::CreateSink(reply_tx) => {
+                        // Create a sink connected to the stream's mixer
+                        let sink = Sink::connect_new(&stream.mixer());
+                        let _ = reply_tx.send(sink);
+                    }
+                }
+            }
+        });
+
+        // Wait for initialization
+        init_rx.recv()
+            .context("Failed to receive initialization response")??;
 
         // Create lock-free EQ settings
         let eq_settings = Arc::new(EQSettings::new(44100));
@@ -54,7 +93,7 @@ impl AudioPlayer {
         info!("Audio player initialized with default output device");
 
         Ok(Self {
-            _stream: stream,
+            cmd_tx,
             sink: None,
             next_source: None,
             eq_settings,
@@ -122,10 +161,16 @@ impl AudioPlayer {
         // Apply EQ to the source (lock-free processing)
         let eq_source = EQSource::new(decoder, Arc::clone(&self.eq_settings));
 
-        // Create a sink connected to the stream's mixer
+        // Create a sink via the background thread
+        let (sink_tx, sink_rx) = channel();
+        self.cmd_tx.send(AudioThreadCommand::CreateSink(sink_tx))
+            .context("Failed to request audio sink")?;
+
+        let sink = sink_rx.recv()
+            .context("Failed to receive audio sink")?;
+
         // Volume is controlled via sink.set_volume() only (not amplify) to avoid
         // multiplicative volume issues when tracks are reloaded
-        let sink = Sink::connect_new(&self._stream.mixer());
         sink.set_volume(self.volume);
         sink.append(eq_source);
 

@@ -45,7 +45,7 @@ impl Default for MediaControlsState {
 }
 
 /// Initialize media controls with the app's window handle
-pub fn init_media_controls(app: &AppHandle) -> Result<MediaControlsState, String> {
+pub fn init_media_controls(_app: &AppHandle) -> Result<MediaControlsState, String> {
     info!("Initializing OS media controls");
 
     // Get the HWND on Windows, which is required for SMTC
@@ -54,7 +54,7 @@ pub fn init_media_controls(app: &AppHandle) -> Result<MediaControlsState, String
         use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
         // Try to get the main window
-        let window = app.get_webview_window("main");
+        let window = _app.get_webview_window("main");
         match window {
             Some(win) => match win.window_handle() {
                 Ok(handle) => match handle.as_raw() {
