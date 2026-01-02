@@ -1,3 +1,4 @@
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
 import { commands } from '@/bindings'
@@ -5,7 +6,6 @@ import { Song } from '@/bindings'
 import { useRustAudioPlayer } from '@/composables/useRustAudioPlayer'
 import { logger } from '@/lib/logger'
 import { usePlayerStore } from '@/stores'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 interface AudioPositionEvent {
   isFinished: boolean
@@ -34,7 +34,7 @@ export const useAudioEngine = (
 
   // State
   const isGaplessTransition = ref(false)
-  const eventUnlisten = ref<UnlistenFn | null>(null)
+  const eventUnlisten = ref<null | UnlistenFn>(null)
 
   const hasNext = computed(() =>
     playerStore.playlist.length > 1
@@ -64,8 +64,8 @@ export const useAudioEngine = (
     }
 
     eventUnlisten.value = await listen<AudioPositionEvent>('audio:position', async event => {
-      const { position, isFinished } = event.payload
-      
+      const { isFinished, position } = event.payload
+
       // Update current position (skip while user is seeking)
       if (!playerStore.isSeeking) {
         playerStore.setCurrentTime(position)
@@ -76,7 +76,7 @@ export const useAudioEngine = (
         await handleTrackEnded()
       }
     })
-    
+
     logger.debug('Audio position event listener registered')
   }
 
@@ -99,20 +99,35 @@ export const useAudioEngine = (
         playerStore.play()
       }
     } else if (playerStore.repeatMode === 'all' || hasNext.value) {
-      // Advance to next song
-      if (nextSongInQueue.value) {
+      // Capture the next song ONCE to avoid re-evaluation (important for shuffle mode)
+      const upcomingSong = nextSongInQueue.value
+      logger.debug(`[Gapless] upcomingSong: ${upcomingSong?.name} (id: ${upcomingSong?.id}), currentIndex: ${playerStore.currentIndex}`)
+      if (upcomingSong) {
         isGaplessTransition.value = true
+        logger.debug('[Gapless] Set isGaplessTransition = true, calling advanceGapless')
         const success = await rustAudioPlayer.advanceGapless()
+        logger.debug(`[Gapless] advanceGapless returned: ${success}`)
         if (success) {
-          playerStore.setCurrentSong(nextSongInQueue.value)
+          logger.debug(`[Gapless] Setting currentSong to: ${upcomingSong.name}`)
+
+          // Update both song and index so prepareNextTrack gets the correct next song
+          const newIndex = playerStore.playlist.findIndex(s => s.id === upcomingSong.id)
+          playerStore.setCurrentSong(upcomingSong)
+          if (newIndex !== -1) {
+            playerStore.setCurrentIndex(newIndex)
+          }
+
           playerStore.setCurrentTime(0)
-          playerStore.setDuration(nextSongInQueue.value.duration || 0)
+          playerStore.setDuration(upcomingSong.duration || 0)
           playerStore.play()
 
           // Prepare next track for gapless
+          logger.debug(`[Gapless] Calling prepareNextTrack (currentIndex is now ${playerStore.currentIndex})`)
           await prepareNextTrack()
         } else {
-          // Fallback to regular next song
+          // Fallback to regular next song - reset flag first so watcher loads the song
+          logger.debug('[Gapless] advanceGapless failed, falling back to nextSong')
+          isGaplessTransition.value = false
           nextSong()
         }
         isGaplessTransition.value = false
@@ -126,7 +141,11 @@ export const useAudioEngine = (
 
   const prepareNextTrack = async (): Promise<void> => {
     const next = nextSongInQueue.value
-    if (!next) return
+    logger.debug(`[PrepareNext] nextSongInQueue: ${next?.name} (id: ${next?.id}), currentIndex: ${playerStore.currentIndex}`)
+    if (!next) {
+      logger.debug('[PrepareNext] No next song to prepare')
+      return
+    }
 
     try {
       const streamResult = await getAudioStreamUrl(
@@ -138,10 +157,10 @@ export const useAudioEngine = (
 
       if (streamResult.status === 'ok') {
         await rustAudioPlayer.prepareNext(streamResult.data, props.token)
-        logger.debug(`Prepared next track: ${next.name}`)
+        logger.debug(`[PrepareNext] Successfully prepared: ${next.name} (id: ${next.id})`)
       }
     } catch (error) {
-      logger.error('Failed to prepare next track:', error)
+      logger.error('[PrepareNext] Failed to prepare next track:', error)
     }
   }
 

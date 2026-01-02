@@ -63,7 +63,9 @@
     return result
   }
 
-  watch(() => props.song, async newSong => {
+  watch(() => props.song?.id, async (newId, oldId) => {
+    if (newId === oldId && props.song) return
+    const newSong = props.song
     if (newSong) {
       lyrics.value = null
       error.value = null

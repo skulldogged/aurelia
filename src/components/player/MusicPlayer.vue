@@ -88,7 +88,9 @@
 
   const hasLyrics = computed(() => playerStore.hasLyrics)
 
-  watch(() => playerStore.currentSong, async newSong => {
+  watch(() => playerStore.currentSong?.id, async (newId, oldId) => {
+    if (newId === oldId) return
+    const newSong = playerStore.currentSong
     if (newSong) {
       if (newSong.lyrics != null && newSong.lyrics.trim() !== '') {
         playerStore.setHasLyrics(true)
@@ -341,8 +343,11 @@
 
   // Throttle seek updates to prevent audio crackling during slider drags
   const SEEK_THROTTLE_MS = 100
+  const SEEK_LOADING_DELAY_MS = 1000
   let pendingSeekTime: null | number = null
   let seekThrottleTimer: null | ReturnType<typeof setTimeout> = null
+  let seekLoadingTimer: null | ReturnType<typeof setTimeout> = null
+  const isSeekLoading = ref(false)
 
   const onSeek = async (value: number[] | undefined): Promise<void> => {
     if (!value || !playerStore.audioReady) return
@@ -363,8 +368,20 @@
       // Set up throttled backend seek
       seekThrottleTimer = setTimeout(async () => {
         if (pendingSeekTime !== null) {
+          // Start loading indicator timer - only shows if seek takes > 1 second
+          seekLoadingTimer = setTimeout(() => {
+            isSeekLoading.value = true
+          }, SEEK_LOADING_DELAY_MS)
+
           await rustAudioPlayer.seek(pendingSeekTime)
           pendingSeekTime = null
+
+          // Clear loading indicator
+          if (seekLoadingTimer) {
+            clearTimeout(seekLoadingTimer)
+            seekLoadingTimer = null
+          }
+          isSeekLoading.value = false
         }
         // Clear seeking state after backend seek completes
         playerStore.setIsSeeking(false)
@@ -380,6 +397,7 @@
   // Cleanup throttle timer
   onBeforeUnmount(() => {
     if (seekThrottleTimer) clearTimeout(seekThrottleTimer)
+    if (seekLoadingTimer) clearTimeout(seekLoadingTimer)
   })
 
   const previousSong = (): void => {
@@ -390,16 +408,19 @@
   watch(() => playerStore.currentSong?.id, (newSongId, oldSongId) => {
     if (newSongId !== oldSongId) {
       const newSong = playerStore.currentSong!
+      console.debug(`[Watcher] Song changed: ${oldSongId} -> ${newSongId}, isGaplessTransition: ${isGaplessTransition.value}`)
       const newIndex = playerStore.playlist.findIndex(s => s.id === newSongId)
       if (newIndex !== -1)
         playerStore.setCurrentIndex(newIndex)
 
       if (isGaplessTransition.value) {
+        console.debug('[Watcher] Gapless transition - skipping playManuallyChangedSong')
         isGaplessTransition.value = false
         // Gapless transition is handled by Rust backend
         audioLoaded.value = true
         playerStore.play()
       } else {
+        console.debug('[Watcher] Manual song change - calling playManuallyChangedSong')
         playManuallyChangedSong(newSong)
         audioLoaded.value = true
       }
@@ -534,8 +555,10 @@
           </div>
 
           <!-- Song info -->
-          <div class='flex-1 min-w-0' @click="emit('toggle-fullscreen')">
-            <p class='font-medium text-sm truncate'>{{ playerStore.currentSong.name }}</p>
+          <div @click="emit('toggle-fullscreen')" class='flex-1 min-w-0'>
+            <p class='font-medium text-sm truncate'>
+              {{ playerStore.currentSong.name }}
+            </p>
             <p class='text-xs text-muted-foreground truncate'>
               {{ playerStore.currentSong.artists?.join(', ') || 'Unknown Artist' }}
             </p>
@@ -603,7 +626,9 @@
                     v-if='playerStore.currentSong.artistIds?.[i]'
                     :to='`/artists/${playerStore.currentSong.artistIds[i]}`'
                     class='hover:underline'
-                  >{{ artist }}</RouterLink>
+                  >
+                    {{ artist }}
+                  </RouterLink>
                   <span v-else>{{ artist }}</span>
                   <span v-if='i < playerStore.currentSong.artists.length - 1'>, </span>
                 </template>
@@ -614,7 +639,9 @@
                   v-if='playerStore.currentSong.albumId'
                   :to='`/albums/${playerStore.currentSong.albumId}`'
                   class='hover:underline'
-                >{{ playerStore.currentSong.album }}</RouterLink>
+                >
+                  {{ playerStore.currentSong.album }}
+                </RouterLink>
                 <span v-else>{{ playerStore.currentSong.album }}</span>
               </template>
             </p>
@@ -648,12 +675,12 @@
 
             <Button
               @click='togglePlayPause'
-              :disabled='!playerStore.audioReady || playerStore.isBuffering'
+              :disabled='!playerStore.audioReady || playerStore.isBuffering || isSeekLoading'
               class='player-play-btn'
               size='icon'
               variant='default'
             >
-              <Loader2 v-if='playerStore.isBuffering' class='size-4 animate-spin' />
+              <Loader2 v-if='playerStore.isBuffering || isSeekLoading' class='size-4 animate-spin' />
               <Play v-else-if='!playerStore.isPlaying' class='size-4 ml-0.5' />
               <Pause v-else class='size-4' />
             </Button>

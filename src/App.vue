@@ -24,6 +24,7 @@
     DialogHeader,
     DialogTitle,
   } from '@/components/ui/dialog'
+  import { Toaster } from '@/components/ui/sonner'
   import { useAndroidNowPlayingService } from '@/composables/useAndroidNowPlayingService'
   import { useAuth } from '@/composables/useAuth'
   import { useDiscordPresence } from '@/composables/useDiscordPresence'
@@ -458,5 +459,8 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- Toast Notifications -->
+    <Toaster position='top-center' />
   </div>
 </template>

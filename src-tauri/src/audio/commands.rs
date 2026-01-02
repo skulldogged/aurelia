@@ -184,18 +184,33 @@ pub async fn audio_seek(
     audio_state: State<'_, AudioState>,
     position_secs: f64,
 ) -> Result<(), String> {
-    let mut player_guard = audio_state.player.lock().map_err(|e| e.to_string())?;
-    let player = player_guard
-        .as_mut()
-        .ok_or("Audio player not initialized")?;
+    // Try native seek first (fast path) - hold lock briefly
+    {
+        let player_guard = audio_state.player.lock().map_err(|e| e.to_string())?;
+        let player = player_guard
+            .as_ref()
+            .ok_or("Audio player not initialized")?;
 
+        // Native seek is synchronous and fast
+        if player.seek(position_secs).is_ok() {
+            return Ok(());
+        }
+        // Native seek failed, we'll try fallback below
+    }
+
+    // Fallback: restart stream from target position (slow, async)
+    // Lock is released here so event loop and other commands can work
     tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current()
-            .block_on(async { player.seek_with_fallback(position_secs).await })
-    })
-    .map_err(|e| {
-        error!("Failed to seek: {}", e);
-        e.to_string()
+        tokio::runtime::Handle::current().block_on(async {
+            let mut player_guard = audio_state.player.lock().map_err(|e| e.to_string())?;
+            let player = player_guard
+                .as_mut()
+                .ok_or_else(|| "Audio player not initialized".to_string())?;
+            player.seek_with_fallback(position_secs).await.map_err(|e| {
+                error!("Failed to seek: {}", e);
+                e.to_string()
+            })
+        })
     })
 }
 

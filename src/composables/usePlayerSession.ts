@@ -68,8 +68,13 @@ const setupWatchers = (
   sessionManager: ReturnType<typeof useSession>,
 ): (() => void) => {
   const unwatchCurrentSong = watch(
-    () => playerStore.currentSong,
-    async (newSong, oldSong) => {
+    () => playerStore.currentSong?.id,
+    async (newSongId, oldSongId) => {
+      if (newSongId === oldSongId) return
+
+      const newSong = playerStore.currentSong
+      const oldSong = oldSongId ? { id: oldSongId } : null
+
       if (oldSong && playerStore.isPlaying)
         await sessionManager.reportPlaybackStop(oldSong.id, playerStore.currentTime)
 

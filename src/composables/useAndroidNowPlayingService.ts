@@ -250,7 +250,9 @@ export const useAndroidNowPlayingService = (): { isSupported: boolean } => {
       window.removeEventListener('android-now-playing-control', handleNativeControl as EventListener))
   }
 
-  unwatchers.push(watch(currentSong, async song => {
+  unwatchers.push(watch(() => currentSong.value?.id, async (newId, oldId) => {
+    if (newId === oldId && currentSong.value) return
+    const song = currentSong.value
     if (!song) {
       artworkPath.value = null
       lastSignature = ''

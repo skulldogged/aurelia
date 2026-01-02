@@ -284,3 +284,18 @@ body.songs-page-active .os-scrollbar-vertical {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Sonner toast theme integration */
+[data-sonner-toaster] {
+  --normal-bg: var(--background);
+  --normal-border: var(--border);
+  --normal-text: var(--foreground);
+  font-family: var(--font-family);
+}
+
+[data-sonner-toaster][data-sonner-theme='dark'],
+[data-sonner-toaster][data-sonner-theme='light'] {
+  --normal-bg: var(--background);
+  --normal-border: var(--border);
+  --normal-text: var(--foreground);
+}

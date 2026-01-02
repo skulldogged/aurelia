@@ -130,7 +130,9 @@
   // Background image
   const backgroundImageData = ref<null | string>(null)
 
-  watch(() => props.playerState.currentSong, async newSong => {
+  watch(() => props.playerState.currentSong?.id, async (newId, oldId) => {
+    if (newId === oldId) return
+    const newSong = props.playerState.currentSong
     if (newSong && props.serverUrl && props.token) {
       try {
         const imageId = newSong.albumId

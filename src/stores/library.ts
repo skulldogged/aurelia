@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
+import { toast } from 'vue-sonner'
 
 import type { Album, Artist, Credentials, Song } from '@/bindings'
 
@@ -138,6 +139,7 @@ export const useLibraryStore = defineStore('library', () => {
 
   const syncLibrary = async (credentials: Credentials): Promise<void> => {
     logger.info('Starting library sync...')
+    const toastId = toast.loading('Syncing library...')
 
     await withCustomState(
       () => commands.syncLibrary(credentials.serverUrl, credentials.token),
@@ -146,12 +148,14 @@ export const useLibraryStore = defineStore('library', () => {
           const errorMessage = `Failed to sync library: ${errorString}`
           error.value = errorMessage
           logger.error('Failed to sync library:', errorString)
+          toast.error('Failed to sync library', { id: toastId })
         },
         onSuccess: async () => {
           // Reset loaded state to force reload
           isLoaded.value = false
           await loadLibrary()
           logger.info('Library sync completed successfully.')
+          toast.success('Library synced successfully', { id: toastId })
         },
       },
     )
@@ -159,6 +163,7 @@ export const useLibraryStore = defineStore('library', () => {
 
   const clearCache = async (credentials: Credentials): Promise<void> => {
     logger.info('Starting cache clear...')
+    const toastId = toast.loading('Clearing cache...')
 
     // Reset home data when clearing cache
     const homeStore = useHomeStore()
@@ -171,12 +176,14 @@ export const useLibraryStore = defineStore('library', () => {
           const errorMessage = `Failed to clear cache: ${errorString}`
           error.value = errorMessage
           logger.error('Failed to clear cache:', errorString)
+          toast.error('Failed to clear cache', { id: toastId })
         },
         onSuccess: async () => {
           // Reset loaded state to force reload
           isLoaded.value = false
           await loadLibrary()
           logger.info('Cache clear completed successfully.')
+          toast.success('Cache cleared successfully', { id: toastId })
         },
       },
     )

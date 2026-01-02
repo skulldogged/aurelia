@@ -1,4 +1,5 @@
 import { type Ref } from 'vue'
+import { toast } from 'vue-sonner'
 
 import type { Credentials, Song } from '@/bindings'
 
@@ -96,12 +97,14 @@ const toggleFavorite = async (
         playerStore.updateSongFavorite(song.id, oldFavoriteStatus)
         libraryStore.updateSongFavorite(song.id, oldFavoriteStatus)
         logger.error('Failed to toggle favorite status:', error)
+        toast.error('Failed to update favorite')
       },
       onSuccess: newStatus => {
         logger.debug('Successfully toggled favorite status', { newStatus, songId: song.id })
         // Ensure final state matches server response
         playerStore.updateSongFavorite(song.id, newStatus)
         libraryStore.updateSongFavorite(song.id, newStatus)
+        toast.success(newStatus ? 'Added to favorites' : 'Removed from favorites')
       },
     },
   )
@@ -117,12 +120,14 @@ const playInstantMix = async (playerStore: ReturnType<typeof usePlayerStore>, so
     const result = await commands.getInstantMix(song.id)
     if (result.status === 'error') {
       logger.error('Failed to get instant mix:', result.error)
+      toast.error('Failed to create instant mix')
       return
     }
 
     const instantMixSongs = result.data
     if (instantMixSongs.length === 0) {
       logger.warn('No songs found in instant mix')
+      toast.warning('No similar songs found for instant mix')
       return
     }
 
@@ -133,8 +138,10 @@ const playInstantMix = async (playerStore: ReturnType<typeof usePlayerStore>, so
 
     playSongs(playerStore, songsToPlay)
     logger.info(`Started instant mix with ${songsToPlay.length} songs`)
+    toast.success(`Started instant mix with ${songsToPlay.length} songs`)
   } catch (error) {
     logger.error('Error playing instant mix:', error)
+    toast.error('Failed to create instant mix')
   }
 }
 

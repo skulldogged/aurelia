@@ -250,7 +250,8 @@ export const useDiscordPresence = (): {
   }
 
   const stopWatchers: Array<() => void> = [
-    watch(() => playerStore.currentSong, () => {
+    watch(() => playerStore.currentSong?.id, (newId, oldId) => {
+      if (newId === oldId) return
       currentSongStartTime = null
       if (playerStore.isPlaying) {
         lastSignature = ''

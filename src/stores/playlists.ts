@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
+import { toast } from 'vue-sonner'
 
 import type { Playlist, PlaylistCreateData, PlaylistUpdateData, Song } from '@/bindings'
 
@@ -94,6 +95,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
         onError: errorString => {
           error.value = `Failed to create playlist: ${errorString}`
           logger.error('Failed to create playlist:', errorString)
+          toast.error('Failed to create playlist')
         },
         onStart: () => {
           error.value = null
@@ -108,6 +110,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
           }
           playlists.value.push(newPlaylist)
           logger.info('Playlist created successfully:', newPlaylist.name)
+          toast.success(`Created playlist "${newPlaylist.name}"`)
         },
       },
     )
@@ -160,6 +163,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
 
   const deletePlaylist = async (id: string): Promise<boolean> => {
     let success = false
+    const playlistName = playlists.value.find(p => p.id === id)?.name
 
     await withCustomState(
       () => commands.deletePlaylist(id),
@@ -167,6 +171,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
         onError: errorString => {
           error.value = `Failed to delete playlist: ${errorString}`
           logger.error('Failed to delete playlist:', errorString)
+          toast.error('Failed to delete playlist')
         },
         onStart: () => {
           error.value = null
@@ -191,6 +196,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
           logger.info('Frontend image cache cleared for:', id)
 
           success = true
+          toast.success(playlistName ? `Deleted "${playlistName}"` : 'Playlist deleted')
         },
       },
     )
@@ -202,6 +208,7 @@ export const usePlaylistStore = defineStore('playlists', () => {
     const playlist = playlists.value.find(p => p.id === playlistId)
     if (!playlist) {
       error.value = 'Playlist not found'
+      toast.error('Playlist not found')
       return false
     }
 
@@ -213,23 +220,39 @@ export const usePlaylistStore = defineStore('playlists', () => {
     const newSongs = songs.filter(s => !existingIds.has(s.id))
 
     if (newSongs.length === 0) {
+      toast.info('Songs already in playlist')
       return true // No new songs to add
     }
 
     // Combine existing song IDs with new song IDs
     const updatedIds = [...currentSongs.map(s => s.id), ...newSongs.map(s => s.id)]
-    return await updatePlaylist(playlistId, { ids: updatedIds })
+    const success = await updatePlaylist(playlistId, { ids: updatedIds })
+
+    if (success) {
+      const songText = newSongs.length === 1 ? 'song' : 'songs'
+      toast.success(`Added ${newSongs.length} ${songText} to "${playlist.name}"`)
+    }
+
+    return success
   }
 
   const removeSongsFromPlaylist = async (playlistId: string, songIds: string[]): Promise<boolean> => {
     const playlist = playlists.value.find(p => p.id === playlistId)
     if (!playlist) {
       error.value = 'Playlist not found'
+      toast.error('Playlist not found')
       return false
     }
 
     const updatedSongs = playlist.songs.filter(s => !songIds.includes(s.id))
-    return await updatePlaylist(playlistId, { songs: updatedSongs })
+    const success = await updatePlaylist(playlistId, { songs: updatedSongs })
+
+    if (success) {
+      const songText = songIds.length === 1 ? 'song' : 'songs'
+      toast.success(`Removed ${songIds.length} ${songText} from playlist`)
+    }
+
+    return success
   }
 
   const reorderPlaylistSongs = async (
@@ -254,7 +277,14 @@ export const usePlaylistStore = defineStore('playlists', () => {
       return false
     }
 
-    return await updatePlaylist(playlistId, { isFavorite: !playlist.isFavorite })
+    const newFavoriteState = !playlist.isFavorite
+    const success = await updatePlaylist(playlistId, { isFavorite: newFavoriteState })
+
+    if (success) {
+      toast.success(newFavoriteState ? 'Added to favorites' : 'Removed from favorites')
+    }
+
+    return success
   }
 
   const clearError = (): void => {

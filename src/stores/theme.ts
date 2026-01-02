@@ -31,7 +31,10 @@ export const useThemeStore = defineStore('theme', () => {
 
   const isDarkMode = computed(() => {
     if (materialYouStore.useMaterialYou) return true // Material You is always dark for now
-    return selectedScheme.value?.name.includes('dark') || false
+    const name = selectedScheme.value?.name
+    if (!name) return false
+    // Light themes explicitly have 'light' in name, everything else is dark
+    return !name.includes('light')
   })
 
   const setColorScheme = (schemeName: string): void => {
