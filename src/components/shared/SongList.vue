@@ -84,13 +84,14 @@
   const estimateSize = computed(() => layoutMode.value === 'comfy' ? 72 : 48)
 
   // Get optimal overscan based on device performance
+  // Higher overscan needed to prevent items disappearing at scroll edges
   const getOptimalOverscan = (): number => {
     const isCompact = layoutMode.value === 'compact'
     const isLowEndDevice = navigator.hardwareConcurrency <= 4
     if (isLowEndDevice) {
-      return isCompact ? 3 : 2
+      return isCompact ? 6 : 5
     }
-    return isCompact ? 5 : 4
+    return isCompact ? 8 : 8
   }
 
   // Create virtualizer with reactive options

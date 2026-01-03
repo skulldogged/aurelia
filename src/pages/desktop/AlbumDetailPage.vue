@@ -1,13 +1,14 @@
 <script setup lang="ts">
   import { MoreHorizontal, Music, Play, Share2, Shuffle } from 'lucide-vue-next'
-  import { computed, ref } from 'vue'
+  import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
   import { Album, NameIdPair, Song } from '@/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
+  import AlbumTrackList from '@/components/shared/AlbumTrackList.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
-  import SongList from '@/components/shared/SongList.vue'
+  import Button from '@/components/ui/Button.vue'
   import {
     DropdownMenu,
     DropdownMenuContent,
@@ -15,6 +16,7 @@
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { scrollElementKey } from '@/composables/useMainLayout'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
 
@@ -141,11 +143,106 @@
     }
     if (songs.length > 0) emit('play-songs', songs)
   }
+
+  // Scroll tracking for sticky header
+  const scrollElement = inject(scrollElementKey, ref<HTMLElement | null>(null))
+  const heroRef = ref<HTMLElement | null>(null)
+  const scrollY = ref(0)
+  const heroHeight = ref(400)
+
+  // Show sticky header when scrolled past 80% of hero
+  const showStickyHeader = computed(() => scrollY.value > heroHeight.value * 0.6)
+
+  const handleScroll = (): void => {
+    if (scrollElement.value) {
+      scrollY.value = scrollElement.value.scrollTop
+    }
+  }
+
+  const updateHeroHeight = (): void => {
+    if (heroRef.value) {
+      heroHeight.value = heroRef.value.offsetHeight
+    }
+  }
+
+  watch(scrollElement, (el, oldEl) => {
+    if (oldEl) {
+      oldEl.removeEventListener('scroll', handleScroll)
+    }
+    if (el) {
+      el.addEventListener('scroll', handleScroll, { passive: true })
+      handleScroll()
+    }
+  }, { immediate: true })
+
+  onMounted(() => {
+    updateHeroHeight()
+    window.addEventListener('resize', updateHeroHeight)
+  })
+
+  onUnmounted(() => {
+    if (scrollElement.value) {
+      scrollElement.value.removeEventListener('scroll', handleScroll)
+    }
+    window.removeEventListener('resize', updateHeroHeight)
+  })
 </script>
 
 <template>
-  <div class='flex flex-col'>
+  <div class='relative'>
+    <!-- Sticky Header - uses sticky positioning within scroll container -->
+    <div
+      v-if='album'
+      :class="[
+        'sticky top-0 z-40 overflow-hidden',
+        'bg-sidebar/95 backdrop-blur-md border-b border-border/20 shadow-md',
+        'transition-all duration-200 ease-out',
+      ]"
+      :style="{ height: showStickyHeader ? '64px' : '0px' }"
+    >
+      <div class='h-16 flex items-center gap-4 px-6 md:px-10 lg:px-16 max-w-7xl mx-auto'>
+        <!-- Album Art Thumbnail -->
+        <div class='shrink-0'>
+          <ImageLoader
+            :item-id='album.id || album.name'
+            :server-url='serverUrl'
+            :token='token'
+            :width='100'
+            class='size-10 rounded-lg shadow-md object-cover'
+          >
+            <template #fallback>
+              <div class='size-10 rounded-lg bg-muted flex items-center justify-center'>
+                <Music class='size-5 text-muted-foreground' />
+              </div>
+            </template>
+          </ImageLoader>
+        </div>
+
+        <!-- Album Info -->
+        <div class='flex-1 min-w-0'>
+          <h2 class='font-bold text-foreground truncate'>
+            {{ album.name }}
+          </h2>
+          <p class='text-sm text-muted-foreground truncate'>
+            {{ albumArtistPairs.map(p => p.name).join(', ') || album.artist || 'Unknown Artist' }}
+          </p>
+        </div>
+
+        <!-- Play Button -->
+        <Button
+          @click='playAll'
+          class='shrink-0'
+          size='sm'
+        >
+          <Play class='size-4 fill-current' />
+          <span class='ml-1.5'>Play</span>
+        </Button>
+      </div>
+    </div>
+
+    <!-- Hero Section -->
     <section
+      ref='heroRef'
       v-if='album || libraryLoading'
       class='
         relative isolate overflow-hidden min-h-[400px]
@@ -307,17 +404,13 @@
 
     <section class='flex justify-center'>
       <div class='w-full max-w-7xl py-6 px-6 md:px-10 lg:px-16'>
-        <SongList
+        <AlbumTrackList
           @play-instant-mix='$emit("play-instant-mix", $event)'
           @play-song='playSongWithQueue'
           @toggle-favorite='(song) => $emit("toggle-favorite", song)'
-          :hide-header='true'
           :loading='libraryLoading || !libraryLoaded || !album'
           :server-url='serverUrl'
-          :show-album-art='false'
           :show-artist='hasMultipleArtists'
-          :show-duration='true'
-          :show-track-number='true'
           :songs='albumSongs'
           :token='token'
         />

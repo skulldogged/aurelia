@@ -1,6 +1,6 @@
 <script setup lang="ts">
-  import { MoreHorizontal, Music, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
-  import { computed, ref, watch } from 'vue'
+  import { MoreHorizontal, Music, Pause, Play, Share2, Shuffle, Star } from 'lucide-vue-next'
+  import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
   import { Album, Artist, commands, Song } from '@/bindings'
@@ -18,9 +18,12 @@
     DropdownMenuTrigger,
   } from '@/components/ui/dropdown-menu'
   import { Skeleton } from '@/components/ui/skeleton'
+  import { scrollElementKey } from '@/composables/useMainLayout'
+  import { formatDuration } from '@/lib/utils'
   import { logger } from '@/lib/logger'
   import { useAuthStore } from '@/stores/auth'
   import { useLibraryStore } from '@/stores/library'
+  import { usePlayerStore } from '@/stores'
 
   const topSongsCount = 10
 
@@ -33,6 +36,7 @@
 
   const authStore = useAuthStore()
   const libraryStore = useLibraryStore()
+  const playerStore = usePlayerStore()
 
   // Create computed properties from stores
   const allSongs = computed(() => libraryStore.allSongs as Song[])
@@ -247,11 +251,106 @@
     if (album.songs && album.songs.length > 0)
       emit('play-songs', [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)))
   }
+
+  // Scroll tracking for sticky header
+  const scrollElement = inject(scrollElementKey, ref<HTMLElement | null>(null))
+  const heroRef = ref<HTMLElement | null>(null)
+  const scrollY = ref(0)
+  const heroHeight = ref(400)
+
+  // Show sticky header when scrolled past 60% of hero
+  const showStickyHeader = computed(() => scrollY.value > heroHeight.value * 0.6)
+
+  const handleScroll = (): void => {
+    if (scrollElement.value) {
+      scrollY.value = scrollElement.value.scrollTop
+    }
+  }
+
+  const updateHeroHeight = (): void => {
+    if (heroRef.value) {
+      heroHeight.value = heroRef.value.offsetHeight
+    }
+  }
+
+  watch(scrollElement, (el, oldEl) => {
+    if (oldEl) {
+      oldEl.removeEventListener('scroll', handleScroll)
+    }
+    if (el) {
+      el.addEventListener('scroll', handleScroll, { passive: true })
+      handleScroll()
+    }
+  }, { immediate: true })
+
+  onMounted(() => {
+    updateHeroHeight()
+    window.addEventListener('resize', updateHeroHeight)
+  })
+
+  onUnmounted(() => {
+    if (scrollElement.value) {
+      scrollElement.value.removeEventListener('scroll', handleScroll)
+    }
+    window.removeEventListener('resize', updateHeroHeight)
+  })
 </script>
 
 <template>
-  <div class='flex flex-col'>
+  <div class='relative'>
+    <!-- Sticky Header - uses sticky positioning within scroll container -->
+    <div
+      v-if='artist'
+      :class="[
+        'sticky top-0 z-40 overflow-hidden',
+        'bg-sidebar/95 backdrop-blur-md border-b border-border/20 shadow-md',
+        'transition-all duration-200 ease-out',
+      ]"
+      :style="{ height: showStickyHeader ? '64px' : '0px' }"
+    >
+      <div class='h-16 flex items-center gap-4 px-6 md:px-10 lg:px-16 max-w-7xl mx-auto'>
+        <!-- Artist Thumbnail -->
+        <div class='shrink-0'>
+          <ImageLoader
+            :item-id='artist.id'
+            :server-url='serverUrl'
+            :token='token'
+            :width='100'
+            class='size-10 rounded-full shadow-md object-cover'
+          >
+            <template #fallback>
+              <div class='size-10 rounded-full bg-muted flex items-center justify-center'>
+                <Music class='size-5 text-muted-foreground' />
+              </div>
+            </template>
+          </ImageLoader>
+        </div>
+
+        <!-- Artist Info -->
+        <div class='flex-1 min-w-0'>
+          <h2 class='font-bold text-foreground truncate'>
+            {{ artist.name }}
+          </h2>
+          <p class='text-sm text-muted-foreground truncate'>
+            {{ artistSongs.length }} songs
+          </p>
+        </div>
+
+        <!-- Shuffle Button -->
+        <Button
+          @click='playArtistShuffle'
+          class='shrink-0'
+          size='sm'
+        >
+          <Shuffle class='size-4' />
+          <span class='ml-1.5'>Shuffle</span>
+        </Button>
+      </div>
+    </div>
+
+    <!-- Hero Section -->
     <section
+      ref='heroRef'
       v-if='artist || isLoading'
       class='
         relative isolate overflow-hidden min-h-[400px]
@@ -434,71 +533,119 @@
         </div>
       </div>
 
+      <!-- Top Songs List -->
       <section class='flex justify-center'>
-        <div class='w-full max-w-7xl'>
-          <Carousel :disabled='isLoading || libraryLoading' :title="isFeaturedOnlyArtist ? 'Features' : 'Top Songs'">
-            <template v-if='isLoading || artistSongs.length === 0'>
-              <div
-                v-for='n in 10'
-                :key='`top-song-skeleton-${n}`'
-                class='cursor-pointer group'
-              >
-                <div class='relative mb-3'>
-                  <Skeleton class='album-art-image' />
-                </div>
-                <Skeleton class='h-5 w-4/5 mb-2' />
-                <Skeleton class='h-4 w-3/4' />
-              </div>
-            </template>
-            <template v-else>
-              <div
-                v-for='song in artistSongs.slice(0, topSongsCount)'
-                @click='playSong(song)'
-                :key='song.id'
-                class='cursor-pointer group'
-              >
-                <div class='relative mb-3 overflow-hidden rounded-lg'>
-                  <ImageLoader
-                    :item-id='song.albumId || song.id'
-                    :server-url='serverUrl'
-                    :token='token'
-                    :width='400'
-                    alt='Album art'
-                    class='album-art-image'
-                  >
-                    <template #fallback>
-                      <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
-                    </template>
-                  </ImageLoader>
+        <div class='w-full max-w-7xl py-5'>
+          <h2 class='text-2xl md:text-3xl font-bold text-foreground mb-4'>
+            {{ isFeaturedOnlyArtist ? 'Features' : 'Top Songs' }}
+          </h2>
 
-                  <div
-                    class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
-                         transition-opacity duration-200 flex items-center justify-center'
-                  >
-                    <Button
-                      @click.stop='playSong(song)'
-                      class='bg-white/30 hover:bg-white/40 backdrop-blur-sm text-white border border-white/40 shadow-lg'
-                      size='icon'
-                    >
-                      <Play class='h-5 w-5 fill-current' />
-                    </Button>
-                  </div>
-                </div>
-                <p class='font-semibold text-sm truncate group-hover:text-accent transition-colors'>
+          <!-- Loading skeletons -->
+          <div v-if='isLoading || artistSongs.length === 0' class='space-y-1'>
+            <div
+              v-for='n in 5'
+              :key='`skeleton-${n}`'
+              class='flex items-center gap-4 px-3 py-3 rounded-lg'
+            >
+              <Skeleton class='w-8 h-6 rounded' />
+              <Skeleton class='size-12 rounded-lg shrink-0' />
+              <div class='flex-1 min-w-0'>
+                <Skeleton class='h-5 w-2/3 mb-1.5' />
+                <Skeleton class='h-3.5 w-1/3' />
+              </div>
+              <Skeleton class='w-12 h-4' />
+            </div>
+          </div>
+
+          <!-- Top Songs List -->
+          <div v-else class='space-y-1'>
+            <div
+              v-for='(song, index) in artistSongs.slice(0, topSongsCount)'
+              @click='playSong(song)'
+              :key='song.id'
+              :class="[
+                'group flex items-center gap-4 px-3 py-2.5 rounded-lg cursor-pointer',
+                'transition-all duration-150',
+                playerStore.currentSong?.id === song.id
+                  ? 'bg-accent/10 ring-1 ring-accent/20'
+                  : 'hover:bg-white/5'
+              ]"
+            >
+              <!-- Rank Number / Play Button -->
+              <div class='w-8 flex items-center justify-center shrink-0'>
+                <span
+                  :class="[
+                    'tabular-nums font-bold text-lg transition-all duration-150',
+                    playerStore.currentSong?.id === song.id
+                      ? 'text-accent'
+                      : 'text-muted-foreground group-hover:opacity-0'
+                  ]"
+                >
+                  {{ index + 1 }}
+                </span>
+                <Button
+                  @click.stop='playSong(song)'
+                  :class="[
+                    'absolute size-8 transition-all duration-150',
+                    playerStore.currentSong?.id === song.id && playerStore.isPlaying
+                      ? 'opacity-100'
+                      : 'opacity-0 group-hover:opacity-100'
+                  ]"
+                  size='icon'
+                  variant='ghost'
+                >
+                  <Pause
+                    v-if='playerStore.currentSong?.id === song.id && playerStore.isPlaying'
+                    class='size-4 text-accent'
+                  />
+                  <Play
+                    v-else
+                    class='size-4 text-accent fill-accent'
+                  />
+                </Button>
+              </div>
+
+              <!-- Album Art Thumbnail -->
+              <div class='shrink-0'>
+                <ImageLoader
+                  :item-id='song.albumId || song.id'
+                  :server-url='serverUrl'
+                  :token='token'
+                  :width='100'
+                  class='size-12 rounded-lg shadow-sm object-cover'
+                >
+                  <template #fallback>
+                    <div class='size-12 rounded-lg bg-muted flex items-center justify-center'>
+                      <Music class='size-5 text-muted-foreground' />
+                    </div>
+                  </template>
+                </ImageLoader>
+              </div>
+
+              <!-- Song Info -->
+              <div class='flex-1 min-w-0 py-1'>
+                <h3
+                  :class="[
+                    'font-medium truncate transition-colors duration-150',
+                    playerStore.currentSong?.id === song.id
+                      ? 'text-accent'
+                      : 'text-foreground group-hover:text-accent'
+                  ]"
+                >
                   {{ song.name }}
-                </p>
-                <p class='text-xs text-muted-foreground truncate mt-1'>
+                </h3>
+                <p class='text-sm text-muted-foreground truncate mt-0.5'>
                   <template v-if='(song.album && !isSingle(song)) || isFeaturedOnSong(song)'>
                     <template v-if='song.album && song.albumId && !isSingle(song)'>
                       <RouterLink
                         @click.stop
                         :to='`/albums/${song.albumId}`'
-                        class='hover:underline'
+                        class='hover:underline hover:text-accent'
                       >
                         {{ song.album }}
                       </RouterLink>
                     </template>
-                    <span v-if='(song.album && !isSingle(song)) && isFeaturedOnSong(song)' class='mx-0.5'>•</span>
+                    <span v-if='(song.album && !isSingle(song)) && isFeaturedOnSong(song)' class='mx-1'>•</span>
                     <span v-if='isFeaturedOnSong(song)'>
                       with
                       <template v-for='(collab, idx) in collaboratorsFor(song)' :key='collab.id || collab.name'>
@@ -506,7 +653,7 @@
                           @click.stop
                           v-if='collab.id'
                           :to='`/artists/${collab.id}`'
-                          class='hover:underline'
+                          class='hover:underline hover:text-accent'
                         >
                           {{ collab.name }}
                         </RouterLink>
@@ -517,8 +664,13 @@
                   </template>
                 </p>
               </div>
-            </template>
-          </Carousel>
+
+              <!-- Duration -->
+              <div class='w-14 text-right text-sm text-muted-foreground tabular-nums shrink-0'>
+                {{ formatDuration(song.duration) }}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
