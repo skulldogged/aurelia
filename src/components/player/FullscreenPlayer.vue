@@ -110,8 +110,10 @@
   const { hasLyrics, visualizerEnabled, visualizerStyle } = storeToRefs(playerStore)
   const { startTracking, stopTracking, swipeProgress, updateTracking } = useSwipe({ maxTime: 300 })
 
-  // Media queries
+  // Media queries for responsive behavior
   const isLargeScreen = useMediaQuery('(min-width: 1024px)')
+  const isMediumScreen = useMediaQuery('(min-width: 768px)')
+  const isNarrowScreen = useMediaQuery('(max-width: 480px)')
 
   // Platform detection
   const isDesktop = computed(() => {
@@ -283,6 +285,9 @@
       || (isSidePanelAnimating.value && lastSidePanel.value === 'queue'),
   )
   const hasActivePanel = computed(() => props.isEqualizerOpen || props.isQueueOpen)
+
+  // Show secondary controls only on wider screens (not narrow and not mobile portrait)
+  const showSecondaryControls = computed(() => !isMobilePortraitMode.value && !isNarrowScreen.value)
 </script>
 
 <template>
@@ -378,13 +383,13 @@
           :class="[
             'side-panel shrink-0 overflow-hidden',
             hasActivePanel && !isMobilePortraitMode && !isMobileLandscapeMode
-              ? 'w-80 xl:w-96 p-4 pl-6'
+              ? 'side-panel-open'
               : 'w-0'
           ]"
         >
           <div
             class='
-              side-panel-content h-full w-72 xl:w-80
+              side-panel-content h-full
               bg-background/95 rounded-2xl
               border border-white/10 overflow-hidden shadow-2xl
             '
@@ -402,24 +407,20 @@
         <!-- Center content -->
         <div
           :class="[
-            'center-content flex-1 flex flex-col items-center justify-center p-6',
-            isMobilePortraitMode ? 'pb-28' : 'pb-8',
+            'center-content flex-1 flex flex-col items-center justify-center',
+            'px-4 sm:px-6 md:px-8 lg:px-10',
+            (isMobilePortraitMode || isNarrowScreen) ? 'pb-24 sm:pb-28 pt-2 sm:pt-4' : 'py-4 sm:py-6 md:py-8',
           ]"
         >
-          <!-- Inner wrapper that shifts left when lyrics open -->
-          <div
-            :class="[
-              'center-items flex flex-col items-center w-full max-w-md',
-              showLyrics && isLargeScreen ? 'lyrics-mode' : ''
-            ]"
-          >
+          <!-- Inner wrapper for album art and controls -->
+          <div class='center-items flex flex-col items-center w-full'>
             <!-- Album art -->
             <Transition mode='out-in' name='scale-fade'>
               <div
                 v-if='(!showLyrics || isLargeScreen) && !isMobileLandscapeMode'
                 :key='playerState.currentSong?.albumId || undefined'
                 :class="[
-                  'album-art-wrapper mb-8',
+                  'album-art-wrapper mb-4 sm:mb-5',
                   showLyrics && isLargeScreen ? 'album-art-small' : ''
                 ]"
               >
@@ -460,17 +461,17 @@
             </div>
 
             <!-- Song info -->
-            <div :class="['song-info w-full text-center mb-6', showLyrics && isLargeScreen ? 'text-left' : '']">
-              <h1 class='text-xl sm:text-2xl font-bold text-white truncate'>
+            <div class='song-info w-full text-center mb-3 sm:mb-4'>
+              <h1 class='text-lg sm:text-xl md:text-2xl font-bold text-white truncate'>
                 {{ playerState.currentSong?.name || 'Unknown Song' }}
               </h1>
-              <p class='text-base text-white/70 truncate mt-1'>
+              <p class='text-sm sm:text-base text-white/70 truncate mt-1'>
                 {{ playerState.currentSong?.artists?.join(', ') || 'Unknown Artist' }}
               </p>
-              <p class='text-sm text-white/50 truncate'>
+              <p class='text-xs sm:text-sm text-white/50 truncate'>
                 {{ playerState.currentSong?.album || 'Unknown Album' }}
               </p>
-              <p v-if='songFormatInfo' class='text-xs text-white/40 mt-1'>
+              <p v-if='songFormatInfo' class='text-[10px] sm:text-xs text-white/40 mt-1'>
                 {{ songFormatInfo }}
               </p>
             </div>
@@ -484,16 +485,16 @@
                 :step='0.1'
                 class='w-full'
               />
-              <div class='flex justify-between text-xs text-white/60 mt-2 font-mono'>
+              <div class='flex justify-between text-[10px] sm:text-xs text-white/60 mt-1.5 sm:mt-2 font-mono'>
                 <span>{{ formatTime(playerState.currentTime) }}</span>
                 <span>{{ formatTime(playerState.duration) }}</span>
               </div>
             </div>
 
             <!-- Playback controls -->
-            <div @touchmove.stop @touchstart.stop class='flex items-center gap-2 mt-6'>
-              <!-- Secondary controls (desktop) -->
-              <template v-if='!isMobilePortraitMode'>
+            <div @touchmove.stop @touchstart.stop class='flex items-center gap-1 sm:gap-2 mt-3'>
+              <!-- Secondary controls (wider screens only) -->
+              <template v-if='showSecondaryControls'>
                 <Button
                   @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"
                   :class="['fs-control-btn mr-2', playerState.currentSong?.isFavorite && 'is-active']"
@@ -560,15 +561,15 @@
                 size='icon'
                 variant='ghost'
               >
-                <SkipBack class='size-6' />
+                <SkipBack class='size-5 sm:size-6' />
               </Button>
 
               <Button
                 @click="$emit('toggle-play-pause')"
-                :class="['play-btn', isMobilePortraitMode ? 'size-16' : 'size-14']"
+                :class="['play-btn', isMobilePortraitMode ? 'size-14 sm:size-16' : 'size-12 sm:size-14']"
               >
-                <Pause v-if='playerState.isPlaying' class='size-7' />
-                <Play v-else class='size-7 ml-0.5' />
+                <Pause v-if='playerState.isPlaying' class='size-5 sm:size-6 md:size-7' />
+                <Play v-else class='size-5 sm:size-6 md:size-7 ml-0.5' />
               </Button>
 
               <Button
@@ -578,7 +579,7 @@
                 size='icon'
                 variant='ghost'
               >
-                <SkipForward class='size-6' />
+                <SkipForward class='size-5 sm:size-6' />
               </Button>
 
               <Button
@@ -591,8 +592,8 @@
                 <Repeat v-else class='size-5' />
               </Button>
 
-              <!-- Secondary controls (desktop) -->
-              <template v-if='!isMobilePortraitMode'>
+              <!-- Secondary controls (wider screens only) -->
+              <template v-if='showSecondaryControls'>
                 <Button
                   @click="$emit('toggle-queue')"
                   :class="['fs-control-btn ml-2', showQueue && 'is-active']"
@@ -614,40 +615,41 @@
           </div>
         </div>
 
-        <!-- Lyrics panel (large screens) - clips from right edge -->
+        <!-- Lyrics panel (large screens) - always in DOM for smooth transitions -->
         <aside
+          v-if='isLargeScreen || isMobileLandscapeMode'
           @touchmove.stop
           @touchstart.stop
           :class="[
             'lyrics-panel',
-            showLyrics && (isLargeScreen || isMobileLandscapeMode)
-              ? 'w-[40%] max-w-2xl p-6'
-              : 'w-0'
+            showLyrics ? 'lyrics-panel-open' : 'lyrics-panel-closed'
           ]"
         >
-          <div class='lyrics-panel-content h-full overflow-hidden'>
-            <LyricsView
-              @lyrics-loaded='onLyricsLoaded'
-              @seek='handleLyricsSeek'
-              :current-time='playerState.currentTime'
-              :duration='playerState.duration'
-              :is-in-sidebar='false'
-              :size='isMobileLandscapeMode ? "small" : "large"'
-              :song='playerState.currentSong'
-              :visible='showLyrics && (isLargeScreen || isMobileLandscapeMode)'
-              class='h-full'
-            />
+          <div class='lyrics-panel-content h-full flex items-center justify-center'>
+            <div class='lyrics-inner h-full w-full max-w-xl'>
+              <LyricsView
+                @lyrics-loaded='onLyricsLoaded'
+                @seek='handleLyricsSeek'
+                :current-time='playerState.currentTime'
+                :duration='playerState.duration'
+                :is-in-sidebar='false'
+                :size='isMobileLandscapeMode ? "small" : "large"'
+                :song='playerState.currentSong'
+                :visible='showLyrics'
+                class='h-full'
+              />
+            </div>
           </div>
         </aside>
       </main>
 
-      <!-- Mobile bottom bar -->
+      <!-- Bottom bar for mobile/narrow screens -->
       <footer
         @touchmove.stop
         @touchstart.stop
-        v-if='isMobilePortraitMode'
-        :style='{ paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` }'
-        class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-4 p-4'
+        v-if='isMobilePortraitMode || isNarrowScreen'
+        :style='isMobilePortraitMode ? { paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` } : {}'
+        class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-3 sm:gap-4 p-3 sm:p-4'
       >
         <Button
           @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"
@@ -725,14 +727,16 @@
   will-change: transform, opacity;
 }
 
-/* Album art */
+/* Album art - fluid sizing based on viewport */
 .album-art-wrapper {
-  width: min(45vw, 45vh, 24rem);
+  /* Scales fluidly with viewport - much larger on big screens */
+  width: clamp(12rem, 42vmin, 28rem);
   aspect-ratio: 1;
 }
 
+/* Smaller album art when lyrics are open */
 .album-art-small {
-  width: min(30vw, 30vh, 16rem);
+  width: clamp(10rem, 28vmin, 18rem);
 }
 
 .album-art {
@@ -745,9 +749,13 @@
     0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-/* Mobile adjustments */
+/* Mobile adjustments - larger relative to screen */
 .is-mobile .album-art-wrapper {
-  width: min(65vw, 50vh, 18rem);
+  width: clamp(12rem, 55vmin, 18rem);
+}
+
+.is-mobile .center-items {
+  max-width: clamp(12rem, 55vmin, 18rem);
 }
 
 /* Control buttons - subtle ghost style */
@@ -770,12 +778,15 @@
   color: white !important;
 }
 
-/* Play button - rounded, accent colored, no scale */
+/* Play button - circle, accent colored, no scale */
 .play-btn {
   background: var(--accent) !important;
   color: var(--accent-foreground) !important;
   border: none !important;
   border-radius: 9999px !important;
+  padding: 0 !important;
+  height: auto !important;
+  aspect-ratio: 1 / 1 !important;
   box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.3);
   transition: box-shadow 0.15s ease, opacity 0.15s ease;
 }
@@ -850,59 +861,72 @@
   transform: scale(1.02);
 }
 
-/* Side panel (EQ/Queue) - slides in from left, content stays fixed width */
+/* Side panel (EQ/Queue) - slides in from left */
 .side-panel {
   transition: width 0.25s cubic-bezier(0.32, 0.72, 0, 1),
               padding 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: width;
 }
 
-/* Side panel content - fixed size, just gets clipped */
+/* Side panel open state - fluid width */
+.side-panel-open {
+  width: clamp(16rem, 22vw, 22rem);
+  padding: 1rem;
+  padding-left: 1.5rem;
+}
+
+/* Side panel content - fluid size */
 .side-panel-content {
+  width: clamp(14rem, 20vw, 20rem);
   flex-shrink: 0;
   will-change: transform;
 }
 
-/* Lyrics panel - clips content from right edge */
+/* Lyrics panel */
 .lyrics-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
   flex-shrink: 0;
-  transition: width 0.25s cubic-bezier(0.32, 0.72, 0, 1),
-              padding 0.25s cubic-bezier(0.32, 0.72, 0, 1);
-  will-change: width;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              padding 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Lyrics content - fixed width so it reveals instead of reflows */
+/* Lyrics panel closed */
+.lyrics-panel-closed {
+  width: 0;
+  padding: 0;
+}
+
+/* Lyrics panel open */
+.lyrics-panel-open {
+  width: 50%;
+  padding: 1.5rem;
+}
+
+/* Lyrics content */
 .lyrics-panel-content {
-  width: calc(40vw - 3rem); /* Match panel width minus padding */
-  max-width: calc(42rem - 3rem); /* Match max-w-2xl minus padding */
+  width: 100%;
+  max-width: 36rem;
   flex-shrink: 0;
-  will-change: transform;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+/* Fade content when closed */
+.lyrics-panel-closed .lyrics-panel-content {
+  opacity: 0;
 }
 
 /* Center content area */
 .center-content {
-  transition: padding 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: padding 0.25s ease;
 }
 
-/* Inner wrapper that shifts when lyrics open */
+/* Inner wrapper - matches album art width for cohesive layout */
 .center-items {
-  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-/* When lyrics are open, shift left and align left */
-.center-items.lyrics-mode {
-  transform: translateX(-25%);
-  align-items: flex-start;
-}
-
-/* Song info text alignment animates */
-.song-info {
-  transition: text-align 0s; /* text-align can't animate, handled by transform */
-}
-
-.center-items.lyrics-mode .song-info {
-  text-align: left;
+  max-width: clamp(12rem, 42vmin, 28rem);
 }
 
 /* Album art size transition */
@@ -919,5 +943,88 @@
 .pop-leave-to {
   opacity: 0;
   transform: translateX(-50%) scale(0.9) translateY(0.5rem);
+}
+
+/* Responsive adjustments for different screen sizes */
+
+/* Small screens (phones in landscape, small tablets) */
+@media (max-width: 640px) {
+  .album-art-wrapper {
+    width: clamp(10rem, 45vmin, 16rem);
+  }
+
+  .center-items {
+    max-width: clamp(10rem, 45vmin, 16rem);
+  }
+
+  .side-panel-open {
+    width: clamp(14rem, 40vw, 18rem);
+    padding: 0.75rem;
+    padding-left: 1rem;
+  }
+
+  .side-panel-content {
+    width: clamp(12rem, 38vw, 16rem);
+  }
+}
+
+/* Medium screens (tablets) */
+@media (min-width: 641px) and (max-width: 1023px) {
+  .album-art-wrapper {
+    width: clamp(12rem, 35vmin, 20rem);
+  }
+
+  .center-items {
+    max-width: clamp(12rem, 35vmin, 20rem);
+  }
+
+  .lyrics-panel-open {
+    width: clamp(16rem, 42vw, 28rem);
+  }
+
+  .lyrics-panel-content {
+    width: clamp(14rem, 40vw, 26rem);
+  }
+}
+
+/* Large screens - bigger album art */
+@media (min-width: 1024px) {
+  .album-art-wrapper {
+    width: clamp(16rem, 38vmin, 26rem);
+  }
+
+  .center-items {
+    max-width: clamp(16rem, 38vmin, 26rem);
+  }
+}
+
+/* Extra large screens - even bigger */
+@media (min-width: 1440px) {
+  .album-art-wrapper {
+    width: clamp(20rem, 36vmin, 32rem);
+  }
+
+  .center-items {
+    max-width: clamp(20rem, 36vmin, 32rem);
+  }
+
+  .side-panel-open {
+    width: clamp(18rem, 20vw, 24rem);
+  }
+
+  .side-panel-content {
+    width: clamp(16rem, 18vw, 22rem);
+  }
+}
+
+/* Short viewports (landscape phones, short windows) */
+@media (max-height: 600px) {
+  .album-art-wrapper {
+    width: clamp(8rem, 35vh, 14rem);
+  }
+
+  .album-art-small {
+    width: clamp(6rem, 25vh, 10rem);
+  }
 }
 </style>

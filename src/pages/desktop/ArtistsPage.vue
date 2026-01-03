@@ -1,15 +1,14 @@
 <script setup lang="ts">
   import { breakpointsTailwind, refDebounced, useBreakpoints, useWindowSize } from '@vueuse/core'
   import Fuse from 'fuse.js'
-  import { Shuffle } from 'lucide-vue-next'
   import { computed, inject, onMounted, onUnmounted, ref, Ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
   import { Artist, Song } from '@/bindings'
   import ArtistsPageTopBar from '@/components/desktop/ArtistsPageTopBar.vue'
-  import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import Button from '@/components/ui/Button.vue'
+  import AlphabetNav from '@/components/shared/AlphabetNav.vue'
+  import ArtistCard from '@/components/shared/ArtistCard.vue'
+  import LibraryStats from '@/components/shared/LibraryStats.vue'
   import { Skeleton } from '@/components/ui/skeleton'
   import { useLayoutPreference } from '@/composables/useLayoutPreference'
   import { scrollElementKey } from '@/composables/useMainLayout'
@@ -103,9 +102,39 @@
     return Math.round((availableWidth - totalGapWidth) / cols.value)
   })
 
+  // Letter filter
+  const letterFilter = ref<string | null>(null)
+
+  // Available letters for alphabet nav
+  const availableLetters = computed(() => {
+    const letters = new Set<string>()
+    for (const artist of filteredArtists.value) {
+      const firstChar = artist.name.charAt(0).toUpperCase()
+      if (/[A-Z]/.test(firstChar)) {
+        letters.add(firstChar)
+      } else {
+        letters.add('#')
+      }
+    }
+    return letters
+  })
+
+  // Apply letter filter
+  const displayedArtists = computed(() => {
+    if (!letterFilter.value) return filteredArtists.value
+
+    return filteredArtists.value.filter((artist) => {
+      const firstChar = artist.name.charAt(0).toUpperCase()
+      if (letterFilter.value === '#') {
+        return !/[A-Z]/.test(firstChar)
+      }
+      return firstChar === letterFilter.value
+    })
+  })
+
   const artistRows = computed(() => {
     const rows = []
-    const items = filteredArtists.value
+    const items = displayedArtists.value
     for (let i = 0; i < items.length; i += cols.value) {
       rows.push(items.slice(i, i + cols.value))
     }
@@ -128,7 +157,7 @@
     viewLayout,
   })
 
-  watch([artistRows, viewLayout, cols, scrollElement], () => {
+  watch([artistRows, viewLayout, cols, scrollElement, letterFilter], () => {
     remeasure()
   })
 
@@ -180,7 +209,22 @@
 </script>
 
 <template>
-  <section class='px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8'>
+  <section class='px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-8 max-w-7xl mx-auto'>
+    <!-- Header section with stats -->
+    <div v-if='!libraryLoading' class='mb-6 space-y-4'>
+      <LibraryStats />
+
+      <!-- Alphabet Navigation -->
+      <div class='pt-2 border-t border-border/50'>
+        <AlphabetNav
+          @select='letterFilter = $event'
+          :active-letter='letterFilter'
+          :available-letters='availableLetters'
+        />
+      </div>
+    </div>
+
+    <!-- Loading state -->
     <div
       v-if='libraryLoading'
       :class='viewLayout === "compact"
@@ -190,15 +234,17 @@
       <div
         v-for='n in 20'
         :key='`skeleton-${n}`'
-        class='flex flex-col gap-4'
+        class='flex flex-col gap-3'
       >
-        <Skeleton class='w-full aspect-square rounded-lg' />
+        <Skeleton class='w-full aspect-square rounded-full' />
         <div class='flex flex-col items-center gap-1'>
-          <Skeleton :class='viewLayout === "compact" ? "h-4 w-3/4" : "h-6 w-3/4"' />
-          <Skeleton :class='viewLayout === "compact" ? "h-3 w-1/2" : "h-4 w-1/2"' />
+          <Skeleton :class='viewLayout === "compact" ? "h-3 w-3/4" : "h-4 w-3/4"' />
+          <Skeleton :class='viewLayout === "compact" ? "h-2.5 w-1/2" : "h-3 w-1/2"' />
         </div>
       </div>
     </div>
+
+    <!-- Virtual scrolling grid -->
     <div
       v-else
       :style="{
@@ -218,81 +264,37 @@
           left: 0,
           width: "100%",
           transform: `translateY(${virtualRow.start}px)`,
-          willChange: "transform",
-          contain: "content"
+          willChange: "transform"
         }'
       >
         <div
           :class='[
-            viewLayout === "compact" ? "gap-4 pb-4" : "gap-6 pb-6",
+            viewLayout === "compact" ? "gap-4 pb-4 pt-1" : "gap-5 pb-5 pt-1",
             "grid"
           ]'
           :style='{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }'
         >
-          <div
+          <ArtistCard
             v-for='artist in artists'
             @click='selectArtist(artist)'
+            @shuffle='playArtistShuffle'
             :key='artist.id'
-            :class="['cursor-pointer', !isScrolling && 'group']"
-          >
-            <div :class='viewLayout === "compact" ? "relative mb-2" : "relative mb-4"'>
-              <ImageLoader
-                :alt='`${artist.name} artist image`'
-                :is-scrolling='isScrolling'
-                :item-id='artist.id'
-                :server-url='serverUrl'
-                :token='token'
-                :width='itemWidth'
-                class='w-full aspect-square rounded-lg object-cover shadow-lg group-hover:opacity-75 transition-opacity'
-              >
-                <template #fallback>
-                  <ImagePlaceholder
-                    class='w-full aspect-square shadow-lg group-hover:opacity-75 transition-opacity'
-                    size='large'
-                    type='artist'
-                  />
-                </template>
-              </ImageLoader>
-
-              <div
-                class='
-                  absolute inset-0 bg-black/50 rounded-lg opacity-0
-                  group-hover:opacity-100 transition-opacity flex items-center
-                  justify-center
-                '
-              >
-                <Button
-                  @click.stop='playArtistShuffle(artist)'
-                  :size='viewLayout === "compact" ? "sm" : "icon"'
-                  class='
-                    bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white
-                    border border-white/20
-                  '
-                >
-                  <Shuffle :class='viewLayout === "compact" ? "h-3.5 w-3.5" : "h-4 w-4"' />
-                </Button>
-              </div>
-            </div>
-
-            <div class='text-center'>
-              <p
-                :class='viewLayout === "compact"
-                  ? "text-sm font-medium truncate"
-                  : "font-semibold truncate"'
-              >
-                {{ artist.name }}
-              </p>
-            </div>
-          </div>
+            :artist='artist'
+            :compact='viewLayout === "compact"'
+            :is-scrolling='isScrolling'
+            :server-url='serverUrl'
+            :token='token'
+            :width='itemWidth'
+          />
         </div>
       </div>
     </div>
 
     <p
-      v-if='!libraryLoading && filteredArtists && filteredArtists.length === 0'
+      v-if='!libraryLoading && displayedArtists.length === 0'
       class='text-center py-12 text-muted-foreground'
     >
-      No artists found
+      No artists found{{ letterFilter ? ` starting with "${letterFilter}"` : '' }}
     </p>
   </section>
 </template>

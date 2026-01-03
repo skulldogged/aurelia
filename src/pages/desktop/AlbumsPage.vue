@@ -8,6 +8,9 @@
   import AlbumsPageTopBar from '@/components/desktop/AlbumsPageTopBar.vue'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import AlbumCard from '@/components/shared/AlbumCard.vue'
+  import AlphabetNav from '@/components/shared/AlphabetNav.vue'
+  import LibraryStats from '@/components/shared/LibraryStats.vue'
+  import RecentlyAddedRow from '@/components/shared/RecentlyAddedRow.vue'
   import {
     ContextMenu,
     ContextMenuContent,
@@ -85,9 +88,42 @@
     return Math.round((availableWidth - totalGapWidth) / cols.value)
   })
 
+  // Letter filter
+  const letterFilter = ref<string | null>(null)
+
+  // Available letters for alphabet nav (based on all albums, not filtered)
+  const availableLetters = computed(() => {
+    const letters = new Set<string>()
+    const baseAlbums = debouncedSearchQuery.value && debouncedSearchQuery.value.length >= 2
+      ? albumsFuse.value.search(debouncedSearchQuery.value).map(result => result.item)
+      : allAlbums.value
+    for (const album of baseAlbums) {
+      const firstChar = album.name.charAt(0).toUpperCase()
+      if (/[A-Z]/.test(firstChar)) {
+        letters.add(firstChar)
+      } else {
+        letters.add('#')
+      }
+    }
+    return letters
+  })
+
+  // Apply letter filter on top of search filter
+  const displayedAlbums = computed(() => {
+    if (!letterFilter.value) return filteredAlbums.value
+
+    return filteredAlbums.value.filter((album) => {
+      const firstChar = album.name.charAt(0).toUpperCase()
+      if (letterFilter.value === '#') {
+        return !/[A-Z]/.test(firstChar)
+      }
+      return firstChar === letterFilter.value
+    })
+  })
+
   const albumRows = computed(() => {
     const rows = []
-    const items = filteredAlbums.value
+    const items = displayedAlbums.value
     for (let i = 0; i < items.length; i += cols.value) {
       rows.push(items.slice(i, i + cols.value))
     }
@@ -109,7 +145,7 @@
     viewLayout,
   })
 
-  watch([albumRows, viewLayout, cols, scrollElement], () => {
+  watch([albumRows, viewLayout, cols, scrollElement, letterFilter], () => {
     remeasure()
   })
 
@@ -128,6 +164,11 @@
   }
 
   const selectAlbum = (album: Album): void => {
+    if (album.id)
+      router.push(`/albums/${album.id}`)
+  }
+
+  const handleSelectAlbum = (album: Album): void => {
     if (album.id)
       router.push(`/albums/${album.id}`)
   }
@@ -157,7 +198,28 @@
 </script>
 
 <template>
-  <section class='px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8'>
+  <section class='px-4 md:px-6 lg:px-8 pt-4 md:pt-6 pb-8 max-w-7xl mx-auto'>
+    <!-- Header section with stats -->
+    <div v-if='!libraryLoading' class='mb-6 space-y-4'>
+      <LibraryStats />
+
+      <!-- Recently Added -->
+      <RecentlyAddedRow
+        @play-songs='emit("play-songs", $event)'
+        @select-album='handleSelectAlbum'
+      />
+
+      <!-- Alphabet Navigation -->
+      <div class='pt-2 border-t border-border/50'>
+        <AlphabetNav
+          @select='letterFilter = $event'
+          :active-letter='letterFilter'
+          :available-letters='availableLetters'
+        />
+      </div>
+    </div>
+
+    <!-- Loading state -->
     <div
       v-if='libraryLoading'
       :class='viewLayout === "compact"
@@ -167,16 +229,17 @@
       <div
         v-for='n in 20'
         :key='`skeleton-${n}`'
-        class='flex flex-col gap-4'
+        class='flex flex-col gap-3'
       >
         <Skeleton class='w-full aspect-square rounded-lg' name='album-art' />
         <div class='flex flex-col gap-1'>
-          <Skeleton :class='viewLayout === "compact" ? "h-4 w-3/4" : "h-6 w-3/4"' name='album-title' />
-          <Skeleton :class='viewLayout === "compact" ? "h-3 w-20" : "h-4 w-20"' name='artist' />
-          <Skeleton :class='viewLayout === "compact" ? "h-3 w-16" : "h-4 w-16"' name='song-count' />
+          <Skeleton :class='viewLayout === "compact" ? "h-3 w-3/4" : "h-4 w-3/4"' name='album-title' />
+          <Skeleton :class='viewLayout === "compact" ? "h-2.5 w-1/2" : "h-3 w-1/2"' name='artist' />
         </div>
       </div>
     </div>
+
+    <!-- Virtual scrolling grid -->
     <div
       v-else
       :style="{
@@ -196,13 +259,12 @@
           left: 0,
           width: "100%",
           transform: `translateY(${virtualRow.start}px)`,
-          willChange: "transform",
-          contain: "content"
+          willChange: "transform"
         }'
       >
         <div
           :class='[
-            viewLayout === "compact" ? "gap-4 pb-4" : "gap-6 pb-6",
+            viewLayout === "compact" ? "gap-4 pb-4 pt-1" : "gap-5 pb-5 pt-1",
             "grid"
           ]'
           :style='{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }'
@@ -213,6 +275,7 @@
                 @click='selectAlbum(album)'
                 @play='playAlbum'
                 :album='album'
+                :compact='viewLayout === "compact"'
                 :server-url='serverUrl'
                 :token='token'
                 :width='itemWidth'
@@ -232,8 +295,8 @@
       </div>
     </div>
 
-    <p v-if='!libraryLoading && filteredAlbums.length === 0' class='text-center py-12 text-muted-foreground'>
-      No albums found
+    <p v-if='!libraryLoading && displayedAlbums.length === 0' class='text-center py-12 text-muted-foreground'>
+      No albums found{{ letterFilter ? ` starting with "${letterFilter}"` : '' }}
     </p>
   </section>
 </template>
