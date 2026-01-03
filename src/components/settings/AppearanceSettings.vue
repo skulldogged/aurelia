@@ -1,8 +1,7 @@
 <script setup lang="ts">
   import { storeToRefs } from 'pinia'
-  import { computed, onMounted, ref } from 'vue'
+  import { computed, ref } from 'vue'
 
-  import { commands } from '@/bindings'
   import Label from '@/components/ui/Label.vue'
   import {
     Select,
@@ -15,11 +14,9 @@
   import Switch from '@/components/ui/Switch.vue'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { AccentColorName } from '@/lib/colorSchemes'
-  import { logger } from '@/lib/logger'
   import { getPlatform, isMobile, Platform } from '@/lib/platform'
   import {
     useAccentColorStore,
-    useBlurStore,
     useMaterialYouStore,
     usePlayerStore,
     useSystemTrayStore,
@@ -28,19 +25,16 @@
 
   const accentColorStore = useAccentColorStore()
   const themeStore = useThemeStore()
-  const blurStore = useBlurStore()
   const playerStore = usePlayerStore()
   const systemTrayStore = useSystemTrayStore()
   const materialYouStore = useMaterialYouStore()
 
   const { accentColor: accentColorRef, accentColors: accentColorsRef } = storeToRefs(accentColorStore)
   const { colorSchemes: colorSchemesRef, selectedScheme: selectedSchemeRef } = storeToRefs(themeStore)
-  const { blurModes: blurModesRef, selectedBlurMode: selectedBlurModeRef } = storeToRefs(blurStore)
   const { useMaterialYou: useMaterialYouRef } = storeToRefs(materialYouStore)
 
   const { setAccentColor } = accentColorStore
   const { setColorScheme } = themeStore
-  const { setBlurMode } = blurStore
   const { setCloseToTray, setMinimizeToTray } = useSystemTray()
   const { setUseMaterialYou } = materialYouStore
 
@@ -48,16 +42,12 @@
   const accentColors = computed(() => accentColorsRef.value)
   const selectedScheme = computed(() => selectedSchemeRef.value)
   const colorSchemes = computed(() => colorSchemesRef.value)
-  const selectedBlurMode = computed(() => selectedBlurModeRef.value)
-  const blurModes = computed(() => blurModesRef.value)
   const useMaterialYou = computed(() => useMaterialYouRef.value)
 
   const selectedColorScheme = ref(selectedScheme.value.name)
-  const selectedBlurModeName = ref(selectedBlurMode.value.name)
   const selectedAccentColorName = ref(accentColor.value.name)
   const selectedVisualizerStyle = ref(playerStore.visualizerStyle)
   const visualizerEnabled = ref(playerStore.visualizerEnabled)
-  const isLinuxPlatform = ref(false)
   const isAndroidPlatform = ref(getPlatform() === Platform.Android)
 
   // Helper to capitalize enum names for display
@@ -74,34 +64,6 @@
     { displayName: 'Curve', value: 'curve' },
     { displayName: 'Wave', value: 'wave' },
   ]
-
-  // Linux-specific transparency modes
-  const transparencyModes = [
-    { displayName: 'Disabled', name: 'none' },
-    { displayName: 'Enabled', name: 'acrylic' },
-  ]
-
-  const applyTransparencyClass = (modeName: string): void =>
-    void (modeName === 'none'
-      ? document.body.classList.add('transparency-disabled')
-      : document.body.classList.remove('transparency-disabled'))
-
-  const handleBlurModeChange = async (value: unknown): Promise<void> => {
-    if (value && typeof value === 'string') {
-      try {
-        // Update the store first
-        setBlurMode(value)
-        // Update the local ref for the Select component
-        selectedBlurModeName.value = value
-        // Apply CSS class for transparency
-        applyTransparencyClass(value)
-        // Apply the blur mode to the window (Windows/macOS only)
-        await commands.setBlurMode(value)
-      } catch (error) {
-        logger.error('Failed to set blur mode:', error)
-      }
-    }
-  }
 
   const handleAccentColorChange = (value: unknown): void => {
     if (value && typeof value === 'string' && Object.values(AccentColorName).includes(value as AccentColorName)) {
@@ -133,23 +95,6 @@
     systemTrayStore.closeToTray = checked
     await setCloseToTray(checked)
   }
-
-  // Apply initial blur mode when component mounts
-  onMounted(async () => {
-    try {
-      // Check platform
-      isLinuxPlatform.value = getPlatform() === 'linux'
-
-      // Update the local ref to match the current store value
-      selectedBlurModeName.value = selectedBlurMode.value.name
-      // Apply initial CSS class
-      applyTransparencyClass(selectedBlurMode.value.name)
-      // Apply initial blur mode
-      await commands.setBlurMode(selectedBlurMode.value.name)
-    } catch (error) {
-      logger.error('Failed to apply initial blur mode:', error)
-    }
-  })
 
   const handleColorSchemeChange = (value: unknown): void => {
     if (value && typeof value === 'string')
@@ -255,44 +200,6 @@
           </Select>
           <p class='text-xs text-muted-foreground'>
             Pick your favorite accent color
-          </p>
-        </div>
-
-        <!-- Window Effects -->
-        <div v-if='!isMobile()' class='space-y-3'>
-          <Label class='text-sm font-medium'>
-            {{ isLinuxPlatform ? 'Window Transparency' : 'Window Blur' }}
-          </Label>
-          <Select @update:model-value='handleBlurModeChange' :model-value='selectedBlurModeName'>
-            <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
-              <SelectValue :placeholder='isLinuxPlatform ? "Select transparency" : "Select a blur mode"' />
-            </SelectTrigger>
-            <SelectContent class='border-border/30'>
-              <SelectGroup v-if='isLinuxPlatform'>
-                <SelectItem
-                  v-for='mode in transparencyModes'
-                  :key='mode.name'
-                  :value='mode.name'
-                  class='cursor-pointer'
-                >
-                  {{ mode.displayName }}
-                </SelectItem>
-              </SelectGroup>
-              <SelectGroup v-else>
-                <SelectItem
-                  v-for='mode in blurModes'
-                  :key='mode.name'
-                  :disabled='!mode.supported'
-                  :value='mode.name'
-                  class='cursor-pointer'
-                >
-                  {{ mode.displayName }}
-                </SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <p class='text-xs text-muted-foreground'>
-            {{ isLinuxPlatform ? 'Toggle window transparency effect' : 'Choose the background blur effect' }}
           </p>
         </div>
       </div>

@@ -39,7 +39,7 @@
   import { setAuthLogout } from '@/lib/auth-interceptor'
   import { getPlatform, isMobile, Platform } from '@/lib/platform'
   import Login from '@/pages/login.vue'
-  import { useBlurStore, useHomeStore } from '@/stores'
+  import { useHomeStore } from '@/stores'
   import { useLibraryStore } from '@/stores/library'
 
   useColorMode()
@@ -48,7 +48,6 @@
   setAuthLogout(logout)
   const libraryStore = useLibraryStore()
   const homeStore = useHomeStore()
-  const blurStore = useBlurStore()
   useSystemTray()
   useDiscordPresence()
   useLastFm()
@@ -181,9 +180,6 @@
 
   onMounted(async () => {
     playerStore.setVolume(playerStore.volume)
-
-    await new Promise(resolve => setTimeout(resolve, 100))
-    await commands.setBlurMode(blurStore.selectedBlurMode.name)
 
     if (isMobile()) {
       onBackButtonPress(async () => {

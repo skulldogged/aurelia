@@ -113,8 +113,8 @@
       :class="[
         'mobile-nav transition-colors duration-200',
         isMobilePortraitMode
-          ? 'shrink-0 h-14 border-t border-border/30 bg-sidebar/95 backdrop-blur-lg'
-          : 'absolute left-0 top-0 h-full w-16 z-30 border-r border-border/30 bg-sidebar/95 backdrop-blur-lg'
+          ? 'shrink-0 h-14 border-t border-border/30 bg-sidebar'
+          : 'absolute left-0 top-0 h-full w-16 z-30 border-r border-border/30 bg-sidebar'
       ]"
       :current-view='navigationState.currentView'
       :is-collapsed='true'
@@ -140,7 +140,7 @@
     <div
       v-if='playerState.hasPlayer'
       :class="[
-        'absolute z-30 border-t border-border/30 bg-sidebar/95 backdrop-blur-lg transition-all duration-200',
+        'absolute z-30 border-t border-border/30 bg-sidebar transition-all duration-200',
         isMobilePortraitMode ? 'bottom-14' : 'bottom-0',
         {
           'left-0 right-0': isMobilePortraitMode,

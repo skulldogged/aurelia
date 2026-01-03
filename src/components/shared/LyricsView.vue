@@ -305,10 +305,9 @@
 
 .lyric-line {
   padding: 8px 0;
-  transition: all 0.3s ease;
-  opacity: 0.5;
+  transition: opacity 0.3s ease, transform 0.3s ease, color 0.3s ease;
+  opacity: 0.4;
   font-size: 2rem;
-  filter: blur(2px);
   cursor: pointer;
 }
 
@@ -334,7 +333,6 @@
   font-weight: bold;
   transform: scale(1.15);
   color: var(--accent);
-  filter: blur(0);
 }
 
 .lyrics-content--static {
@@ -347,7 +345,6 @@
 
 .lyric-line--static {
   opacity: 0.85;
-  filter: blur(0);
   cursor: default;
 }
 

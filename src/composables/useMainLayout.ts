@@ -4,8 +4,6 @@ import type { ComputedRef, Ref } from 'vue'
 import { computed, nextTick, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-import { useBlurStore } from '@/stores'
-
 export const scrollElementKey = Symbol('scrollElement')
 
 export interface MainLayoutComposableReturn {
@@ -21,25 +19,10 @@ export const useMainLayout = (): MainLayoutComposableReturn => {
   const scrollElement = ref<HTMLElement | null>(null)
   provide(scrollElementKey, scrollElement)
 
-  const blurStore = useBlurStore()
-
-  const mainContentBgClass = computed(() =>
-    blurStore.selectedBlurMode.name === 'acrylic'
-      ? 'bg-sidebar/60'
-      : '',
-  )
-
-  const rightPanelBgClass = computed(
-    () => blurStore.selectedBlurMode.name !== 'none'
-      ? 'bg-transparent'
-      : 'bg-background-dark',
-  )
-
-  const topBarBgClass = computed(
-    () => blurStore.selectedBlurMode.name !== 'none'
-      ? 'bg-transparent'
-      : 'bg-background-dark',
-  )
+  // Now that we've removed window transparency, use solid backgrounds
+  const mainContentBgClass = computed(() => '')
+  const rightPanelBgClass = computed(() => 'bg-background-dark')
+  const topBarBgClass = computed(() => 'bg-background-dark')
 
   watch(() => route.path, async () => {
     await nextTick()

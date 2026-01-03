@@ -365,10 +365,6 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Get the current blur mode
- */
-  getBlurMode:     async (): Promise<string> => await TAURI_INVOKE('get_blur_mode'),
   getHomeViewData: async (): Promise<Result<HomeViewData, string>> => {
     try {
       return { data: await TAURI_INVOKE('get_home_view_data'), status: 'ok' }
@@ -765,14 +761,6 @@ export const commands = {
   saveVolume: async (volume: number): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('save_volume', { volume }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  setBlurMode: async (mode: string): Promise<Result<null, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('set_blur_mode', { mode }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }

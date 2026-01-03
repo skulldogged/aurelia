@@ -105,15 +105,6 @@
     border-radius: var(--button-radius);
   }
 
-  /* Transparency disabled - opaque background */
-  body.transparency-disabled {
-    background-color: var(--background) !important;
-  }
-
-  .blur-card {
-    @apply backdrop-blur-md bg-card/80 border border-border/50;
-  }
-
   .safe-height {
     height: var(--safe-vh);
   }

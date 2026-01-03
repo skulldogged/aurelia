@@ -272,8 +272,16 @@
     }
   })
 
-  const showEqualizer = computed(() => props.isEqualizerOpen || (isSidePanelAnimating.value && lastSidePanel.value === 'equalizer'))
-  const showQueue = computed(() => props.isQueueOpen || (isSidePanelAnimating.value && lastSidePanel.value === 'queue'))
+  const showEqualizer = computed(
+    () =>
+      props.isEqualizerOpen
+      || (isSidePanelAnimating.value && lastSidePanel.value === 'equalizer'),
+  )
+  const showQueue = computed(
+    () =>
+      props.isQueueOpen
+      || (isSidePanelAnimating.value && lastSidePanel.value === 'queue'),
+  )
   const hasActivePanel = computed(() => props.isEqualizerOpen || props.isQueueOpen)
 </script>
 
@@ -307,7 +315,7 @@
           />
         </Transition>
         <!-- Overlay -->
-        <div class='absolute inset-0 bg-black/60 backdrop-blur-3xl' />
+        <div class='absolute inset-0 bg-black/75' />
         <!-- Visualizer -->
         <Transition name='fade'>
           <div
@@ -374,7 +382,13 @@
               : 'w-0'
           ]"
         >
-          <div class='side-panel-content h-full w-72 xl:w-80 bg-background/80 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-2xl'>
+          <div
+            class='
+              side-panel-content h-full w-72 xl:w-80
+              bg-background/95 rounded-2xl
+              border border-white/10 overflow-hidden shadow-2xl
+            '
+          >
             <FullscreenEqualizer v-if='showEqualizer' class='h-full' />
             <FullscreenQueue
               @remove-song='$emit("remove-song", $event)'
@@ -838,21 +852,24 @@
 
 /* Side panel (EQ/Queue) - slides in from left, content stays fixed width */
 .side-panel {
-  transition: width 0.35s cubic-bezier(0.32, 0.72, 0, 1),
-              padding 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: width 0.3s cubic-bezier(0.32, 0.72, 0, 1),
+              padding 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: width;
 }
 
 /* Side panel content - fixed size, just gets clipped */
 .side-panel-content {
   flex-shrink: 0;
+  will-change: transform;
 }
 
 /* Lyrics panel - clips content from right edge */
 .lyrics-panel {
   overflow: hidden;
   flex-shrink: 0;
-  transition: width 0.35s cubic-bezier(0.32, 0.72, 0, 1),
-              padding 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: width 0.3s cubic-bezier(0.32, 0.72, 0, 1),
+              padding 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: width;
 }
 
 /* Lyrics content - fixed width so it reveals instead of reflows */
@@ -860,6 +877,7 @@
   width: calc(40vw - 3rem); /* Match panel width minus padding */
   max-width: calc(42rem - 3rem); /* Match max-w-2xl minus padding */
   flex-shrink: 0;
+  will-change: transform;
 }
 
 /* Center content area */

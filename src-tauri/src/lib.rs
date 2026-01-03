@@ -66,8 +66,6 @@ pub fn run() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         builder = builder.commands(collect_commands![
-            handlers::appearance::get_blur_mode,
-            handlers::appearance::set_blur_mode,
             handlers::auth::login_to_jellyfin,
             handlers::auth::save_credentials,
             handlers::auth::get_saved_credentials,
@@ -159,8 +157,6 @@ pub fn run() {
     #[cfg(target_os = "android")]
     {
         builder = builder.commands(collect_commands![
-            handlers::appearance::get_blur_mode,
-            handlers::appearance::set_blur_mode,
             handlers::auth::login_to_jellyfin,
             handlers::auth::save_credentials,
             handlers::auth::get_saved_credentials,
@@ -220,8 +216,6 @@ pub fn run() {
     #[cfg(target_os = "ios")]
     {
         builder = builder.commands(collect_commands![
-            handlers::appearance::get_blur_mode,
-            handlers::appearance::set_blur_mode,
             handlers::auth::login_to_jellyfin,
             handlers::auth::save_credentials,
             handlers::auth::get_saved_credentials,

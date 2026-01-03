@@ -136,7 +136,7 @@
       ]"
     >
       <!-- Table Header -->
-      <div v-if='!loading && !hideHeader' class='bg-sidebar/80 backdrop-blur-sm px-2 py-1 sticky top-0 z-10'>
+      <div v-if='!loading && !hideHeader' class='bg-sidebar px-2 py-1 sticky top-0 z-10'>
         <div
           :class="
             layoutMode === 'compact'

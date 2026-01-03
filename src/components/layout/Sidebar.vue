@@ -4,7 +4,7 @@
 
   import { useOrientation } from '@/composables/useOrientation'
   import { getPlatform, Platform } from '@/lib/platform'
-  import { useBlurStore, usePlayerStore } from '@/stores'
+  import { usePlayerStore } from '@/stores'
 
   const isMacos = computed(() => getPlatform() === Platform.MacOS)
 
@@ -19,17 +19,12 @@
     navigate:        [view: string]
   }>()
 
-  const blurStore = useBlurStore()
-
   const { isLandscape } = useOrientation()
 
   const isMobileLandscape = computed(() => isLandscape.value)
 
-  const sidebarBgClass = computed(
-    () => blurStore.selectedBlurMode.name !== 'none'
-      ? 'bg-transparent'
-      : 'bg-background-dark',
-  )
+  // Now that we've removed window transparency, use solid background
+  const sidebarBgClass = computed(() => 'bg-background-dark')
 
   const sidebarWidthClass = computed(() => {
     if (props.isMobilePortrait || isMobileLandscape.value)

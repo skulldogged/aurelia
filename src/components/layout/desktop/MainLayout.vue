@@ -44,7 +44,7 @@
 </script>
 
 <template>
-  <div class='h-screen flex flex-col'>
+  <div class='h-screen flex flex-col overflow-hidden relative'>
     <!-- Search results overlay -->
     <slot :is-sidebar-collapsed='isSidebarCollapsed' :on-result-click='() => {}' name='search-results' />
 
@@ -172,10 +172,11 @@
     <div
       :class="[
         'right-panel absolute right-0 top-0 h-full z-20 overflow-hidden',
+        'w-64 lg:w-80 xl:w-96 2xl:w-[448px]',
         rightPanelBgClass,
         (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
-          ? 'w-64 lg:w-80 xl:w-96 2xl:w-[448px]'
-          : 'w-0'
+          ? 'panel-open'
+          : 'panel-closed'
       ]"
       :style='{ paddingTop: `calc(env(safe-area-inset-top))` }'
     >
@@ -193,7 +194,7 @@
           left: "-0.75rem"
         }'
       />
-      <div class='h-full min-w-64 lg:min-w-80 xl:min-w-96 2xl:min-w-[448px]'>
+      <div class='h-full'>
         <slot name='queue' />
       </div>
     </div>
@@ -202,7 +203,7 @@
     <div
       v-if='playerState.hasPlayer'
       :class="[
-        'player-bar absolute z-30 bg-sidebar/95 backdrop-blur-lg overflow-visible border-t border-border/20',
+        'player-bar absolute z-30 bg-sidebar overflow-visible border-t border-border/20',
         'bottom-0',
         isSidebarCollapsed ? (isMacos ? 'left-[81px]' : 'left-[65px]') : 'left-48',
         (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
@@ -218,17 +219,31 @@
 <style scoped>
 /* Main content area smoothly adjusts with panels */
 .main-content {
-  transition: margin-left 0.2s ease, margin-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: margin-left 0.2s ease, margin-right 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: margin-left, margin-right;
 }
 
-/* Smooth slide animation for right panel */
+/* Smooth slide animation for right panel using transform (GPU-accelerated) */
 .right-panel {
-  transition: width 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+              visibility 0.25s;
+  will-change: transform;
+}
+
+.right-panel.panel-closed {
+  transform: translateX(100%);
+  visibility: hidden;
+}
+
+.right-panel.panel-open {
+  transform: translateX(0);
+  visibility: visible;
 }
 
 /* Player bar smoothly adjusts with panel */
 .player-bar {
-  transition: left 0.2s ease, right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: left 0.2s ease, right 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: left, right;
 }
 
 /* Top bar smoothly adjusts with sidebar */
@@ -238,7 +253,7 @@
 
 /* Top bar content smoothly adjusts with right panel */
 .top-bar-content {
-  transition: margin-right 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: margin-right 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Navigation buttons smoothly adjust with sidebar */

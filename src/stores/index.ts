@@ -2,8 +2,6 @@ export type { Playlist, PlaylistCreateData, PlaylistUpdateData } from '@/binding
 export type { AccentColor } from '@/lib/colorSchemes'
 export { useAccentColorStore } from '@/stores/accentColor'
 export { useAuthStore } from '@/stores/auth'
-export { useBlurStore } from '@/stores/blur'
-export type { BlurMode } from '@/stores/blur'
 export { useHomeStore } from '@/stores/home'
 export { useLastFmStore } from '@/stores/lastfm'
 export { useLibraryStore } from '@/stores/library'

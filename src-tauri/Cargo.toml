@@ -10,9 +10,9 @@ name = "aurelia_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-openapiv3 = "2.2.0"
-prettyplease = "0.2.37"
-progenitor = "0.11.2"
+openapiv3 = "2.2"
+prettyplease = "0.2"
+progenitor = "0.11"
 serde_json = "1"
 syn = { version = "2.0", features = ["full"] }
 tauri-build = { version = "2", features = [] }
@@ -29,9 +29,9 @@ discord-rich-presence = "1"
 md5 = "0.8"
 once_cell = "1.21.3"
 postcard = { version = "1.0", features = ["use-std"] }
-progenitor-client = "0.11.2"
-rand = "0.9.2"
-redb = "3.1.0"
+progenitor-client = "0.11"
+rand = "0.9"
+redb = "3.1"
 reqwest = { version = "0.12", default-features = false, features = [
   "blocking",
   "json",
@@ -46,28 +46,36 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 specta = "=2.0.0-rc.22"
 specta-typescript = "=0.0.9"
-stream-download = { version = "0.22.9", features = ["reqwest-rustls"] }
+stream-download = { version = "0.22", features = ["reqwest-rustls"] }
 tauri = { version = "2", features = [
   "protocol-asset",
   "macos-private-api",
   "devtools",
   "tray-icon",
 ] }
-tauri-plugin-clipboard-manager = "2.3.0"
+tauri-plugin-clipboard-manager = "2.3"
 tauri-plugin-fs = "2"
 tauri-plugin-m3 = "0.2"
 tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
 tauri-plugin-store = "2"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
-thiserror = "2.0"
+thiserror = "2"
 tokio = { version = "1", features = ["full"] }
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
-urlencoding = "2.1.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+urlencoding = "2.1"
 uuid = { version = "1.19", features = ["v4"] }
-window-vibrancy = "0.7"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 raw-window-handle = "0.6"
 souvlaki = { git = "https://github.com/skulldogged/souvlaki.git" }
+
+[profile.dev]
+opt-level = 2
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
