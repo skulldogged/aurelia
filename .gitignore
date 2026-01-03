@@ -32,10 +32,16 @@ target/
 keystore.properties
 
 # START Ruler Generated Files
-/.github/copilot-instructions.md
-/.github/copilot-instructions.md.bak
-/.trae/rules/project_rules.md
-/.trae/rules/project_rules.md.bak
+/.agent/rules/ruler.md
+/.agent/rules/ruler.md.bak
+/.gemini/settings.json
+/.gemini/settings.json.bak
+/.mcp.json
+/.mcp.json.bak
+/.vscode/mcp.json
+/.vscode/mcp.json.bak
+/.windsurf/mcp_config.json
+/.windsurf/mcp_config.json.bak
 /AGENTS.md
 /AGENTS.md.bak
 /CLAUDE.md
