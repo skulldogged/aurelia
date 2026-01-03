@@ -739,7 +739,7 @@
           <Button
             @click="emit('toggle-favorite', playerStore.currentSong)"
             v-if="visibleIcons.includes('favorite')"
-            :class="['player-control-btn', playerStore.currentSong.isFavorite && 'is-active']"
+            class='player-control-btn'
             size='icon'
             variant='ghost'
           >
