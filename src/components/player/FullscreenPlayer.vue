@@ -268,7 +268,7 @@
       setTimeout(() => {
         isSidePanelAnimating.value = false
         lastSidePanel.value = null
-      }, 350) // Match slide animation duration
+      }, 250) // Match slide animation duration
     }
   })
 
@@ -852,8 +852,8 @@
 
 /* Side panel (EQ/Queue) - slides in from left, content stays fixed width */
 .side-panel {
-  transition: width 0.3s cubic-bezier(0.32, 0.72, 0, 1),
-              padding 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: width 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+              padding 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: width;
 }
 
@@ -867,8 +867,8 @@
 .lyrics-panel {
   overflow: hidden;
   flex-shrink: 0;
-  transition: width 0.3s cubic-bezier(0.32, 0.72, 0, 1),
-              padding 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: width 0.25s cubic-bezier(0.32, 0.72, 0, 1),
+              padding 0.25s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: width;
 }
 
@@ -882,12 +882,12 @@
 
 /* Center content area */
 .center-content {
-  transition: padding 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: padding 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Inner wrapper that shifts when lyrics open */
 .center-items {
-  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* When lyrics are open, shift left and align left */
@@ -907,7 +907,7 @@
 
 /* Album art size transition */
 .album-art-wrapper {
-  transition: width 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: width 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .pop-enter-active,

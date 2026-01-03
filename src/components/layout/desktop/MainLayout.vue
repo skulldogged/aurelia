@@ -182,7 +182,7 @@
     >
       <div
         :class="[
-          'absolute z-10 pointer-events-none outer-shadow-left transition-opacity duration-300',
+          'absolute z-10 pointer-events-none outer-shadow-left shadow-fade',
           (playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen)
             ? 'opacity-100'
             : 'opacity-0'
@@ -238,6 +238,11 @@
 .right-panel.panel-open {
   transform: translateX(0);
   visibility: visible;
+}
+
+/* Shadow fades with the same timing as panel */
+.shadow-fade {
+  transition: opacity 0.25s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /* Player bar smoothly adjusts with panel */

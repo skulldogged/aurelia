@@ -34,10 +34,16 @@ keystore.properties
 # START Ruler Generated Files
 /.agent/rules/ruler.md
 /.agent/rules/ruler.md.bak
+/.agents/skills
+/.claude/skills
+/.codex/skills
 /.gemini/settings.json
 /.gemini/settings.json.bak
 /.mcp.json
 /.mcp.json.bak
+/.opencode/skill
+/.skillz
+/.vibe/skills
 /.vscode/mcp.json
 /.vscode/mcp.json.bak
 /.windsurf/mcp_config.json

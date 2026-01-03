@@ -44,7 +44,9 @@
       return [
         baseClasses,
         'justify-center px-3 py-4',
-        isActive ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
+        isActive
+          ? 'bg-accent text-accent-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
       ]
     }
 
@@ -52,16 +54,20 @@
       return [
         baseClasses,
         'justify-center flex-1 h-11',
-        isActive ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
+        isActive
+          ? 'bg-accent text-accent-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
       ]
     }
 
     // Desktop - transition padding for smooth collapse animation
     return [
       baseClasses,
-      'h-10 gap-x-3 transition-[padding] duration-200 ease-out',
+      'h-10 gap-x-3 transition-[padding] duration-200 ease',
       props.isCollapsed ? 'pl-0' : 'pl-3',
-      isActive ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
+      isActive
+        ? 'bg-accent text-accent-foreground shadow-sm'
+        : 'text-muted-foreground hover:text-foreground hover:bg-accent/20',
     ]
   })
 
@@ -88,7 +94,7 @@
   <div
     :class="[
       sidebarBgClass,
-      'sidebar flex shrink-0 overflow-visible transition-[width] duration-200 ease-out',
+      'sidebar flex shrink-0 overflow-visible transition-[width] duration-200 ease',
       isMobileLandscape
         ? 'flex-col h-full justify-around items-center py-4'
         : props.isMobilePortrait
@@ -105,8 +111,10 @@
       <div v-if='!(props.isMobilePortrait || isMobileLandscape)' class='m-2 mb-2'>
         <button
           @click="emit('global-search')"
-          class='flex items-center h-10 w-full rounded-md text-sm font-medium
-               bg-background border border-border hover:border-accent transition-colors'
+          class='
+            flex items-center h-10 w-full rounded-md text-sm font-medium
+            bg-background border border-border hover:border-accent transition-colors
+          '
         >
           <div :class='searchIconClass'>
             <Search class='size-5 text-muted-foreground' />
@@ -120,10 +128,10 @@
             <span class='whitespace-nowrap text-muted-foreground'>Search...</span>
             <kbd
               class='
-              pointer-events-none mr-2 inline-flex h-5 select-none items-center
-              gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium
-              text-muted-foreground opacity-100
-            '
+                pointer-events-none mr-2 inline-flex h-5 select-none items-center
+                gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium
+                text-muted-foreground opacity-100
+              '
             >
               Ctrl+K
             </kbd>
