@@ -6,7 +6,9 @@
 //! - Gapless playback
 //! - Volume control
 //! - Event-based position updates
+//! - FFT-based spectrum analysis for visualization
 
+mod analyzer;
 mod commands;
 mod eq;
 mod events;

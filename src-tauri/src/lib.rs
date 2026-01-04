@@ -146,6 +146,9 @@ pub fn run() {
             audio::audio_get_eq_band,
             audio::audio_get_all_eq_bands,
             audio::audio_reset_eq,
+            // Analyzer commands
+            audio::audio_set_analyzer_enabled,
+            audio::audio_is_analyzer_enabled,
             // Media controls commands
             audio::media_controls::media_update_now_playing,
             audio::media_controls::media_set_playback_status,

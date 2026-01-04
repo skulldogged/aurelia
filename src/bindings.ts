@@ -82,6 +82,17 @@ export const commands = {
     }
   },
   /**
+ * Check if spectrum analyzer is enabled
+ */
+  audioIsAnalyzerEnabled: async (): Promise<Result<boolean, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_is_analyzer_enabled'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
  * Check if EQ is enabled
  */
   audioIsEqEnabled: async (): Promise<Result<boolean, string>> => {
@@ -175,6 +186,17 @@ export const commands = {
   audioSeek: async (positionSecs: number): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('audio_seek', { positionSecs }), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
+ * Enable or disable spectrum analyzer for visualization
+ */
+  audioSetAnalyzerEnabled: async (enabled: boolean): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_set_analyzer_enabled', { enabled }), status: 'ok' }
     } catch (e) {
       if (e instanceof Error) throw e
       else return { error: e  as any, status: 'error' }

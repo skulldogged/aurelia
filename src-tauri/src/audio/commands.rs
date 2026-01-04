@@ -2,21 +2,25 @@
 //!
 //! Exposes audio player functionality to the frontend.
 
+use crate::audio::analyzer::AnalyzerBuffer;
+use crate::audio::events::{start_audio_event_loop, start_spectrum_event_loop};
 use crate::audio::AudioPlayer;
-use crate::audio::events::start_audio_event_loop;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::State;
 use tracing::{error, info};
 
 /// Global audio player state
 pub struct AudioState {
     pub player: Mutex<Option<AudioPlayer>>,
+    /// Shared analyzer buffer for spectrum events
+    pub analyzer_buffer: Mutex<Option<Arc<AnalyzerBuffer>>>,
 }
 
 impl Default for AudioState {
     fn default() -> Self {
         Self {
             player: Mutex::new(None),
+            analyzer_buffer: Mutex::new(None),
         }
     }
 }
@@ -35,12 +39,28 @@ pub async fn audio_init(
             error!("Failed to initialize audio player: {}", e);
             e.to_string()
         })?;
+
+        // Get analyzer buffer before moving player
+        let analyzer_buffer = player.analyzer_buffer();
+
         *player_guard = Some(player);
         info!("Audio player initialized");
 
-        // Start the audio event loop for position updates
-        drop(player_guard); // Release lock before starting event loop
-        start_audio_event_loop(app);
+        // Store analyzer buffer for spectrum events
+        {
+            let mut buffer_guard = audio_state
+                .analyzer_buffer
+                .lock()
+                .map_err(|e| e.to_string())?;
+            *buffer_guard = Some(analyzer_buffer.clone());
+        }
+
+        // Release lock before starting event loops
+        drop(player_guard);
+
+        // Start event loops
+        start_audio_event_loop(app.clone());
+        start_spectrum_event_loop(app, analyzer_buffer);
     }
 
     Ok(())
@@ -321,4 +341,30 @@ pub fn audio_reset_eq(audio_state: State<'_, AudioState>) -> Result<(), String> 
         .as_ref()
         .ok_or("Audio player not initialized")?;
     player.reset_eq().map_err(|e| e.to_string())
+}
+
+/// Enable or disable spectrum analyzer for visualization
+#[tauri::command]
+#[specta::specta]
+pub fn audio_set_analyzer_enabled(
+    audio_state: State<'_, AudioState>,
+    enabled: bool,
+) -> Result<(), String> {
+    let player_guard = audio_state.player.lock().map_err(|e| e.to_string())?;
+    let player = player_guard
+        .as_ref()
+        .ok_or("Audio player not initialized")?;
+    player.set_analyzer_enabled(enabled);
+    Ok(())
+}
+
+/// Check if spectrum analyzer is enabled
+#[tauri::command]
+#[specta::specta]
+pub fn audio_is_analyzer_enabled(audio_state: State<'_, AudioState>) -> Result<bool, String> {
+    let player_guard = audio_state.player.lock().map_err(|e| e.to_string())?;
+    let player = player_guard
+        .as_ref()
+        .ok_or("Audio player not initialized")?;
+    Ok(player.is_analyzer_enabled())
 }

@@ -23,6 +23,7 @@
 
   import { commands } from '@/bindings'
   import { Song } from '@/bindings'
+  import AudioVisualizer from '@/components/player/AudioVisualizer.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import Button from '@/components/ui/Button.vue'
   import {
@@ -40,10 +41,12 @@
   import { usePlayerStore } from '@/stores'
 
   const props = defineProps<{
+    frequencyData?:   Uint8Array
     isEqualizerOpen?: boolean
     isLyricsOpen?:    boolean
     isQueueOpen?:     boolean
     serverUrl:        string
+    timeDomainData?:  Uint8Array
     token:            string
   }>()
 
@@ -523,6 +526,20 @@
     v-if='playerStore.currentSong'
     class='player-bar'
   >
+    <!-- Visualizer background -->
+    <Transition name='fade'>
+      <div
+        v-if='playerStore.visualizerEnabled && frequencyData?.length && playerStore.isPlaying'
+        class='visualizer-bg'
+      >
+        <AudioVisualizer
+          :frequency-data='frequencyData'
+          :is-playing='playerStore.isPlaying'
+          :style='playerStore.visualizerStyle'
+          :time-domain-data='timeDomainData || new Uint8Array(0)'
+        />
+      </div>
+    </Transition>
     <div ref='containerRef' class='player-bar-inner'>
       <!-- Mobile layout -->
       <template v-if='isMobilePortraitMode'>
@@ -867,6 +884,27 @@
   height: 88px;
   padding: 0.625rem 0.75rem;
   position: relative;
+  overflow: hidden;
+}
+
+/* Visualizer background */
+.visualizer-bg {
+  position: absolute;
+  inset: 0;
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 .player-bar-inner {
@@ -876,6 +914,8 @@
   max-width: 100%;
   margin: 0 auto;
   height: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 /* Album art with hover effect */

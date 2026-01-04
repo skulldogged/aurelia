@@ -1,10 +1,12 @@
 //! Audio playback event emission
 //!
-//! Provides event-based position updates instead of frontend polling
+//! Provides event-based position updates and spectrum data for visualization
 
+use crate::audio::analyzer::{AnalyzerBuffer, SpectrumAnalyzer};
 use crate::audio::AudioState;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tracing::{debug, trace};
@@ -17,14 +19,27 @@ pub struct AudioPositionEvent {
     pub is_finished: bool,
 }
 
-/// Flag to control the event loop
-static EVENT_LOOP_RUNNING: AtomicBool = AtomicBool::new(false);
+/// Spectrum data event payload for visualizer
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpectrumEvent {
+    /// Frequency domain data (0-255 per bin)
+    pub frequency_data: Vec<u8>,
+    /// Time domain data (0-255, centered at 128)
+    pub time_domain_data: Vec<u8>,
+}
+
+/// Flag to control the position event loop
+static POSITION_LOOP_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Flag to control the spectrum event loop
+static SPECTRUM_LOOP_RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// Start the audio event loop that emits position updates
 /// This replaces frontend polling with push-based events
 pub fn start_audio_event_loop(app: AppHandle) {
     // Prevent multiple loops
-    if EVENT_LOOP_RUNNING.swap(true, Ordering::SeqCst) {
+    if POSITION_LOOP_RUNNING.swap(true, Ordering::SeqCst) {
         debug!("Audio event loop already running");
         return;
     }
@@ -76,6 +91,48 @@ pub fn start_audio_event_loop(app: AppHandle) {
 
             if let Err(e) = app.emit("audio:position", &event) {
                 trace!("Failed to emit audio position event: {}", e);
+            }
+        }
+    });
+}
+
+/// Start the spectrum analyzer event loop
+///
+/// Runs at ~60fps (16ms interval) for smooth visualization
+pub fn start_spectrum_event_loop(app: AppHandle, analyzer_buffer: Arc<AnalyzerBuffer>) {
+    // Prevent multiple loops
+    if SPECTRUM_LOOP_RUNNING.swap(true, Ordering::SeqCst) {
+        debug!("Spectrum event loop already running");
+        return;
+    }
+
+    debug!("Starting spectrum event loop");
+
+    tauri::async_runtime::spawn(async move {
+        let interval = Duration::from_millis(16); // ~60fps
+        let mut spectrum_analyzer = SpectrumAnalyzer::new();
+
+        loop {
+            tokio::time::sleep(interval).await;
+
+            // Skip if analyzer is disabled
+            if !analyzer_buffer.is_enabled() {
+                continue;
+            }
+
+            // Read samples and compute spectrum
+            let samples = analyzer_buffer.read_samples();
+            let frequency_data = spectrum_analyzer.compute_spectrum(&samples);
+            let time_domain_data = spectrum_analyzer.compute_waveform(&samples);
+
+            // Emit spectrum event
+            let event = SpectrumEvent {
+                frequency_data: frequency_data.to_vec(),
+                time_domain_data: time_domain_data.to_vec(),
+            };
+
+            if let Err(e) = app.emit("audio:spectrum", &event) {
+                trace!("Failed to emit spectrum event: {}", e);
             }
         }
     });

@@ -39,9 +39,10 @@
   import { PlayerState, usePlayerStore } from '@/stores'
 
   const props = defineProps({
-    analyserNode: {
-      default: null,
-      type:    Object as PropType<AnalyserNode | null>,
+    frequencyData: {
+      default:  () => new Uint8Array(0),
+      required: false,
+      type:     Object as PropType<Uint8Array>,
     },
     isEqualizerOpen: {
       default: false,
@@ -74,6 +75,11 @@
     show: {
       required: true,
       type:     Boolean,
+    },
+    timeDomainData: {
+      default:  () => new Uint8Array(0),
+      required: false,
+      type:     Object as PropType<Uint8Array>,
     },
     token: {
       default: '',
@@ -324,13 +330,14 @@
         <!-- Visualizer -->
         <Transition name='fade'>
           <div
-            v-if='visualizerEnabled && analyserNode && playerState.isPlaying'
+            v-if='visualizerEnabled && frequencyData.length > 0 && playerState.isPlaying'
             class='absolute bottom-0 left-0 right-0 h-40 opacity-40'
           >
             <AudioVisualizer
-              :analyser-node='analyserNode'
+              :frequency-data='frequencyData'
               :is-playing='playerState.isPlaying'
               :style='visualizerStyle'
+              :time-domain-data='timeDomainData'
             />
           </div>
         </Transition>

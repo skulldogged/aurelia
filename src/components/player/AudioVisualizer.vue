@@ -2,9 +2,14 @@
   import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
   interface VisualizerProps {
-    analyserNode: AnalyserNode | null
-    isPlaying:    boolean
-    style?:       'bars' | 'curve' | 'wave'
+    /** Frequency domain data from Rust FFT (0-255 per bin) */
+    frequencyData:  Uint8Array
+    /** Whether audio is currently playing */
+    isPlaying:      boolean
+    /** Visualization style */
+    style?:         'bars' | 'curve' | 'wave'
+    /** Time domain waveform data (0-255, centered at 128) */
+    timeDomainData: Uint8Array
   }
 
   const props = withDefaults(defineProps<VisualizerProps>(), {
@@ -13,9 +18,6 @@
 
   const canvasRef = ref<HTMLCanvasElement | null>(null)
   const animationFrameId = ref<null | number>(null)
-
-  let dataArray: null | Uint8Array<ArrayBuffer> = null
-  let bufferLength = 0
 
   // Performance: Cache accent color and gradients
   const accentColor = ref<string>('#3b82f6')
@@ -71,35 +73,25 @@
     }
   }
 
-  const initializeVisualizer = (): void => {
-    if (!props.analyserNode) return
-
-    const analyser = props.analyserNode
-    analyser.fftSize = 256
-    bufferLength = analyser.frequencyBinCount
-    dataArray = new Uint8Array(bufferLength)
-  }
-
   const drawBars = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
   ): void => {
-    if (!props.analyserNode || !dataArray || !gradientBars.value) return
+    if (!gradientBars.value || props.frequencyData.length === 0) return
 
-    props.analyserNode.getByteFrequencyData(dataArray)
     ctx.clearRect(0, 0, width, height)
 
     const barCount = 64
     const barWidth = width / barCount
     const heightScale = height / 255
-    const dataStep = bufferLength / barCount
+    const dataStep = props.frequencyData.length / barCount
 
     ctx.fillStyle = gradientBars.value
 
     for (let i = 0; i < barCount; i++) {
       const dataIndex = Math.floor(i * dataStep)
-      const barHeight = dataArray[dataIndex] * heightScale
+      const barHeight = props.frequencyData[dataIndex] * heightScale
       ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight)
     }
   }
@@ -109,20 +101,19 @@
     width: number,
     height: number,
   ): void => {
-    if (!props.analyserNode || !dataArray || !gradientCurve.value) return
+    if (!gradientCurve.value || props.frequencyData.length === 0) return
 
-    props.analyserNode.getByteFrequencyData(dataArray)
     ctx.clearRect(0, 0, width, height)
 
     const sampleCount = 64
     const stepX = width / (sampleCount - 1)
     const heightScale = height / 255
-    const dataStep = bufferLength / sampleCount
+    const dataStep = props.frequencyData.length / sampleCount
 
     const points: Array<{ x: number, y: number }> = []
     for (let i = 0; i < sampleCount; i++) {
       const dataIndex = Math.floor(i * dataStep)
-      const value = dataArray[dataIndex] * heightScale
+      const value = props.frequencyData[dataIndex] * heightScale
       points.push({ x: i * stepX, y: height - value })
     }
 
@@ -169,20 +160,20 @@
     width: number,
     height: number,
   ): void => {
-    if (!props.analyserNode || !dataArray) return
+    if (props.timeDomainData.length === 0) return
 
-    props.analyserNode.getByteTimeDomainData(dataArray)
     ctx.clearRect(0, 0, width, height)
 
     ctx.strokeStyle = `rgba(${accentRgb.value.r}, ${accentRgb.value.g}, ${accentRgb.value.b}, 0.5)`
     ctx.lineWidth = 2
     ctx.beginPath()
 
+    const bufferLength = props.timeDomainData.length
     const sliceWidth = width / bufferLength
     let x = 0
 
     for (let i = 0; i < bufferLength; i++) {
-      const v = dataArray[i] / 128.0
+      const v = props.timeDomainData[i] / 128.0
       const y = (v * height) / 2
       if (i === 0)
         ctx.moveTo(x, y)
@@ -213,7 +204,7 @@
     const width = rect.width
     const height = rect.height
 
-    if (props.isPlaying && props.analyserNode) {
+    if (props.isPlaying && props.frequencyData.length > 0) {
       switch (props.style) {
         case 'bars':
           drawBars(ctx, width, height)
@@ -234,7 +225,6 @@
 
   const startAnimation = (): void => {
     if (animationFrameId.value !== null) return
-    initializeVisualizer()
     updateAccentColor()
     animate()
   }
@@ -281,11 +271,6 @@
   onBeforeUnmount(() => {
     stopAnimation()
     window.removeEventListener('resize', handleResize)
-  })
-
-  watch(() => props.analyserNode, () => {
-    stopAnimation()
-    startAnimation()
   })
 
   watch(() => props.isPlaying, isPlaying => {

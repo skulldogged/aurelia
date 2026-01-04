@@ -166,6 +166,10 @@
 
   watch(() => props.visible, async (isVisible, wasVisible) => {
     if (isVisible && !wasVisible && areLyricsSynced.value && currentLineIndex.value !== -1) {
+      // Wait for panel animation to complete (350ms) before scrolling
+      // Without this delay, getBoundingClientRect returns incorrect values
+      // because the container is still animating from width: 0
+      await new Promise(resolve => setTimeout(resolve, 400))
       await nextTick()
       if (activeLineRef.value) {
         scrollToCenter(activeLineRef.value, false)

@@ -3,6 +3,7 @@
 //! Core audio playback engine using Rodio for output and
 //! stream-download for HTTP streaming.
 
+use crate::audio::analyzer::{AnalyzerBuffer, AnalyzerSource};
 use crate::audio::eq::{EQSettings, EQSource};
 use crate::audio::streaming::StreamingSource;
 use anyhow::{Context, Result};
@@ -40,6 +41,8 @@ pub struct AudioPlayer {
     next_source: Option<PreparedSource>,
     /// Lock-free EQ settings shared with audio processing thread
     eq_settings: Arc<EQSettings>,
+    /// Lock-free analyzer buffer for visualization
+    analyzer_buffer: Arc<AnalyzerBuffer>,
     volume: f32,
     // Playback state
     is_playing: Arc<AtomicBool>,
@@ -90,6 +93,9 @@ impl AudioPlayer {
         // Create lock-free EQ settings
         let eq_settings = Arc::new(EQSettings::new(44100));
 
+        // Create lock-free analyzer buffer
+        let analyzer_buffer = Arc::new(AnalyzerBuffer::new());
+
         info!("Audio player initialized with default output device");
 
         Ok(Self {
@@ -97,11 +103,28 @@ impl AudioPlayer {
             sink: None,
             next_source: None,
             eq_settings,
+            analyzer_buffer,
             volume: 1.0,
             is_playing: Arc::new(AtomicBool::new(false)),
             current_url: None,
             current_track: None,
         })
+    }
+
+    /// Get a reference to the analyzer buffer for the event loop
+    pub fn analyzer_buffer(&self) -> Arc<AnalyzerBuffer> {
+        Arc::clone(&self.analyzer_buffer)
+    }
+
+    /// Enable or disable the spectrum analyzer
+    pub fn set_analyzer_enabled(&self, enabled: bool) {
+        self.analyzer_buffer.set_enabled(enabled);
+        debug!("Spectrum analyzer enabled: {}", enabled);
+    }
+
+    /// Check if spectrum analyzer is enabled
+    pub fn is_analyzer_enabled(&self) -> bool {
+        self.analyzer_buffer.is_enabled()
     }
 
     /// Play audio from a URL
@@ -161,6 +184,9 @@ impl AudioPlayer {
         // Apply EQ to the source (lock-free processing)
         let eq_source = EQSource::new(decoder, Arc::clone(&self.eq_settings));
 
+        // Wrap with analyzer for visualization (lock-free sample capture)
+        let analyzer_source = AnalyzerSource::new(eq_source, Arc::clone(&self.analyzer_buffer));
+
         // Create a sink via the background thread
         let (sink_tx, sink_rx) = channel();
         self.cmd_tx.send(AudioThreadCommand::CreateSink(sink_tx))
@@ -172,7 +198,7 @@ impl AudioPlayer {
         // Volume is controlled via sink.set_volume() only (not amplify) to avoid
         // multiplicative volume issues when tracks are reloaded
         sink.set_volume(self.volume);
-        sink.append(eq_source);
+        sink.append(analyzer_source);
 
         self.sink = Some(sink);
         self.current_url = Some(url.to_string());

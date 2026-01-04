@@ -36,6 +36,7 @@
   import { useSongInteractions } from '@/composables/useSongInteractions'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useTopBar } from '@/composables/useTopBar'
+  import { useVisualizerData } from '@/composables/useVisualizerData'
   import { setAuthLogout } from '@/lib/auth-interceptor'
   import { getPlatform, isMobile, Platform } from '@/lib/platform'
   import Login from '@/pages/login.vue'
@@ -55,6 +56,9 @@
   useAndroidNowPlayingService()
 
   const { topBarContent } = useTopBar()
+
+  // Visualizer data from Rust backend FFT analysis
+  const { frequencyData, setEnabled: setAnalyzerEnabled, timeDomainData } = useVisualizerData()
 
   const isSearchOpen = ref(false)
   const showExitDialog = ref(false)
@@ -121,6 +125,16 @@
     }
     isFsLyricsOpen.value = !isFsLyricsOpen.value
   }
+
+  // Enable analyzer when visualizer is enabled and playing
+  watch(
+    [() => playerStore.visualizerEnabled, () => playerStore.isPlaying],
+    ([vizEnabled, isPlaying]) => {
+      const shouldEnable = vizEnabled && isPlaying
+      setAnalyzerEnabled(shouldEnable)
+    },
+    { immediate: true },
+  )
 
   const {
     playInstantMix,
@@ -385,10 +399,12 @@
           @toggle-queue='toggleQueue'
           v-if='currentSong'
           ref='musicPlayerRef'
+          :frequency-data='frequencyData'
           :is-equalizer-open='isEqualizerOpen'
           :is-lyrics-open='isLyricsOpen'
           :is-queue-open='isQueueOpen'
           :server-url='credentials!.serverUrl'
+          :time-domain-data='timeDomainData'
           :token='credentials!.token'
         />
       </template>
@@ -419,6 +435,7 @@
       @toggle-shuffle='handleToggleShuffle'
       @update:playlist='updatePlaylist'
       @volume-change='handleVolumeChange'
+      :frequency-data='frequencyData'
       :is-equalizer-open='isFsEqualizerOpen'
       :is-lyrics-open='isFsLyricsOpen'
       :is-queue-open='isFsQueueOpen'
@@ -426,6 +443,7 @@
       :preview-progress='swipeProgress'
       :server-url='credentials?.serverUrl'
       :show='isFullScreenPlayerOpen'
+      :time-domain-data='timeDomainData'
       :token='credentials?.token'
     />
 
