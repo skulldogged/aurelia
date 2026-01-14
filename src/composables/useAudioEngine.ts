@@ -12,6 +12,11 @@ interface AudioPositionEvent {
   position:   number
 }
 
+interface AudioStreamErrorEvent {
+  position: number
+  reason:   string
+}
+
 interface UseAudioEngineReturn {
   initializePlayer:        () => Promise<void>;
   isGaplessTransition:     Ref<boolean>;
@@ -35,6 +40,7 @@ export const useAudioEngine = (
   // State
   const isGaplessTransition = ref(false)
   const eventUnlisten = ref<null | UnlistenFn>(null)
+  const streamErrorUnlisten = ref<null | UnlistenFn>(null)
   const mediaEventUnlisteners = ref<UnlistenFn[]>([])
 
   const hasNext = computed(() =>
@@ -83,6 +89,33 @@ export const useAudioEngine = (
     })
 
     logger.debug('Audio position event listener registered')
+
+    // Listen for audio stream errors (device disconnected, etc.)
+    if (streamErrorUnlisten.value) {
+      streamErrorUnlisten.value()
+      streamErrorUnlisten.value = null
+    }
+
+    streamErrorUnlisten.value = await listen<AudioStreamErrorEvent>('audio:stream-error', async event => {
+      const { reason, position } = event.payload
+      logger.warn(`Audio stream error: ${reason} at position ${position}`)
+
+      // Pause playback on the UI side
+      playerStore.pause()
+
+      // Stop the backend player to clean up the dead stream
+      await rustAudioPlayer.stop()
+
+      // Store the position so we can resume from here if the user plays again
+      playerStore.setCurrentTime(position)
+
+      // Mark that we need to reload the audio when user presses play
+      playerStore.setNeedsReload(true)
+
+      logger.info('Playback paused due to audio stream error - press play to resume')
+    })
+
+    logger.debug('Audio stream error listener registered')
   }
 
   // Subscribe to media control events from backend (OS media keys)
@@ -104,15 +137,15 @@ export const useAudioEngine = (
         playerStore.pause()
       }),
       await listen('media:next', () => {
-        logger.debug('Media key: Next')
+        logger.debug('Media key: Next - received event')
+        logger.debug(`Current index before: ${playerStore.currentIndex}, hasNext: ${hasNext.value}`)
         nextSong()
+        logger.debug(`Current index after: ${playerStore.currentIndex}, currentSong: ${playerStore.currentSong?.name}`)
       }),
       await listen('media:previous', () => {
         logger.debug('Media key: Previous')
         if (playerStore.currentIndex > 0) {
           playerStore.previousSong()
-          const song = playerStore.playlist[playerStore.currentIndex]
-          if (song) loadSong(song)
         }
       }),
       await listen('media:stop', () => {
@@ -162,6 +195,10 @@ export const useAudioEngine = (
     if (eventUnlisten.value) {
       eventUnlisten.value()
       eventUnlisten.value = null
+    }
+    if (streamErrorUnlisten.value) {
+      streamErrorUnlisten.value()
+      streamErrorUnlisten.value = null
     }
     // Cleanup media event listeners
     for (const unlisten of mediaEventUnlisteners.value) {
@@ -259,7 +296,7 @@ export const useAudioEngine = (
     if (index < 0 || index >= playerStore.playlist.length) return
 
     playerStore.playSongAtIndex(index)
-    loadSong(playerStore.playlist[index])
+    // loadSong is triggered by the watcher on currentSong.id
   }
 
   const loadSong = async (song: null | Song): Promise<void> => {
@@ -285,7 +322,12 @@ export const useAudioEngine = (
         throw new Error(streamResult.error)
       }
 
-      const success = await rustAudioPlayer.play(streamResult.data, props.token)
+      const success = await rustAudioPlayer.play(streamResult.data, props.token, {
+        title:      song.name,
+        artist:     song.artists?.join(', ') ?? null,
+        album:      song.album ?? null,
+        artworkUrl: song.albumArtUrl ?? null,
+      })
 
       if (success) {
         playerStore.setAudioReady(true)
@@ -394,6 +436,23 @@ export const useAudioEngine = (
     // Only update if we have a current song (player is active)
     if (playerStore.currentSong) {
       updateMediaButtonStates()
+    }
+  })
+
+  // Watch for song changes and auto-load (handles media keys, queue clicks, etc.)
+  watch(() => playerStore.currentSong?.id, async (newId, oldId) => {
+    logger.debug(`Song watcher triggered: ${oldId} -> ${newId}, isGaplessTransition: ${isGaplessTransition.value}`)
+    if (newId === oldId) return
+    // Skip if we're in a gapless transition (handleTrackEnded manages this)
+    if (isGaplessTransition.value) {
+      logger.debug('Skipping load - gapless transition in progress')
+      return
+    }
+    
+    const song = playerStore.currentSong
+    if (song) {
+      logger.debug(`Song changed to: ${song.name}, loading...`)
+      await loadSong(song)
     }
   })
 

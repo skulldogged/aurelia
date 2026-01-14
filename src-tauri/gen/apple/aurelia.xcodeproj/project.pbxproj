@@ -56,7 +56,6 @@
 		8055B9A74AAAF67AA3E5BD13 /* bindings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bindings.h; sourceTree = "<group>"; };
 		84ADCD0EFFE113768B4A61D9 /* system_tray.rs */ = {isa = PBXFileReference; path = system_tray.rs; sourceTree = "<group>"; };
 		85AFBCF60F503C0E18DB7349 /* musicbrainz.rs */ = {isa = PBXFileReference; path = musicbrainz.rs; sourceTree = "<group>"; };
-		86BE9395AD001A2CA2191CD8 /* android_now_playing.rs */ = {isa = PBXFileReference; path = android_now_playing.rs; sourceTree = "<group>"; };
 		8B64F19F393AC8F4B211E919 /* state.rs */ = {isa = PBXFileReference; path = state.rs; sourceTree = "<group>"; };
 		95E541E71EB1C238EA8BF5E3 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		A425FC53F293D6F3661EAB9F /* lib.rs */ = {isa = PBXFileReference; path = lib.rs; sourceTree = "<group>"; };
@@ -260,7 +259,6 @@
 		DD7978CAFBBBFD55ABFC04C6 /* src */ = {
 			isa = PBXGroup;
 			children = (
-				86BE9395AD001A2CA2191CD8 /* android_now_playing.rs */,
 				73875E1821B569DE70E11DB1 /* cache.rs */,
 				0002AD6445557E3EB695F141 /* database.rs */,
 				E21B37F1DB2EB4AF380762C8 /* discord_rpc.rs */,

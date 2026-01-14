@@ -194,6 +194,7 @@ export const usePlayerStore = defineStore('player', () => {
   const currentIndex = ref(storedSession.currentIndex)
   const audioReady = ref(false)
   const isBuffering = ref(false)
+  const needsReload = ref(false) // Set when audio stream dies and needs to be recreated
 
   const progress = computed(() => duration.value > 0 ? (currentTime.value / duration.value) * 100 : 0)
 
@@ -346,13 +347,16 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const nextSong = (): void => {
+    logger.debug(`[Store] nextSong called. playlist.length=${playlist.value.length}, currentIndex=${currentIndex.value}`)
     if (playlist.value.length === 0) return
 
     const nextIndex = isShuffled.value
       ? getRandomIndex(playlist.value, currentIndex.value)
       : (currentIndex.value + 1) % playlist.value.length
 
+    logger.debug(`[Store] nextSong: setting index to ${nextIndex}`)
     setCurrentIndex(nextIndex)
+    logger.debug(`[Store] nextSong: currentSong is now ${currentSong.value?.name}`)
   }
 
   const previousSong = (): void => {
@@ -404,6 +408,10 @@ export const usePlayerStore = defineStore('player', () => {
     setStoredValue(STORAGE_KEYS.VISUALIZER_STYLE, style)
   }
 
+  const setNeedsReload = (value: boolean): void => {
+    needsReload.value = value
+  }
+
   const updateSongFavorite = (songId: string, isFavorite: boolean): void => {
     // Update current song if it matches
     if (currentSong.value?.id === songId) {
@@ -443,6 +451,7 @@ export const usePlayerStore = defineStore('player', () => {
     isSeeking,
     isShuffled,
     mutedVolume,
+    needsReload,
     nextSong,
     pause,
     play,
@@ -466,6 +475,7 @@ export const usePlayerStore = defineStore('player', () => {
     setHasNext,
     setHasPrevious,
     setIsSeeking,
+    setNeedsReload,
     setPlaylist,
     setRepeatMode,
     setVisualizerEnabled,

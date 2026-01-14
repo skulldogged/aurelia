@@ -4,8 +4,17 @@
  * Provides a clean interface to the native Rust audio player
  * with streaming, EQ, and gapless playback support.
  */
+import { invoke } from '@tauri-apps/api/core'
+
 import { commands } from '@/bindings'
 import { logger } from '@/lib/logger'
+
+export interface PlayMetadata {
+  album?:      null | string
+  artist?:     null | string
+  artworkUrl?: null | string
+  title?:      null | string
+}
 
 export interface RustAudioPlayer {
   advanceGapless: () => Promise<boolean>
@@ -18,8 +27,9 @@ export interface RustAudioPlayer {
   isFinished:     () => Promise<boolean>
   isPlaying:      () => Promise<boolean>
   pause:          () => Promise<boolean>
-  play:           (url: string, token: string) => Promise<boolean>
+  play:           (url: string, token: string, metadata?: PlayMetadata) => Promise<boolean>
   prepareNext:    (url: string, token: string) => Promise<boolean>
+  reinit:         () => Promise<boolean>
   resetEQ:        () => Promise<boolean>
   resume:         () => Promise<boolean>
   seek:           (positionSecs: number) => Promise<boolean>
@@ -40,13 +50,22 @@ export const useRustAudioPlayer = (): RustAudioPlayer => {
     return true
   }
 
-  const play = async (url: string, token: string): Promise<boolean> => {
-    const result = await commands.audioPlay(url, token)
-    if (result.status === 'error') {
-      logger.error('Failed to play audio:', result.error)
+  const play = async (url: string, token: string, metadata?: PlayMetadata): Promise<boolean> => {
+    try {
+      // Use invoke directly since bindings don't have the updated signature yet
+      await invoke('audio_play', {
+        url,
+        token,
+        title: metadata?.title ?? null,
+        artist: metadata?.artist ?? null,
+        album: metadata?.album ?? null,
+        artworkUrl: metadata?.artworkUrl ?? null,
+      })
+      return true
+    } catch (error) {
+      logger.error('Failed to play audio:', error)
       return false
     }
-    return true
   }
 
   const pause = async (): Promise<boolean> => {
@@ -196,6 +215,18 @@ export const useRustAudioPlayer = (): RustAudioPlayer => {
     return true
   }
 
+  const reinit = async (): Promise<boolean> => {
+    try {
+      // audioReinit not in generated bindings yet, use invoke directly
+      await invoke('audio_reinit')
+      logger.info('Rust audio player reinitialized')
+      return true
+    } catch (error) {
+      logger.error('Failed to reinitialize audio player:', error)
+      return false
+    }
+  }
+
   return {
     advanceGapless,
     getAllEQBands,
@@ -209,6 +240,7 @@ export const useRustAudioPlayer = (): RustAudioPlayer => {
     pause,
     play,
     prepareNext,
+    reinit,
     resetEQ,
     resume,
     seek,

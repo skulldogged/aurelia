@@ -3,7 +3,6 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 import { commands, type Result } from '@/bindings'
 import { logger } from '@/lib/logger'
 import { LRUCache } from '@/lib/lru-cache'
-import { isMobile } from '@/lib/platform'
 import { err, ok } from '@/lib/result'
 
 // LRU cache for asset URLs with bounded size to prevent memory leaks
@@ -34,9 +33,6 @@ const getImageUrl = async (
   width?: number,
   quality?: number,
 ): Promise<null | string> => {
-  // Temporarily disable image loading on mobile to debug OOM issues
-  if (isMobile()) return null
-
   if (!itemId || !serverUrl || !token) return null
 
   const cacheKey = generateCacheKey(itemId, imageType, width, quality)

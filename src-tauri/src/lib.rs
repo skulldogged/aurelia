@@ -1,5 +1,5 @@
 #[cfg(target_os = "android")]
-mod android_now_playing;
+mod android_audio_player;
 pub mod audio;
 pub mod cache;
 pub mod database;
@@ -149,6 +149,7 @@ pub fn run() {
             // Analyzer commands
             audio::audio_set_analyzer_enabled,
             audio::audio_is_analyzer_enabled,
+            audio::audio_reinit,
             // Media controls commands
             audio::media_controls::media_update_now_playing,
             audio::media_controls::media_set_playback_status,
@@ -211,8 +212,36 @@ pub fn run() {
             listenbrainz::listenbrainz_clear_credentials,
             listenbrainz::listenbrainz_is_authenticated,
             system_tray::quit_application,
-            android_now_playing::update_now_playing,
-            android_now_playing::clear_now_playing,
+            // Audio commands - forwarded to Kotlin ExoPlayer plugin
+            android_audio_player::audio_init,
+            android_audio_player::audio_play,
+            android_audio_player::audio_pause,
+            android_audio_player::audio_resume,
+            android_audio_player::audio_stop,
+            android_audio_player::audio_set_volume,
+            android_audio_player::audio_get_volume,
+            android_audio_player::audio_is_playing,
+            android_audio_player::audio_is_finished,
+            android_audio_player::audio_get_position,
+            android_audio_player::audio_seek,
+            android_audio_player::audio_prepare_next,
+            android_audio_player::audio_advance_gapless,
+            android_audio_player::audio_set_eq_enabled,
+            android_audio_player::audio_is_eq_enabled,
+            android_audio_player::audio_set_eq_band,
+            android_audio_player::audio_get_eq_band,
+            android_audio_player::audio_get_all_eq_bands,
+            android_audio_player::audio_reset_eq,
+            android_audio_player::audio_set_analyzer_enabled,
+            android_audio_player::audio_is_analyzer_enabled,
+            android_audio_player::audio_reinit,
+            android_audio_player::audio_check_record_permission,
+            android_audio_player::audio_request_record_permission,
+            // Media controls commands (stubs - handled natively by MediaSession)
+            android_audio_player::media_update_now_playing,
+            android_audio_player::media_set_playback_status,
+            android_audio_player::media_clear_now_playing,
+            android_audio_player::media_set_button_enabled,
         ]);
     }
 
@@ -292,8 +321,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(lastfm::LastFmState::new())
         .manage(listenbrainz::ListenBrainzState::new())
-        .manage(state::AppState::new())
-        .manage(audio::AudioState::default());
+        .manage(state::AppState::new());
+
+    #[cfg(not(target_os = "android"))]
+    {
+        tauri_builder = tauri_builder.manage(audio::AudioState::default());
+    }
 
     #[cfg(any(target_os = "android", target_os = "ios"))]
     {
@@ -302,7 +335,8 @@ pub fn run() {
 
     #[cfg(target_os = "android")]
     {
-        tauri_builder = tauri_builder.plugin(android_now_playing::init());
+        tauri_builder = tauri_builder
+            .plugin(android_audio_player::init());
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

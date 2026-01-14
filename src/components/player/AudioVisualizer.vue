@@ -1,7 +1,9 @@
 <script setup lang="ts">
-  import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
   interface VisualizerProps {
+    /** Amplitude boost multiplier (1.0 = normal, 2.0 = double height) */
+    boost?:         number
     /** Frequency domain data from Rust FFT (0-255 per bin) */
     frequencyData:  Uint8Array
     /** Whether audio is currently playing */
@@ -13,6 +15,7 @@
   }
 
   const props = withDefaults(defineProps<VisualizerProps>(), {
+    boost: 1.0,
     style: 'bars',
   })
 
@@ -73,7 +76,7 @@
     }
   }
 
-  const drawBars = (
+const drawBars = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
@@ -84,19 +87,19 @@
 
     const barCount = 64
     const barWidth = width / barCount
-    const heightScale = height / 255
+    const heightScale = (height / 255) * props.boost
     const dataStep = props.frequencyData.length / barCount
 
     ctx.fillStyle = gradientBars.value
 
     for (let i = 0; i < barCount; i++) {
       const dataIndex = Math.floor(i * dataStep)
-      const barHeight = props.frequencyData[dataIndex] * heightScale
+      const barHeight = Math.min(props.frequencyData[dataIndex] * heightScale, height)
       ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight)
     }
   }
 
-  const drawCircular = (
+const drawCircular = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
@@ -107,13 +110,13 @@
 
     const sampleCount = 64
     const stepX = width / (sampleCount - 1)
-    const heightScale = height / 255
+    const heightScale = (height / 255) * props.boost
     const dataStep = props.frequencyData.length / sampleCount
 
     const points: Array<{ x: number, y: number }> = []
     for (let i = 0; i < sampleCount; i++) {
       const dataIndex = Math.floor(i * dataStep)
-      const value = props.frequencyData[dataIndex] * heightScale
+      const value = Math.min(props.frequencyData[dataIndex] * heightScale, height)
       points.push({ x: i * stepX, y: height - value })
     }
 
@@ -155,7 +158,7 @@
     ctx.stroke()
   }
 
-  const drawWave = (
+const drawWave = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
@@ -170,11 +173,13 @@
 
     const bufferLength = props.timeDomainData.length
     const sliceWidth = width / bufferLength
+    const centerY = height / 2
     let x = 0
 
     for (let i = 0; i < bufferLength; i++) {
-      const v = props.timeDomainData[i] / 128.0
-      const y = (v * height) / 2
+      // Apply boost to deviation from center (128)
+      const deviation = (props.timeDomainData[i] - 128) * props.boost
+      const y = centerY - (deviation / 128) * centerY
       if (i === 0)
         ctx.moveTo(x, y)
       else

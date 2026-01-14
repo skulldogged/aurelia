@@ -368,3 +368,21 @@ pub fn audio_is_analyzer_enabled(audio_state: State<'_, AudioState>) -> Result<b
         .ok_or("Audio player not initialized")?;
     Ok(player.is_analyzer_enabled())
 }
+
+/// Reinitialize the audio player's output stream
+///
+/// This recreates the audio output stream while preserving settings.
+/// Use after audio device changes (e.g., headphones disconnected on Android).
+#[tauri::command]
+#[specta::specta]
+pub fn audio_reinit(audio_state: State<'_, AudioState>) -> Result<(), String> {
+    let mut player_guard = audio_state.player.lock().map_err(|e| e.to_string())?;
+    let player = player_guard
+        .as_mut()
+        .ok_or("Audio player not initialized")?;
+    
+    player.reinit().map_err(|e| {
+        error!("Failed to reinitialize audio player: {}", e);
+        e.to_string()
+    })
+}

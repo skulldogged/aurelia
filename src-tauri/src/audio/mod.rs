@@ -9,19 +9,26 @@
 //! - FFT-based spectrum analysis for visualization
 
 mod analyzer;
+#[cfg(not(target_os = "android"))]
 mod commands;
 mod eq;
+#[cfg(not(target_os = "android"))]
 mod events;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod media_controls;
+#[cfg(not(target_os = "android"))]
 mod player;
+#[cfg(not(target_os = "android"))]
 mod streaming;
 
+#[cfg(not(target_os = "android"))]
 pub use commands::*;
+#[cfg(not(target_os = "android"))]
 pub use events::*;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub use media_controls::{
     MediaControlsState, media_clear_now_playing, media_set_button_enabled,
     media_set_playback_status, media_update_now_playing,
 };
+#[cfg(not(target_os = "android"))]
 pub use player::AudioPlayer;

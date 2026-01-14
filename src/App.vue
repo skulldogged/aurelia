@@ -25,7 +25,6 @@
     DialogTitle,
   } from '@/components/ui/dialog'
   import { Toaster } from '@/components/ui/sonner'
-  import { useAndroidNowPlayingService } from '@/composables/useAndroidNowPlayingService'
   import { useAuth } from '@/composables/useAuth'
   import { useDiscordPresence } from '@/composables/useDiscordPresence'
   import { useLastFm } from '@/composables/useLastFm'
@@ -53,7 +52,6 @@
   useDiscordPresence()
   useLastFm()
   useListenBrainz()
-  useAndroidNowPlayingService()
 
   const { topBarContent } = useTopBar()
 

@@ -34,7 +34,7 @@
   import { useImageLoader } from '@/composables/useImageLoader'
   import { useSwipe } from '@/composables/useSwipe'
   import { logger } from '@/lib/logger'
-  import { getPlatform, isMobilePortrait, Platform } from '@/lib/platform'
+  import { getPlatform, isMobile, isMobilePortrait, Platform } from '@/lib/platform'
   import { formatDuration, getSongFormatInfo } from '@/lib/utils'
   import { PlayerState, usePlayerStore } from '@/stores'
 
@@ -126,6 +126,7 @@
     const current = getPlatform()
     return current !== Platform.Android && current !== Platform.IOS
   })
+  const isMobileDevice = computed(() => isMobile())
   const isMobilePortraitMode = computed(() => isMobilePortrait())
   const isMobileLandscapeMode = computed(() => {
     const platform = getPlatform()
@@ -331,9 +332,13 @@
         <Transition name='fade'>
           <div
             v-if='visualizerEnabled && frequencyData.length > 0 && playerState.isPlaying'
-            class='absolute bottom-0 left-0 right-0 h-40 opacity-40'
+            :class="[
+              'absolute bottom-0 left-0 right-0',
+              isMobileDevice ? 'h-64 opacity-50' : 'h-40 opacity-40'
+            ]"
           >
             <AudioVisualizer
+              :boost='isMobileDevice ? 2.0 : 1.0'
               :frequency-data='frequencyData'
               :is-playing='playerState.isPlaying'
               :style='visualizerStyle'

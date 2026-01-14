@@ -36,7 +36,7 @@
   import { useAudioEngine } from '@/composables/useAudioEngine'
   import { useSwipe } from '@/composables/useSwipe'
   import { logger } from '@/lib/logger'
-  import { isMobilePortrait } from '@/lib/platform'
+  import { isMobile, isMobilePortrait } from '@/lib/platform'
   import { getSongFormatInfo } from '@/lib/utils'
   import { usePlayerStore } from '@/stores'
 
@@ -67,10 +67,8 @@
 
   const {
     initializePlayer,
-    isGaplessTransition,
     loadSong,
     nextSong,
-    playManuallyChangedSong,
     rustAudioPlayer,
   } = useAudioEngine(props)
 
@@ -81,6 +79,7 @@
   const resizeObserver = ref<null | ResizeObserver>(null)
   const volumePopupRef = ref<HTMLDivElement | null>(null)
   const isVolumePopupVisible = ref(false)
+  const emptyUint8Array = new Uint8Array(0)
 
   const hasPrevious = computed(() => playerStore.playlist.length > 1 && playerStore.currentIndex > 0)
   const hasNext = computed(() =>
@@ -195,6 +194,7 @@
   const songFormatInfo = computed(() => getSongFormatInfo(playerStore.currentSong))
 
   const isMobilePortraitMode = computed(() => isMobilePortrait())
+  const isMobileDevice = computed(() => isMobile())
 
   const { startTracking, stopTracking, swipeProgress, updateTracking } = useSwipe({ maxTime: 300 })
 
@@ -317,10 +317,16 @@
         await rustAudioPlayer.pause()
         playerStore.pause()
       } else {
-        // If audio hasn't been loaded yet (restored session), load it first
-        if (!audioLoaded.value && playerStore.currentSong) {
+        // If audio hasn't been loaded yet (restored session) or stream died, reload it
+        if ((!audioLoaded.value || playerStore.needsReload) && playerStore.currentSong) {
+          // Reinitialize audio output stream if it died (e.g., headphones disconnected)
+          if (playerStore.needsReload) {
+            logger.info('Reinitializing audio stream before reload')
+            await rustAudioPlayer.reinit()
+          }
           await loadSong(playerStore.currentSong)
           audioLoaded.value = true
+          playerStore.setNeedsReload(false)
           playerStore.play()
         } else {
           await rustAudioPlayer.resume()
@@ -396,30 +402,12 @@
       playerStore.previousSong()
   }
 
+  // Song loading is now handled by useAudioEngine's watcher on currentSong.id
+  // This watcher only handles UI state like setting audioLoaded
   watch(() => playerStore.currentSong?.id, (newSongId, oldSongId) => {
     if (newSongId !== oldSongId) {
-      const newSong = playerStore.currentSong!
-      console.debug(
-        `[Watcher] Song changed: ${oldSongId} -> ${newSongId}, isGaplessTransition: ${isGaplessTransition.value}`,
-      )
-      const newIndex = playerStore.playlist.findIndex(s => s.id === newSongId)
-      if (newIndex !== -1)
-        playerStore.setCurrentIndex(newIndex)
-
-      if (isGaplessTransition.value) {
-        console.debug('[Watcher] Gapless transition - skipping playManuallyChangedSong')
-        isGaplessTransition.value = false
-        // Gapless transition is handled by Rust backend
-        audioLoaded.value = true
-        playerStore.play()
-      } else {
-        console.debug('[Watcher] Manual song change - calling playManuallyChangedSong')
-        playManuallyChangedSong(newSong)
-        audioLoaded.value = true
-      }
+      audioLoaded.value = true
     } else if (!playerStore.currentSong) {
-      rustAudioPlayer.stop()
-      playerStore.pause()
       audioLoaded.value = false
     }
   })
@@ -530,13 +518,14 @@
     <Transition name='fade'>
       <div
         v-if='playerStore.visualizerEnabled && frequencyData?.length && playerStore.isPlaying'
-        class='visualizer-bg'
+        :class="['visualizer-bg', { 'visualizer-bg-mobile': isMobileDevice }]"
       >
         <AudioVisualizer
+          :boost='isMobileDevice ? 2.0 : 1.0'
           :frequency-data='frequencyData'
           :is-playing='playerStore.isPlaying'
           :style='playerStore.visualizerStyle'
-          :time-domain-data='timeDomainData || new Uint8Array(0)'
+          :time-domain-data='timeDomainData || emptyUint8Array'
         />
       </div>
     </Transition>
@@ -894,6 +883,11 @@
   opacity: 0.25;
   pointer-events: none;
   z-index: 0;
+}
+
+/* Mobile: Increase visualizer opacity for visibility */
+.visualizer-bg-mobile {
+  opacity: 0.35;
 }
 
 /* Fade transition */

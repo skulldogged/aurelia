@@ -392,6 +392,63 @@ impl AudioPlayer {
         debug!("EQ reset to flat");
         Ok(())
     }
+
+    /// Reinitialize the audio output stream
+    ///
+    /// This recreates the background thread and output stream while preserving
+    /// EQ settings and analyzer buffer. Use this after the audio device changes
+    /// (e.g., headphones disconnected on Android).
+    pub fn reinit(&mut self) -> Result<()> {
+        info!("Reinitializing audio output stream");
+
+        // Stop any current playback
+        self.stop();
+
+        // Create new command channel (dropping old cmd_tx kills the old thread)
+        let (cmd_tx, cmd_rx) = channel::<AudioThreadCommand>();
+        let (init_tx, init_rx) = channel::<Result<()>>();
+
+        // Spawn a new thread to own the stream
+        thread::spawn(move || {
+            let stream_result = OutputStreamBuilder::open_default_stream()
+                .context("Failed to open audio output device");
+
+            let stream = match stream_result {
+                Ok(s) => {
+                    let _ = init_tx.send(Ok(()));
+                    s
+                }
+                Err(e) => {
+                    let _ = init_tx.send(Err(e));
+                    return;
+                }
+            };
+
+            while let Ok(cmd) = cmd_rx.recv() {
+                match cmd {
+                    AudioThreadCommand::CreateSink(reply_tx) => {
+                        let sink = Sink::connect_new(&stream.mixer());
+                        let _ = reply_tx.send(sink);
+                    }
+                }
+            }
+        });
+
+        // Wait for initialization
+        init_rx.recv()
+            .context("Failed to receive initialization response")??;
+
+        // Update command channel (preserving eq_settings and analyzer_buffer)
+        self.cmd_tx = cmd_tx;
+        self.sink = None;
+        self.next_source = None;
+        self.is_playing.store(false, Ordering::SeqCst);
+        self.current_url = None;
+        self.current_track = None;
+
+        info!("Audio output stream reinitialized");
+        Ok(())
+    }
 }
 
 impl Default for AudioPlayer {
