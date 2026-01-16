@@ -20,34 +20,13 @@ toml_edit = "0.23"
 
 [dependencies]
 anyhow = "1.0"
-base64 = "0.22"
 biquad = "0.5.0"
-chrono = { version = "0.4.38", features = ["serde"] }
-derive_more = { version = "2.1", features = ["display"] }
-dirs = "6.0"
 discord-rich-presence = "1"
-md5 = "0.8"
-once_cell = "1.21.3"
-postcard = { version = "1.0", features = ["use-std"] }
-progenitor-client = "0.11"
-rand = "0.9"
-redb = "3.1"
-reqwest = { version = "0.12", default-features = false, features = [
-  "blocking",
-  "json",
-  "rustls-tls",
-  "stream",
-] }
-rustfft = "6.2"
 rodio = { version = "0.21.1", default-features = false, features = [
   "playback",
   "symphonia-all",
 ] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-specta = "=2.0.0-rc.22"
-specta-typescript = "=0.0.9"
-stream-download = { version = "0.22", features = ["reqwest-rustls"] }
+rustfft = "6.2"
 tauri = { version = "2", features = [
   "protocol-asset",
   "macos-private-api",
@@ -56,7 +35,6 @@ tauri = { version = "2", features = [
 ] }
 tauri-plugin-clipboard-manager = "2.3"
 tauri-plugin-fs = "2"
-tauri-plugin-m3 = "0.2"
 tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
 tauri-plugin-store = "2"
@@ -65,12 +43,8 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-urlencoding = "2.1"
-uuid = { version = "1.19", features = ["v4"] }
+aurelia-core = { path = "../crates/aurelia-core" }
 
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-raw-window-handle = "0.6"
-souvlaki = { git = "https://github.com/skulldogged/souvlaki.git" }
 
 [profile.dev]
 opt-level = 2

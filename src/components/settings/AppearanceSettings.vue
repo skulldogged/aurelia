@@ -14,10 +14,8 @@
   import Switch from '@/components/ui/Switch.vue'
   import { useSystemTray } from '@/composables/useSystemTray'
   import { AccentColorName } from '@/lib/colorSchemes'
-  import { getPlatform, isMobile, Platform } from '@/lib/platform'
   import {
     useAccentColorStore,
-    useMaterialYouStore,
     usePlayerStore,
     useSystemTrayStore,
     useThemeStore,
@@ -27,28 +25,24 @@
   const themeStore = useThemeStore()
   const playerStore = usePlayerStore()
   const systemTrayStore = useSystemTrayStore()
-  const materialYouStore = useMaterialYouStore()
 
   const { accentColor: accentColorRef, accentColors: accentColorsRef } = storeToRefs(accentColorStore)
   const { colorSchemes: colorSchemesRef, selectedScheme: selectedSchemeRef } = storeToRefs(themeStore)
-  const { useMaterialYou: useMaterialYouRef } = storeToRefs(materialYouStore)
 
   const { setAccentColor } = accentColorStore
   const { setColorScheme } = themeStore
   const { setCloseToTray, setMinimizeToTray } = useSystemTray()
-  const { setUseMaterialYou } = materialYouStore
 
   const accentColor = computed(() => accentColorRef.value)
   const accentColors = computed(() => accentColorsRef.value)
   const selectedScheme = computed(() => selectedSchemeRef.value)
   const colorSchemes = computed(() => colorSchemesRef.value)
-  const useMaterialYou = computed(() => useMaterialYouRef.value)
 
   const selectedColorScheme = ref(selectedScheme.value.name)
   const selectedAccentColorName = ref(accentColor.value.name)
   const selectedVisualizerStyle = ref(playerStore.visualizerStyle)
   const visualizerEnabled = ref(playerStore.visualizerEnabled)
-  const isAndroidPlatform = ref(getPlatform() === Platform.Android)
+
 
   // Helper to capitalize enum names for display
   const formatEnumName = (name: string): string =>
@@ -86,6 +80,7 @@
     }
   }
 
+
   const handleMinimizeToggle = async (checked: boolean): Promise<void> => {
     systemTrayStore.minimizeToTray = checked
     await setMinimizeToTray(checked)
@@ -104,30 +99,7 @@
 
 <template>
   <div class='space-y-8'>
-    <!-- Material You -->
-    <div v-if='isAndroidPlatform' class='space-y-3'>
-      <Label class='text-sm font-medium'>
-        Material You
-      </Label>
-      <div
-        class='
-          flex items-center justify-between p-4 bg-background/40 rounded-lg
-          border border-border/20 hover:border-border/40 transition-colors
-        '
-      >
-        <Label class='text-sm cursor-pointer' for='material-you-switch'>
-          Use Material You theming
-        </Label>
-        <Switch
-          @update:checked='setUseMaterialYou'
-          id='material-you-switch'
-          :checked='useMaterialYou'
-        />
-      </div>
-      <p class='text-xs text-muted-foreground'>
-        Use colors from your device's wallpaper.
-      </p>
-    </div>
+
 
     <!-- Theme Settings Row -->
     <div class='space-y-4'>
@@ -143,7 +115,7 @@
           <Select
             @update:model-value='handleColorSchemeChange'
             v-model='selectedColorScheme'
-            :disabled='useMaterialYou'
+
           >
             <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
               <SelectValue placeholder='Select a color scheme' />
@@ -174,7 +146,7 @@
           <Select
             @update:model-value='handleAccentColorChange'
             v-model='selectedAccentColorName'
-            :disabled='useMaterialYou'
+
           >
             <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
               <SelectValue placeholder='Select an accent color' />
@@ -259,7 +231,8 @@
     </div>
 
     <!-- System Tray -->
-    <div v-if='!isMobile()' class='space-y-4 pt-4 border-t border-border/20'>
+    <div class='space-y-4 pt-4 border-t border-border/20'>
+
       <h3 class='text-lg font-medium'>
         System Tray
       </h3>

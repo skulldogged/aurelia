@@ -1,21 +1,10 @@
 #[cfg(target_os = "android")]
 mod android_audio_player;
 pub mod audio;
-pub mod cache;
-pub mod database;
-pub mod db;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod discord_rpc;
-pub mod domain;
-pub mod error;
 pub mod handlers;
-pub mod lastfm;
-pub mod listenbrainz;
-pub mod models;
-pub mod services;
-pub mod state;
 pub mod system_tray;
-pub mod utils;
 
 pub use anyhow::Result;
 
@@ -24,6 +13,7 @@ use specta_typescript::{BigIntExportBehavior, Typescript};
 #[cfg(debug_assertions)]
 use std::process::Command;
 use std::sync::Once;
+use aurelia_core::{database, listenbrainz_core, state};
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
@@ -108,19 +98,12 @@ pub fn run() {
             discord_rpc::discord_rpc_is_running,
             discord_rpc::discord_rpc_set_activity,
             discord_rpc::discord_rpc_clear_activity,
-            lastfm::lastfm_authenticate,
-            lastfm::lastfm_scrobble,
-            lastfm::lastfm_update_now_playing,
-            lastfm::lastfm_set_credentials,
-            lastfm::lastfm_clear_credentials,
-            lastfm::lastfm_is_authenticated,
-            lastfm::lastfm_start_auth_server,
-            listenbrainz::listenbrainz_validate_token,
-            listenbrainz::listenbrainz_submit_listen,
-            listenbrainz::listenbrainz_playing_now,
-            listenbrainz::listenbrainz_set_credentials,
-            listenbrainz::listenbrainz_clear_credentials,
-            listenbrainz::listenbrainz_is_authenticated,
+            handlers::listenbrainz::listenbrainz_validate_token,
+            handlers::listenbrainz::listenbrainz_submit_listen,
+            handlers::listenbrainz::listenbrainz_playing_now,
+            handlers::listenbrainz::listenbrainz_set_credentials,
+            handlers::listenbrainz::listenbrainz_clear_credentials,
+            handlers::listenbrainz::listenbrainz_is_authenticated,
             system_tray::show_main_window,
             system_tray::hide_main_window,
             system_tray::quit_application,
@@ -198,19 +181,12 @@ pub fn run() {
             handlers::playlists::add_playlist_items,
             handlers::playlists::remove_playlist_items,
             handlers::playlists::get_playlist_items,
-            lastfm::lastfm_authenticate,
-            lastfm::lastfm_scrobble,
-            lastfm::lastfm_update_now_playing,
-            lastfm::lastfm_set_credentials,
-            lastfm::lastfm_clear_credentials,
-            lastfm::lastfm_is_authenticated,
-            lastfm::lastfm_start_auth_server,
-            listenbrainz::listenbrainz_validate_token,
-            listenbrainz::listenbrainz_submit_listen,
-            listenbrainz::listenbrainz_playing_now,
-            listenbrainz::listenbrainz_set_credentials,
-            listenbrainz::listenbrainz_clear_credentials,
-            listenbrainz::listenbrainz_is_authenticated,
+            handlers::listenbrainz::listenbrainz_validate_token,
+            handlers::listenbrainz::listenbrainz_submit_listen,
+            handlers::listenbrainz::listenbrainz_playing_now,
+            handlers::listenbrainz::listenbrainz_set_credentials,
+            handlers::listenbrainz::listenbrainz_clear_credentials,
+            handlers::listenbrainz::listenbrainz_is_authenticated,
             system_tray::quit_application,
             // Audio commands - forwarded to Kotlin ExoPlayer plugin
             android_audio_player::audio_init,
@@ -285,19 +261,12 @@ pub fn run() {
             handlers::playlists::add_playlist_items,
             handlers::playlists::remove_playlist_items,
             handlers::playlists::get_playlist_items,
-            lastfm::lastfm_authenticate,
-            lastfm::lastfm_scrobble,
-            lastfm::lastfm_update_now_playing,
-            lastfm::lastfm_set_credentials,
-            lastfm::lastfm_clear_credentials,
-            lastfm::lastfm_is_authenticated,
-            lastfm::lastfm_start_auth_server,
-            listenbrainz::listenbrainz_validate_token,
-            listenbrainz::listenbrainz_submit_listen,
-            listenbrainz::listenbrainz_playing_now,
-            listenbrainz::listenbrainz_set_credentials,
-            listenbrainz::listenbrainz_clear_credentials,
-            listenbrainz::listenbrainz_is_authenticated,
+            handlers::listenbrainz::listenbrainz_validate_token,
+            handlers::listenbrainz::listenbrainz_submit_listen,
+            handlers::listenbrainz::listenbrainz_playing_now,
+            handlers::listenbrainz::listenbrainz_set_credentials,
+            handlers::listenbrainz::listenbrainz_clear_credentials,
+            handlers::listenbrainz::listenbrainz_is_authenticated,
             system_tray::quit_application,
         ]);
     }
@@ -319,8 +288,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(lastfm::LastFmState::new())
-        .manage(listenbrainz::ListenBrainzState::new())
+                .manage(listenbrainz_core::ListenBrainzState::new())
         .manage(state::AppState::new());
 
     #[cfg(not(target_os = "android"))]

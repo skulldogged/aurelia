@@ -37,7 +37,8 @@
   import { useTopBar } from '@/composables/useTopBar'
   import { useVisualizerData } from '@/composables/useVisualizerData'
   import { setAuthLogout } from '@/lib/auth-interceptor'
-  import { getPlatform, isMobile, Platform } from '@/lib/platform'
+  import { getPlatform, Platform } from '@/lib/platform'
+
   import Login from '@/pages/login.vue'
   import { useHomeStore } from '@/stores'
   import { useLibraryStore } from '@/stores/library'
@@ -192,31 +193,8 @@
 
   onMounted(async () => {
     playerStore.setVolume(playerStore.volume)
-
-    if (isMobile()) {
-      onBackButtonPress(async () => {
-        console.log('Back button pressed', {
-          canGoBack:              canGoBack.value,
-          isFullScreenPlayerOpen: isFullScreenPlayerOpen.value,
-        })
-
-        if (isFullScreenPlayerOpen.value) {
-          console.log('Closing fullscreen player')
-          toggleFullScreenPlayer()
-          return true
-        }
-        if (canGoBack.value) {
-          console.log('Navigating back')
-          navigateBack()
-          return true
-        }
-        // Show exit confirmation dialog
-        console.log('Showing exit dialog')
-        showExitDialog.value = true
-        return true // Prevent default back behavior while showing dialog
-      })
-    }
   })
+
 
   const loadLibraryAndHomeData = async (): Promise<void> => {
     await libraryStore.loadLibrary()
@@ -448,7 +426,8 @@
     <GlobalSearch v-model:open='isSearchOpen' />
 
     <WindowControls
-      v-if='!isFullScreenPlayerOpen && !isMobile() && getPlatform() !== Platform.MacOS'
+      v-if='!isFullScreenPlayerOpen && getPlatform() !== Platform.MacOS'
+
       class='fixed top-0 right-0 z-100'
     />
 

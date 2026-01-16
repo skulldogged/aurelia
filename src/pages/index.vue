@@ -1,12 +1,7 @@
 <script setup lang="ts">
   import type { Album, Song } from '@/bindings'
 
-  import { useOrientation } from '@/composables/useOrientation'
-
   import HomePageDesktop from './desktop/HomePage.vue'
-  import HomePageMobile from './mobile/HomePage.vue'
-
-  const { isPortrait } = useOrientation()
 
   defineProps<{
     currentSong: null | Song
@@ -19,8 +14,7 @@
 </script>
 
 <template>
-  <component
-    :is='isPortrait ? HomePageMobile : HomePageDesktop'
+  <HomePageDesktop
     @play-songs="(songs: Song[]) => emit('play-songs', songs)"
     @select-album="(album: Album) => emit('select-album', album)"
     :current-song='currentSong'

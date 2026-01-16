@@ -1,8 +1,5 @@
 <script setup lang="ts">
-  import { isMobile } from '@/lib/platform'
-
   import MainLayoutDesktop from './desktop/MainLayout.vue'
-  import MainLayoutMobile from './mobile/MainLayout.vue'
 
   defineProps<{
     navigationState: {
@@ -30,8 +27,7 @@
 </script>
 
 <template>
-  <component
-    :is='isMobile() ? MainLayoutMobile : MainLayoutDesktop'
+  <MainLayoutDesktop
     @global-search="emit('global-search')"
     @logout="emit('logout')"
     @navigate="(view: string) => emit('navigate', view)"
@@ -57,5 +53,5 @@
     <template #player>
       <slot name='player' />
     </template>
-  </component>
+  </MainLayoutDesktop>
 </template>

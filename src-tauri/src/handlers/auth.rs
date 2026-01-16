@@ -1,9 +1,9 @@
 //! Authentication-related command handlers
 
-use crate::models::{Credentials, LoginResponse};
-use crate::services::JellyfinClient;
-use crate::state::AppState;
-use crate::utils::error_handling;
+use aurelia_core::models::{Credentials, LoginResponse};
+use aurelia_core::services::JellyfinClient;
+use aurelia_core::state::AppState;
+use aurelia_core::utils::error_handling;
 use tauri::{Manager, State};
 
 use tracing::error;

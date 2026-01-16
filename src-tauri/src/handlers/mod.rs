@@ -6,11 +6,13 @@
 
 pub mod auth;
 pub mod images;
+pub mod listenbrainz;
 pub mod lyrics;
 pub mod music;
 pub mod playlists;
 
 pub use auth::*;
 pub use images::*;
+pub use listenbrainz::*;
 pub use lyrics::*;
 pub use music::*;

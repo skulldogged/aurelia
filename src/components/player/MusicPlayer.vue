@@ -36,7 +36,6 @@
   import { useAudioEngine } from '@/composables/useAudioEngine'
   import { useSwipe } from '@/composables/useSwipe'
   import { logger } from '@/lib/logger'
-  import { isMobile, isMobilePortrait } from '@/lib/platform'
   import { getSongFormatInfo } from '@/lib/utils'
   import { usePlayerStore } from '@/stores'
 
@@ -193,8 +192,6 @@
 
   const songFormatInfo = computed(() => getSongFormatInfo(playerStore.currentSong))
 
-  const isMobilePortraitMode = computed(() => isMobilePortrait())
-  const isMobileDevice = computed(() => isMobile())
 
   const { startTracking, stopTracking, swipeProgress, updateTracking } = useSwipe({ maxTime: 300 })
 
@@ -518,10 +515,10 @@
     <Transition name='fade'>
       <div
         v-if='playerStore.visualizerEnabled && frequencyData?.length && playerStore.isPlaying'
-        :class="['visualizer-bg', { 'visualizer-bg-mobile': isMobileDevice }]"
+        class='visualizer-bg'
       >
         <AudioVisualizer
-          :boost='isMobileDevice ? 2.0 : 1.0'
+          :boost='1.0'
           :frequency-data='frequencyData'
           :is-playing='playerStore.isPlaying'
           :style='playerStore.visualizerStyle'
@@ -530,54 +527,7 @@
       </div>
     </Transition>
     <div ref='containerRef' class='player-bar-inner'>
-      <!-- Mobile layout -->
-      <template v-if='isMobilePortraitMode'>
-        <div class='flex items-center gap-3 flex-1 min-w-0'>
-          <!-- Album art -->
-          <div @click="emit('toggle-fullscreen')" class='shrink-0 player-album-art'>
-            <ImageLoader
-              :item-id='playerStore.currentSong.albumId || playerStore.currentSong.id'
-              :server-url='serverUrl'
-              :token='token'
-              alt='Album art'
-              class='size-12 rounded-lg'
-            >
-              <template #fallback>
-                <div class='size-12 bg-muted rounded-lg flex items-center justify-center'>
-                  <Music2 class='size-5 text-muted-foreground' />
-                </div>
-              </template>
-            </ImageLoader>
-          </div>
-
-          <!-- Song info -->
-          <div @click="emit('toggle-fullscreen')" class='flex-1 min-w-0'>
-            <p class='font-medium text-sm truncate'>
-              {{ playerStore.currentSong.name }}
-            </p>
-            <p class='text-xs text-muted-foreground truncate'>
-              {{ playerStore.currentSong.artists?.join(', ') || 'Unknown Artist' }}
-            </p>
-          </div>
-
-          <!-- Play button -->
-          <Button
-            @click.stop='togglePlayPause'
-            :disabled='!playerStore.audioReady || playerStore.isBuffering'
-            class='shrink-0 rounded-full! size-11'
-            size='icon'
-            variant='default'
-          >
-            <Loader2 v-if='playerStore.isBuffering' class='size-5 animate-spin' />
-            <Play v-else-if='!playerStore.isPlaying' class='size-5 ml-0.5' />
-            <Pause v-else class='size-5' />
-          </Button>
-        </div>
-      </template>
-
-      <!-- Desktop layout -->
-      <template v-else>
-        <!-- Left: Song info -->
+      <!-- Left: Song info -->
         <div
           @mouseenter='onTitleMouseEnter'
           @mouseleave='onTitleMouseLeave'
@@ -863,7 +813,6 @@
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </template>
     </div>
   </div>
 </template>
@@ -883,11 +832,6 @@
   opacity: 0.25;
   pointer-events: none;
   z-index: 0;
-}
-
-/* Mobile: Increase visualizer opacity for visibility */
-.visualizer-bg-mobile {
-  opacity: 0.35;
 }
 
 /* Fade transition */

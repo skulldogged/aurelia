@@ -30,6 +30,18 @@ target/
 .gemini
 .claude
 keystore.properties
+android/.gradle/
+android/**/.gradle/
+android/**/build/
+android/*/build/
+android/*/build
+android/*/build/reports/
+android/**/jniLibs/
+android/**/*.so
+android/app/src/main/java/uniffi/
+android/app/src/main/res/mipmap-*/
+android/app/build.gradle.kts
+
 
 # START Ruler Generated Files
 /.agent/rules/ruler.md

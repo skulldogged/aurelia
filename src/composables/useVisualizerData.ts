@@ -3,15 +3,12 @@
  *
  * Provides real-time spectrum and waveform data.
  * - Desktop: Uses Tauri events from Rust FFT analysis
- * - Android: Uses high-performance polling via JavascriptInterface at display refresh rate
  */
-import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { onUnmounted, ref, type Ref, watch } from 'vue'
 
 import { commands } from '@/bindings'
 import { logger } from '@/lib/logger'
-import { getPlatform, Platform } from '@/lib/platform'
 
 interface SpectrumEvent {
   frequencyData:   number[]
@@ -46,18 +43,6 @@ const SMOOTHING = {
   decay: 0.15,
 }
 
-// Type for Android's JavascriptInterface
-interface AureliaSpectrum {
-  getData: () => string
-  getVersion: () => number
-}
-
-// Declare the global interface injected by Android
-declare global {
-  interface Window {
-    AureliaSpectrum?: AureliaSpectrum
-  }
-}
 
 export const useVisualizerData = (): UseVisualizerDataReturn => {
   // Reactive data buffers - pre-allocate for performance
@@ -71,14 +56,6 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
 
   // Event listener cleanup (desktop)
   let eventUnlisten: null | UnlistenFn = null
-
-  // Animation frame ID for Android polling
-  let animationFrameId: null | number = null
-  let lastVersion = -1
-
-  // Platform detection
-  const currentPlatform = getPlatform()
-  const isAndroid = currentPlatform === Platform.Android
 
   /**
    * Apply temporal smoothing to spectrum data.
@@ -121,62 +98,6 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
   }
 
   /**
-   * Android: Poll spectrum data at display refresh rate using requestAnimationFrame.
-   * This provides smooth 60/90/120fps visualization matching the device's display.
-   */
-  const pollAndroidSpectrum = (): void => {
-    if (!isEnabled.value) {
-      animationFrameId = null
-      return
-    }
-
-    const spectrum = window.AureliaSpectrum
-    if (spectrum) {
-      // Check version first to avoid parsing if data hasn't changed
-      const version = spectrum.getVersion()
-      if (version !== lastVersion) {
-        lastVersion = version
-        const data = spectrum.getData()
-        if (data) {
-          parseSpectrumData(data)
-        }
-      }
-    }
-
-    // Continue polling at display refresh rate
-    animationFrameId = requestAnimationFrame(pollAndroidSpectrum)
-  }
-
-  /**
-   * Parse the compact spectrum data format from Android.
-   * Format: "version,freq0,freq1,...|time0,time1,..."
-   */
-  const parseSpectrumData = (data: string): void => {
-    const pipeIndex = data.indexOf('|')
-    if (pipeIndex === -1) return
-
-    const freqPart = data.substring(data.indexOf(',') + 1, pipeIndex)
-    const timePart = data.substring(pipeIndex + 1)
-
-    // Parse frequency data
-    const freqValues = freqPart.split(',')
-    const rawFreqData = new Uint8Array(freqValues.length)
-    for (let i = 0; i < freqValues.length; i++) {
-      rawFreqData[i] = parseInt(freqValues[i], 10)
-    }
-
-    // Parse time domain data
-    const timeValues = timePart.split(',')
-    const rawTimeData = new Uint8Array(timeValues.length)
-    for (let i = 0; i < timeValues.length; i++) {
-      rawTimeData[i] = parseInt(timeValues[i], 10)
-    }
-
-    // Apply smoothing and update reactive refs
-    applySmoothingAndUpdate(rawFreqData, rawTimeData)
-  }
-
-  /**
    * Desktop: Setup event listener for spectrum data from Rust.
    */
   const setupEventListener = async (): Promise<void> => {
@@ -197,21 +118,11 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
   }
 
   /**
-   * Start the appropriate data source based on platform.
+   * Start the data source.
    */
   const startDataSource = async (): Promise<void> => {
-    if (isAndroid) {
-      // Android: Start polling loop
-      if (animationFrameId === null) {
-        lastVersion = -1
-        animationFrameId = requestAnimationFrame(pollAndroidSpectrum)
-        logger.debug('Android spectrum polling started')
-      }
-    } else {
-      // Desktop: Use Tauri events
-      if (!eventUnlisten) {
-        await setupEventListener()
-      }
+    if (!eventUnlisten) {
+      await setupEventListener()
     }
   }
 
@@ -219,19 +130,9 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
    * Stop the data source and cleanup.
    */
   const stopDataSource = (): void => {
-    if (isAndroid) {
-      // Android: Stop polling
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId)
-        animationFrameId = null
-        logger.debug('Android spectrum polling stopped')
-      }
-    } else {
-      // Desktop: Remove event listener
-      if (eventUnlisten) {
-        eventUnlisten()
-        eventUnlisten = null
-      }
+    if (eventUnlisten) {
+      eventUnlisten()
+      eventUnlisten = null
     }
 
     // Clear data and reset smoothing buffers
@@ -244,17 +145,7 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
   // Set analyzer enabled state in backend
   const setEnabled = async (enabled: boolean): Promise<void> => {
     try {
-      logger.debug(`setEnabled called: enabled=${enabled}, platform=${currentPlatform}`)
-
-      // On Android, check and request RECORD_AUDIO permission first
-      if (enabled && isAndroid) {
-        const hasPermission = await checkAndRequestRecordPermission()
-        if (!hasPermission) {
-          logger.warn('RECORD_AUDIO permission denied, cannot enable visualizer')
-          isEnabled.value = false
-          return
-        }
-      }
+      logger.debug(`setEnabled called: enabled=${enabled}`)
 
       const result = await commands.audioSetAnalyzerEnabled(enabled)
       if (result.status === 'error') {
@@ -273,29 +164,6 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
       logger.debug(`Spectrum analyzer ${enabled ? 'enabled' : 'disabled'}`)
     } catch (error) {
       logger.error('Failed to set analyzer enabled:', error)
-    }
-  }
-
-  // Check and request RECORD_AUDIO permission on Android
-  const checkAndRequestRecordPermission = async (): Promise<boolean> => {
-    try {
-      // First check if we already have permission
-      const checkResult = await invoke<boolean>('audio_check_record_permission')
-      logger.debug(`RECORD_AUDIO permission check: ${checkResult}`)
-
-      if (checkResult) {
-        return true
-      }
-
-      // Request permission
-      logger.info('Requesting RECORD_AUDIO permission for visualizer...')
-      const requestResult = await invoke<boolean>('audio_request_record_permission')
-      logger.debug(`RECORD_AUDIO permission request result: ${requestResult}`)
-
-      return requestResult
-    } catch (error) {
-      logger.error('Failed to check/request RECORD_AUDIO permission:', error)
-      return false
     }
   }
 

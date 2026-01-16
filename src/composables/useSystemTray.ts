@@ -2,7 +2,6 @@ import { onMounted } from 'vue'
 
 import { commands } from '@/bindings'
 import { logger } from '@/lib/logger'
-import { isMobile } from '@/lib/platform'
 import { useSystemTrayStore } from '@/stores'
 
 export const useSystemTray = (): {
@@ -41,9 +40,7 @@ export const useSystemTray = (): {
   const setMinimizeToTray = async (minimizeToTray: boolean): Promise<void> => {
     try {
       systemTrayStore.setMinimizeToTray(minimizeToTray)
-      if (!isMobile()) {
-        await commands.setMinimizeToTray(minimizeToTray)
-      }
+      await commands.setMinimizeToTray(minimizeToTray)
     } catch (error) {
       logger.error('Failed to set minimize to tray:', error)
       // Revert store change on failure
@@ -54,9 +51,7 @@ export const useSystemTray = (): {
   const setCloseToTray = async (closeToTray: boolean): Promise<void> => {
     try {
       systemTrayStore.setCloseToTray(closeToTray)
-      if (!isMobile()) {
-        await commands.setCloseToTray(closeToTray)
-      }
+      await commands.setCloseToTray(closeToTray)
     } catch (error) {
       logger.error('Failed to set close to tray:', error)
       // Revert store change on failure
@@ -66,13 +61,11 @@ export const useSystemTray = (): {
 
   // Initialize system tray settings when the composable is first used
   onMounted(async () => {
-    if (!isMobile()) {
-      try {
-        await setMinimizeToTray(systemTrayStore.minimizeToTray)
-        await setCloseToTray(systemTrayStore.closeToTray)
-      } catch (error) {
-        logger.error('Failed to initialize system tray settings:', error)
-      }
+    try {
+      await setMinimizeToTray(systemTrayStore.minimizeToTray)
+      await setCloseToTray(systemTrayStore.closeToTray)
+    } catch (error) {
+      logger.error('Failed to initialize system tray settings:', error)
     }
   })
 

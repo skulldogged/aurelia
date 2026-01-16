@@ -3,8 +3,9 @@
 //! This module provides Tauri commands for caching images locally
 //! to improve performance and reduce network requests.
 
-use crate::error::AppResult;
+use aurelia_core::error::{AppError, AppResult};
 use tauri::{AppHandle, Manager};
+
 use tokio::fs;
 
 /// Get the cache directory path for images
@@ -12,7 +13,8 @@ fn get_image_cache_dir(app: &AppHandle) -> AppResult<std::path::PathBuf> {
     let cache_dir = app
         .path()
         .app_data_dir()
-        .map_err(|e| crate::error::AppError::FileSystem(e.to_string()))?
+.map_err(|e| AppError::FileSystem(e.to_string()))?
+
         .join("image_cache");
 
     if !cache_dir.exists() {

@@ -1,7 +1,7 @@
 //! Lyrics-related command handlers
 
-use crate::models::JellyfinLyrics;
-use crate::services::{JellyfinClient, LrcLibClient};
+use aurelia_core::models::JellyfinLyrics;
+use aurelia_core::services::{JellyfinClient, LrcLibClient};
 use std::fmt::Write;
 use tracing::{debug, info, warn};
 
@@ -15,7 +15,7 @@ pub async fn get_lyrics(
     title: String,
     _path: Option<String>,
 ) -> Result<String, String> {
-    if let Ok(Some(creds)) = crate::handlers::auth::get_credentials_cached(&app).await {
+    if let Ok(Some(creds)) = super::auth::get_credentials_cached(&app).await {
         let client = JellyfinClient::with_auth(creds.server_url, creds.token);
 
         if let Ok(Some(jellyfin_lyrics)) = client.get_lyrics(&id).await

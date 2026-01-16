@@ -15,10 +15,9 @@
     DialogTitle,
   } from '@/components/ui/dialog'
   import { Input } from '@/components/ui/input'
-  import { useOrientation } from '@/composables/useOrientation'
   import { useAuthStore, useLibraryStore } from '@/stores'
 
-  const { isPortrait } = useOrientation()
+  const isPortrait = false
 
   const props = defineProps<{
     modelValue: Song[]

@@ -1,15 +1,15 @@
 //! Music-related command handlers
 
-use crate::models::library::{HomeViewData, LibraryData};
-use crate::models::{
+use aurelia_core::database;
+use aurelia_core::models::library::{HomeViewData, LibraryData};
+use aurelia_core::models::{
     Album, Artist, Song,
     jellyfin::{ClientCapabilities, DeviceProfile, DirectPlayProfile, TranscodingProfile},
 };
-use crate::services::JellyfinClient;
-use crate::state::AppState;
+use aurelia_core::services::JellyfinClient;
+use aurelia_core::state::AppState;
 use rand::seq::SliceRandom;
 
-use crate::database;
 use tauri::{AppHandle, State};
 use tracing::{error, info, warn};
 
@@ -114,7 +114,7 @@ pub async fn get_home_view_data(
     }
 
     let (server_url, token, user_id) =
-        match crate::handlers::auth::get_credentials_cached(&app).await {
+        match super::auth::get_credentials_cached(&app).await {
             Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
             _ => return Err("No saved credentials found".to_string()),
         };
@@ -165,7 +165,7 @@ pub async fn get_album(
         // Use server-side filtering via AlbumIds query parameter
         // Includes workaround for Jellyfin bug where it also matches album names
         let (server_url, token, user_id) =
-            match crate::handlers::auth::get_credentials_cached(&app).await {
+            match super::auth::get_credentials_cached(&app).await {
                 Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
                 _ => return Err("No saved credentials found".to_string()),
             };
@@ -198,7 +198,7 @@ pub async fn get_artist(
     if include_songs.unwrap_or(false) {
         // Use server-side filtering via AlbumArtistIds query parameter
         let (server_url, token, user_id) =
-            match crate::handlers::auth::get_credentials_cached(&app).await {
+            match super::auth::get_credentials_cached(&app).await {
                 Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
                 _ => return Err("No saved credentials found".to_string()),
             };
@@ -357,7 +357,7 @@ pub async fn get_recently_played(
 #[tauri::command]
 #[specta::specta]
 pub async fn get_instant_mix(app: tauri::AppHandle, item_id: String) -> Result<Vec<Song>, String> {
-    let (server_url, token) = match crate::handlers::auth::get_credentials_cached(&app).await {
+    let (server_url, token) = match super::auth::get_credentials_cached(&app).await {
         Ok(Some(creds)) => (creds.server_url, creds.token),
         _ => return Err("No saved credentials found".to_string()),
     };
@@ -424,7 +424,7 @@ pub async fn sync_library(
     info!("Starting library sync...");
 
     // Get user_id from saved credentials
-    let user_id = match crate::handlers::auth::get_credentials_cached(&app).await {
+    let user_id = match super::auth::get_credentials_cached(&app).await {
         Ok(Some(creds)) => creds.user_id,
         _ => return Err("No saved credentials found".to_string()),
     };
@@ -486,7 +486,7 @@ pub async fn clear_cache(
 
     // Clear image cache
     info!("Clearing image cache...");
-    if let Err(e) = crate::handlers::images::clear_image_cache(app.clone()).await {
+    if let Err(e) = super::images::clear_image_cache(app.clone()).await {
         warn!("Failed to clear image cache: {}", e);
     }
 
@@ -715,7 +715,7 @@ pub async fn get_song_share_urls(
     song_id: String,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     let song = get_song(app_state, song_id).await?;
-    crate::services::MusicBrainzService::get_song_share_urls(&song).await
+aurelia_core::services::MusicBrainzService::get_song_share_urls(&song).await
 }
 
 /// Get share URLs for an album
@@ -727,7 +727,7 @@ pub async fn get_album_share_urls(
     album_id: String,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     let album = get_album(app, app_state, album_id, None).await?;
-    crate::services::MusicBrainzService::get_album_share_urls(&album).await
+aurelia_core::services::MusicBrainzService::get_album_share_urls(&album).await
 }
 
 /// Get share URLs for an artist
@@ -739,5 +739,5 @@ pub async fn get_artist_share_urls(
     artist_id: String,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     let artist = get_artist(app, app_state, artist_id, None).await?;
-    crate::services::MusicBrainzService::get_artist_share_urls(&artist).await
+aurelia_core::services::MusicBrainzService::get_artist_share_urls(&artist).await
 }

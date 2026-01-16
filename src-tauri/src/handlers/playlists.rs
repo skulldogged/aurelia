@@ -1,7 +1,8 @@
 //! Playlist-related command handlers
 
-use crate::models::music::{Playlist, PlaylistCreateData, PlaylistUpdateData};
-use crate::services::JellyfinClient;
+use aurelia_core::models::music::{Playlist, PlaylistCreateData, PlaylistUpdateData};
+use aurelia_core::services::JellyfinClient;
+
 
 /// Get all playlists from Jellyfin server
 #[tauri::command]
@@ -60,7 +61,8 @@ pub async fn delete_playlist(app: tauri::AppHandle, playlist_id: String) -> Resu
         .map_err(|e| format!("Failed to delete playlist: {}", e))?;
 
     // Clear the cached image for this playlist
-    if let Err(e) = crate::handlers::images::clear_image_from_cache(
+    if let Err(e) = super::images::clear_image_from_cache(
+
         app,
         playlist_id.clone(),
         "Primary".to_string(),
@@ -111,7 +113,8 @@ pub async fn remove_playlist_items(
 pub async fn get_playlist_items(
     app: tauri::AppHandle,
     playlist_id: String,
-) -> Result<Vec<crate::models::music::Song>, String> {
+) -> Result<Vec<aurelia_core::models::music::Song>, String> {
+
     let client = get_jellyfin_client(&app).await?;
 
     client
@@ -122,7 +125,7 @@ pub async fn get_playlist_items(
 
 /// Helper function to get authenticated Jellyfin client
 pub async fn get_jellyfin_client(app: &tauri::AppHandle) -> Result<JellyfinClient, String> {
-    let creds = crate::handlers::auth::get_credentials_cached(app)
+    let creds = super::auth::get_credentials_cached(app)
         .await
         .map_err(|e| format!("No saved credentials found: {}", e))?
         .ok_or("No saved credentials found")?;
@@ -132,7 +135,7 @@ pub async fn get_jellyfin_client(app: &tauri::AppHandle) -> Result<JellyfinClien
 
 /// Helper function to get current user ID
 pub async fn get_current_user_id(app: &tauri::AppHandle) -> Result<String, String> {
-    let creds = crate::handlers::auth::get_credentials_cached(app)
+    let creds = super::auth::get_credentials_cached(app)
         .await
         .map_err(|e| format!("No saved credentials found: {}", e))?
         .ok_or("No saved credentials found")?;

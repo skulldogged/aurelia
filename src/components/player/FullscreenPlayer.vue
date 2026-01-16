@@ -34,7 +34,7 @@
   import { useImageLoader } from '@/composables/useImageLoader'
   import { useSwipe } from '@/composables/useSwipe'
   import { logger } from '@/lib/logger'
-  import { getPlatform, isMobile, isMobilePortrait, Platform } from '@/lib/platform'
+  import { getPlatform, Platform } from '@/lib/platform'
   import { formatDuration, getSongFormatInfo } from '@/lib/utils'
   import { PlayerState, usePlayerStore } from '@/stores'
 
@@ -122,18 +122,7 @@
   const isNarrowScreen = useMediaQuery('(max-width: 480px)')
 
   // Platform detection
-  const isDesktop = computed(() => {
-    const current = getPlatform()
-    return current !== Platform.Android && current !== Platform.IOS
-  })
-  const isMobileDevice = computed(() => isMobile())
-  const isMobilePortraitMode = computed(() => isMobilePortrait())
-  const isMobileLandscapeMode = computed(() => {
-    const platform = getPlatform()
-    return (platform === Platform.Android || platform === Platform.IOS) &&
-      !isMobilePortrait() &&
-      window.innerWidth > window.innerHeight
-  })
+  const isDesktop = computed(() => getPlatform() !== Platform.Unknown)
 
   // Background image
   const backgroundImageData = ref<null | string>(null)
@@ -294,7 +283,7 @@
   const hasActivePanel = computed(() => props.isEqualizerOpen || props.isQueueOpen)
 
   // Show secondary controls only on wider screens (not narrow and not mobile portrait)
-  const showSecondaryControls = computed(() => !isMobilePortraitMode.value && !isNarrowScreen.value)
+  const showSecondaryControls = computed(() => !isNarrowScreen.value)
 </script>
 
 <template>
@@ -332,13 +321,10 @@
         <Transition name='fade'>
           <div
             v-if='visualizerEnabled && frequencyData.length > 0 && playerState.isPlaying'
-            :class="[
-              'absolute bottom-0 left-0 right-0',
-              isMobileDevice ? 'h-64 opacity-50' : 'h-40 opacity-40'
-            ]"
+            class='absolute bottom-0 left-0 right-0 h-40 opacity-40'
           >
             <AudioVisualizer
-              :boost='isMobileDevice ? 2.0 : 1.0'
+              :boost='1.0'
               :frequency-data='frequencyData'
               :is-playing='playerState.isPlaying'
               :style='visualizerStyle'
@@ -350,7 +336,6 @@
 
       <!-- Top bar with controls -->
       <header
-        :style='isMobilePortraitMode ? { paddingTop: `calc(1rem + env(safe-area-inset-top))` } : {}'
         class='relative z-30 flex items-center justify-between p-4'
       >
         <!-- Left controls -->
@@ -394,7 +379,7 @@
         <aside
           :class="[
             'side-panel shrink-0 overflow-hidden',
-            hasActivePanel && !isMobilePortraitMode && !isMobileLandscapeMode
+            hasActivePanel
               ? 'side-panel-open'
               : 'w-0'
           ]"
@@ -421,7 +406,7 @@
           :class="[
             'center-content flex-1 flex flex-col items-center justify-center',
             'px-4 sm:px-6 md:px-8 lg:px-10',
-            (isMobilePortraitMode || isNarrowScreen) ? 'pb-24 sm:pb-28 pt-2 sm:pt-4' : 'py-4 sm:py-6 md:py-8',
+            isNarrowScreen ? 'pb-24 sm:pb-28 pt-2 sm:pt-4' : 'py-4 sm:py-6 md:py-8',
           ]"
         >
           <!-- Inner wrapper for album art and controls -->
@@ -429,7 +414,7 @@
             <!-- Album art -->
             <Transition mode='out-in' name='scale-fade'>
               <div
-                v-if='(!showLyrics || isLargeScreen) && !isMobileLandscapeMode'
+                v-if='!showLyrics || isLargeScreen'
                 :key='playerState.currentSong?.albumId || undefined'
                 :class="[
                   'album-art-wrapper mb-4 sm:mb-5',
@@ -457,7 +442,7 @@
             <div
               @touchmove.stop
               @touchstart.stop
-              v-if='showLyrics && !isLargeScreen && isMobilePortraitMode'
+              v-if='showLyrics && !isLargeScreen'
               class='w-full h-64 mb-6'
             >
               <LyricsView
@@ -578,7 +563,7 @@
 
               <Button
                 @click="$emit('toggle-play-pause')"
-                :class="['play-btn', isMobilePortraitMode ? 'size-14 sm:size-16' : 'size-12 sm:size-14']"
+                class='play-btn size-12 sm:size-14'
               >
                 <Pause v-if='playerState.isPlaying' class='size-5 sm:size-6 md:size-7' />
                 <Play v-else class='size-5 sm:size-6 md:size-7 ml-0.5' />
@@ -629,7 +614,7 @@
 
         <!-- Lyrics panel (large screens) - always in DOM for smooth transitions -->
         <aside
-          v-if='isLargeScreen || isMobileLandscapeMode'
+          v-if='isLargeScreen'
           @touchmove.stop
           @touchstart.stop
           :class="[
@@ -645,7 +630,7 @@
                 :current-time='playerState.currentTime'
                 :duration='playerState.duration'
                 :is-in-sidebar='false'
-                :size='isMobileLandscapeMode ? "small" : "large"'
+                :size='"large"'
                 :song='playerState.currentSong'
                 :visible='showLyrics'
                 class='h-full'
@@ -659,9 +644,8 @@
       <footer
         @touchmove.stop
         @touchstart.stop
-        v-if='isMobilePortraitMode || isNarrowScreen'
-        :style='isMobilePortraitMode ? { paddingBottom: `calc(1rem + env(safe-area-inset-bottom))` } : {}'
-        class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-3 sm:gap-4 p-3 sm:p-4'
+        v-if='isNarrowScreen'
+                class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-3 sm:gap-4 p-3 sm:p-4'
       >
         <Button
           @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"

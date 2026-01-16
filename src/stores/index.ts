@@ -6,7 +6,7 @@ export { useHomeStore } from '@/stores/home'
 export { useLastFmStore } from '@/stores/lastfm'
 export { useLibraryStore } from '@/stores/library'
 export { useListenBrainzStore } from '@/stores/listenbrainz'
-export { useMaterialYouStore } from '@/stores/materialYou'
+
 export { usePlayerStore } from '@/stores/player'
 export type { PlayerState } from '@/stores/player'
 export { usePlaylistStore } from '@/stores/playlists'
