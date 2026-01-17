@@ -5,7 +5,6 @@ use specta::Type;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error, info};
 
-
 const LISTENBRAINZ_API_URL: &str = "https://api.listenbrainz.org/1";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -79,7 +78,6 @@ pub async fn listenbrainz_validate_token(
     user_token: String,
     state: &ListenBrainzState,
 ) -> Result<ListenBrainzCredentials, String> {
-
     info!("Validating ListenBrainz token");
 
     let client = state.client.lock().unwrap().clone();
@@ -136,7 +134,6 @@ pub async fn listenbrainz_submit_listen(
     timestamp: f64,
     state: &ListenBrainzState,
 ) -> Result<(), String> {
-
     let credentials = state
         .credentials
         .lock()
@@ -203,7 +200,6 @@ pub async fn listenbrainz_playing_now(
     album: Option<String>,
     state: &ListenBrainzState,
 ) -> Result<(), String> {
-
     let credentials = state
         .credentials
         .lock()
@@ -277,4 +273,3 @@ pub fn listenbrainz_is_authenticated(state: &ListenBrainzState) -> Result<bool, 
     let is_auth = state.credentials.lock().unwrap().is_some();
     Ok(is_auth)
 }
-

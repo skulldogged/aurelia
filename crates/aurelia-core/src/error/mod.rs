@@ -8,7 +8,6 @@ pub enum AppError {
     #[error("Network error: {0}")]
     Network(String),
 
-
     #[error("Authentication error: {0}")]
     Auth(String),
 
@@ -30,13 +29,11 @@ pub enum AppError {
     #[error("HTTP {status}: {detail}")]
     Http { status: u16, detail: String },
 
-
     #[error("Application error: {0}")]
     General(String),
 
     #[error("FFI error: {0}")]
     UniFfi(String),
-
 }
 
 impl From<reqwest::Error> for AppError {

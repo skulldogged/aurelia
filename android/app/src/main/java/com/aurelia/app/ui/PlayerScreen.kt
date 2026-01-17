@@ -1,0 +1,664 @@
+package com.aurelia.app.ui
+
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import com.aurelia.app.ui.components.WavyMusicSlider
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.SubcomposeAsyncImage
+import com.aurelia.app.player.PlayerController
+import com.aurelia.app.player.QueueItem
+import com.aurelia.app.ui.components.AlbumArt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private enum class ControlButton { NONE, PREVIOUS, PLAY_PAUSE, NEXT }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlayerScreen(
+  playerController: PlayerController,
+  onBack: () -> Unit,
+  modifier: Modifier = Modifier,
+  isEmbedded: Boolean = false
+) {
+  val containerModifier = modifier
+
+  val viewModel: PlayerViewModel = viewModel(
+    factory = PlayerViewModelFactory(playerController)
+  )
+  val state by viewModel.state.collectAsState()
+  
+  var showQueueSheet by remember { mutableStateOf(false) }
+  val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  val scope = rememberCoroutineScope()
+
+  val colors = MaterialTheme.colorScheme
+  val gradient = Brush.verticalGradient(
+    colors = listOf(
+      colors.primaryContainer,
+      colors.background
+    )
+  )
+
+  Column(
+    modifier = containerModifier
+      .fillMaxSize()
+      .background(gradient)
+      .statusBarsPadding()
+  ) {
+    // Top bar with collapse button and queue button
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = 16.dp, vertical = 8.dp),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      FilledIconButton(
+        onClick = onBack,
+        colors = IconButtonDefaults.filledIconButtonColors(
+          containerColor = colors.onPrimary,
+          contentColor = colors.primary
+        ),
+        modifier = Modifier.size(42.dp)
+      ) {
+        Icon(
+          imageVector = Icons.Filled.KeyboardArrowDown,
+          contentDescription = "Close player"
+        )
+      }
+      
+      Text(
+        text = "Now Playing",
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = colors.onPrimaryContainer
+      )
+      
+      // Queue button
+      IconButton(
+        onClick = { showQueueSheet = true },
+        modifier = Modifier.size(42.dp)
+      ) {
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+          contentDescription = "Show queue",
+          tint = colors.onPrimaryContainer
+        )
+      }
+    }
+
+    Column(
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(PaddingValues(horizontal = 24.dp, vertical = 16.dp))
+        .navigationBarsPadding(),
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.SpaceEvenly
+    ) {
+      // Album art
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(vertical = 16.dp)
+          .aspectRatio(1f)
+      ) {
+        Surface(
+          modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(32.dp)),
+          color = colors.surfaceVariant,
+          tonalElevation = 8.dp
+        ) {
+          if (state.albumArtUrl.isNullOrBlank()) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                imageVector = Icons.Filled.Album,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
+              )
+            }
+          } else {
+            SubcomposeAsyncImage(
+              model = state.albumArtUrl,
+              contentDescription = "Album art",
+              modifier = Modifier.fillMaxSize(),
+              contentScale = ContentScale.Crop,
+              loading = {
+                Box(
+                  modifier = Modifier.fillMaxSize(),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Icon(
+                    imageVector = Icons.Filled.Album,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
+                  )
+                }
+              },
+              error = {
+                Box(
+                  modifier = Modifier.fillMaxSize(),
+                  contentAlignment = Alignment.Center
+                ) {
+                  Icon(
+                    imageVector = Icons.Filled.Album,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
+                  )
+                }
+              }
+            )
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(16.dp))
+
+      // Song metadata section
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start
+      ) {
+        Text(
+          text = state.title.ifBlank { "Nothing playing" },
+          style = MaterialTheme.typography.headlineMedium,
+          fontWeight = FontWeight.Bold,
+          color = colors.onPrimaryContainer,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+          text = state.artist.ifBlank { "Unknown artist" },
+          style = MaterialTheme.typography.bodyLarge,
+          color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis
+        )
+      }
+
+      Spacer(modifier = Modifier.height(24.dp))
+
+      // Progress section with pill-shaped container
+      if (!isEmbedded) {
+        Surface(
+          modifier = Modifier.fillMaxWidth(),
+          shape = RoundedCornerShape(50.dp),
+          color = colors.surfaceContainerHigh
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+          ) {
+            Text(
+              text = formatTime(state.positionMs),
+              style = MaterialTheme.typography.labelMedium,
+              fontWeight = FontWeight.Medium,
+              color = colors.onSurfaceVariant
+            )
+            val durationMs = state.durationMs
+            val progressFraction = if (durationMs > 0L) {
+              (state.positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+            } else {
+              0f
+            }
+
+            WavyMusicSlider(
+              value = progressFraction,
+              onValueChange = { newFraction: Float ->
+                viewModel.seekTo((newFraction * durationMs).toLong())
+              },
+              modifier = Modifier.weight(1f),
+              trackHeight = 6.dp,
+              thumbRadius = 8.dp,
+              activeTrackColor = colors.primary,
+              inactiveTrackColor = colors.primary.copy(alpha = 0.2f),
+              thumbColor = colors.primary,
+              waveLength = 30.dp,
+              isPlaying = state.isPlaying,
+              isWaveEligible = true
+            )
+            Text(
+              text = formatTime(state.durationMs),
+              style = MaterialTheme.typography.labelMedium,
+              fontWeight = FontWeight.Medium,
+              color = colors.onSurfaceVariant
+            )
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(24.dp))
+
+      // Animated playback controls
+      AnimatedPlaybackControls(
+        isPlaying = state.isPlaying,
+        onPrevious = { viewModel.skipPrevious() },
+        onPlayPause = { viewModel.togglePlayPause() },
+        onNext = { viewModel.skipNext() },
+        height = 80.dp,
+        colors = colors
+      )
+      
+      Spacer(modifier = Modifier.height(16.dp))
+    }
+  }
+  
+  // Queue bottom sheet
+  if (showQueueSheet) {
+    ModalBottomSheet(
+      onDismissRequest = { showQueueSheet = false },
+      sheetState = sheetState,
+      containerColor = colors.surface,
+      dragHandle = {
+        Column(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+          Spacer(modifier = Modifier.height(8.dp))
+          Box(
+            modifier = Modifier
+              .size(width = 32.dp, height = 4.dp)
+              .clip(RoundedCornerShape(2.dp))
+              .background(colors.onSurfaceVariant.copy(alpha = 0.4f))
+          )
+          Spacer(modifier = Modifier.height(16.dp))
+          Text(
+            text = "Queue",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onSurface
+          )
+          if (state.queue.isNotEmpty()) {
+            Text(
+              text = "${state.queue.size} tracks",
+              style = MaterialTheme.typography.bodySmall,
+              color = colors.onSurfaceVariant
+            )
+          }
+          Spacer(modifier = Modifier.height(8.dp))
+        }
+      }
+    ) {
+      QueueContent(
+        queue = state.queue,
+        currentIndex = state.currentQueueIndex,
+        onItemClick = { index ->
+          viewModel.playQueueItem(index)
+          scope.launch {
+            sheetState.hide()
+            showQueueSheet = false
+          }
+        },
+        modifier = Modifier
+          .fillMaxWidth()
+          .navigationBarsPadding()
+      )
+    }
+  }
+}
+
+@Composable
+private fun AnimatedPlaybackControls(
+  isPlaying: Boolean,
+  onPrevious: () -> Unit,
+  onPlayPause: () -> Unit,
+  onNext: () -> Unit,
+  height: Dp,
+  colors: androidx.compose.material3.ColorScheme,
+  modifier: Modifier = Modifier
+) {
+  var lastClicked by remember { mutableStateOf<ControlButton?>(null) }
+  val baseWeight = 1f
+  val expandedWeight = 1.2f
+  val compressedWeight = 0.7f
+
+  LaunchedEffect(lastClicked) {
+    if (lastClicked != null) {
+      delay(250L)
+      lastClicked = null
+    }
+  }
+
+  fun weightFor(button: ControlButton): Float = when (lastClicked) {
+    button -> expandedWeight
+    null -> baseWeight
+    else -> compressedWeight
+  }
+
+  val animationSpec = tween<Float>(durationMillis = 240, easing = FastOutSlowInEasing)
+
+  Row(
+    modifier = modifier
+      .fillMaxWidth()
+      .height(height),
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    // Previous button
+    val prevWeight by animateFloatAsState(
+      targetValue = weightFor(ControlButton.PREVIOUS),
+      animationSpec = animationSpec,
+      label = "prevWeight"
+    )
+    Box(
+      modifier = Modifier
+        .weight(prevWeight)
+        .fillMaxHeight()
+        .clip(CircleShape)
+        .background(colors.primary.copy(alpha = 0.15f))
+        .clickable(
+          interactionSource = remember { MutableInteractionSource() },
+          indication = null
+        ) {
+          lastClicked = ControlButton.PREVIOUS
+          onPrevious()
+        },
+      contentAlignment = Alignment.Center
+    ) {
+      Icon(
+        imageVector = Icons.Filled.SkipPrevious,
+        contentDescription = "Previous",
+        tint = colors.primary,
+        modifier = Modifier.size(32.dp)
+      )
+    }
+
+    // Play/Pause button with morphing shape
+    val playWeight by animateFloatAsState(
+      targetValue = weightFor(ControlButton.PLAY_PAUSE),
+      animationSpec = animationSpec,
+      label = "playWeight"
+    )
+    val playCorner by animateDpAsState(
+      targetValue = if (isPlaying) 26.dp else 50.dp,
+      animationSpec = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMedium
+      ),
+      label = "playCorner"
+    )
+    Box(
+      modifier = Modifier
+        .weight(playWeight)
+        .fillMaxHeight()
+        .clip(RoundedCornerShape(playCorner))
+        .background(colors.primary)
+        .clickable(
+          interactionSource = remember { MutableInteractionSource() },
+          indication = null
+        ) {
+          lastClicked = ControlButton.PLAY_PAUSE
+          onPlayPause()
+        },
+      contentAlignment = Alignment.Center
+    ) {
+      Crossfade(
+        targetState = isPlaying,
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "playPauseCrossfade"
+      ) { playing ->
+        Icon(
+          imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+          contentDescription = if (playing) "Pause" else "Play",
+          tint = colors.onPrimary,
+          modifier = Modifier.size(36.dp)
+        )
+      }
+    }
+
+    // Next button
+    val nextWeight by animateFloatAsState(
+      targetValue = weightFor(ControlButton.NEXT),
+      animationSpec = animationSpec,
+      label = "nextWeight"
+    )
+    Box(
+      modifier = Modifier
+        .weight(nextWeight)
+        .fillMaxHeight()
+        .clip(CircleShape)
+        .background(colors.primary.copy(alpha = 0.15f))
+        .clickable(
+          interactionSource = remember { MutableInteractionSource() },
+          indication = null
+        ) {
+          lastClicked = ControlButton.NEXT
+          onNext()
+        },
+      contentAlignment = Alignment.Center
+    ) {
+      Icon(
+        imageVector = Icons.Filled.SkipNext,
+        contentDescription = "Next",
+        tint = colors.primary,
+        modifier = Modifier.size(32.dp)
+      )
+    }
+  }
+}
+
+private fun formatTime(timeMs: Long): String {
+  val totalSeconds = timeMs.coerceAtLeast(0L) / 1000
+  val minutes = totalSeconds / 60
+  val seconds = totalSeconds % 60
+  return "%d:%02d".format(minutes, seconds)
+}
+
+@Composable
+private fun QueueContent(
+  queue: List<QueueItem>,
+  currentIndex: Int,
+  onItemClick: (Int) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val colors = MaterialTheme.colorScheme
+  val listState = rememberLazyListState()
+  
+  // Auto-scroll to current item when sheet opens
+  LaunchedEffect(currentIndex) {
+    if (currentIndex >= 0 && queue.isNotEmpty()) {
+      listState.animateScrollToItem(currentIndex.coerceAtMost(queue.lastIndex))
+    }
+  }
+  
+  if (queue.isEmpty()) {
+    Box(
+      modifier = modifier
+        .height(200.dp)
+        .padding(24.dp),
+      contentAlignment = Alignment.Center
+    ) {
+      Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+          contentDescription = null,
+          modifier = Modifier.size(48.dp),
+          tint = colors.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+          text = "Queue is empty",
+          style = MaterialTheme.typography.bodyLarge,
+          color = colors.onSurfaceVariant
+        )
+        Text(
+          text = "Play some songs to build your queue",
+          style = MaterialTheme.typography.bodySmall,
+          color = colors.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+      }
+    }
+  } else {
+    LazyColumn(
+      modifier = modifier,
+      state = listState,
+      contentPadding = PaddingValues(bottom = 16.dp)
+    ) {
+      itemsIndexed(queue, key = { idx, item -> "${item.id}_$idx" }) { index, item ->
+        QueueItemRow(
+          item = item,
+          isPlaying = index == currentIndex,
+          position = index + 1,
+          onClick = { onItemClick(index) }
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun QueueItemRow(
+  item: QueueItem,
+  isPlaying: Boolean,
+  position: Int,
+  onClick: () -> Unit
+) {
+  val colors = MaterialTheme.colorScheme
+  val backgroundColor = if (isPlaying) colors.primaryContainer.copy(alpha = 0.3f) else colors.surface
+  
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .background(backgroundColor)
+      .clickable(onClick = onClick)
+      .padding(horizontal = 16.dp, vertical = 12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(12.dp)
+  ) {
+    // Position number or playing indicator
+    Box(
+      modifier = Modifier.size(24.dp),
+      contentAlignment = Alignment.Center
+    ) {
+      if (isPlaying) {
+        // Playing indicator bars animation
+        Row(
+          horizontalArrangement = Arrangement.spacedBy(2.dp),
+          verticalAlignment = Alignment.Bottom,
+          modifier = Modifier.size(16.dp)
+        ) {
+          repeat(3) { idx ->
+            val height by animateFloatAsState(
+              targetValue = if (isPlaying) (0.4f + (idx * 0.2f)) else 0.3f,
+              animationSpec = tween(300),
+              label = "bar$idx"
+            )
+            Box(
+              modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(height)
+                .background(colors.primary, RoundedCornerShape(1.dp))
+            )
+          }
+        }
+      } else {
+        Text(
+          text = position.toString(),
+          style = MaterialTheme.typography.bodySmall,
+          color = colors.onSurfaceVariant
+        )
+      }
+    }
+    
+    // Album art
+    AlbumArt(
+      imageUrl = item.albumArtUrl,
+      modifier = Modifier.size(48.dp),
+      cornerRadius = 6.dp
+    )
+    
+    // Track info
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = item.title,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Normal,
+        color = if (isPlaying) colors.primary else colors.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+      Text(
+        text = item.artist,
+        style = MaterialTheme.typography.bodySmall,
+        color = colors.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+    }
+  }
+}

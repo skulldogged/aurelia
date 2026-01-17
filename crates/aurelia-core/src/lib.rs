@@ -20,10 +20,12 @@ pub fn authenticate(
     username: String,
     password: String,
 ) -> Result<models::LoginResponse, error::AppError> {
-    let client = services::JellyfinClient::new(server_url);
-    tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?
-        .block_on(client.authenticate(&username, &password))
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::new(server_url);
+        client.authenticate(&username, &password).await
+    })
 }
 
 #[uniffi::export]
@@ -31,11 +33,62 @@ pub fn fetch_songs(
     server_url: String,
     token: String,
     user_id: String,
+    app_data_dir: String,
 ) -> Result<Vec<models::Song>, error::AppError> {
-    let client = services::JellyfinClient::with_auth(server_url, token);
-    tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?
-        .block_on(client.get_music_library(&user_id))
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        let songs = client.get_music_library(&user_id).await?;
+        if !app_data_dir.is_empty() {
+            let app_dir = std::path::PathBuf::from(app_data_dir);
+            if let Err(err) = cache::sync_library(app_dir, &songs, &[], &[]) {
+                tracing::warn!("Failed to cache songs: {err}");
+            }
+        }
+        Ok(songs)
+    })
+}
+
+#[uniffi::export]
+pub fn load_cached_songs(app_data_dir: String) -> Result<Vec<models::Song>, error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(vec![]);
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::get_songs(app_dir).map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
+pub fn cache_songs(app_data_dir: String, songs: Vec<models::Song>) -> Result<(), error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(());
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::sync_library(app_dir, &songs, &[], &[])
+        .map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
+pub fn get_library_sync_state(app_data_dir: String) -> Result<String, error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok("".to_string());
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::get_sync_state(app_dir).map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
+pub fn set_library_sync_state(
+    app_data_dir: String,
+    state_json: String,
+) -> Result<(), error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(());
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::set_sync_state(app_dir, &state_json)
+        .map_err(|err| error::AppError::Database(err.to_string()))
 }
 
 #[uniffi::export]
@@ -50,4 +103,3 @@ pub fn build_stream_url(
 }
 
 uniffi::setup_scaffolding!();
-

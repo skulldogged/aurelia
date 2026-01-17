@@ -1,0 +1,5 @@
+<resources>
+  <string name="playback_notification_channel_name">Playback</string>
+  <string name="playback_notification_title">Aurelia</string>
+  <string name="playback_notification_artist">Now playing</string>
+</resources>

@@ -2,9 +2,9 @@
 //!
 //! Exposes audio player functionality to the frontend.
 
+use crate::audio::AudioPlayer;
 use crate::audio::analyzer::AnalyzerBuffer;
 use crate::audio::events::{start_audio_event_loop, start_spectrum_event_loop};
-use crate::audio::AudioPlayer;
 use std::sync::{Arc, Mutex};
 use tauri::State;
 use tracing::{error, info};
@@ -380,7 +380,7 @@ pub fn audio_reinit(audio_state: State<'_, AudioState>) -> Result<(), String> {
     let player = player_guard
         .as_mut()
         .ok_or("Audio player not initialized")?;
-    
+
     player.reinit().map_err(|e| {
         error!("Failed to reinitialize audio player: {}", e);
         e.to_string()

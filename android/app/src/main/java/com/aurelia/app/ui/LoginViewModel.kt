@@ -12,7 +12,9 @@ import uniffi.aurelia_core.AppException
 import uniffi.aurelia_core.authenticate
 
 class LoginViewModel(private val sessionStore: SessionStore) : ViewModel() {
-  private val mutableState = MutableStateFlow(LoginState())
+  private val mutableState = MutableStateFlow(
+    LoginState(useDynamicColor = sessionStore.getUseDynamicColor())
+  )
   val state: StateFlow<LoginState> = mutableState
 
   fun updateServerUrl(value: String) {
@@ -25,6 +27,11 @@ class LoginViewModel(private val sessionStore: SessionStore) : ViewModel() {
 
   fun updatePassword(value: String) {
     mutableState.update { it.copy(password = value) }
+  }
+
+  fun toggleDynamicColor(enabled: Boolean) {
+    sessionStore.setUseDynamicColor(enabled)
+    mutableState.update { it.copy(useDynamicColor = enabled) }
   }
 
   fun submit() {

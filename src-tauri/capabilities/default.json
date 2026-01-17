@@ -28,7 +28,6 @@
     "fs:allow-remove",
     "clipboard-manager:allow-write-text",
     "os:allow-platform",
-    "m3:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

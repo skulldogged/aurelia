@@ -11,8 +11,8 @@ use rodio::{Decoder, OutputStreamBuilder, Sink, Source};
 use std::io::BufReader;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Sender, channel};
 use std::thread;
-use std::sync::mpsc::{channel, Sender};
 use tracing::{debug, info, trace, warn};
 
 /// Prepared audio source ready for gapless transition
@@ -87,7 +87,8 @@ impl AudioPlayer {
         });
 
         // Wait for initialization
-        init_rx.recv()
+        init_rx
+            .recv()
             .context("Failed to receive initialization response")??;
 
         // Create lock-free EQ settings
@@ -189,11 +190,11 @@ impl AudioPlayer {
 
         // Create a sink via the background thread
         let (sink_tx, sink_rx) = channel();
-        self.cmd_tx.send(AudioThreadCommand::CreateSink(sink_tx))
+        self.cmd_tx
+            .send(AudioThreadCommand::CreateSink(sink_tx))
             .context("Failed to request audio sink")?;
 
-        let sink = sink_rx.recv()
-            .context("Failed to receive audio sink")?;
+        let sink = sink_rx.recv().context("Failed to receive audio sink")?;
 
         // Volume is controlled via sink.set_volume() only (not amplify) to avoid
         // multiplicative volume issues when tracks are reloaded
@@ -435,7 +436,8 @@ impl AudioPlayer {
         });
 
         // Wait for initialization
-        init_rx.recv()
+        init_rx
+            .recv()
             .context("Failed to receive initialization response")??;
 
         // Update command channel (preserving eq_settings and analyzer_buffer)

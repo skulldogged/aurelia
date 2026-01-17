@@ -111,13 +111,16 @@ impl AndroidAudioPlayer {
         struct Args {
             volume: f32,
         }
-        let _: PluginResponse = self.0.run_mobile_plugin("audioSetVolume", Args { volume })?;
+        let _: PluginResponse = self
+            .0
+            .run_mobile_plugin("audioSetVolume", Args { volume })?;
         Ok(())
     }
 
     pub fn audio_get_volume(&self) -> Result<f32> {
         let resp: PluginResponse = self.0.run_mobile_plugin("audioGetVolume", ())?;
-        Ok(resp.value
+        Ok(resp
+            .value
             .and_then(|v| v.as_f64())
             .map(|v| v as f32)
             .unwrap_or(1.0))
@@ -125,23 +128,17 @@ impl AndroidAudioPlayer {
 
     pub fn audio_is_playing(&self) -> Result<bool> {
         let resp: PluginResponse = self.0.run_mobile_plugin("audioIsPlaying", ())?;
-        Ok(resp.value
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false))
+        Ok(resp.value.and_then(|v| v.as_bool()).unwrap_or(false))
     }
 
     pub fn audio_is_finished(&self) -> Result<bool> {
         let resp: PluginResponse = self.0.run_mobile_plugin("audioIsFinished", ())?;
-        Ok(resp.value
-            .and_then(|v| v.as_bool())
-            .unwrap_or(true))
+        Ok(resp.value.and_then(|v| v.as_bool()).unwrap_or(true))
     }
 
     pub fn audio_get_position(&self) -> Result<f64> {
         let resp: PluginResponse = self.0.run_mobile_plugin("audioGetPosition", ())?;
-        Ok(resp.value
-            .and_then(|v| v.as_f64())
-            .unwrap_or(0.0))
+        Ok(resp.value.and_then(|v| v.as_f64()).unwrap_or(0.0))
     }
 
     pub fn audio_seek(&self, position_secs: f64) -> Result<()> {
@@ -150,7 +147,9 @@ impl AndroidAudioPlayer {
         struct Args {
             position_secs: f64,
         }
-        let _: PluginResponse = self.0.run_mobile_plugin("audioSeek", Args { position_secs })?;
+        let _: PluginResponse = self
+            .0
+            .run_mobile_plugin("audioSeek", Args { position_secs })?;
         Ok(())
     }
 
@@ -160,13 +159,16 @@ impl AndroidAudioPlayer {
             url: &'a str,
             token: &'a str,
         }
-        let _: PluginResponse = self.0.run_mobile_plugin("audioPrepareNext", Args { url, token })?;
+        let _: PluginResponse = self
+            .0
+            .run_mobile_plugin("audioPrepareNext", Args { url, token })?;
         Ok(())
     }
 
     pub fn audio_advance_gapless(&self) -> Result<bool> {
         let resp: PluginResponse = self.0.run_mobile_plugin("audioAdvanceGapless", ())?;
-        Ok(resp.value
+        Ok(resp
+            .value
             .as_ref()
             .and_then(|v| v.get("success"))
             .and_then(|v| v.as_bool())
@@ -178,15 +180,15 @@ impl AndroidAudioPlayer {
         struct Args {
             enabled: bool,
         }
-        let _: PluginResponse = self.0.run_mobile_plugin("audioSetEqEnabled", Args { enabled })?;
+        let _: PluginResponse = self
+            .0
+            .run_mobile_plugin("audioSetEqEnabled", Args { enabled })?;
         Ok(())
     }
 
     pub fn audio_is_eq_enabled(&self) -> Result<bool> {
         let resp: PluginResponse = self.0.run_mobile_plugin("audioIsEqEnabled", ())?;
-        Ok(resp.value
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false))
+        Ok(resp.value.and_then(|v| v.as_bool()).unwrap_or(false))
     }
 
     pub fn audio_set_eq_band(&self, band: u32, gain_db: f32) -> Result<()> {
@@ -196,7 +198,9 @@ impl AndroidAudioPlayer {
             band: u32,
             gain_db: f32,
         }
-        let _: PluginResponse = self.0.run_mobile_plugin("audioSetEqBand", Args { band, gain_db })?;
+        let _: PluginResponse = self
+            .0
+            .run_mobile_plugin("audioSetEqBand", Args { band, gain_db })?;
         Ok(())
     }
 
@@ -206,7 +210,8 @@ impl AndroidAudioPlayer {
             band: u32,
         }
         let resp: PluginResponse = self.0.run_mobile_plugin("audioGetEqBand", Args { band })?;
-        Ok(resp.value
+        Ok(resp
+            .value
             .and_then(|v| v.as_f64())
             .map(|v| v as f32)
             .unwrap_or(0.0))
@@ -214,9 +219,14 @@ impl AndroidAudioPlayer {
 
     pub fn audio_get_all_eq_bands(&self) -> Result<Vec<f32>> {
         let resp: PluginResponse = self.0.run_mobile_plugin("audioGetAllEqBands", ())?;
-        Ok(resp.value
+        Ok(resp
+            .value
             .and_then(|v| v.as_array().cloned())
-            .map(|arr| arr.iter().filter_map(|v| v.as_f64().map(|f| f as f32)).collect())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect()
+            })
             .unwrap_or_else(|| vec![0.0; 5]))
     }
 
@@ -234,40 +244,43 @@ impl AndroidAudioPlayer {
         struct Args {
             enabled: bool,
         }
-        let _resp: PluginResponse = self.0.run_mobile_plugin("audioSetAnalyzerEnabled", Args { enabled })?;
+        let _resp: PluginResponse = self
+            .0
+            .run_mobile_plugin("audioSetAnalyzerEnabled", Args { enabled })?;
         Ok(())
     }
 
     pub fn audio_is_analyzer_enabled(&self) -> Result<bool> {
         let resp: PluginResponse = self.0.run_mobile_plugin("audioIsAnalyzerEnabled", ())?;
-        Ok(resp.value
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false))
+        Ok(resp.value.and_then(|v| v.as_bool()).unwrap_or(false))
     }
 
     pub fn audio_reinit(&self) -> Result<()> {
         let _: PluginResponse = self.0.run_mobile_plugin("audioReinit", ())?;
         Ok(())
     }
-    
+
     pub fn audio_check_record_permission(&self) -> Result<bool> {
         // Kotlin returns { "granted": bool } directly, not wrapped in PluginResponse
         #[derive(Debug, Deserialize)]
         struct PermissionResponse {
             granted: bool,
         }
-        let resp: PermissionResponse = self.0.run_mobile_plugin("audioCheckRecordPermission", ())?;
+        let resp: PermissionResponse =
+            self.0.run_mobile_plugin("audioCheckRecordPermission", ())?;
         info!("audio_check_record_permission response: {:?}", resp);
         Ok(resp.granted)
     }
-    
+
     pub fn audio_request_record_permission(&self) -> Result<bool> {
         // Kotlin returns { "granted": bool, "status"?: string } directly
         #[derive(Debug, Deserialize)]
         struct PermissionResponse {
             granted: bool,
         }
-        let resp: PermissionResponse = self.0.run_mobile_plugin("audioRequestRecordPermission", ())?;
+        let resp: PermissionResponse = self
+            .0
+            .run_mobile_plugin("audioRequestRecordPermission", ())?;
         info!("audio_request_record_permission response: {:?}", resp);
         Ok(resp.granted)
     }
@@ -289,9 +302,7 @@ impl<T: Manager<tauri::Wry>> AndroidAudioPlayerExt for T {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn audio_init(
-    app: AppHandle,
-) -> std::result::Result<(), String> {
+pub async fn audio_init(app: AppHandle) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_init()
         .map_err(|e| e.to_string())
@@ -322,9 +333,7 @@ pub async fn audio_play(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_pause(
-    app: AppHandle,
-) -> std::result::Result<(), String> {
+pub fn audio_pause(app: AppHandle) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_pause()
         .map_err(|e| e.to_string())
@@ -332,9 +341,7 @@ pub fn audio_pause(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_resume(
-    app: AppHandle,
-) -> std::result::Result<(), String> {
+pub fn audio_resume(app: AppHandle) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_resume()
         .map_err(|e| e.to_string())
@@ -342,9 +349,7 @@ pub fn audio_resume(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_stop(
-    app: AppHandle,
-) -> std::result::Result<(), String> {
+pub fn audio_stop(app: AppHandle) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_stop()
         .map_err(|e| e.to_string())
@@ -352,10 +357,7 @@ pub fn audio_stop(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_set_volume(
-    app: AppHandle,
-    volume: f32,
-) -> std::result::Result<(), String> {
+pub fn audio_set_volume(app: AppHandle, volume: f32) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_set_volume(volume)
         .map_err(|e| e.to_string())
@@ -363,9 +365,7 @@ pub fn audio_set_volume(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_get_volume(
-    app: AppHandle,
-) -> std::result::Result<f32, String> {
+pub fn audio_get_volume(app: AppHandle) -> std::result::Result<f32, String> {
     app.android_audio_player()
         .audio_get_volume()
         .map_err(|e| e.to_string())
@@ -373,9 +373,7 @@ pub fn audio_get_volume(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_is_playing(
-    app: AppHandle,
-) -> std::result::Result<bool, String> {
+pub fn audio_is_playing(app: AppHandle) -> std::result::Result<bool, String> {
     app.android_audio_player()
         .audio_is_playing()
         .map_err(|e| e.to_string())
@@ -383,9 +381,7 @@ pub fn audio_is_playing(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_is_finished(
-    app: AppHandle,
-) -> std::result::Result<bool, String> {
+pub fn audio_is_finished(app: AppHandle) -> std::result::Result<bool, String> {
     app.android_audio_player()
         .audio_is_finished()
         .map_err(|e| e.to_string())
@@ -393,9 +389,7 @@ pub fn audio_is_finished(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_get_position(
-    app: AppHandle,
-) -> std::result::Result<f64, String> {
+pub fn audio_get_position(app: AppHandle) -> std::result::Result<f64, String> {
     app.android_audio_player()
         .audio_get_position()
         .map_err(|e| e.to_string())
@@ -403,10 +397,7 @@ pub fn audio_get_position(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn audio_seek(
-    app: AppHandle,
-    position_secs: f64,
-) -> std::result::Result<(), String> {
+pub async fn audio_seek(app: AppHandle, position_secs: f64) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_seek(position_secs)
         .map_err(|e| e.to_string())
@@ -426,9 +417,7 @@ pub fn audio_prepare_next(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn audio_advance_gapless(
-    app: AppHandle,
-) -> std::result::Result<(), String> {
+pub async fn audio_advance_gapless(app: AppHandle) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_advance_gapless()
         .map(|_| ())
@@ -437,10 +426,7 @@ pub async fn audio_advance_gapless(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_set_eq_enabled(
-    app: AppHandle,
-    enabled: bool,
-) -> std::result::Result<(), String> {
+pub fn audio_set_eq_enabled(app: AppHandle, enabled: bool) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_set_eq_enabled(enabled)
         .map_err(|e| e.to_string())
@@ -448,9 +434,7 @@ pub fn audio_set_eq_enabled(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_is_eq_enabled(
-    app: AppHandle,
-) -> std::result::Result<bool, String> {
+pub fn audio_is_eq_enabled(app: AppHandle) -> std::result::Result<bool, String> {
     app.android_audio_player()
         .audio_is_eq_enabled()
         .map_err(|e| e.to_string())
@@ -470,10 +454,7 @@ pub fn audio_set_eq_band(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_get_eq_band(
-    app: AppHandle,
-    band: u32,
-) -> std::result::Result<f32, String> {
+pub fn audio_get_eq_band(app: AppHandle, band: u32) -> std::result::Result<f32, String> {
     app.android_audio_player()
         .audio_get_eq_band(band)
         .map_err(|e| e.to_string())
@@ -481,9 +462,7 @@ pub fn audio_get_eq_band(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_get_all_eq_bands(
-    app: AppHandle,
-) -> std::result::Result<Vec<f32>, String> {
+pub fn audio_get_all_eq_bands(app: AppHandle) -> std::result::Result<Vec<f32>, String> {
     app.android_audio_player()
         .audio_get_all_eq_bands()
         .map_err(|e| e.to_string())
@@ -491,9 +470,7 @@ pub fn audio_get_all_eq_bands(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_reset_eq(
-    app: AppHandle,
-) -> std::result::Result<(), String> {
+pub fn audio_reset_eq(app: AppHandle) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_reset_eq()
         .map_err(|e| e.to_string())
@@ -507,8 +484,12 @@ pub fn audio_set_analyzer_enabled(
     app: AppHandle,
     enabled: bool,
 ) -> std::result::Result<(), String> {
-    info!("audio_set_analyzer_enabled command called: enabled={}", enabled);
-    let result = app.android_audio_player()
+    info!(
+        "audio_set_analyzer_enabled command called: enabled={}",
+        enabled
+    );
+    let result = app
+        .android_audio_player()
         .audio_set_analyzer_enabled(enabled)
         .map_err(|e| e.to_string());
     info!("audio_set_analyzer_enabled command result: {:?}", result);
@@ -517,9 +498,7 @@ pub fn audio_set_analyzer_enabled(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_is_analyzer_enabled(
-    app: AppHandle,
-) -> std::result::Result<bool, String> {
+pub fn audio_is_analyzer_enabled(app: AppHandle) -> std::result::Result<bool, String> {
     app.android_audio_player()
         .audio_is_analyzer_enabled()
         .map_err(|e| e.to_string())
@@ -527,9 +506,7 @@ pub fn audio_is_analyzer_enabled(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_reinit(
-    app: AppHandle,
-) -> std::result::Result<(), String> {
+pub fn audio_reinit(app: AppHandle) -> std::result::Result<(), String> {
     app.android_audio_player()
         .audio_reinit()
         .map_err(|e| e.to_string())
@@ -537,9 +514,7 @@ pub fn audio_reinit(
 
 #[tauri::command]
 #[specta::specta]
-pub fn audio_check_record_permission(
-    app: AppHandle,
-) -> std::result::Result<bool, String> {
+pub fn audio_check_record_permission(app: AppHandle) -> std::result::Result<bool, String> {
     app.android_audio_player()
         .audio_check_record_permission()
         .map_err(|e| e.to_string())
@@ -547,9 +522,7 @@ pub fn audio_check_record_permission(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn audio_request_record_permission(
-    app: AppHandle,
-) -> std::result::Result<bool, String> {
+pub async fn audio_request_record_permission(app: AppHandle) -> std::result::Result<bool, String> {
     app.android_audio_player()
         .audio_request_record_permission()
         .map_err(|e| e.to_string())
@@ -577,9 +550,7 @@ pub struct NowPlayingPayload {
 /// Update Now Playing metadata - stub for Android (handled by MediaSession in Kotlin)
 #[tauri::command]
 #[specta::specta]
-pub fn media_update_now_playing(
-    _payload: NowPlayingPayload,
-) -> std::result::Result<(), String> {
+pub fn media_update_now_playing(_payload: NowPlayingPayload) -> std::result::Result<(), String> {
     // On Android, MediaSession metadata is set directly in Kotlin when audio_play is called.
     // This command exists for API compatibility with desktop.
     Ok(())

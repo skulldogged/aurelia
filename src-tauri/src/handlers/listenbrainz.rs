@@ -1,5 +1,7 @@
 use aurelia_core::listenbrainz_core;
-use aurelia_core::listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen, ListenBrainzState};
+use aurelia_core::listenbrainz_core::{
+    ListenBrainzCredentials, ListenBrainzListen, ListenBrainzState,
+};
 use tauri::State;
 
 #[tauri::command]

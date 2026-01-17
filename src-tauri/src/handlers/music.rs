@@ -113,11 +113,10 @@ pub async fn get_home_view_data(
         }
     }
 
-    let (server_url, token, user_id) =
-        match super::auth::get_credentials_cached(&app).await {
-            Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
-            _ => return Err("No saved credentials found".to_string()),
-        };
+    let (server_url, token, user_id) = match super::auth::get_credentials_cached(&app).await {
+        Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
+        _ => return Err("No saved credentials found".to_string()),
+    };
     let recently_played = get_recently_played(server_url, token, user_id).await?;
 
     let result = HomeViewData {
@@ -164,11 +163,10 @@ pub async fn get_album(
     if include_songs.unwrap_or(false) {
         // Use server-side filtering via AlbumIds query parameter
         // Includes workaround for Jellyfin bug where it also matches album names
-        let (server_url, token, user_id) =
-            match super::auth::get_credentials_cached(&app).await {
-                Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
-                _ => return Err("No saved credentials found".to_string()),
-            };
+        let (server_url, token, user_id) = match super::auth::get_credentials_cached(&app).await {
+            Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
+            _ => return Err("No saved credentials found".to_string()),
+        };
 
         let client = JellyfinClient::with_auth(server_url, token);
         let songs = client
@@ -197,11 +195,10 @@ pub async fn get_artist(
 
     if include_songs.unwrap_or(false) {
         // Use server-side filtering via AlbumArtistIds query parameter
-        let (server_url, token, user_id) =
-            match super::auth::get_credentials_cached(&app).await {
-                Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
-                _ => return Err("No saved credentials found".to_string()),
-            };
+        let (server_url, token, user_id) = match super::auth::get_credentials_cached(&app).await {
+            Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
+            _ => return Err("No saved credentials found".to_string()),
+        };
 
         let client = JellyfinClient::with_auth(server_url, token);
         let songs = client
@@ -715,7 +712,7 @@ pub async fn get_song_share_urls(
     song_id: String,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     let song = get_song(app_state, song_id).await?;
-aurelia_core::services::MusicBrainzService::get_song_share_urls(&song).await
+    aurelia_core::services::MusicBrainzService::get_song_share_urls(&song).await
 }
 
 /// Get share URLs for an album
@@ -727,7 +724,7 @@ pub async fn get_album_share_urls(
     album_id: String,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     let album = get_album(app, app_state, album_id, None).await?;
-aurelia_core::services::MusicBrainzService::get_album_share_urls(&album).await
+    aurelia_core::services::MusicBrainzService::get_album_share_urls(&album).await
 }
 
 /// Get share URLs for an artist
@@ -739,5 +736,5 @@ pub async fn get_artist_share_urls(
     artist_id: String,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     let artist = get_artist(app, app_state, artist_id, None).await?;
-aurelia_core::services::MusicBrainzService::get_artist_share_urls(&artist).await
+    aurelia_core::services::MusicBrainzService::get_artist_share_urls(&artist).await
 }

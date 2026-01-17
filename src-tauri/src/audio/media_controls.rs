@@ -7,7 +7,9 @@
 
 use crate::audio::AudioState;
 use serde::{Deserialize, Serialize};
-use souvlaki::{MediaButton, MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig};
+use souvlaki::{
+    MediaButton, MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig,
+};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};

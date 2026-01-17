@@ -9,7 +9,6 @@ use std::hash::{Hash, Hasher};
 #[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, Eq, Hash, uniffi::Record)]
 #[specta(rename_all = "camelCase")]
 pub struct NameIdPair {
-
     /// Display name
     pub name: String,
     /// Unique identifier
@@ -45,7 +44,6 @@ pub struct ItemsResponse<T> {
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
-
     /// Unique identifier
     pub id: String,
     /// Song title
@@ -121,11 +119,10 @@ impl Hash for Song {
 }
 
 /// Consolidated artist type with all information
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct Artist {
-
     /// Artist name
     pub name: String,
     /// Artist ID
@@ -155,11 +152,10 @@ impl Hash for Artist {
 }
 
 /// Consolidated album type with all information
-#[derive(Serialize, Deserialize, Debug, Clone, Type, uniffi::Record)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct Album {
-
     /// Album ID from Jellyfin
     pub id: Option<String>,
     /// Album name

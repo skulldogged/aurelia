@@ -34,5 +34,5 @@ thiserror = "2"
 tracing = "0.1"
 urlencoding = "2.1"
 uuid = { version = "1.19", features = ["v4"] }
-uniffi = "0.31.0"
-tokio = { version = "1", features = ["rt-multi-thread"] }
+tokio = { version = "1.43", features = ["rt-multi-thread"] }
+uniffi = { version = "0.31.0", features = ["tokio"] }

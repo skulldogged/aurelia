@@ -3,7 +3,6 @@
 use aurelia_core::models::music::{Playlist, PlaylistCreateData, PlaylistUpdateData};
 use aurelia_core::services::JellyfinClient;
 
-
 /// Get all playlists from Jellyfin server
 #[tauri::command]
 #[specta::specta]
@@ -61,13 +60,8 @@ pub async fn delete_playlist(app: tauri::AppHandle, playlist_id: String) -> Resu
         .map_err(|e| format!("Failed to delete playlist: {}", e))?;
 
     // Clear the cached image for this playlist
-    if let Err(e) = super::images::clear_image_from_cache(
-
-        app,
-        playlist_id.clone(),
-        "Primary".to_string(),
-    )
-    .await
+    if let Err(e) =
+        super::images::clear_image_from_cache(app, playlist_id.clone(), "Primary".to_string()).await
     {
         tracing::warn!("Failed to delete cached playlist image: {}", e);
     }
@@ -114,7 +108,6 @@ pub async fn get_playlist_items(
     app: tauri::AppHandle,
     playlist_id: String,
 ) -> Result<Vec<aurelia_core::models::music::Song>, String> {
-
     let client = get_jellyfin_client(&app).await?;
 
     client

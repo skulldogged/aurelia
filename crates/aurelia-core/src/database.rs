@@ -74,7 +74,7 @@ fn get_all_items<T: DeserializeOwned>(table: &ReadOnlyTable<&str, &[u8]>) -> Res
     Ok(items)
 }
 
-fn clear_table(table: &mut redb::Table<&str, &[u8]>) -> Result<()> {
+pub(crate) fn clear_table(table: &mut redb::Table<&str, &[u8]>) -> Result<()> {
     let mut keys = Vec::new();
     for result in table
         .iter()

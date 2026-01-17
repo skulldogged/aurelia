@@ -2,11 +2,11 @@
 //!
 //! Provides event-based position updates and spectrum data for visualization
 
-use crate::audio::analyzer::{AnalyzerBuffer, SpectrumAnalyzer};
 use crate::audio::AudioState;
+use crate::audio::analyzer::{AnalyzerBuffer, SpectrumAnalyzer};
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tracing::{debug, trace};

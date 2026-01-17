@@ -8,12 +8,12 @@ pub mod system_tray;
 
 pub use anyhow::Result;
 
+use aurelia_core::{database, listenbrainz_core, state};
 #[cfg(debug_assertions)]
 use specta_typescript::{BigIntExportBehavior, Typescript};
 #[cfg(debug_assertions)]
 use std::process::Command;
 use std::sync::Once;
-use aurelia_core::{database, listenbrainz_core, state};
 use tauri::Manager;
 use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
@@ -288,7 +288,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
-                .manage(listenbrainz_core::ListenBrainzState::new())
+        .manage(listenbrainz_core::ListenBrainzState::new())
         .manage(state::AppState::new());
 
     #[cfg(not(target_os = "android"))]
@@ -303,8 +303,7 @@ pub fn run() {
 
     #[cfg(target_os = "android")]
     {
-        tauri_builder = tauri_builder
-            .plugin(android_audio_player::init());
+        tauri_builder = tauri_builder.plugin(android_audio_player::init());
     }
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]

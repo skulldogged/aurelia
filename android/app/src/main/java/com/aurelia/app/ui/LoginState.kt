@@ -8,4 +8,5 @@ data class LoginState(
   val error: String? = null,
   val token: String? = null,
   val userId: String? = null,
+  val useDynamicColor: Boolean = true,
 )

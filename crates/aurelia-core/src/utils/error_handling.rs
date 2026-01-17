@@ -16,8 +16,10 @@ pub async fn handle_http_response(response: Response) -> AppResult<Response> {
             .text()
             .await
             .unwrap_or_else(|_| "Unknown error".to_string());
-        Err(AppError::Http { status, detail: message })
-
+        Err(AppError::Http {
+            status,
+            detail: message,
+        })
     }
 }
 
@@ -122,6 +124,5 @@ pub fn error_to_user_message(err: &AppError) -> String {
         AppError::Http { status, detail } => format!("Server error ({status}): {detail}"),
         AppError::General(msg) => msg.clone(),
         AppError::UniFfi(msg) => msg.clone(),
-
     }
 }

@@ -13,6 +13,18 @@ class SessionStore(context: Context) {
       .apply()
   }
 
+  fun setAppDataDir(path: String) {
+    prefs.edit().putString("appDataDir", path).apply()
+  }
+
+  fun getAppDataDir(): String? = prefs.getString("appDataDir", null)
+
+  fun setUseDynamicColor(enabled: Boolean) {
+    prefs.edit().putBoolean("useDynamicColor", enabled).apply()
+  }
+
+  fun getUseDynamicColor(): Boolean = prefs.getBoolean("useDynamicColor", true)
+
   fun clear() {
     prefs.edit().clear().apply()
   }

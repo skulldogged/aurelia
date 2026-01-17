@@ -13,8 +13,7 @@ fn get_image_cache_dir(app: &AppHandle) -> AppResult<std::path::PathBuf> {
     let cache_dir = app
         .path()
         .app_data_dir()
-.map_err(|e| AppError::FileSystem(e.to_string()))?
-
+        .map_err(|e| AppError::FileSystem(e.to_string()))?
         .join("image_cache");
 
     if !cache_dir.exists() {

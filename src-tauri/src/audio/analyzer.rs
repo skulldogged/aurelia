@@ -7,9 +7,9 @@
 //! - Results are emitted as Tauri events
 
 use rodio::Source;
-use rustfft::{num_complex::Complex, FftPlanner};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use rustfft::{FftPlanner, num_complex::Complex};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// FFT size - must be power of 2. 256 matches Web Audio API default
@@ -153,8 +153,8 @@ impl SpectrumAnalyzer {
             let normalized = ((db - min_db) / (max_db - min_db)).clamp(0.0, 1.0);
 
             // Apply temporal smoothing
-            let smoothed = self.smoothing * self.prev_spectrum[i]
-                + (1.0 - self.smoothing) * normalized;
+            let smoothed =
+                self.smoothing * self.prev_spectrum[i] + (1.0 - self.smoothing) * normalized;
             self.prev_spectrum[i] = smoothed;
 
             spectrum[i] = (smoothed * 255.0) as u8;
