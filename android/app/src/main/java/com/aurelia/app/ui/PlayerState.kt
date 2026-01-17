@@ -11,4 +11,7 @@ data class PlayerState(
   val durationMs: Long = 0L,
   val queue: List<QueueItem> = emptyList(),
   val currentQueueIndex: Int = -1,
-)
+) {
+  val hasPrevious: Boolean get() = currentQueueIndex > 0
+  val hasNext: Boolean get() = currentQueueIndex >= 0 && currentQueueIndex < queue.size - 1
+}

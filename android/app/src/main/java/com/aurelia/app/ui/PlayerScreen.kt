@@ -72,6 +72,7 @@ import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.QueueItem
 import com.aurelia.app.ui.components.AlbumArt
+import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -97,17 +98,11 @@ fun PlayerScreen(
   val scope = rememberCoroutineScope()
 
   val colors = MaterialTheme.colorScheme
-  val gradient = Brush.verticalGradient(
-    colors = listOf(
-      colors.primaryContainer,
-      colors.background
-    )
-  )
 
   Column(
     modifier = containerModifier
       .fillMaxSize()
-      .background(gradient)
+      .background(colors.primaryContainer)
       .statusBarsPadding()
   ) {
     // Top bar with collapse button and queue button
@@ -132,12 +127,7 @@ fun PlayerScreen(
         )
       }
       
-      Text(
-        text = "Now Playing",
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = colors.onPrimaryContainer
-      )
+      Spacer(modifier = Modifier.weight(1f))
       
       // Queue button
       IconButton(
@@ -250,17 +240,15 @@ fun PlayerScreen(
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      // Progress section with pill-shaped container
+      // Progress section
       if (!isEmbedded) {
-        Surface(
-          modifier = Modifier.fillMaxWidth(),
-          shape = RoundedCornerShape(50.dp),
-          color = colors.surfaceContainerHigh
+        Column(
+          modifier = Modifier.fillMaxWidth()
         ) {
           Row(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(horizontal = 16.dp, vertical = 8.dp),
+              .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
           ) {
@@ -268,7 +256,7 @@ fun PlayerScreen(
               text = formatTime(state.positionMs),
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.Medium,
-              color = colors.onSurfaceVariant
+              color = colors.onPrimaryContainer.copy(alpha = 0.7f)
             )
             val durationMs = state.durationMs
             val progressFraction = if (durationMs > 0L) {
@@ -296,7 +284,7 @@ fun PlayerScreen(
               text = formatTime(state.durationMs),
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.Medium,
-              color = colors.onSurfaceVariant
+              color = colors.onPrimaryContainer.copy(alpha = 0.7f)
             )
           }
         }
@@ -307,6 +295,8 @@ fun PlayerScreen(
       // Animated playback controls
       AnimatedPlaybackControls(
         isPlaying = state.isPlaying,
+        hasPrevious = state.hasPrevious,
+        hasNext = state.hasNext,
         onPrevious = { viewModel.skipPrevious() },
         onPlayPause = { viewModel.togglePlayPause() },
         onNext = { viewModel.skipNext() },
@@ -375,6 +365,8 @@ fun PlayerScreen(
 @Composable
 private fun AnimatedPlaybackControls(
   isPlaying: Boolean,
+  hasPrevious: Boolean,
+  hasNext: Boolean,
   onPrevious: () -> Unit,
   onPlayPause: () -> Unit,
   onNext: () -> Unit,
@@ -415,25 +407,31 @@ private fun AnimatedPlaybackControls(
       animationSpec = animationSpec,
       label = "prevWeight"
     )
+    val prevBgAlpha = if (hasPrevious) 0.15f else 0.08f
+    val prevIconAlpha = if (hasPrevious) 1f else 0.4f
     Box(
       modifier = Modifier
         .weight(prevWeight)
         .fillMaxHeight()
         .clip(CircleShape)
-        .background(colors.primary.copy(alpha = 0.15f))
-        .clickable(
-          interactionSource = remember { MutableInteractionSource() },
-          indication = null
-        ) {
-          lastClicked = ControlButton.PREVIOUS
-          onPrevious()
-        },
+        .background(colors.primary.copy(alpha = prevBgAlpha))
+        .then(
+          if (hasPrevious) {
+            Modifier.clickable(
+              interactionSource = remember { MutableInteractionSource() },
+              indication = null
+            ) {
+              lastClicked = ControlButton.PREVIOUS
+              onPrevious()
+            }
+          } else Modifier
+        ),
       contentAlignment = Alignment.Center
     ) {
       Icon(
         imageVector = Icons.Filled.SkipPrevious,
         contentDescription = "Previous",
-        tint = colors.primary,
+        tint = colors.primary.copy(alpha = prevIconAlpha),
         modifier = Modifier.size(32.dp)
       )
     }
@@ -467,18 +465,11 @@ private fun AnimatedPlaybackControls(
         },
       contentAlignment = Alignment.Center
     ) {
-      Crossfade(
-        targetState = isPlaying,
-        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-        label = "playPauseCrossfade"
-      ) { playing ->
-        Icon(
-          imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-          contentDescription = if (playing) "Pause" else "Play",
-          tint = colors.onPrimary,
-          modifier = Modifier.size(36.dp)
-        )
-      }
+      AnimatedPlayPauseIcon(
+        isPlaying = isPlaying,
+        tint = colors.onPrimary,
+        modifier = Modifier.size(36.dp)
+      )
     }
 
     // Next button
@@ -487,25 +478,31 @@ private fun AnimatedPlaybackControls(
       animationSpec = animationSpec,
       label = "nextWeight"
     )
+    val nextBgAlpha = if (hasNext) 0.15f else 0.08f
+    val nextIconAlpha = if (hasNext) 1f else 0.4f
     Box(
       modifier = Modifier
         .weight(nextWeight)
         .fillMaxHeight()
         .clip(CircleShape)
-        .background(colors.primary.copy(alpha = 0.15f))
-        .clickable(
-          interactionSource = remember { MutableInteractionSource() },
-          indication = null
-        ) {
-          lastClicked = ControlButton.NEXT
-          onNext()
-        },
+        .background(colors.primary.copy(alpha = nextBgAlpha))
+        .then(
+          if (hasNext) {
+            Modifier.clickable(
+              interactionSource = remember { MutableInteractionSource() },
+              indication = null
+            ) {
+              lastClicked = ControlButton.NEXT
+              onNext()
+            }
+          } else Modifier
+        ),
       contentAlignment = Alignment.Center
     ) {
       Icon(
         imageVector = Icons.Filled.SkipNext,
         contentDescription = "Next",
-        tint = colors.primary,
+        tint = colors.primary.copy(alpha = nextIconAlpha),
         modifier = Modifier.size(32.dp)
       )
     }

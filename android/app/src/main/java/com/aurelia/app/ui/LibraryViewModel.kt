@@ -61,7 +61,14 @@ class LibraryViewModel(
 
     mutableState.update {
       it.copy(
-        nowPlaying = NowPlayingState(snapshot.title, snapshot.artist, snapshot.albumArtUrl, snapshot.isPlaying),
+        nowPlaying = NowPlayingState(
+          title = snapshot.title,
+          artist = snapshot.artist,
+          albumArtUrl = snapshot.albumArtUrl,
+          isPlaying = snapshot.isPlaying,
+          hasPrevious = snapshot.hasPrevious,
+          hasNext = snapshot.hasNext
+        ),
         currentSongId = songId
       )
     }

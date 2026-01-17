@@ -250,7 +250,9 @@ class PlayerController(private val context: Context) {
       albumArtUrl = controller.mediaMetadata.artworkUri?.toString(),
       isPlaying = controller.isPlaying,
       positionMs = controller.currentPosition,
-      durationMs = duration
+      durationMs = duration,
+      hasPrevious = controller.hasPreviousMediaItem(),
+      hasNext = controller.hasNextMediaItem()
     )
   }
 
@@ -284,4 +286,6 @@ data class PlayerSnapshot(
   val isPlaying: Boolean = false,
   val positionMs: Long = 0L,
   val durationMs: Long = 0L,
+  val hasPrevious: Boolean = false,
+  val hasNext: Boolean = false,
 )

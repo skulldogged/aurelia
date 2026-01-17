@@ -55,7 +55,7 @@ fun WavyMusicSlider(
   trackHeight: Dp = 6.dp,
   thumbRadius: Dp = 8.dp,
   activeTrackColor: Color = MaterialTheme.colorScheme.primary,
-  inactiveTrackColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+  inactiveTrackColor: Color = Color.Transparent,
   thumbColor: Color = MaterialTheme.colorScheme.primary,
   waveAmplitudeWhenPlaying: Dp = 3.dp,
   waveLength: Dp = 80.dp,

@@ -1,7 +1,10 @@
 package com.aurelia.app.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -60,6 +63,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,6 +73,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -77,12 +82,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
+import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.navigation.Screen
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -111,8 +120,39 @@ fun MainScreen(
   playerController: PlayerController,
   onLogout: () -> Unit
 ) {
-  var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
-  var isPlayerOpen by remember { mutableStateOf(false) }
+  // Navigation stack - bottom tabs are root screens that clear the stack
+  val navigationStack = remember { mutableStateListOf<Screen>(Screen.Home) }
+  val currentScreen = navigationStack.lastOrNull() ?: Screen.Home
+  
+  // Navigate to a new screen (push to stack)
+  fun navigate(screen: Screen) {
+    navigationStack.add(screen)
+  }
+  
+  // Navigate to a root tab (clears stack)
+  fun navigateToTab(screen: Screen) {
+    navigationStack.clear()
+    navigationStack.add(screen)
+  }
+  
+  // Go back (pop from stack, or go to Home)
+  fun goBack(): Boolean {
+    return when {
+      navigationStack.size > 1 -> {
+        navigationStack.removeAt(navigationStack.lastIndex)
+        true
+      }
+      currentScreen != Screen.Home -> {
+        // If at root of a tab that isn't Home, go to Home
+        navigateToTab(Screen.Home)
+        true
+      }
+      else -> false
+    }
+  }
+  
+  // Check if we can go back (either stack has history, or we're on a non-Home tab)
+  val canGoBack = navigationStack.size > 1 || currentScreen != Screen.Home
 
   val libraryViewModel: LibraryViewModel = viewModel(
     factory = LibraryViewModelFactory(sessionStore, playerController)
@@ -123,42 +163,63 @@ fun MainScreen(
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
     val screenHeightPx = constraints.maxHeight.toFloat()
     val minDragThreshold = screenHeightPx * 0.18f
-    val minPlayerOffset = -screenHeightPx
-    val playerDragOffset = remember { Animatable(0f) }
-    val dragProgress = ((-playerDragOffset.value) / screenHeightPx).coerceIn(0f, 1f)
-    val playerScale = 0.96f + (0.04f * dragProgress)
-    val playerCornerRadius = (32.dp * (1f - dragProgress))
-    val miniPlayerTopMargin = 12.dp
-    val miniPlayerBottomMargin = NavBarContentHeight + 12.dp
+    val miniPlayerTopMargin = 4.dp
+    val expandFractionThreshold = 0.35f
     val density = LocalDensity.current
-    val miniPlayerCollapsedOffset = with(density) {
-      (miniPlayerBottomMargin + miniPlayerTopMargin).toPx()
+    val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBarBottomPadding = bottomInset + 12.dp
+    val navBarHeightPx = with(density) { (NavBarContentHeight + navBarBottomPadding).toPx() }
+    val miniPlayerHeightPx = with(density) { MiniPlayerHeight.toPx() }
+    val miniPlayerTopMarginPx = with(density) { miniPlayerTopMargin.toPx() }
+    val collapsedSheetY = (screenHeightPx - miniPlayerHeightPx - navBarHeightPx - miniPlayerTopMarginPx)
+      .coerceAtLeast(0f)
+    val playerDragOffset = remember { Animatable(collapsedSheetY) }
+    val dragProgress = if (collapsedSheetY > 0f) {
+      ((collapsedSheetY - playerDragOffset.value) / collapsedSheetY).coerceIn(0f, 1f)
+    } else {
+      1f
     }
-    val playerTranslationY = (1f - dragProgress) * miniPlayerCollapsedOffset
+    val playerScale = 1f
+    val miniPlayerAlpha = (1f - dragProgress * 2f).coerceIn(0f, 1f)
+    val fullPlayerAlpha = ((dragProgress - 0.15f).coerceIn(0f, 0.85f) / 0.85f)
+    val sheetTopCornerRadius = lerp(32.dp, 0.dp, dragProgress)
+    val sheetBottomCornerRadius = lerp(12.dp, 0.dp, dragProgress)
+    val sheetHorizontalPadding = lerp(12.dp, 0.dp, dragProgress)
+    val sheetHeightPx = miniPlayerHeightPx + (screenHeightPx - miniPlayerHeightPx) * dragProgress
+    val sheetHeightDp = with(density) { sheetHeightPx.toDp() }
+    val backProgress = remember { Animatable(0f) }
 
-    fun openPlayerAnimated() {
+    fun openPlayerAnimated(initialVelocity: Float = 0f) {
       scope.launch {
         playerDragOffset.animateTo(
-          targetValue = minPlayerOffset,
+          targetValue = 0f,
+          initialVelocity = initialVelocity,
           animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow
           )
         )
-        isPlayerOpen = true
-        playerDragOffset.snapTo(0f)
       }
     }
 
-    fun closePlayer() {
-      isPlayerOpen = false
-      scope.launch { playerDragOffset.snapTo(0f) }
+    fun closePlayer(initialVelocity: Float = 0f) {
+      scope.launch {
+        playerDragOffset.animateTo(
+          targetValue = collapsedSheetY,
+          initialVelocity = initialVelocity,
+          animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+          )
+        )
+      }
     }
 
-    fun animatePlayerOffset(target: Float) {
+    fun animatePlayerOffset(target: Float, initialVelocity: Float = 0f) {
       scope.launch {
         playerDragOffset.animateTo(
           targetValue = target,
+          initialVelocity = initialVelocity,
           animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow
@@ -169,186 +230,387 @@ fun MainScreen(
 
     fun onPlayerDrag(delta: Float) {
       scope.launch {
-        playerDragOffset.snapTo((playerDragOffset.value + delta).coerceIn(minPlayerOffset, 0f))
+        playerDragOffset.snapTo((playerDragOffset.value + delta).coerceIn(0f, collapsedSheetY))
       }
     }
 
-    fun onPlayerDragEnd() {
-      val shouldOpen = playerDragOffset.value <= -minDragThreshold
+    fun onPlayerDragEnd(velocity: Float) {
+      val shouldOpen = when {
+        velocity < -80f -> true
+        velocity > 120f -> false
+        else -> dragProgress > expandFractionThreshold
+      }
       if (shouldOpen) {
-        openPlayerAnimated()
+        openPlayerAnimated(initialVelocity = velocity)
       } else {
-        animatePlayerOffset(0f)
+        animatePlayerOffset(collapsedSheetY, initialVelocity = velocity)
       }
     }
 
-    // Main content area
-    when {
-      isPlayerOpen -> {
-        PlayerScreen(
-          playerController = playerController,
-          onBack = { closePlayer() }
-        )
-      }
-      currentScreen == Screen.Settings -> {
-        Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-        ) {
-          SettingsScreen(
+    val renderScreenContent: @Composable (Screen) -> Unit = { screenToRender ->
+      when {
+        screenToRender == Screen.Settings -> {
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .background(MaterialTheme.colorScheme.background)
+          ) {
+            SettingsScreen(
+              sessionStore = sessionStore,
+              onLogout = onLogout,
+              hasPlayerBar = libraryState.nowPlaying != null
+            )
+
+            Column(
+              modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+            ) {
+              BottomNavBar(
+                items = navItems,
+                currentScreen = currentScreen, // Highlight current tab even if rendering previous
+                onNavigate = { destination -> navigateToTab(destination) },
+                onSettingsClick = { navigateToTab(Screen.Settings) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+            }
+          }
+        }
+        screenToRender is Screen.AlbumDetail -> {
+          val detail = screenToRender as Screen.AlbumDetail
+          AlbumDetailScreen(
+            albumId = detail.albumId,
+            albumName = detail.albumName,
             sessionStore = sessionStore,
-            onLogout = onLogout,
-            hasPlayerBar = libraryState.nowPlaying != null
+            playerController = playerController,
+            onBack = { goBack() },
+            onOpenPlayer = { openPlayerAnimated() }
           )
-
-          Column(
-            modifier = Modifier
-              .align(Alignment.BottomCenter)
-              .fillMaxWidth()
-          ) {
-            libraryState.nowPlaying?.let { nowPlaying ->
-              MiniPlayerBar(
-                title = nowPlaying.title,
-                artist = nowPlaying.artist,
-                albumArtUrl = nowPlaying.albumArtUrl,
-                isPlaying = nowPlaying.isPlaying,
-                onPrevious = { libraryViewModel.skipPrevious() },
-                onPlayPause = { libraryViewModel.togglePlayPause() },
-                onNext = { libraryViewModel.skipNext() },
-                onClick = { openPlayerAnimated() },
-                onDrag = { delta -> onPlayerDrag(delta) },
-                onDragEnd = { onPlayerDragEnd() }
-              )
-            }
-
-            BottomNavBar(
-              items = navItems,
-              currentScreen = currentScreen,
-              onNavigate = { destination -> currentScreen = destination },
-              onSettingsClick = { currentScreen = Screen.Settings },
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
-          }
         }
-      }
-      currentScreen is Screen.AlbumDetail -> {
-        val detail = currentScreen as Screen.AlbumDetail
-        AlbumDetailScreen(
-          albumId = detail.albumId,
-          albumName = detail.albumName,
-          sessionStore = sessionStore,
-          playerController = playerController,
-          onBack = { currentScreen = Screen.Albums },
-          onOpenPlayer = { openPlayerAnimated() }
-        )
-      }
-      currentScreen is Screen.ArtistDetail -> {
-        val detail = currentScreen as Screen.ArtistDetail
-        ArtistDetailScreen(
-          artistId = detail.artistId,
-          artistName = detail.artistName,
-          sessionStore = sessionStore,
-          playerController = playerController,
-          onBack = { currentScreen = Screen.Artists },
-          onOpenPlayer = { openPlayerAnimated() }
-        )
-      }
-      else -> {
-        Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-        ) {
-          when (currentScreen) {
-            Screen.Home -> HomeScreen(
-              sessionStore = sessionStore,
-              playerController = playerController,
-              onOpenPlayer = { openPlayerAnimated() },
-              onNavigateToAlbum = { currentScreen = it },
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
-            Screen.Songs -> LibraryScreen(
-              sessionStore = sessionStore,
-              playerController = playerController,
-              onOpenPlayer = { openPlayerAnimated() },
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
-            Screen.Albums -> AlbumsScreen(
-              sessionStore = sessionStore,
-              playerController = playerController,
-              onOpenPlayer = { openPlayerAnimated() },
-              onNavigateToAlbum = { currentScreen = it },
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
-            Screen.Artists -> ArtistsScreen(
-              sessionStore = sessionStore,
-              playerController = playerController,
-              onOpenPlayer = { openPlayerAnimated() },
-              onNavigateToArtist = { currentScreen = it },
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
-            Screen.Playlists -> PlaylistsScreen(
-              sessionStore = sessionStore,
-              playerController = playerController,
-              onOpenPlayer = { openPlayerAnimated() },
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
-            Screen.Search -> SearchScreen(
-              sessionStore = sessionStore,
-              playerController = playerController,
-              onOpenPlayer = { openPlayerAnimated() },
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
-            else -> {}
-          }
-
-          Column(
+        screenToRender is Screen.ArtistDetail -> {
+          val detail = screenToRender as Screen.ArtistDetail
+          ArtistDetailScreen(
+            artistId = detail.artistId,
+            artistName = detail.artistName,
+            sessionStore = sessionStore,
+            playerController = playerController,
+            onBack = { goBack() },
+            onOpenPlayer = { openPlayerAnimated() }
+          )
+        }
+        else -> {
+          Box(
             modifier = Modifier
-              .align(Alignment.BottomCenter)
-              .fillMaxWidth()
+              .fillMaxSize()
+              .background(MaterialTheme.colorScheme.background)
           ) {
-            libraryState.nowPlaying?.let { nowPlaying ->
-              MiniPlayerBar(
-                title = nowPlaying.title,
-                artist = nowPlaying.artist,
-                albumArtUrl = nowPlaying.albumArtUrl,
-                isPlaying = nowPlaying.isPlaying,
-                onPrevious = { libraryViewModel.skipPrevious() },
-                onPlayPause = { libraryViewModel.togglePlayPause() },
-                onNext = { libraryViewModel.skipNext() },
-                onClick = { openPlayerAnimated() },
-                onDrag = { delta -> onPlayerDrag(delta) },
-                onDragEnd = { onPlayerDragEnd() }
+            when (screenToRender) {
+              Screen.Home -> HomeScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                onNavigateToAlbum = { navigate(it) },
+                hasPlayerBar = libraryState.nowPlaying != null
               )
+              Screen.Songs -> LibraryScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Albums -> AlbumsScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                onNavigateToAlbum = { navigate(it) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Artists -> ArtistsScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                onNavigateToArtist = { navigate(it) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Playlists -> PlaylistsScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Search -> SearchScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              else -> {}
             }
 
-            BottomNavBar(
-              items = navItems,
-              currentScreen = currentScreen,
-              onNavigate = { currentScreen = it },
-              onSettingsClick = { currentScreen = Screen.Settings },
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
+            Column(
+              modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+            ) {
+              BottomNavBar(
+                items = navItems,
+                currentScreen = currentScreen, // Keep highlighting active tab
+                onNavigate = { navigateToTab(it) },
+                onSettingsClick = { navigateToTab(Screen.Settings) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+            }
           }
         }
       }
     }
 
-    if (!isPlayerOpen && libraryState.nowPlaying != null) {
-      PlayerScreen(
-        playerController = playerController,
-        onBack = { closePlayer() },
-        modifier = Modifier
-          .offset { IntOffset(0, (playerDragOffset.value + screenHeightPx).roundToInt()) }
-          .graphicsLayer {
-            translationY = playerTranslationY
-            scaleX = playerScale
-            scaleY = playerScale
-            clip = true
-            shape = RoundedCornerShape(playerCornerRadius)
+    // Navigation back handler
+    PredictiveBackHandler(enabled = canGoBack && dragProgress < 0.5f) { progress ->
+      try {
+        progress.collect { backEvent ->
+          backProgress.snapTo(backEvent.progress)
+        }
+        // Completed
+        backProgress.snapTo(0f)
+        goBack()
+      } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+        // Cancelled - snap back to 0
+        backProgress.animateTo(0f)
+      }
+    }
+
+    Box(
+      modifier = Modifier
+        .fillMaxSize()
+        .graphicsLayer {
+          val scale = 1f - (backProgress.value * 0.1f)
+          scaleX = scale
+          scaleY = scale
+          alpha = 1f - (backProgress.value * 0.1f)
+          transformOrigin = TransformOrigin(0.5f, 0.5f)
+          clip = true
+          shape = RoundedCornerShape((32 * backProgress.value).dp)
+        }
+    ) {
+      // Main content area
+      when {
+        currentScreen == Screen.Settings -> {
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .background(MaterialTheme.colorScheme.background)
+          ) {
+            SettingsScreen(
+              sessionStore = sessionStore,
+              onLogout = onLogout,
+              hasPlayerBar = libraryState.nowPlaying != null
+            )
+
+            Column(
+              modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+            ) {
+              BottomNavBar(
+                items = navItems,
+                currentScreen = currentScreen,
+                onNavigate = { destination -> navigateToTab(destination) },
+                onSettingsClick = { navigateToTab(Screen.Settings) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+            }
           }
-      )
+        }
+        currentScreen is Screen.AlbumDetail -> {
+          val detail = currentScreen as Screen.AlbumDetail
+          AlbumDetailScreen(
+            albumId = detail.albumId,
+            albumName = detail.albumName,
+            sessionStore = sessionStore,
+            playerController = playerController,
+            onBack = { goBack() },
+            onOpenPlayer = { openPlayerAnimated() }
+          )
+        }
+        currentScreen is Screen.ArtistDetail -> {
+          val detail = currentScreen as Screen.ArtistDetail
+          ArtistDetailScreen(
+            artistId = detail.artistId,
+            artistName = detail.artistName,
+            sessionStore = sessionStore,
+            playerController = playerController,
+            onBack = { goBack() },
+            onOpenPlayer = { openPlayerAnimated() }
+          )
+        }
+        else -> {
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .background(MaterialTheme.colorScheme.background)
+          ) {
+            when (currentScreen) {
+              Screen.Home -> HomeScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                onNavigateToAlbum = { navigate(it) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Songs -> LibraryScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Albums -> AlbumsScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                onNavigateToAlbum = { navigate(it) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Artists -> ArtistsScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                onNavigateToArtist = { navigate(it) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Playlists -> PlaylistsScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              Screen.Search -> SearchScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onOpenPlayer = { openPlayerAnimated() },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+              else -> {}
+            }
+
+            Column(
+              modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+            ) {
+              BottomNavBar(
+                items = navItems,
+                currentScreen = currentScreen,
+                onNavigate = { navigateToTab(it) },
+                onSettingsClick = { navigateToTab(Screen.Settings) },
+                hasPlayerBar = libraryState.nowPlaying != null
+              )
+            }
+          }
+        }
+      }
+
+      if (libraryState.nowPlaying != null) {
+        // Handle predictive back gesture when player is expanded
+        PredictiveBackHandler(enabled = dragProgress > 0.5f) { progress ->
+          try {
+            progress.collect { backEvent ->
+              // Map back gesture progress (0-1) to player offset
+              val targetOffset = collapsedSheetY * backEvent.progress
+              playerDragOffset.snapTo(targetOffset)
+            }
+            // Gesture completed - close player
+            closePlayer()
+          } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            // Gesture cancelled - snap back to open
+            openPlayerAnimated()
+          }
+        }
+
+        val playerSurfaceColor = MaterialTheme.colorScheme.primaryContainer
+        Box(
+          modifier = Modifier
+            .offset { IntOffset(0, playerDragOffset.value.roundToInt()) }
+            .fillMaxWidth()
+            .padding(horizontal = sheetHorizontalPadding)
+            .height(sheetHeightDp)
+            .graphicsLayer {
+              scaleX = playerScale
+              scaleY = playerScale
+              clip = true
+              shape = RoundedCornerShape(
+                topStart = sheetTopCornerRadius,
+                topEnd = sheetTopCornerRadius,
+                bottomStart = sheetBottomCornerRadius,
+                bottomEnd = sheetBottomCornerRadius
+              )
+              transformOrigin = TransformOrigin(0.5f, 1f)
+            }
+            .background(
+              color = playerSurfaceColor,
+              shape = RoundedCornerShape(
+                topStart = sheetTopCornerRadius,
+                topEnd = sheetTopCornerRadius,
+                bottomStart = sheetBottomCornerRadius,
+                bottomEnd = sheetBottomCornerRadius
+              )
+            )
+            .zIndex(1f)
+        ) {
+          libraryState.nowPlaying?.let { nowPlaying ->
+            MiniPlayerBar(
+              title = nowPlaying.title,
+              artist = nowPlaying.artist,
+              albumArtUrl = nowPlaying.albumArtUrl,
+              isPlaying = nowPlaying.isPlaying,
+              hasPrevious = nowPlaying.hasPrevious,
+              hasNext = nowPlaying.hasNext,
+              onPrevious = { libraryViewModel.skipPrevious() },
+              onPlayPause = { libraryViewModel.togglePlayPause() },
+              onNext = { libraryViewModel.skipNext() },
+              onClick = { openPlayerAnimated() },
+              onDrag = { delta -> onPlayerDrag(delta) },
+              onDragEnd = { velocity -> onPlayerDragEnd(velocity) },
+              modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .graphicsLayer { alpha = miniPlayerAlpha }
+                .zIndex(if (dragProgress < 0.5f) 1f else 0f)
+            )
+          }
+
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .pointerInput(Unit) {
+                var totalDrag = 0f
+                detectVerticalDragGestures(
+                  onVerticalDrag = { _, dragAmount ->
+                    totalDrag += dragAmount
+                    onPlayerDrag(dragAmount)
+                  },
+                  onDragEnd = {
+                    val velocity = if (totalDrag != 0f) totalDrag * 12f else 0f
+                    onPlayerDragEnd(velocity)
+                    totalDrag = 0f
+                  }
+                )
+              }
+              .graphicsLayer {
+                alpha = fullPlayerAlpha
+                scaleX = lerp(0.92f, 1f, dragProgress)
+                scaleY = lerp(0.92f, 1f, dragProgress)
+                transformOrigin = TransformOrigin(0.5f, 1f)
+              }
+              .zIndex(if (dragProgress >= 0.5f) 1f else 0f)
+          ) {
+            PlayerScreen(
+              playerController = playerController,
+              onBack = { closePlayer() },
+              modifier = Modifier.fillMaxSize()
+            )
+          }
+        }
+      }
     }
   }
 }
@@ -370,6 +632,7 @@ fun BottomNavBar(
   val colors = MaterialTheme.colorScheme
   val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
   val bottomPadding = if (hasPlayerBar) 8.dp else 12.dp
+  val topCornerRadius = if (hasPlayerBar) 12.dp else 32.dp
 
   Surface(
     modifier = modifier
@@ -379,7 +642,12 @@ fun BottomNavBar(
     color = colors.surface,
     tonalElevation = 4.dp,
     shadowElevation = 12.dp,
-    shape = RoundedCornerShape(32.dp)
+    shape = RoundedCornerShape(
+      topStart = topCornerRadius,
+      topEnd = topCornerRadius,
+      bottomStart = 32.dp,
+      bottomEnd = 32.dp
+    )
   ) {
     Column(
       modifier = Modifier
@@ -476,107 +744,117 @@ fun MiniPlayerBar(
   artist: String,
   albumArtUrl: String?,
   isPlaying: Boolean,
+  hasPrevious: Boolean,
+  hasNext: Boolean,
   onPrevious: () -> Unit,
   onPlayPause: () -> Unit,
   onNext: () -> Unit,
   onClick: () -> Unit,
   onDrag: (Float) -> Unit,
-  onDragEnd: () -> Unit,
+  onDragEnd: (Float) -> Unit,
   modifier: Modifier = Modifier
 ) {
   val colors = MaterialTheme.colorScheme
-  val interactionSource = remember { MutableInteractionSource() }
 
   Box(
     modifier = modifier
       .fillMaxWidth()
-      .padding(horizontal = 12.dp)
-      .shadow(
-        elevation = 6.dp,
-        shape = RoundedCornerShape(32.dp),
-        ambientColor = colors.primary.copy(alpha = 0.12f),
-        spotColor = colors.primary.copy(alpha = 0.12f),
-        clip = false
-      )
-      .clip(RoundedCornerShape(32.dp))
-      .background(colors.primaryContainer)
       .pointerInput(Unit) {
+        var totalDrag = 0f
         detectVerticalDragGestures(
           onVerticalDrag = { _, dragAmount ->
             if (dragAmount < 0f) {
+              totalDrag += dragAmount
               onDrag(dragAmount)
             }
           },
-          onDragEnd = { onDragEnd() }
+          onDragEnd = {
+            val velocity = if (totalDrag != 0f) totalDrag * 12f else 0f
+            onDragEnd(velocity)
+            totalDrag = 0f
+          }
         )
       }
-      .clickable(
-        interactionSource = interactionSource,
-        indication = null,
-        onClick = onClick
-      )
       .height(MiniPlayerHeight)
-      .padding(start = 10.dp, end = 12.dp)
+      .padding(horizontal = 18.dp)
   ) {
     Row(
       modifier = Modifier.fillMaxSize(),
       verticalAlignment = Alignment.CenterVertically
     ) {
-      AlbumArt(
-        imageUrl = albumArtUrl,
-        size = 44.dp,
-        cornerRadius = 22.dp,
-        style = AlbumArtStyle.Song,
-        containerColor = colors.primary.copy(alpha = 0.2f),
-        contentColor = colors.onPrimaryContainer
-      )
-
-      Spacer(modifier = Modifier.width(12.dp))
-
-      Column(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.Center
+      // Clickable area for opening player (album art + text)
+      Row(
+        modifier = Modifier
+          .weight(1f)
+          .fillMaxHeight()
+          .clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+            onClick = onClick
+          ),
+        verticalAlignment = Alignment.CenterVertically
       ) {
-        Text(
-          text = title,
-          style = MaterialTheme.typography.titleSmall.copy(
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.2).sp
-          ),
-          color = colors.onPrimaryContainer,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
+        AlbumArt(
+          imageUrl = albumArtUrl,
+          size = 44.dp,
+          cornerRadius = 22.dp,
+          style = AlbumArtStyle.Song,
+          containerColor = colors.primary.copy(alpha = 0.2f),
+          contentColor = colors.onPrimaryContainer
         )
-        Text(
-          text = artist,
-          style = MaterialTheme.typography.bodySmall.copy(
-            fontSize = 13.sp
-          ),
-          color = colors.onPrimaryContainer.copy(alpha = 0.7f),
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(
+          modifier = Modifier.weight(1f),
+          verticalArrangement = Arrangement.Center
+        ) {
+          Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall.copy(
+              fontSize = 15.sp,
+              fontWeight = FontWeight.SemiBold,
+              letterSpacing = (-0.2).sp
+            ),
+            color = colors.onPrimaryContainer,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+          Text(
+            text = artist,
+            style = MaterialTheme.typography.bodySmall.copy(
+              fontSize = 13.sp
+            ),
+            color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+        }
       }
 
       Spacer(modifier = Modifier.width(8.dp))
+
 
       Box(
         modifier = Modifier
           .size(36.dp)
           .clip(CircleShape)
-          .background(colors.primary.copy(alpha = 0.2f))
-          .clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onPrevious
+          .background(colors.primary.copy(alpha = if (hasPrevious) 0.2f else 0.08f))
+          .then(
+            if (hasPrevious) {
+              Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onPrevious
+              )
+            } else Modifier
           ),
         contentAlignment = Alignment.Center
       ) {
         Icon(
           imageVector = Icons.Filled.SkipPrevious,
           contentDescription = "Previous",
-          tint = colors.primary,
+          tint = colors.primary.copy(alpha = if (hasPrevious) 1f else 0.4f),
           modifier = Modifier.size(22.dp)
         )
       }
@@ -595,9 +873,8 @@ fun MiniPlayerBar(
           ),
         contentAlignment = Alignment.Center
       ) {
-        Icon(
-          imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-          contentDescription = if (isPlaying) "Pause" else "Play",
+        AnimatedPlayPauseIcon(
+          isPlaying = isPlaying,
           tint = colors.onPrimary,
           modifier = Modifier.size(20.dp)
         )
@@ -609,20 +886,25 @@ fun MiniPlayerBar(
         modifier = Modifier
           .size(36.dp)
           .clip(CircleShape)
-          .background(colors.primary.copy(alpha = 0.2f))
-          .clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onNext
+          .background(colors.primary.copy(alpha = if (hasNext) 0.2f else 0.08f))
+          .then(
+            if (hasNext) {
+              Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onNext
+              )
+            } else Modifier
           ),
         contentAlignment = Alignment.Center
       ) {
         Icon(
           imageVector = Icons.Filled.SkipNext,
           contentDescription = "Next",
-          tint = colors.primary,
+          tint = colors.primary.copy(alpha = if (hasNext) 1f else 0.4f),
           modifier = Modifier.size(22.dp)
         )
+
       }
     }
   }

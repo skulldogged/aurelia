@@ -9,7 +9,8 @@
     android:icon="@mipmap/ic_launcher"
     android:roundIcon="@mipmap/ic_launcher_round"
     android:theme="@style/Theme.Aurelia"
-    android:supportsRtl="true">
+    android:supportsRtl="true"
+    android:enableOnBackInvokedCallback="true">
     <service
       android:name=".player.PlaybackService"
       android:exported="false"
