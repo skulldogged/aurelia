@@ -54,7 +54,6 @@ data class AlbumItem(
 fun AlbumsScreen(
   sessionStore: SessionStore,
   playerController: PlayerController,
-  onOpenPlayer: () -> Unit,
   onNavigateToAlbum: (Screen.AlbumDetail) -> Unit = {},
   hasPlayerBar: Boolean = false
 ) {
@@ -120,6 +119,7 @@ fun AlbumsScreen(
           CircularProgressIndicator(color = colors.primary)
         }
       }
+
       else -> {
         LazyVerticalGrid(
           columns = GridCells.Fixed(2),
@@ -190,7 +190,9 @@ private fun AlbumCard(
             contentScale = ContentScale.Crop,
             loading = {
               Box(
-                modifier = Modifier.fillMaxSize().background(colors.surfaceVariant),
+                modifier = Modifier
+                  .fillMaxSize()
+                  .background(colors.surfaceVariant),
                 contentAlignment = Alignment.Center
               ) {
                 Icon(
@@ -203,7 +205,9 @@ private fun AlbumCard(
             },
             error = {
               Box(
-                modifier = Modifier.fillMaxSize().background(colors.surfaceVariant),
+                modifier = Modifier
+                  .fillMaxSize()
+                  .background(colors.surfaceVariant),
                 contentAlignment = Alignment.Center
               ) {
                 Icon(

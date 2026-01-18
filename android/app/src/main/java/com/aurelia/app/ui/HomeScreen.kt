@@ -1,9 +1,5 @@
 package com.aurelia.app.ui
 
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -50,11 +44,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
-import com.aurelia.app.player.PlayerController
-import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.navigation.Screen
 import uniffi.aurelia_core.Song
@@ -62,15 +52,11 @@ import java.util.Calendar
 
 @Composable
 fun HomeScreen(
-  sessionStore: SessionStore,
-  playerController: PlayerController,
+  viewModel: HomeViewModel,
   onOpenPlayer: () -> Unit,
   onNavigateToAlbum: (Screen.AlbumDetail) -> Unit = {},
   hasPlayerBar: Boolean = false
 ) {
-  val viewModel: HomeViewModel = viewModel(
-    factory = HomeViewModelFactory(sessionStore, playerController)
-  )
   val state by viewModel.state.collectAsState()
   val colors = MaterialTheme.colorScheme
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
@@ -97,6 +83,7 @@ fun HomeScreen(
         CircularProgressIndicator(color = colors.primary)
       }
     }
+
     state.error != null && state.recentlyPlayed.isEmpty() -> {
       Box(
         modifier = Modifier
@@ -111,6 +98,7 @@ fun HomeScreen(
         )
       }
     }
+
     else -> {
       // Calculate quickPicks outside the grid (composable context)
       val quickPicks = remember(state.mostPlayed, state.recentlyPlayed) {

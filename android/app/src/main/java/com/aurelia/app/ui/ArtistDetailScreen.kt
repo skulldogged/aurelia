@@ -13,11 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
@@ -169,16 +167,16 @@ fun ArtistDetailScreen(
               if (artistSongs.isNotEmpty()) {
                 val serverUrl = sessionStore.getServerUrl() ?: return@FilledIconButton
                 val token = sessionStore.getToken() ?: return@FilledIconButton
-                
+
                 val queueItems = artistSongs.map { song ->
-                   QueueItem(
-                     id = song.id,
-                     uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                     title = song.name,
-                     artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                     albumArtUrl = song.albumArtUrl,
-                     durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() }
-                   )
+                  QueueItem(
+                    id = song.id,
+                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+                    title = song.name,
+                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+                    albumArtUrl = song.albumArtUrl,
+                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() }
+                  )
                 }
                 playerController.setQueue(queueItems, 0)
                 onOpenPlayer()
@@ -219,16 +217,16 @@ fun ArtistDetailScreen(
           onClick = {
             val serverUrl = sessionStore.getServerUrl() ?: return@ArtistSongItem
             val token = sessionStore.getToken() ?: return@ArtistSongItem
-            
+
             val queueItems = artistSongs.map { s ->
-                QueueItem(
-                  id = s.id,
-                  uri = buildStreamUrl(serverUrl, token, s.id, s.container),
-                  title = s.name,
-                  artist = s.artists?.joinToString(", ") ?: "Unknown Artist",
-                  albumArtUrl = s.albumArtUrl,
-                  durationMs = (s.duration ?: 0.0).let { (it * 1000).toLong() }
-                )
+              QueueItem(
+                id = s.id,
+                uri = buildStreamUrl(serverUrl, token, s.id, s.container),
+                title = s.name,
+                artist = s.artists?.joinToString(", ") ?: "Unknown Artist",
+                albumArtUrl = s.albumArtUrl,
+                durationMs = (s.duration ?: 0.0).let { (it * 1000).toLong() }
+              )
             }
             playerController.setQueue(queueItems, index)
             onOpenPlayer()
@@ -249,7 +247,8 @@ private fun ArtistSongItem(
   onClick: () -> Unit
 ) {
   val colors = MaterialTheme.colorScheme
-  val containerColor = if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.5f) else colors.surface.copy(alpha = 0f)
+  val containerColor =
+    if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.5f) else colors.surface.copy(alpha = 0f)
 
   Surface(
     modifier = Modifier.fillMaxWidth(),

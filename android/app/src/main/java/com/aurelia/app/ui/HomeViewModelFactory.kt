@@ -11,9 +11,9 @@ class HomeViewModelFactory(
 ) : ViewModelProvider.Factory {
   @Suppress("UNCHECKED_CAST")
   override fun <T : ViewModel> create(modelClass: Class<T>): T {
-    if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
+    if (modelClass.isAssignableFrom(HomeViewModel::class.java))
       return HomeViewModel(sessionStore, playerController) as T
-    }
+
     throw IllegalArgumentException("Unknown ViewModel class")
   }
 }

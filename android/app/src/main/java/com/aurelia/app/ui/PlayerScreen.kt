@@ -1,6 +1,10 @@
 package com.aurelia.app.ui
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -12,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -23,22 +28,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -48,7 +55,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import com.aurelia.app.ui.components.WavyMusicSlider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,23 +62,31 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
+import com.aurelia.app.data.model.Lyrics
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.QueueItem
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
+import com.aurelia.app.ui.components.WavyMusicSlider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -86,13 +100,11 @@ fun PlayerScreen(
   modifier: Modifier = Modifier,
   isEmbedded: Boolean = false
 ) {
-  val containerModifier = modifier
-
   val viewModel: PlayerViewModel = viewModel(
     factory = PlayerViewModelFactory(playerController)
   )
   val state by viewModel.state.collectAsState()
-  
+
   var showQueueSheet by remember { mutableStateOf(false) }
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val scope = rememberCoroutineScope()
@@ -100,12 +112,11 @@ fun PlayerScreen(
   val colors = MaterialTheme.colorScheme
 
   Column(
-    modifier = containerModifier
+    modifier = modifier
       .fillMaxSize()
       .background(colors.primaryContainer)
       .statusBarsPadding()
   ) {
-    // Top bar with collapse button and queue button
     Row(
       modifier = Modifier
         .fillMaxWidth()
@@ -126,18 +137,36 @@ fun PlayerScreen(
           contentDescription = "Close player"
         )
       }
-      
+
       Spacer(modifier = Modifier.weight(1f))
-      
-      // Queue button
+
+      FilledIconButton(
+        onClick = { viewModel.toggleLyrics() },
+        colors = IconButtonDefaults.filledIconButtonColors(
+          containerColor = if (state.showLyrics) colors.primary else colors.onPrimary.copy(alpha = 0.8f),
+          contentColor = if (state.showLyrics) colors.onPrimary else colors.primary
+        ),
+        modifier = Modifier.size(42.dp)
+      ) {
+        Icon(
+          imageVector = Icons.Filled.Mic,
+          contentDescription = "Show lyrics"
+        )
+      }
+
+      Spacer(modifier = Modifier.size(8.dp))
+
       IconButton(
         onClick = { showQueueSheet = true },
+        colors = IconButtonDefaults.iconButtonColors(
+          containerColor = colors.onPrimary.copy(alpha = 0.8f),
+          contentColor = colors.onPrimaryContainer
+        ),
         modifier = Modifier.size(42.dp)
       ) {
         Icon(
           imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-          contentDescription = "Show queue",
-          tint = colors.onPrimaryContainer
+          contentDescription = "Show queue"
         )
       }
     }
@@ -150,72 +179,82 @@ fun PlayerScreen(
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.SpaceEvenly
     ) {
-      // Album art
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(vertical = 16.dp)
-          .aspectRatio(1f)
-      ) {
-        Surface(
+      if (state.showLyrics) {
+        LyricsView(
+          lyrics = state.lyrics,
+          currentPosition = state.positionMs,
+          onLineClick = { timeMs -> viewModel.seekTo(timeMs.toLong()) },
           modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(32.dp)),
-          color = colors.surfaceVariant,
-          tonalElevation = 8.dp
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+            .aspectRatio(1f)
+        )
+      } else {
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+            .aspectRatio(1f)
         ) {
-          if (state.albumArtUrl.isNullOrBlank()) {
-            Box(
-              modifier = Modifier.fillMaxSize(),
-              contentAlignment = Alignment.Center
-            ) {
-              Icon(
-                imageVector = Icons.Filled.Album,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
+          Surface(
+            modifier = Modifier
+              .fillMaxSize()
+              .clip(RoundedCornerShape(32.dp)),
+            color = colors.surfaceVariant,
+            tonalElevation = 8.dp
+          ) {
+            if (state.albumArtUrl.isNullOrBlank()) {
+              Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Filled.Album,
+                  contentDescription = null,
+                  modifier = Modifier.size(64.dp),
+                  tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
+                )
+              }
+            } else {
+              SubcomposeAsyncImage(
+                model = state.albumArtUrl,
+                contentDescription = "Album art",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                loading = {
+                  Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                  ) {
+                    Icon(
+                      imageVector = Icons.Filled.Album,
+                      contentDescription = null,
+                      modifier = Modifier.size(64.dp),
+                      tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
+                    )
+                  }
+                },
+                error = {
+                  Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                  ) {
+                    Icon(
+                      imageVector = Icons.Filled.Album,
+                      contentDescription = null,
+                      modifier = Modifier.size(64.dp),
+                      tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
+                    )
+                  }
+                }
               )
             }
-          } else {
-            SubcomposeAsyncImage(
-              model = state.albumArtUrl,
-              contentDescription = "Album art",
-              modifier = Modifier.fillMaxSize(),
-              contentScale = ContentScale.Crop,
-              loading = {
-                Box(
-                  modifier = Modifier.fillMaxSize(),
-                  contentAlignment = Alignment.Center
-                ) {
-                  Icon(
-                    imageVector = Icons.Filled.Album,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
-                  )
-                }
-              },
-              error = {
-                Box(
-                  modifier = Modifier.fillMaxSize(),
-                  contentAlignment = Alignment.Center
-                ) {
-                  Icon(
-                    imageVector = Icons.Filled.Album,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = colors.onSurfaceVariant.copy(alpha = 0.3f)
-                  )
-                }
-              }
-            )
           }
         }
       }
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Song metadata section
       Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start
@@ -240,7 +279,6 @@ fun PlayerScreen(
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      // Progress section
       if (!isEmbedded) {
         Column(
           modifier = Modifier.fillMaxWidth()
@@ -292,7 +330,6 @@ fun PlayerScreen(
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      // Animated playback controls
       AnimatedPlaybackControls(
         isPlaying = state.isPlaying,
         hasPrevious = state.hasPrevious,
@@ -303,12 +340,11 @@ fun PlayerScreen(
         height = 80.dp,
         colors = colors
       )
-      
+
       Spacer(modifier = Modifier.height(16.dp))
     }
   }
-  
-  // Queue bottom sheet
+
   if (showQueueSheet) {
     ModalBottomSheet(
       onDismissRequest = { showQueueSheet = false },
@@ -401,7 +437,6 @@ private fun AnimatedPlaybackControls(
     horizontalArrangement = Arrangement.spacedBy(8.dp),
     verticalAlignment = Alignment.CenterVertically
   ) {
-    // Previous button
     val prevWeight by animateFloatAsState(
       targetValue = weightFor(ControlButton.PREVIOUS),
       animationSpec = animationSpec,
@@ -436,7 +471,6 @@ private fun AnimatedPlaybackControls(
       )
     }
 
-    // Play/Pause button with morphing shape
     val playWeight by animateFloatAsState(
       targetValue = weightFor(ControlButton.PLAY_PAUSE),
       animationSpec = animationSpec,
@@ -472,7 +506,6 @@ private fun AnimatedPlaybackControls(
       )
     }
 
-    // Next button
     val nextWeight by animateFloatAsState(
       targetValue = weightFor(ControlButton.NEXT),
       animationSpec = animationSpec,
@@ -509,11 +542,160 @@ private fun AnimatedPlaybackControls(
   }
 }
 
+@Composable
 private fun formatTime(timeMs: Long): String {
   val totalSeconds = timeMs.coerceAtLeast(0L) / 1000
   val minutes = totalSeconds / 60
   val seconds = totalSeconds % 60
   return "%d:%02d".format(minutes, seconds)
+}
+
+@Composable
+private fun LyricsView(
+  lyrics: Lyrics?,
+  currentPosition: Long,
+  onLineClick: (Int) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  val colors = MaterialTheme.colorScheme
+  val syncedLines = lyrics?.synced
+  val plainLines = lyrics?.plain
+
+  val currentLineIndex = remember(currentPosition, syncedLines) {
+    if (syncedLines.isNullOrEmpty()) {
+      -1
+    } else {
+      syncedLines.withIndex().lastOrNull { (index, line) ->
+        val nextTime = syncedLines.getOrNull(index + 1)?.time?.toLong() ?: Long.MAX_VALUE
+        currentPosition in line.time.toLong()..<nextTime
+      }?.index ?: -1
+    }
+  }
+
+  BoxWithConstraints(modifier = modifier) {
+    val containerHeight = maxHeight
+    val density = LocalDensity.current
+    val viewportHeightPx = with(density) { containerHeight.toPx() }
+
+    if (!syncedLines.isNullOrEmpty()) {
+      val listState = rememberLazyListState()
+      val lineHeights = remember { mutableStateMapOf<Int, Int>() }
+      val density = LocalDensity.current
+      
+      // Auto-scroll when the current line changes
+      LaunchedEffect(currentLineIndex) {
+        if (currentLineIndex >= 0) {
+          snapshotFlow { lineHeights[currentLineIndex] }
+            .collectLatest { height ->
+              val offset = if (height != null) height / 2 else with(density) { 30.dp.roundToPx() }
+              listState.animateScrollToItem(currentLineIndex, scrollOffset = offset)
+            }
+        }
+      }
+
+      LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(0.dp),
+        contentPadding = PaddingValues(vertical = containerHeight / 2)
+      ) {
+        itemsIndexed(syncedLines) { index, line ->
+          val isCurrentLine = index == currentLineIndex
+          
+          val blurRadius by animateDpAsState(
+            targetValue = if (isCurrentLine) 0.dp else 4.dp,
+            animationSpec = tween(durationMillis = 300),
+            label = "blur"
+          )
+          
+          val textColor by animateColorAsState(
+            targetValue = if (isCurrentLine) colors.primary else colors.onPrimaryContainer,
+            animationSpec = tween(durationMillis = 300),
+            label = "color"
+          )
+          
+          Text(
+            text = line.line,
+            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp),
+            fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
+            color = textColor,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+              .fillMaxWidth()
+              .onSizeChanged { lineHeights[index] = it.height }
+              .blur(blurRadius)
+              .clip(RoundedCornerShape(12.dp))
+              .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+              ) { onLineClick(line.time) }
+              .padding(vertical = 8.dp, horizontal = 4.dp)
+          )
+        }
+      }
+
+      val fadeColor = colors.primaryContainer
+      
+      // Top Fade
+      Box(
+        modifier = Modifier
+          .align(Alignment.TopCenter)
+          .fillMaxWidth()
+          .height(containerHeight / 6)
+          .background(
+            Brush.verticalGradient(
+              colors = listOf(fadeColor, Color.Transparent)
+            )
+          )
+      )
+
+      // Bottom Fade
+      Box(
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .fillMaxWidth()
+          .height(containerHeight / 6)
+          .background(
+            Brush.verticalGradient(
+              colors = listOf(Color.Transparent, fadeColor)
+            )
+          )
+      )
+    } else if (!plainLines.isNullOrEmpty()) {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxSize()
+          .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(vertical = 200.dp)
+      ) {
+        itemsIndexed(plainLines) { _, line ->
+          Text(
+            text = line,
+            style = MaterialTheme.typography.headlineSmall,
+            color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(vertical = 8.dp)
+          )
+        }
+      }
+    } else {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
+        Text(
+          text = "No lyrics available",
+          style = MaterialTheme.typography.bodyLarge,
+          color = colors.onPrimaryContainer.copy(alpha = 0.5f)
+        )
+      }
+    }
+  }
 }
 
 @Composable
@@ -525,14 +707,13 @@ private fun QueueContent(
 ) {
   val colors = MaterialTheme.colorScheme
   val listState = rememberLazyListState()
-  
-  // Auto-scroll to current item when sheet opens
+
   LaunchedEffect(currentIndex) {
     if (currentIndex >= 0 && queue.isNotEmpty()) {
       listState.animateScrollToItem(currentIndex.coerceAtMost(queue.lastIndex))
     }
   }
-  
+
   if (queue.isEmpty()) {
     Box(
       modifier = modifier
@@ -586,8 +767,9 @@ private fun QueueItemRow(
   onClick: () -> Unit
 ) {
   val colors = MaterialTheme.colorScheme
-  val backgroundColor = if (isPlaying) colors.primaryContainer.copy(alpha = 0.3f) else colors.surface
-  
+  val backgroundColor =
+    if (isPlaying) colors.primaryContainer.copy(alpha = 0.3f) else colors.surface
+
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -597,13 +779,11 @@ private fun QueueItemRow(
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    // Position number or playing indicator
     Box(
       modifier = Modifier.size(24.dp),
       contentAlignment = Alignment.Center
     ) {
       if (isPlaying) {
-        // Playing indicator bars animation
         Row(
           horizontalArrangement = Arrangement.spacedBy(2.dp),
           verticalAlignment = Alignment.Bottom,
@@ -631,15 +811,13 @@ private fun QueueItemRow(
         )
       }
     }
-    
-    // Album art
+
     AlbumArt(
       imageUrl = item.albumArtUrl,
       modifier = Modifier.size(48.dp),
       cornerRadius = 6.dp
     )
-    
-    // Track info
+
     Column(modifier = Modifier.weight(1f)) {
       Text(
         text = item.title,

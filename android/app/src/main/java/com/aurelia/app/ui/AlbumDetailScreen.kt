@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -187,7 +186,7 @@ fun AlbumDetailScreen(
               if (albumSongs.isNotEmpty()) {
                 val serverUrl = sessionStore.getServerUrl() ?: return@FilledIconButton
                 val token = sessionStore.getToken() ?: return@FilledIconButton
-                
+
                 val queueItems = albumSongs.map { song ->
                   QueueItem(
                     id = song.id,
@@ -237,16 +236,16 @@ fun AlbumDetailScreen(
           onClick = {
             val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
             val token = sessionStore.getToken() ?: return@AlbumSongItem
-            
+
             val queueItems = albumSongs.map { s ->
-                QueueItem(
-                  id = s.id,
-                  uri = buildStreamUrl(serverUrl, token, s.id, s.container),
-                  title = s.name,
-                  artist = s.artists?.joinToString(", ") ?: "Unknown Artist",
-                  albumArtUrl = s.albumArtUrl,
-                  durationMs = (s.duration ?: 0.0).let { (it * 1000).toLong() }
-                )
+              QueueItem(
+                id = s.id,
+                uri = buildStreamUrl(serverUrl, token, s.id, s.container),
+                title = s.name,
+                artist = s.artists?.joinToString(", ") ?: "Unknown Artist",
+                albumArtUrl = s.albumArtUrl,
+                durationMs = (s.duration ?: 0.0).let { (it * 1000).toLong() }
+              )
             }
             playerController.setQueue(queueItems, index)
             onOpenPlayer()
@@ -267,7 +266,8 @@ private fun AlbumSongItem(
   onClick: () -> Unit
 ) {
   val colors = MaterialTheme.colorScheme
-  val containerColor = if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.5f) else colors.surface.copy(alpha = 0f)
+  val containerColor =
+    if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.5f) else colors.surface.copy(alpha = 0f)
 
   Surface(
     modifier = Modifier.fillMaxWidth(),

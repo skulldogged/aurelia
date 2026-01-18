@@ -90,7 +90,8 @@ fun WavyMusicSlider(
     if (shouldShowWave && waveAnimationDuration > 0) {
       val fullRotation = (2 * PI).toFloat()
       while (shouldShowWave) {
-        val start = (phaseShiftAnim.value % fullRotation).let { if (it < 0f) it + fullRotation else it }
+        val start =
+          (phaseShiftAnim.value % fullRotation).let { if (it < 0f) it + fullRotation else it }
         phaseShiftAnim.snapTo(start)
         phaseShiftAnim.animateTo(
           targetValue = start + fullRotation,
@@ -105,7 +106,8 @@ fun WavyMusicSlider(
   val waveAmplitudePxInternal = with(LocalDensity.current) { animatedWaveAmplitude.toPx() }
   val waveLengthPx = with(LocalDensity.current) { waveLength.toPx() }
   val waveFrequency = if (waveLengthPx > 0f) ((2 * PI) / waveLengthPx).toFloat() else 0f
-  val thumbLineHeightPxInternal = with(LocalDensity.current) { thumbLineHeightWhenInteracting.toPx() }
+  val thumbLineHeightPxInternal =
+    with(LocalDensity.current) { thumbLineHeightWhenInteracting.toPx() }
   val thumbGapPx = with(LocalDensity.current) { 4.dp.toPx() }
 
   val wavePath = remember { Path() }
@@ -150,18 +152,20 @@ fun WavyMusicSlider(
         .drawWithCache {
           val canvasWidth = size.width
           val localCenterY = size.height / 2f
-          val localTrackStart = thumbRadiusPx
           val localTrackEnd = canvasWidth - thumbRadiusPx
-          val localTrackWidth = (localTrackEnd - localTrackStart).coerceAtLeast(0f)
+          val localTrackWidth = (localTrackEnd - thumbRadiusPx).coerceAtLeast(0f)
 
           val normalizedValue = value.let { v ->
             if (valueRange.endInclusive == valueRange.start) 0f
-            else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+            else ((v - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(
+              0f,
+              1f
+            )
           }
 
           onDrawWithContent {
             // Inactive track
-            val currentProgressPxEndVisual = localTrackStart + localTrackWidth * normalizedValue
+            val currentProgressPxEndVisual = thumbRadiusPx + localTrackWidth * normalizedValue
             if (hideInactiveTrackPortion) {
               if (currentProgressPxEndVisual < localTrackEnd) {
                 drawLine(
@@ -175,7 +179,7 @@ fun WavyMusicSlider(
             } else {
               drawLine(
                 color = inactiveTrackColor,
-                start = Offset(localTrackStart, localCenterY),
+                start = Offset(thumbRadiusPx, localCenterY),
                 end = Offset(localTrackEnd, localCenterY),
                 strokeWidth = trackHeightPx,
                 cap = StrokeCap.Round
@@ -184,13 +188,13 @@ fun WavyMusicSlider(
 
             // Active track (wave or line)
             if (normalizedValue > 0f) {
-              val activeTrackVisualEnd = currentProgressPxEndVisual - (thumbGapPx * thumbInteractionFraction)
+              val activeTrackVisualEnd =
+                currentProgressPxEndVisual - (thumbGapPx * thumbInteractionFraction)
 
               if (waveAmplitudePxInternal > 0.01f && waveFrequency > 0f) {
                 wavePath.reset()
-                val waveStartDrawX = localTrackStart
-                val waveEndDrawX = activeTrackVisualEnd.coerceAtLeast(waveStartDrawX)
-                if (waveEndDrawX > waveStartDrawX) {
+                val waveEndDrawX = activeTrackVisualEnd.coerceAtLeast(thumbRadiusPx)
+                if (waveEndDrawX > thumbRadiusPx) {
                   val periodPx = ((2 * PI) / waveFrequency).toFloat()
                   val samplesPerCycle = 20f
                   val waveStep = (periodPx / samplesPerCycle)
@@ -206,7 +210,7 @@ fun WavyMusicSlider(
                       )
                   }
 
-                  var prevX = waveStartDrawX
+                  var prevX = thumbRadiusPx
                   var prevY = yAt(prevX)
                   wavePath.moveTo(prevX, prevY)
 
@@ -215,13 +219,13 @@ fun WavyMusicSlider(
                     val y = yAt(x)
                     val midX = (prevX + x) * 0.5f
                     val midY = (prevY + y) * 0.5f
-                    wavePath.quadraticBezierTo(prevX, prevY, midX, midY)
+                    wavePath.quadraticTo(prevX, prevY, midX, midY)
                     prevX = x
                     prevY = y
                     x += waveStep
                   }
                   val endY = yAt(waveEndDrawX)
-                  wavePath.quadraticBezierTo(prevX, prevY, waveEndDrawX, endY)
+                  wavePath.quadraticTo(prevX, prevY, waveEndDrawX, endY)
 
                   drawPath(
                     path = wavePath,
@@ -234,10 +238,10 @@ fun WavyMusicSlider(
                     )
                   )
                 }
-              } else if (activeTrackVisualEnd > localTrackStart) {
+              } else if (activeTrackVisualEnd > thumbRadiusPx) {
                 drawLine(
                   color = activeTrackColor,
-                  start = Offset(localTrackStart, localCenterY),
+                  start = Offset(thumbRadiusPx, localCenterY),
                   end = Offset(activeTrackVisualEnd, localCenterY),
                   strokeWidth = trackHeightPx,
                   cap = StrokeCap.Round
@@ -246,9 +250,11 @@ fun WavyMusicSlider(
             }
 
             // Thumb
-            val currentThumbCenterX = localTrackStart + localTrackWidth * normalizedValue
-            val thumbCurrentWidthPx = lerp(thumbRadiusPx * 2f, trackHeightPx * 1.2f, thumbInteractionFraction)
-            val thumbCurrentHeightPx = lerp(thumbRadiusPx * 2f, thumbLineHeightPxInternal, thumbInteractionFraction)
+            val currentThumbCenterX = thumbRadiusPx + localTrackWidth * normalizedValue
+            val thumbCurrentWidthPx =
+              lerp(thumbRadiusPx * 2f, trackHeightPx * 1.2f, thumbInteractionFraction)
+            val thumbCurrentHeightPx =
+              lerp(thumbRadiusPx * 2f, thumbLineHeightPxInternal, thumbInteractionFraction)
 
             drawRoundRect(
               color = thumbColor,

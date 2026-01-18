@@ -24,6 +24,9 @@ class HomeViewModel(
   private val mutableState = MutableStateFlow(HomeState())
   val state: StateFlow<HomeState> = mutableState
   
+  // Track if initial data load has been performed
+  private var hasLoadedInitialData = false
+  
   // All songs cache for queue building
   private var allSongs: List<Song> = emptyList()
   
@@ -77,6 +80,9 @@ class HomeViewModel(
   }
 
   fun loadHomeData() {
+    // Skip if already loaded
+    if (hasLoadedInitialData) return
+    
     val serverUrl = sessionStore.getServerUrl()
     val userId = sessionStore.getUserId()
     val token = sessionStore.getToken()
@@ -112,6 +118,7 @@ class HomeViewModel(
         allSongs = songs
         buildSongIdCache(songs)
         processHomeData(songs)
+        hasLoadedInitialData = true
       } catch (error: AppException) {
         mutableState.update { it.copy(isLoading = false, error = error.message ?: "Failed to load") }
       } catch (_: Exception) {

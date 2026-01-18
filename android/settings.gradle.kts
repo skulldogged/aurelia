@@ -1,18 +1,18 @@
 pluginManagement {
-  includeBuild("gradle/plugins/compose-plugin")
-  repositories {
-    google()
-    mavenCentral()
-    gradlePluginPortal()
-  }
+    includeBuild(File(settingsDir, "gradle/plugins/compose-plugin"))
+
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
 
-
 dependencyResolutionManagement {
-  repositories {
-    google()
-    mavenCentral()
-  }
+    repositories {
+        google()
+        mavenCentral()
+    }
 }
 
 rootProject.name = "aurelia"

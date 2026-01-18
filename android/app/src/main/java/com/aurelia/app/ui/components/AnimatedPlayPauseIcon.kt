@@ -6,11 +6,6 @@ import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -29,7 +24,7 @@ fun AnimatedPlayPauseIcon(
   contentDescription: String? = if (isPlaying) "Pause" else "Play"
 ) {
   val animatedVector = AnimatedImageVector.animatedVectorResource(R.drawable.avd_play_to_pause)
-  
+
   Image(
     painter = rememberAnimatedVectorPainter(animatedVector, atEnd = isPlaying),
     contentDescription = contentDescription,

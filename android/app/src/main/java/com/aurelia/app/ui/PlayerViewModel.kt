@@ -2,6 +2,8 @@ package com.aurelia.app.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aurelia.app.data.model.Lyrics
+import com.aurelia.app.data.network.LrcLibApi
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.PlayerSnapshot
 import kotlinx.coroutines.delay
@@ -15,11 +17,30 @@ class PlayerViewModel(private val playerController: PlayerController) : ViewMode
   private val mutableState = MutableStateFlow(PlayerState())
   val state: StateFlow<PlayerState> = mutableState
 
+  private var lastFetchedSongId: String? = null
+
   init {
     playerController.observe { snapshot ->
+      val previousSongId = mutableState.value.title
       mutableState.update { it.fromSnapshot(snapshot) }
+
+      val currentSongId = snapshot.title
+      if (currentSongId != previousSongId && currentSongId != lastFetchedSongId) {
+        lastFetchedSongId = currentSongId
+        fetchLyrics(snapshot.artist, currentSongId)
+      }
     }
     startProgressUpdates()
+  }
+
+  private fun fetchLyrics(artist: String, title: String) {
+    viewModelScope.launch {
+      mutableState.update { it.copy(lyrics = null) }
+      val lyrics = LrcLibApi.searchLyrics(artist, title)
+      if (lyrics != null && lyrics.isValid()) {
+        mutableState.update { it.copy(lyrics = lyrics) }
+      }
+    }
   }
 
   private fun startProgressUpdates() {
@@ -35,11 +56,8 @@ class PlayerViewModel(private val playerController: PlayerController) : ViewMode
 
   fun togglePlayPause() {
     val currentState = mutableState.value
-    if (currentState.isPlaying) {
-      playerController.pause()
-    } else {
-      playerController.resume()
-    }
+    if (currentState.isPlaying) playerController.pause()
+    else playerController.resume()
   }
 
   fun seekTo(positionMs: Long) {
@@ -69,5 +87,21 @@ class PlayerViewModel(private val playerController: PlayerController) : ViewMode
 
   fun playQueueItem(index: Int) {
     playerController.playQueueItem(index)
+  }
+
+  fun toggleLyrics() {
+    val currentState = mutableState.value
+    if (currentState.lyrics == null && currentState.title.isNotBlank()) {
+      fetchLyrics(currentState.artist, currentState.title)
+    }
+    mutableState.update { it.copy(showLyrics = !it.showLyrics) }
+  }
+
+  fun setLyrics(lyrics: Lyrics?) {
+    mutableState.update { it.copy(lyrics = lyrics) }
+  }
+
+  fun clearLyrics() {
+    mutableState.update { it.copy(lyrics = null, showLyrics = false) }
   }
 }

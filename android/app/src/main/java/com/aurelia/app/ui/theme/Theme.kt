@@ -2,6 +2,7 @@ package com.aurelia.app.ui.theme
 
 import android.app.Activity
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -71,10 +72,11 @@ private val LightColors = lightColorScheme(
   onError = Color.White
 )
 
+@RequiresApi(Build.VERSION_CODES.S)
 @Composable
 fun AureliaTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  useDynamicColor: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+  useDynamicColor: Boolean = true,
   content: @Composable () -> Unit,
 ) {
   val context = LocalContext.current

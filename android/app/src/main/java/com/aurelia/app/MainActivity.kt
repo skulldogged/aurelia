@@ -33,29 +33,25 @@ class MainActivity : ComponentActivity() {
   private val notificationPermissionLauncher = registerForActivityResult(
     ActivityResultContracts.RequestPermission()
   ) { isGranted ->
-    if (isGranted || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-      ContextCompat.startForegroundService(this, Intent(this, PlaybackService::class.java))
-    }
+    // Permission granted, notifications will work when playback starts
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
-    startPlaybackService()
+    checkNotificationPermission()
     setContent {
       AureliaApp()
     }
   }
 
-  private fun startPlaybackService() {
+  private fun checkNotificationPermission() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       val permissionStatus = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
       if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        return
       }
     }
-    ContextCompat.startForegroundService(this, Intent(this, PlaybackService::class.java))
   }
 }
 

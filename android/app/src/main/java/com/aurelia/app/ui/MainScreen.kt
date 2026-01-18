@@ -1,22 +1,16 @@
 package com.aurelia.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -40,9 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SkipNext
@@ -55,26 +47,22 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
@@ -120,21 +108,30 @@ fun MainScreen(
   playerController: PlayerController,
   onLogout: () -> Unit
 ) {
+  // HomeViewModel hoisted here to survive tab switches
+  val homeViewModelFactory = remember { HomeViewModelFactory(sessionStore, playerController) }
+  val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory)
+
+  // Load home data once when ViewModel is created (not on every tab switch)
+  LaunchedEffect(homeViewModel) {
+    homeViewModel.loadHomeData()
+  }
+
   // Navigation stack - bottom tabs are root screens that clear the stack
   val navigationStack = remember { mutableStateListOf<Screen>(Screen.Home) }
   val currentScreen = navigationStack.lastOrNull() ?: Screen.Home
-  
+
   // Navigate to a new screen (push to stack)
   fun navigate(screen: Screen) {
     navigationStack.add(screen)
   }
-  
+
   // Navigate to a root tab (clears stack)
   fun navigateToTab(screen: Screen) {
     navigationStack.clear()
     navigationStack.add(screen)
   }
-  
+
   // Go back (pop from stack, or go to Home)
   fun goBack(): Boolean {
     return when {
@@ -142,15 +139,17 @@ fun MainScreen(
         navigationStack.removeAt(navigationStack.lastIndex)
         true
       }
+
       currentScreen != Screen.Home -> {
         // If at root of a tab that isn't Home, go to Home
         navigateToTab(Screen.Home)
         true
       }
+
       else -> false
     }
   }
-  
+
   // Check if we can go back (either stack has history, or we're on a non-Home tab)
   val canGoBack = navigationStack.size > 1 || currentScreen != Screen.Home
 
@@ -160,19 +159,20 @@ fun MainScreen(
   val libraryState by libraryViewModel.state.collectAsState()
   val scope = rememberCoroutineScope()
 
+  @Suppress("UnusedBoxWithConstraintsScope")
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    val density = LocalDensity.current
     val screenHeightPx = constraints.maxHeight.toFloat()
-    val minDragThreshold = screenHeightPx * 0.18f
     val miniPlayerTopMargin = 4.dp
     val expandFractionThreshold = 0.35f
-    val density = LocalDensity.current
     val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val navBarBottomPadding = bottomInset + 12.dp
     val navBarHeightPx = with(density) { (NavBarContentHeight + navBarBottomPadding).toPx() }
     val miniPlayerHeightPx = with(density) { MiniPlayerHeight.toPx() }
     val miniPlayerTopMarginPx = with(density) { miniPlayerTopMargin.toPx() }
-    val collapsedSheetY = (screenHeightPx - miniPlayerHeightPx - navBarHeightPx - miniPlayerTopMarginPx)
-      .coerceAtLeast(0f)
+    val collapsedSheetY =
+      (screenHeightPx - miniPlayerHeightPx - navBarHeightPx - miniPlayerTopMarginPx)
+        .coerceAtLeast(0f)
     val playerDragOffset = remember { Animatable(collapsedSheetY) }
     val dragProgress = if (collapsedSheetY > 0f) {
       ((collapsedSheetY - playerDragOffset.value) / collapsedSheetY).coerceIn(0f, 1f)
@@ -247,124 +247,6 @@ fun MainScreen(
       }
     }
 
-    val renderScreenContent: @Composable (Screen) -> Unit = { screenToRender ->
-      when {
-        screenToRender == Screen.Settings -> {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.background)
-          ) {
-            SettingsScreen(
-              sessionStore = sessionStore,
-              onLogout = onLogout,
-              hasPlayerBar = libraryState.nowPlaying != null
-            )
-
-            Column(
-              modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-            ) {
-              BottomNavBar(
-                items = navItems,
-                currentScreen = currentScreen, // Highlight current tab even if rendering previous
-                onNavigate = { destination -> navigateToTab(destination) },
-                onSettingsClick = { navigateToTab(Screen.Settings) },
-                hasPlayerBar = libraryState.nowPlaying != null
-              )
-            }
-          }
-        }
-        screenToRender is Screen.AlbumDetail -> {
-          val detail = screenToRender as Screen.AlbumDetail
-          AlbumDetailScreen(
-            albumId = detail.albumId,
-            albumName = detail.albumName,
-            sessionStore = sessionStore,
-            playerController = playerController,
-            onBack = { goBack() },
-            onOpenPlayer = { openPlayerAnimated() }
-          )
-        }
-        screenToRender is Screen.ArtistDetail -> {
-          val detail = screenToRender as Screen.ArtistDetail
-          ArtistDetailScreen(
-            artistId = detail.artistId,
-            artistName = detail.artistName,
-            sessionStore = sessionStore,
-            playerController = playerController,
-            onBack = { goBack() },
-            onOpenPlayer = { openPlayerAnimated() }
-          )
-        }
-        else -> {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(MaterialTheme.colorScheme.background)
-          ) {
-            when (screenToRender) {
-              Screen.Home -> HomeScreen(
-                sessionStore = sessionStore,
-                playerController = playerController,
-                onOpenPlayer = { openPlayerAnimated() },
-                onNavigateToAlbum = { navigate(it) },
-                hasPlayerBar = libraryState.nowPlaying != null
-              )
-              Screen.Songs -> LibraryScreen(
-                sessionStore = sessionStore,
-                playerController = playerController,
-                onOpenPlayer = { openPlayerAnimated() },
-                hasPlayerBar = libraryState.nowPlaying != null
-              )
-              Screen.Albums -> AlbumsScreen(
-                sessionStore = sessionStore,
-                playerController = playerController,
-                onOpenPlayer = { openPlayerAnimated() },
-                onNavigateToAlbum = { navigate(it) },
-                hasPlayerBar = libraryState.nowPlaying != null
-              )
-              Screen.Artists -> ArtistsScreen(
-                sessionStore = sessionStore,
-                playerController = playerController,
-                onOpenPlayer = { openPlayerAnimated() },
-                onNavigateToArtist = { navigate(it) },
-                hasPlayerBar = libraryState.nowPlaying != null
-              )
-              Screen.Playlists -> PlaylistsScreen(
-                sessionStore = sessionStore,
-                playerController = playerController,
-                onOpenPlayer = { openPlayerAnimated() },
-                hasPlayerBar = libraryState.nowPlaying != null
-              )
-              Screen.Search -> SearchScreen(
-                sessionStore = sessionStore,
-                playerController = playerController,
-                onOpenPlayer = { openPlayerAnimated() },
-                hasPlayerBar = libraryState.nowPlaying != null
-              )
-              else -> {}
-            }
-
-            Column(
-              modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-            ) {
-              BottomNavBar(
-                items = navItems,
-                currentScreen = currentScreen, // Keep highlighting active tab
-                onNavigate = { navigateToTab(it) },
-                onSettingsClick = { navigateToTab(Screen.Settings) },
-                hasPlayerBar = libraryState.nowPlaying != null
-              )
-            }
-          }
-        }
-      }
-    }
-
     // Navigation back handler
     PredictiveBackHandler(enabled = canGoBack && dragProgress < 0.5f) { progress ->
       try {
@@ -374,7 +256,7 @@ fun MainScreen(
         // Completed
         backProgress.snapTo(0f)
         goBack()
-      } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+      } catch (_: kotlin.coroutines.cancellation.CancellationException) {
         // Cancelled - snap back to 0
         backProgress.animateTo(0f)
       }
@@ -394,8 +276,8 @@ fun MainScreen(
         }
     ) {
       // Main content area
-      when {
-        currentScreen == Screen.Settings -> {
+      when (currentScreen) {
+        Screen.Settings -> {
           Box(
             modifier = Modifier
               .fillMaxSize()
@@ -422,28 +304,29 @@ fun MainScreen(
             }
           }
         }
-        currentScreen is Screen.AlbumDetail -> {
-          val detail = currentScreen as Screen.AlbumDetail
+
+        is Screen.AlbumDetail -> {
           AlbumDetailScreen(
-            albumId = detail.albumId,
-            albumName = detail.albumName,
+            albumId = currentScreen.albumId,
+            albumName = currentScreen.albumName,
             sessionStore = sessionStore,
             playerController = playerController,
             onBack = { goBack() },
             onOpenPlayer = { openPlayerAnimated() }
           )
         }
-        currentScreen is Screen.ArtistDetail -> {
-          val detail = currentScreen as Screen.ArtistDetail
+
+        is Screen.ArtistDetail -> {
           ArtistDetailScreen(
-            artistId = detail.artistId,
-            artistName = detail.artistName,
+            artistId = currentScreen.artistId,
+            artistName = currentScreen.artistName,
             sessionStore = sessionStore,
             playerController = playerController,
             onBack = { goBack() },
             onOpenPlayer = { openPlayerAnimated() }
           )
         }
+
         else -> {
           Box(
             modifier = Modifier
@@ -452,44 +335,47 @@ fun MainScreen(
           ) {
             when (currentScreen) {
               Screen.Home -> HomeScreen(
-                sessionStore = sessionStore,
-                playerController = playerController,
+                viewModel = homeViewModel,
                 onOpenPlayer = { openPlayerAnimated() },
                 onNavigateToAlbum = { navigate(it) },
                 hasPlayerBar = libraryState.nowPlaying != null
               )
+
               Screen.Songs -> LibraryScreen(
                 sessionStore = sessionStore,
                 playerController = playerController,
                 onOpenPlayer = { openPlayerAnimated() },
                 hasPlayerBar = libraryState.nowPlaying != null
               )
+
               Screen.Albums -> AlbumsScreen(
                 sessionStore = sessionStore,
                 playerController = playerController,
-                onOpenPlayer = { openPlayerAnimated() },
                 onNavigateToAlbum = { navigate(it) },
                 hasPlayerBar = libraryState.nowPlaying != null
               )
+
               Screen.Artists -> ArtistsScreen(
                 sessionStore = sessionStore,
                 playerController = playerController,
-                onOpenPlayer = { openPlayerAnimated() },
                 onNavigateToArtist = { navigate(it) },
                 hasPlayerBar = libraryState.nowPlaying != null
               )
+
               Screen.Playlists -> PlaylistsScreen(
                 sessionStore = sessionStore,
                 playerController = playerController,
                 onOpenPlayer = { openPlayerAnimated() },
                 hasPlayerBar = libraryState.nowPlaying != null
               )
+
               Screen.Search -> SearchScreen(
                 sessionStore = sessionStore,
                 playerController = playerController,
                 onOpenPlayer = { openPlayerAnimated() },
                 hasPlayerBar = libraryState.nowPlaying != null
               )
+
               else -> {}
             }
 
@@ -521,7 +407,7 @@ fun MainScreen(
             }
             // Gesture completed - close player
             closePlayer()
-          } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+          } catch (_: kotlin.coroutines.cancellation.CancellationException) {
             // Gesture cancelled - snap back to open
             openPlayerAnimated()
           }
@@ -760,18 +646,20 @@ fun MiniPlayerBar(
     modifier = modifier
       .fillMaxWidth()
       .pointerInput(Unit) {
-        var totalDrag = 0f
+        var netDrag = 0f
         detectVerticalDragGestures(
           onVerticalDrag = { _, dragAmount ->
+            netDrag += dragAmount
+            // Only apply upward drags visually
             if (dragAmount < 0f) {
-              totalDrag += dragAmount
               onDrag(dragAmount)
             }
           },
           onDragEnd = {
-            val velocity = if (totalDrag != 0f) totalDrag * 12f else 0f
+            // Use net displacement for velocity - if user dragged back down, this cancels out
+            val velocity = if (netDrag < 0f) netDrag * 12f else 0f
             onDragEnd(velocity)
-            totalDrag = 0f
+            netDrag = 0f
           }
         )
       }
@@ -904,7 +792,6 @@ fun MiniPlayerBar(
           tint = colors.primary.copy(alpha = if (hasNext) 1f else 0.4f),
           modifier = Modifier.size(22.dp)
         )
-
       }
     }
   }

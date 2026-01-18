@@ -1,6 +1,5 @@
 package com.aurelia.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,7 +50,6 @@ data class ArtistItem(
 fun ArtistsScreen(
   sessionStore: SessionStore,
   playerController: PlayerController,
-  onOpenPlayer: () -> Unit,
   onNavigateToArtist: (Screen.ArtistDetail) -> Unit = {},
   hasPlayerBar: Boolean = false
 ) {
@@ -68,20 +66,22 @@ fun ArtistsScreen(
 
   // Group songs by artist (using artist ID)
   val artists = remember(state.songs) {
-    val artistData = mutableMapOf<String, Triple<String, MutableList<uniffi.aurelia_core.Song>, MutableSet<String>>>()
-    
+    val artistData =
+      mutableMapOf<String, Triple<String, MutableList<uniffi.aurelia_core.Song>, MutableSet<String>>>()
+
     for (song in state.songs) {
       val artistNames = song.artists ?: listOf("Unknown Artist")
       val artistIds = song.artistIds ?: emptyList()
-      
+
       for ((index, artistName) in artistNames.withIndex()) {
         val artistId = artistIds.getOrNull(index) ?: artistName // Fall back to name as ID
-        val data = artistData.getOrPut(artistId) { Triple(artistName, mutableListOf(), mutableSetOf()) }
+        val data =
+          artistData.getOrPut(artistId) { Triple(artistName, mutableListOf(), mutableSetOf()) }
         data.second.add(song)
         song.albumId?.let { data.third.add(it) }
       }
     }
-    
+
     artistData.map { (id, data) ->
       ArtistItem(
         id = id,
@@ -125,6 +125,7 @@ fun ArtistsScreen(
           CircularProgressIndicator(color = colors.primary)
         }
       }
+
       else -> {
         LazyColumn(
           modifier = Modifier.fillMaxSize(),
