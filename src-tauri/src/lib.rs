@@ -277,7 +277,7 @@ pub fn run() {
             Typescript::default()
                 .bigint(BigIntExportBehavior::BigInt)
                 .formatter(bunx_eslint_formatter),
-            "../src/bindings.ts",
+            "../src/lib/api/bindings.ts",
         )
         .expect("Failed to export typescript bindings");
 
@@ -322,7 +322,8 @@ pub fn run() {
             builder.mount_events(app);
 
             info!("Initializing database...");
-            if let Err(e) = database::init(handle) {
+            let app_data_dir = handle.path().app_data_dir().expect("failed to get app data dir");
+            if let Err(e) = database::init(&app_data_dir) {
                 error!("Failed to initialize database: {}", e);
             }
             info!("Database initialized.");

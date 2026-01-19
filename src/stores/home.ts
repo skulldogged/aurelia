@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 
-import type { Album, Song } from '@/bindings'
+import type { Album, Song } from '@/lib/api/bindings'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { getAuthLogout } from '@/lib/auth-interceptor'
 import { logger } from '@/lib/logger'
 

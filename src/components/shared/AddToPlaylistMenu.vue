@@ -2,7 +2,7 @@
   import { ListPlus, Plus } from 'lucide-vue-next'
   import { useRouter } from 'vue-router'
 
-  import { Song } from '@/bindings'
+  import { Song } from '@/lib/api/bindings'
   import {
     ContextMenuItem,
     ContextMenuSub,

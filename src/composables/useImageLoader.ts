@@ -1,6 +1,6 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
 
-import { commands, type Result } from '@/bindings'
+import { commands, type Result } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 import { LRUCache } from '@/lib/lru-cache'
 import { err, ok } from '@/lib/result'

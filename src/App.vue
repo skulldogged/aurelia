@@ -4,9 +4,9 @@
   import { storeToRefs } from 'pinia'
   import { computed, onMounted, ref, watch } from 'vue'
 
-  import type { Credentials, Song } from '@/bindings'
+  import type { Credentials, Song } from '@/lib/api/bindings'
 
-  import { commands } from '@/bindings'
+  import { commands } from '@/lib/api/bindings'
   import MainLayout from '@/components/layout/MainLayout.vue'
   import Equalizer from '@/components/player/Equalizer.vue'
   import FullscreenPlayer from '@/components/player/FullscreenPlayer.vue'

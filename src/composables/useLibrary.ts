@@ -1,8 +1,8 @@
 import { readonly, ref, type Ref } from 'vue'
 
-import type { Album, Artist, Credentials, Song } from '@/bindings'
+import type { Album, Artist, Credentials, Song } from '@/lib/api/bindings'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
 

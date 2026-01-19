@@ -5,7 +5,7 @@
  * used throughout the application.
  */
 
-import type { Album, Artist, Song } from '@/bindings'
+import type { Album, Artist, Song } from '@/lib/api/bindings'
 
 /**
  * Song transformations

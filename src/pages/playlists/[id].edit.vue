@@ -1,7 +1,7 @@
 <script setup lang="ts">
-  import PlaylistEditPageDesktop from '../desktop/PlaylistEditPage.vue'
+  import PlaylistFormPage from '@/components/playlists/PlaylistFormPage.vue'
 </script>
 
 <template>
-  <PlaylistEditPageDesktop />
+  <PlaylistFormPage />
 </template>

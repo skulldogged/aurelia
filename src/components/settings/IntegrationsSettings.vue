@@ -4,7 +4,7 @@
   import { ExternalLink, XCircle } from 'lucide-vue-next'
   import { computed, onBeforeUnmount, ref } from 'vue'
 
-  import { commands } from '@/bindings'
+  import { commands } from '@/lib/api/bindings'
   import Button from '@/components/ui/Button.vue'
   import { Input } from '@/components/ui/input'
   import Label from '@/components/ui/Label.vue'

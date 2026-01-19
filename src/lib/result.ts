@@ -1,4 +1,4 @@
-import type { Result } from '@/bindings'
+import type { Result } from '@/lib/api/bindings'
 
 import { getAuthLogout } from '@/lib/auth-interceptor'
 

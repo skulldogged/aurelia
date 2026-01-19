@@ -1,8 +1,8 @@
 import { ref, type Ref, watch } from 'vue'
 
-import type { LastFmCredentials, Song } from '@/bindings'
+import type { LastFmCredentials, Song } from '@/lib/api/bindings'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 import { useLastFmStore, usePlayerStore } from '@/stores'
 

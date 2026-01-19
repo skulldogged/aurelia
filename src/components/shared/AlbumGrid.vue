@@ -2,7 +2,7 @@
   import { Play, Shuffle } from 'lucide-vue-next'
   import { computed } from 'vue'
 
-  import { Album, Song } from '@/bindings'
+  import { Album, Song } from '@/lib/api/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import AlbumCard from '@/components/shared/AlbumCard.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'

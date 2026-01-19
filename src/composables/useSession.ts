@@ -3,7 +3,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { v4 as uuidv4 } from 'uuid'
 import { readonly, ref, type Ref } from 'vue'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 import { useAuthStore } from '@/stores'
 

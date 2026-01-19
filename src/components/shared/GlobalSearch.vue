@@ -8,7 +8,7 @@
   import { computed, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
-  import type { Album, Artist, Song } from '@/bindings'
+  import type { Album, Artist, Song } from '@/lib/api/bindings'
 
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'

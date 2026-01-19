@@ -1,6 +1,6 @@
 import { onMounted } from 'vue'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 import { useSystemTrayStore } from '@/stores'
 

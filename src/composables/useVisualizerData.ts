@@ -7,7 +7,7 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { onUnmounted, ref, type Ref, watch } from 'vue'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 
 interface SpectrumEvent {

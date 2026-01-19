@@ -6,7 +6,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 
 export interface PlayMetadata {

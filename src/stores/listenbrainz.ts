@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-import type { ListenBrainzCredentials } from '@/bindings'
+import type { ListenBrainzCredentials } from '@/lib/api/bindings'
 
 import { logger } from '@/lib/logger'
 

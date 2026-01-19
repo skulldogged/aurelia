@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { Song } from '@/bindings'
+  import { Song } from '@/lib/api/bindings'
   import LyricsView from '@/components/shared/LyricsView.vue'
 
   defineProps<{

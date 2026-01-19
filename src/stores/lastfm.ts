@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-import type { LastFmCredentials } from '@/bindings'
+import type { LastFmCredentials } from '@/lib/api/bindings'
 
 import { logger } from '@/lib/logger'
 

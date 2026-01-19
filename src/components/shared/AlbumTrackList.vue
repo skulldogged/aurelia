@@ -3,7 +3,7 @@
   import { Heart, Pause, Play, Share2, Shuffle } from 'lucide-vue-next'
   import { computed, inject, ref, watch } from 'vue'
 
-  import { Song } from '@/bindings'
+  import { Song } from '@/lib/api/bindings'
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
   import Button from '@/components/ui/Button.vue'

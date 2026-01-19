@@ -1,8 +1,8 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
-import { commands, NowPlayingPayload } from '@/bindings'
-import { Song } from '@/bindings'
+import { commands, NowPlayingPayload } from '@/lib/api/bindings'
+import { Song } from '@/lib/api/bindings'
 import { useRustAudioPlayer } from '@/composables/useRustAudioPlayer'
 import { logger } from '@/lib/logger'
 import { usePlayerStore } from '@/stores'

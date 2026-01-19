@@ -2,7 +2,7 @@
   import { Heart, Pause, Play, Share2, Shuffle } from 'lucide-vue-next'
   import { computed, markRaw } from 'vue'
 
-  import type { Song } from '@/bindings'
+  import type { Song } from '@/lib/api/bindings'
 
   import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'

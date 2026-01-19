@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import type { Song } from '@/bindings'
+import type { Song } from '@/lib/api/bindings'
 
 import { setIn } from '@/lib/immutable'
 import { logger } from '@/lib/logger'

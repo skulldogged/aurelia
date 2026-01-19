@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { Shuffle } from 'lucide-vue-next'
 
-  import type { Artist } from '@/bindings'
+  import type { Artist } from '@/lib/api/bindings'
 
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'

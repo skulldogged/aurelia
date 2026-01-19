@@ -3,7 +3,7 @@ import type { ClassValue } from 'clsx'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
-import type { Song } from '@/bindings'
+import type { Song } from '@/lib/api/bindings'
 
 export const cn = (...inputs: ClassValue[]): string => twMerge(clsx(inputs))
 

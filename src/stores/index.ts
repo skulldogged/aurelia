@@ -1,4 +1,4 @@
-export type { Playlist, PlaylistCreateData, PlaylistUpdateData } from '@/bindings'
+export type { Playlist, PlaylistCreateData, PlaylistUpdateData } from '@/lib/api/bindings'
 export type { AccentColor } from '@/lib/colorSchemes'
 export { useAccentColorStore } from '@/stores/accentColor'
 export { useAuthStore } from '@/stores/auth'

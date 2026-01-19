@@ -2,7 +2,7 @@
   import { AlertTriangle, Loader2 } from 'lucide-vue-next'
   import { computed, nextTick, ref, watch } from 'vue'
 
-  import { commands, Song } from '@/bindings'
+  import { commands, Song } from '@/lib/api/bindings'
   import { logger } from '@/lib/logger'
   import { withCustomState } from '@/lib/result'
 

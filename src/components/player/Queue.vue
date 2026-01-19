@@ -3,7 +3,7 @@
   import { Sortable } from 'sortablejs-vue3'
   import { ref } from 'vue'
 
-  import { Song } from '@/bindings'
+  import { Song } from '@/lib/api/bindings'
   import QueueItem from '@/components/player/QueueItem.vue'
   import { usePlayerStore } from '@/stores'
 

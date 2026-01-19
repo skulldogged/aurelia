@@ -20,7 +20,7 @@
   } from 'simple-icons'
   import { computed, ref, watch } from 'vue'
 
-  import { commands } from '@/bindings'
+  import { commands } from '@/lib/api/bindings'
   import Button from '@/components/ui/Button.vue'
   import {
     Dialog,

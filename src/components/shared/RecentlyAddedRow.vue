@@ -2,7 +2,7 @@
   import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-vue-next'
   import { computed, ref } from 'vue'
 
-  import type { Album, Song } from '@/bindings'
+  import type { Album, Song } from '@/lib/api/bindings'
 
   import AlbumCard from '@/components/shared/AlbumCard.vue'
   import {

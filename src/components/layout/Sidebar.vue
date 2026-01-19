@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Disc, Home, ListMusic, Search, Settings, Users } from 'lucide-vue-next'
+import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
 
   import { computed } from 'vue'
 

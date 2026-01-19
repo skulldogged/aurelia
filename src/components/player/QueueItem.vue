@@ -2,7 +2,7 @@
   import { GripVertical, ListPlus, Play, Share2, Trash2 } from 'lucide-vue-next'
   import { ref } from 'vue'
 
-  import { Song } from '@/bindings'
+  import { Song } from '@/lib/api/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ShareDialog from '@/components/shared/ShareDialog.vue'
   import Button from '@/components/ui/Button.vue'

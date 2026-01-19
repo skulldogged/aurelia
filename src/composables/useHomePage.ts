@@ -1,6 +1,6 @@
 import { computed, ComputedRef, ref, shallowRef } from 'vue'
 
-import type { Album, NameIdPair, Song } from '@/bindings'
+import type { Album, NameIdPair, Song } from '@/lib/api/bindings'
 
 import { useDebouncedComputed } from '@/composables/useDebouncedComputed'
 import { useSongInteractions } from '@/composables/useSongInteractions'

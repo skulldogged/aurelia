@@ -1,8 +1,8 @@
 import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 
-import type { RpcActivity, Song } from '@/bindings'
+import type { RpcActivity, Song } from '@/lib/api/bindings'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 import { isDesktop } from '@/lib/platform'
 import { usePlayerStore } from '@/stores'

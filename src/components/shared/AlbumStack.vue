@@ -2,7 +2,7 @@
   import { Disc, Play } from 'lucide-vue-next'
   import { computed } from 'vue'
 
-  import { Album } from '@/bindings'
+  import { Album } from '@/lib/api/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import Button from '@/components/ui/Button.vue'

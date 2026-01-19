@@ -21,8 +21,8 @@
   } from 'lucide-vue-next'
   import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 
-  import { commands } from '@/bindings'
-  import { Song } from '@/bindings'
+  import { commands } from '@/lib/api/bindings'
+  import { Song } from '@/lib/api/bindings'
   import AudioVisualizer from '@/components/player/AudioVisualizer.vue'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import Button from '@/components/ui/Button.vue'

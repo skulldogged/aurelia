@@ -22,7 +22,7 @@
   import { computed, onUnmounted, ref, watch } from 'vue'
   import { PropType } from 'vue'
 
-  import { Song } from '@/bindings'
+  import { Song } from '@/lib/api/bindings'
   import AudioVisualizer from '@/components/player/AudioVisualizer.vue'
   import FullscreenEqualizer from '@/components/player/FullscreenEqualizer.vue'
   import FullscreenQueue from '@/components/player/FullscreenQueue.vue'

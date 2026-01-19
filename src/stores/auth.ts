@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { readonly, ref } from 'vue'
 
-import type { Credentials } from '@/bindings'
+import type { Credentials } from '@/lib/api/bindings'
 
 export const useAuthStore = defineStore('auth', () => {
   const serverUrl = ref<string>('')

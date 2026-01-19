@@ -2,7 +2,7 @@ import type { ComputedRef, Ref } from 'vue'
 
 import { computed, shallowRef } from 'vue'
 
-import type { Song } from '@/bindings'
+import type { Song } from '@/lib/api/bindings'
 
 interface SortOptions {
   songs:      Ref<Song[]>

@@ -3,7 +3,7 @@ import type { ComputedRef, Ref } from 'vue'
 import Fuse from 'fuse.js'
 import { computed, ref, shallowRef, watch } from 'vue'
 
-import type { Song } from '@/bindings'
+import type { Song } from '@/lib/api/bindings'
 
 interface SearchOptions {
   debounceMs?: number

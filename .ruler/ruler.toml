@@ -1,8 +1,1 @@
 default_agents = ["antigravity", "claude", "copilot", "gemini-cli", "windsurf"]
-
-[mcp]
-enabled = true
-merge_strategy = "merge"
-
-[mcp_servers.beads]
-command = "beads-mcp"

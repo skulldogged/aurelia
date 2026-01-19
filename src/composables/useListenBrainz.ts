@@ -1,8 +1,8 @@
 import { ref, type Ref, watch } from 'vue'
 
-import type { ListenBrainzCredentials, Song } from '@/bindings'
+import type { ListenBrainzCredentials, Song } from '@/lib/api/bindings'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger as logger } from '@/lib/logger'
 import { useListenBrainzStore, usePlayerStore } from '@/stores'
 

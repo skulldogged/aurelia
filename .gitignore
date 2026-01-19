@@ -50,18 +50,12 @@ android/app/src/main/res/mipmap-*/
 /.claude/skills
 /.codex/skills
 /.cursor/skills
-/.gemini/settings.json
-/.gemini/settings.json.bak
 /.gemini/skills
-/.mcp.json
-/.mcp.json.bak
 /.opencode/skill
 /.pi/skills
 /.roo/skills
 /.skillz
 /.vibe/skills
-/.vscode/mcp.json
-/.vscode/mcp.json.bak
 /.windsurf/mcp_config.json
 /.windsurf/mcp_config.json.bak
 /AGENTS.md
@@ -69,3 +63,5 @@ android/app/src/main/res/mipmap-*/
 /CLAUDE.md
 /CLAUDE.md.bak
 # END Ruler Generated Files
+
+.btca

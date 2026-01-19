@@ -159,6 +159,20 @@ export const commands = {
     }
   },
   /**
+ * Reinitialize the audio player's output stream
+ *
+ * This recreates the audio output stream while preserving settings.
+ * Use after audio device changes (e.g., headphones disconnected on Android).
+ */
+  audioReinit: async (): Promise<Result<null, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('audio_reinit'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
+  /**
  * Reset EQ to flat
  */
   audioResetEq: async (): Promise<Result<null, string>> => {
@@ -520,65 +534,6 @@ export const commands = {
   hideMainWindow: async (): Promise<void> => {
     await TAURI_INVOKE('hide_main_window')
   },
-  lastfmAuthenticate: async (apiKey: string, apiSecret: string, token: string): Promise<Result<LastFmCredentials, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('lastfm_authenticate', { apiKey, apiSecret, token }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  lastfmClearCredentials: async (): Promise<Result<null, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('lastfm_clear_credentials'), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  lastfmIsAuthenticated: async (): Promise<Result<boolean, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('lastfm_is_authenticated'), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  lastfmScrobble: async (scrobble: LastFmScrobble): Promise<Result<null, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('lastfm_scrobble', { scrobble }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  lastfmSetCredentials: async (credentials: LastFmCredentials): Promise<Result<null, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('lastfm_set_credentials', { credentials }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  lastfmStartAuthServer: async (primaryColor: string, backgroundColor: string, textColor: string): Promise<Result<null, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('lastfm_start_auth_server', { backgroundColor, primaryColor, textColor }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  lastfmUpdateNowPlaying: async (artist: string, track: string, album: null | string): Promise<Result<null, string>> => {
-    try {
-      return { data: await TAURI_INVOKE('lastfm_update_now_playing', { album, artist, track }), status: 'ok' }
-    } catch (e) {
-      if (e instanceof Error) throw e
-      else return { error: e  as any, status: 'error' }
-    }
-  },
-  /**
- * Clear ListenBrainz credentials
- */
   listenbrainzClearCredentials: async (): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('listenbrainz_clear_credentials'), status: 'ok' }
@@ -587,9 +542,6 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Check if authenticated with ListenBrainz
- */
   listenbrainzIsAuthenticated: async (): Promise<Result<boolean, string>> => {
     try {
       return { data: await TAURI_INVOKE('listenbrainz_is_authenticated'), status: 'ok' }
@@ -598,9 +550,6 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Update "now playing" status on ListenBrainz
- */
   listenbrainzPlayingNow: async (artist: string, track: string, album: null | string): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('listenbrainz_playing_now', { album, artist, track }), status: 'ok' }
@@ -609,9 +558,6 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Set ListenBrainz credentials
- */
   listenbrainzSetCredentials: async (credentials: ListenBrainzCredentials): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('listenbrainz_set_credentials', { credentials }), status: 'ok' }
@@ -620,9 +566,6 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Submit a scrobble (past listen) to ListenBrainz
- */
   listenbrainzSubmitListen: async (listen: ListenBrainzListen, timestamp: number): Promise<Result<null, string>> => {
     try {
       return { data: await TAURI_INVOKE('listenbrainz_submit_listen', { listen, timestamp }), status: 'ok' }
@@ -631,9 +574,6 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
-  /**
- * Validate a ListenBrainz user token and get the username
- */
   listenbrainzValidateToken: async (userToken: string): Promise<Result<ListenBrainzCredentials, string>> => {
     try {
       return { data: await TAURI_INVOKE('listenbrainz_validate_token', { userToken }), status: 'ok' }
@@ -943,8 +883,6 @@ export type Credentials = {
  */
   username:  string; }
 export type HomeViewData = { featured_albums: Album[]; random_albums: Album[]; recently_added: Album[]; recently_played: Song[] }
-export type LastFmCredentials = { api_key: string; api_secret: string; session_key: null | string; username: null | string }
-export type LastFmScrobble = { album: null | string; artist: string; duration: null | number; timestamp: number; track: string; }
 export type LibraryData = { albums: Album[]; artists: Artist[]; songs: Song[]; }
 export type ListenBrainzCredentials = { user_token: string; username: null | string }
 export type ListenBrainzListen = { album: null | string; artist: string; duration: null | number; track: string; }

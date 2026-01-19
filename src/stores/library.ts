@@ -2,9 +2,9 @@ import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 import { toast } from 'vue-sonner'
 
-import type { Album, Artist, Credentials, Song } from '@/bindings'
+import type { Album, Artist, Credentials, Song } from '@/lib/api/bindings'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
 import { useHomeStore } from '@/stores/home'

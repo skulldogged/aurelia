@@ -1,9 +1,9 @@
 import { type Ref } from 'vue'
 import { toast } from 'vue-sonner'
 
-import type { Credentials, Song } from '@/bindings'
+import type { Credentials, Song } from '@/lib/api/bindings'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'
 import { useLibraryStore, usePlayerStore } from '@/stores'

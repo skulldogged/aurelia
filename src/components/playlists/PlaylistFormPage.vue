@@ -7,7 +7,7 @@
 
   import type { PlaylistWithMeta } from '@/stores'
 
-  import { PlaylistCreateData, PlaylistUpdateData, Song } from '@/bindings'
+  import { PlaylistCreateData, PlaylistUpdateData, Song } from '@/lib/api/bindings'
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
   import Button from '@/components/ui/Button.vue'

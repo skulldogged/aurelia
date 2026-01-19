@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { Disc, Play } from 'lucide-vue-next'
 
-  import type { Album } from '@/bindings'
+  import type { Album } from '@/lib/api/bindings'
 
   import ImageLoader from '@/components/shared/ImageLoader.vue'
   import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'

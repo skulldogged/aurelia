@@ -2,9 +2,9 @@ import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 import { toast } from 'vue-sonner'
 
-import type { Playlist, PlaylistCreateData, PlaylistUpdateData, Song } from '@/bindings'
+import type { Playlist, PlaylistCreateData, PlaylistUpdateData, Song } from '@/lib/api/bindings'
 
-import { commands } from '@/bindings'
+import { commands } from '@/lib/api/bindings'
 import { useImageLoader } from '@/composables/useImageLoader'
 import { logger } from '@/lib/logger'
 import { withCustomState } from '@/lib/result'

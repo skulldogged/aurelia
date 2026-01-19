@@ -1,7 +1,7 @@
 import { readonly, ref, type Ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import type { Album, Artist } from '@/bindings'
+import type { Album, Artist } from '@/lib/api/bindings'
 
 const currentView = ref('home')
 const canGoBack = ref(false)
