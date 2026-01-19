@@ -177,11 +177,6 @@ impl SpectrumAnalyzer {
 
         waveform
     }
-
-    /// Set smoothing factor (0-1)
-    pub fn set_smoothing(&mut self, smoothing: f32) {
-        self.smoothing = smoothing.clamp(0.0, 1.0);
-    }
 }
 
 impl Default for SpectrumAnalyzer {
