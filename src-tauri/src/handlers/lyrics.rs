@@ -1,8 +1,7 @@
 //! Lyrics-related command handlers
 
-use aurelia_core::models::JellyfinLyrics;
 use aurelia_core::services::{JellyfinClient, LrcLibClient};
-use std::fmt::Write;
+use aurelia_core::utils::lyrics::jellyfin_to_lrc;
 use tracing::{debug, info, warn};
 
 /// Get lyrics for a track
@@ -21,7 +20,7 @@ pub async fn get_lyrics(
         if let Ok(Some(jellyfin_lyrics)) = client.get_lyrics(&id).await
             && !jellyfin_lyrics.lyrics.is_empty()
         {
-            match convert_jellyfin_lyrics_to_lrc(jellyfin_lyrics) {
+            match jellyfin_to_lrc(&jellyfin_lyrics) {
                 Ok(lrc_content) => return Ok(lrc_content),
                 Err(e) => {
                     warn!("Failed to convert Jellyfin lyrics to LRC format: {}", e);
@@ -53,32 +52,4 @@ pub async fn get_lyrics(
             Ok(lyrics)
         },
     )
-}
-
-/// Convert Jellyfin lyrics format to LRC format
-fn convert_jellyfin_lyrics_to_lrc(lyrics: JellyfinLyrics) -> Result<String, std::fmt::Error> {
-    let mut lrc_content = String::new();
-
-    for line in lyrics.lyrics {
-        if let Some(timestamp) = line.timestamp {
-            // Convert Jellyfin timestamp (100ns ticks from start) to LRC format (MM:SS.mm)
-            let total_seconds = timestamp / 10_000_000.0;
-            // Use floor to ensure we don't exceed valid time bounds
-            let total_seconds_floor = total_seconds.floor();
-
-            let minutes = (total_seconds_floor / 60.0).floor();
-            let seconds = (total_seconds_floor % 60.0).floor();
-            let milliseconds = ((timestamp % 10_000_000.0) / 10_000.0).floor();
-
-            writeln!(
-                lrc_content,
-                "[{:02}:{:02}.{:03}] {}",
-                minutes, seconds, milliseconds, line.text
-            )?;
-        } else {
-            writeln!(lrc_content, "{}", line.text)?;
-        }
-    }
-
-    Ok(lrc_content)
 }

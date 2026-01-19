@@ -28,9 +28,7 @@ class PlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, player).build()
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
-    }
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
@@ -48,7 +46,10 @@ class PlaybackService : MediaSessionService() {
         super.onDestroy()
     }
 
-    override fun onUpdateNotification(session: MediaSession, startInForegroundRequired: Boolean) {
+    override fun onUpdateNotification(
+        session: MediaSession,
+        startInForegroundRequired: Boolean,
+    ) {
         val notification = buildNotification(session)
         if (startInForegroundRequired) {
             startForeground(PlaybackNotificationIds.SERVICE, notification)
@@ -60,18 +61,20 @@ class PlaybackService : MediaSessionService() {
     @OptIn(UnstableApi::class)
     private fun buildNotification(session: MediaSession): Notification {
         val intent = Intent(this, MainActivity::class.java)
-        val contentIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+        val contentIntent =
+            PendingIntent.getActivity(
+                this,
+                0,
+                intent,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
 
         val metadata = session.player.mediaMetadata
         val title = metadata.title?.toString() ?: getString(R.string.playback_notification_title)
         val artist = metadata.artist?.toString() ?: getString(R.string.playback_notification_artist)
 
-        return NotificationCompat.Builder(this, PlaybackNotificationIds.CHANNEL)
+        return NotificationCompat
+            .Builder(this, PlaybackNotificationIds.CHANNEL)
             .setContentTitle(title)
             .setContentText(artist)
             .setSmallIcon(R.drawable.ic_stat_music_note)
@@ -84,11 +87,12 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun ensureNotificationChannel() {
-        val channel = NotificationChannel(
-            PlaybackNotificationIds.CHANNEL,
-            getString(R.string.playback_notification_channel_name),
-            NotificationManager.IMPORTANCE_LOW
-        )
+        val channel =
+            NotificationChannel(
+                PlaybackNotificationIds.CHANNEL,
+                getString(R.string.playback_notification_channel_name),
+                NotificationManager.IMPORTANCE_LOW,
+            )
         notificationManager.createNotificationChannel(channel)
     }
 }

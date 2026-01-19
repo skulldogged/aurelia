@@ -30,72 +30,74 @@ import com.aurelia.app.ui.MainScreen
 import com.aurelia.app.ui.theme.AureliaTheme
 
 class MainActivity : ComponentActivity() {
-  private val notificationPermissionLauncher = registerForActivityResult(
-    ActivityResultContracts.RequestPermission()
-  ) { isGranted ->
-    // Permission granted, notifications will work when playback starts
-  }
+    private val notificationPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission(),
+        ) { isGranted ->
+            // Permission granted, notifications will work when playback starts
+        }
 
-  override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    enableEdgeToEdge()
-    checkNotificationPermission()
-    setContent {
-      AureliaApp()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        checkNotificationPermission()
+        setContent {
+            AureliaApp()
+        }
     }
-  }
 
-  private fun checkNotificationPermission() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      val permissionStatus = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-      if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
-        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-      }
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val permissionStatus = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+            if (permissionStatus != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
     }
-  }
 }
 
 @Composable
 private fun AureliaApp() {
-  val context = LocalContext.current
-  val sessionStore = remember { SessionStore(context) }
-  
-  if (sessionStore.getAppDataDir().isNullOrBlank()) {
-    sessionStore.setAppDataDir(context.filesDir.absolutePath)
-  }
-  
-  // Remember PlayerController and release it when the composable leaves composition
-  val playerController = remember { PlayerController(context) }
-  DisposableEffect(Unit) {
-    onDispose {
-      playerController.release()
+    val context = LocalContext.current
+    val sessionStore = remember { SessionStore(context) }
+
+    if (sessionStore.getAppDataDir().isNullOrBlank()) {
+        sessionStore.setAppDataDir(context.filesDir.absolutePath)
     }
-  }
-  
-  val appViewModel: AppViewModel = viewModel(
-    factory = AppViewModelFactory(sessionStore)
-  )
-  val appState by appViewModel.state.collectAsState()
-  
-  // Track dynamic color preference changes
-  var useDynamicColor by remember { mutableStateOf(sessionStore.getUseDynamicColor()) }
 
-  LaunchedEffect(Unit) {
-    appViewModel.checkSession()
-  }
-
-  AureliaTheme(useDynamicColor = useDynamicColor) {
-    if (appState.isLoggedIn) {
-      MainScreen(
-        sessionStore = sessionStore,
-        playerController = playerController,
-        onLogout = {
-          sessionStore.clear()
-          appViewModel.checkSession()
+    // Remember PlayerController and release it when the composable leaves composition
+    val playerController = remember { PlayerController(context) }
+    DisposableEffect(Unit) {
+        onDispose {
+            playerController.release()
         }
-      )
-    } else {
-      LoginScreen(sessionStore) { appViewModel.checkSession() }
     }
-  }
+
+    val appViewModel: AppViewModel =
+        viewModel(
+            factory = AppViewModelFactory(sessionStore),
+        )
+    val appState by appViewModel.state.collectAsState()
+
+    // Track dynamic color preference changes
+    var useDynamicColor by remember { mutableStateOf(sessionStore.getUseDynamicColor()) }
+
+    LaunchedEffect(Unit) {
+        appViewModel.checkSession()
+    }
+
+    AureliaTheme(useDynamicColor = useDynamicColor) {
+        if (appState.isLoggedIn) {
+            MainScreen(
+                sessionStore = sessionStore,
+                playerController = playerController,
+                onLogout = {
+                    sessionStore.clear()
+                    appViewModel.checkSession()
+                },
+            )
+        } else {
+            LoginScreen(sessionStore) { appViewModel.checkSession() }
+        }
+    }
 }

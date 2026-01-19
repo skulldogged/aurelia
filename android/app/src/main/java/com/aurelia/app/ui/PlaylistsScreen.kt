@@ -35,97 +35,102 @@ private val NavBarContentHeight = 90.dp
 
 @Composable
 fun PlaylistsScreen(
-  sessionStore: SessionStore,
-  playerController: PlayerController,
-  onOpenPlayer: () -> Unit,
-  hasPlayerBar: Boolean = false
+    sessionStore: SessionStore,
+    playerController: PlayerController,
+    onOpenPlayer: () -> Unit,
+    hasPlayerBar: Boolean = false,
 ) {
-  val colors = MaterialTheme.colorScheme
-  
-  // Calculate bottom padding to float FAB above navbar/playerbar
-  val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-  val fabBottomPadding = NavBarContentHeight + systemNavBarInset + 24.dp + // navbar + system + spacing
-    (if (hasPlayerBar) MiniPlayerHeight + 12.dp else 0.dp) // extra padding when player bar is visible
+    val colors = MaterialTheme.colorScheme
 
-  Box(
-    modifier = Modifier
-      .fillMaxSize()
-      .statusBarsPadding()
-  ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-      // Header
-      Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 24.dp, vertical = 16.dp)
-      ) {
-        Text(
-          text = "Playlists",
-          style = MaterialTheme.typography.displayLarge,
-          fontWeight = FontWeight.Bold,
-          color = colors.onBackground
-        )
-        Text(
-          text = "Your music collections",
-          style = MaterialTheme.typography.bodyMedium,
-          color = colors.onSurfaceVariant
-        )
-      }
+    // Calculate bottom padding to float FAB above navbar/playerbar
+    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val fabBottomPadding =
+        NavBarContentHeight + systemNavBarInset + 24.dp + // navbar + system + spacing
+            (if (hasPlayerBar) MiniPlayerHeight + 12.dp else 0.dp) // extra padding when player bar is visible
 
-      // Empty state
-      Box(
-        modifier = Modifier
-          .fillMaxSize()
-          .padding(32.dp),
-        contentAlignment = Alignment.Center
-      ) {
-        Column(
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-          Surface(
-            modifier = Modifier.size(80.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = colors.surfaceVariant
-          ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(
-                imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
-                contentDescription = null,
-                tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(40.dp)
-              )
-            }
-          }
-          Text(
-            text = "No playlists yet",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.onSurface
-          )
-          Text(
-            text = "Create a playlist to organize your favorite music",
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.onSurfaceVariant,
-            textAlign = TextAlign.Center
-          )
-        }
-      }
-    }
-
-    // FAB to create playlist - positioned above navbar/playerbar
-    FloatingActionButton(
-      onClick = { /* TODO: Create playlist */ },
-      modifier = Modifier
-        .align(Alignment.BottomEnd)
-        .padding(end = 16.dp, bottom = fabBottomPadding),
-      containerColor = colors.primary,
-      contentColor = colors.onPrimary
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
     ) {
-      Icon(
-        imageVector = Icons.Filled.Add,
-        contentDescription = "Create playlist"
-      )
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+            ) {
+                Text(
+                    text = "Playlists",
+                    style = MaterialTheme.typography.displayLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onBackground,
+                )
+                Text(
+                    text = "Your music collections",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant,
+                )
+            }
+
+            // Empty state
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    Surface(
+                        modifier = Modifier.size(80.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        color = colors.surfaceVariant,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
+                                contentDescription = null,
+                                tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.size(40.dp),
+                            )
+                        }
+                    }
+                    Text(
+                        text = "No playlists yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurface,
+                    )
+                    Text(
+                        text = "Create a playlist to organize your favorite music",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+
+        // FAB to create playlist - positioned above navbar/playerbar
+        FloatingActionButton(
+            onClick = { /* TODO: Create playlist */ },
+            modifier =
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = fabBottomPadding),
+            containerColor = colors.primary,
+            contentColor = colors.onPrimary,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = "Create playlist",
+            )
+        }
     }
-  }
 }

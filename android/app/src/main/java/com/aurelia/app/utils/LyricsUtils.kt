@@ -6,7 +6,6 @@ import com.aurelia.app.data.model.SyncedWord
 import java.util.regex.Pattern
 
 object LyricsUtils {
-
     private val LRC_LINE_REGEX = Pattern.compile("^\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})](.*)$")
     private val LRC_WORD_REGEX = Pattern.compile("<(\\d{2}):(\\d{2})\\.(\\d{2,3})>([^<]*)")
     private val LRC_WORD_TAG_REGEX = Regex("<\\d{2}:\\d{2}\\.\\d{2,3}>")
@@ -72,16 +71,18 @@ object LyricsUtils {
                 val stripped = stripLrcTimestamps(stripFormatCharacters(line))
                 if (isSynced && syncedLines.isNotEmpty()) {
                     val last = syncedLines.removeAt(syncedLines.lastIndex)
-                    val mergedLineText = if (last.line.isEmpty()) {
-                        stripped
-                    } else {
-                        last.line + "\n" + stripped
-                    }
-                    val merged = if (last.words?.isNotEmpty() == true) {
-                        SyncedLine(last.time, mergedLineText, last.words)
-                    } else {
-                        SyncedLine(last.time, mergedLineText)
-                    }
+                    val mergedLineText =
+                        if (last.line.isEmpty()) {
+                            stripped
+                        } else {
+                            last.line + "\n" + stripped
+                        }
+                    val merged =
+                        if (last.words?.isNotEmpty() == true) {
+                            SyncedLine(last.time, mergedLineText, last.words)
+                        } else {
+                            SyncedLine(last.time, mergedLineText)
+                        }
                     syncedLines.add(merged)
                 } else {
                     plainLines.add(stripped)
@@ -107,13 +108,13 @@ object LyricsUtils {
     private fun sanitizeLrcLine(rawLine: String): String {
         if (rawLine.isEmpty()) return rawLine
 
-        val withoutTerminators = rawLine
-            .trimEnd('\r', '\n')
-            .filterNot { char ->
-                Character.getType(char).toByte() == Character.FORMAT ||
-                    (Character.isISOControl(char) && char != '\t')
-            }
-            .trimEnd('\uFEFF')
+        val withoutTerminators =
+            rawLine
+                .trimEnd('\r', '\n')
+                .filterNot { char ->
+                    Character.getType(char).toByte() == Character.FORMAT ||
+                        (Character.isISOControl(char) && char != '\t')
+                }.trimEnd('\uFEFF')
 
         val trimmedPrefix = withoutTerminators.trimStart { it.isWhitespace() }
         val firstBracket = trimmedPrefix.indexOf('[')
@@ -125,10 +126,11 @@ object LyricsUtils {
     }
 
     private fun stripFormatCharacters(value: String): String {
-        val cleaned = value.filterNot { char ->
-            Character.getType(char).toByte() == Character.FORMAT ||
-                (Character.isISOControl(char) && char != '\t')
-        }
+        val cleaned =
+            value.filterNot { char ->
+                Character.getType(char).toByte() == Character.FORMAT ||
+                    (Character.isISOControl(char) && char != '\t')
+            }
         return when (cleaned) {
             "\"", "'" -> ""
             else -> cleaned

@@ -18,17 +18,17 @@ import com.aurelia.app.R
 @OptIn(ExperimentalAnimationGraphicsApi::class)
 @Composable
 fun AnimatedPlayPauseIcon(
-  isPlaying: Boolean,
-  modifier: Modifier = Modifier,
-  tint: Color = Color.White,
-  contentDescription: String? = if (isPlaying) "Pause" else "Play"
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
+    tint: Color = Color.White,
+    contentDescription: String? = if (isPlaying) "Pause" else "Play",
 ) {
-  val animatedVector = AnimatedImageVector.animatedVectorResource(R.drawable.avd_play_to_pause)
+    val animatedVector = AnimatedImageVector.animatedVectorResource(R.drawable.avd_play_to_pause)
 
-  Image(
-    painter = rememberAnimatedVectorPainter(animatedVector, atEnd = isPlaying),
-    contentDescription = contentDescription,
-    modifier = modifier,
-    colorFilter = ColorFilter.tint(tint)
-  )
+    Image(
+        painter = rememberAnimatedVectorPainter(animatedVector, atEnd = isPlaying),
+        contentDescription = contentDescription,
+        modifier = modifier,
+        colorFilter = ColorFilter.tint(tint),
+    )
 }

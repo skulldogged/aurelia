@@ -52,190 +52,195 @@ import java.util.Calendar
 
 @Composable
 fun HomeScreen(
-  viewModel: HomeViewModel,
-  onOpenPlayer: () -> Unit,
-  onNavigateToAlbum: (Screen.AlbumDetail) -> Unit = {},
-  hasPlayerBar: Boolean = false
+    viewModel: HomeViewModel,
+    onOpenPlayer: () -> Unit,
+    onNavigateToAlbum: (Screen.AlbumDetail) -> Unit = {},
+    hasPlayerBar: Boolean = false,
 ) {
-  val state by viewModel.state.collectAsState()
-  val colors = MaterialTheme.colorScheme
-  val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
+    val state by viewModel.state.collectAsState()
+    val colors = MaterialTheme.colorScheme
+    val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
 
-  LaunchedEffect(Unit) {
-    viewModel.loadHomeData()
-  }
-
-  // Time-based greeting
-  val greeting = remember {
-    when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-      in 5..11 -> "Good morning"
-      in 12..17 -> "Good afternoon"
-      else -> "Good evening"
-    }
-  }
-
-  when {
-    state.isLoading && state.recentlyPlayed.isEmpty() && state.mostPlayed.isEmpty() -> {
-      Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-      ) {
-        CircularProgressIndicator(color = colors.primary)
-      }
+    LaunchedEffect(Unit) {
+        viewModel.loadHomeData()
     }
 
-    state.error != null && state.recentlyPlayed.isEmpty() -> {
-      Box(
-        modifier = Modifier
-          .fillMaxSize()
-          .padding(24.dp),
-        contentAlignment = Alignment.Center
-      ) {
-        Text(
-          text = state.error ?: "",
-          color = colors.error,
-          style = MaterialTheme.typography.bodyLarge
-        )
-      }
-    }
-
-    else -> {
-      // Calculate quickPicks outside the grid (composable context)
-      val quickPicks = remember(state.mostPlayed, state.recentlyPlayed) {
-        (state.mostPlayed + state.recentlyPlayed)
-          .distinctBy { it.id }
-          .take(6)
-      }
-
-      LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = Modifier
-          .fillMaxSize()
-          .statusBarsPadding(),
-        contentPadding = PaddingValues(
-          start = 20.dp,
-          end = 20.dp,
-          top = 16.dp,
-          bottom = bottomPadding
-        ),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-      ) {
-        // Greeting header - spans full width
-        item(span = { GridItemSpan(2) }) {
-          Column(
-            modifier = Modifier.padding(bottom = 8.dp)
-          ) {
-            Text(
-              text = greeting,
-              style = MaterialTheme.typography.headlineLarge,
-              fontWeight = FontWeight.Bold,
-              color = colors.onBackground
-            )
-          }
-        }
-
-        // Quick Picks section header - spans full width
-        if (state.mostPlayed.isNotEmpty() || state.recentlyPlayed.isNotEmpty()) {
-          item(span = { GridItemSpan(2) }) {
-            Text(
-              text = "Quick Picks",
-              style = MaterialTheme.typography.titleLarge,
-              fontWeight = FontWeight.Bold,
-              color = colors.onBackground,
-              modifier = Modifier.padding(top = 8.dp)
-            )
-          }
-        }
-
-        // Quick picks - compact song cards in 2-column grid
-        items(
-          items = quickPicks,
-          key = { "quick_${it.id}" }
-        ) { song ->
-          QuickPickCard(
-            song = song,
-            isCurrentSong = song.id == state.currentSongId,
-            isPlaying = state.nowPlaying?.isPlaying == true && song.id == state.currentSongId,
-            onClick = {
-              viewModel.playSongFromList(song.id, quickPicks)
-              onOpenPlayer()
+    // Time-based greeting
+    val greeting =
+        remember {
+            when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+                in 5..11 -> "Good morning"
+                in 12..17 -> "Good afternoon"
+                else -> "Good evening"
             }
-          )
         }
 
-        // Recently Added Albums section header - spans full width
-        if (state.recentlyAddedAlbums.isNotEmpty()) {
-          item(span = { GridItemSpan(2) }) {
-            Text(
-              text = "Recently Added",
-              style = MaterialTheme.typography.titleLarge,
-              fontWeight = FontWeight.Bold,
-              color = colors.onBackground,
-              modifier = Modifier.padding(top = 12.dp)
-            )
-          }
-
-          // Album cards in horizontal scroll (inside grid as full-width item)
-          item(span = { GridItemSpan(2) }) {
-            LazyRow(
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-              contentPadding = PaddingValues(vertical = 4.dp)
+    when {
+        state.isLoading && state.recentlyPlayed.isEmpty() && state.mostPlayed.isEmpty() -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
             ) {
-              items(
-                items = state.recentlyAddedAlbums,
-                key = { "recent_${it.id}" }
-              ) { album ->
-                CompactAlbumCard(
-                  album = album,
-                  onClick = { onNavigateToAlbum(Screen.AlbumDetail(album.id, album.name)) },
-                  onPlay = {
-                    viewModel.playAlbum(album.id)
-                    onOpenPlayer()
-                  }
-                )
-              }
+                CircularProgressIndicator(color = colors.primary)
             }
-          }
         }
 
-        // From Your Library section header - spans full width
-        if (state.randomAlbums.isNotEmpty()) {
-          item(span = { GridItemSpan(2) }) {
-            Text(
-              text = "From Your Library",
-              style = MaterialTheme.typography.titleLarge,
-              fontWeight = FontWeight.Bold,
-              color = colors.onBackground,
-              modifier = Modifier.padding(top = 12.dp)
-            )
-          }
-
-          // Random albums in horizontal scroll
-          item(span = { GridItemSpan(2) }) {
-            LazyRow(
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-              contentPadding = PaddingValues(vertical = 4.dp)
+        state.error != null && state.recentlyPlayed.isEmpty() -> {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                contentAlignment = Alignment.Center,
             ) {
-              items(
-                items = state.randomAlbums,
-                key = { "random_${it.id}" }
-              ) { album ->
-                CompactAlbumCard(
-                  album = album,
-                  onClick = { onNavigateToAlbum(Screen.AlbumDetail(album.id, album.name)) },
-                  onPlay = {
-                    viewModel.playAlbum(album.id)
-                    onOpenPlayer()
-                  }
+                Text(
+                    text = state.error ?: "",
+                    color = colors.error,
+                    style = MaterialTheme.typography.bodyLarge,
                 )
-              }
             }
-          }
         }
-      }
+
+        else -> {
+            // Calculate quickPicks outside the grid (composable context)
+            val quickPicks =
+                remember(state.mostPlayed, state.recentlyPlayed) {
+                    (state.mostPlayed + state.recentlyPlayed)
+                        .distinctBy { it.id }
+                        .take(6)
+                }
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding(),
+                contentPadding =
+                    PaddingValues(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 16.dp,
+                        bottom = bottomPadding,
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                // Greeting header - spans full width
+                item(span = { GridItemSpan(2) }) {
+                    Column(
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    ) {
+                        Text(
+                            text = greeting,
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onBackground,
+                        )
+                    }
+                }
+
+                // Quick Picks section header - spans full width
+                if (state.mostPlayed.isNotEmpty() || state.recentlyPlayed.isNotEmpty()) {
+                    item(span = { GridItemSpan(2) }) {
+                        Text(
+                            text = "Quick Picks",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onBackground,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+
+                // Quick picks - compact song cards in 2-column grid
+                items(
+                    items = quickPicks,
+                    key = { "quick_${it.id}" },
+                ) { song ->
+                    QuickPickCard(
+                        song = song,
+                        isCurrentSong = song.id == state.currentSongId,
+                        isPlaying = state.nowPlaying?.isPlaying == true && song.id == state.currentSongId,
+                        onClick = {
+                            viewModel.playSongFromList(song.id, quickPicks)
+                            onOpenPlayer()
+                        },
+                    )
+                }
+
+                // Recently Added Albums section header - spans full width
+                if (state.recentlyAddedAlbums.isNotEmpty()) {
+                    item(span = { GridItemSpan(2) }) {
+                        Text(
+                            text = "Recently Added",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onBackground,
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
+
+                    // Album cards in horizontal scroll (inside grid as full-width item)
+                    item(span = { GridItemSpan(2) }) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp),
+                        ) {
+                            items(
+                                items = state.recentlyAddedAlbums,
+                                key = { "recent_${it.id}" },
+                            ) { album ->
+                                CompactAlbumCard(
+                                    album = album,
+                                    onClick = { onNavigateToAlbum(Screen.AlbumDetail(album.id, album.name)) },
+                                    onPlay = {
+                                        viewModel.playAlbum(album.id)
+                                        onOpenPlayer()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // From Your Library section header - spans full width
+                if (state.randomAlbums.isNotEmpty()) {
+                    item(span = { GridItemSpan(2) }) {
+                        Text(
+                            text = "From Your Library",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onBackground,
+                            modifier = Modifier.padding(top = 12.dp),
+                        )
+                    }
+
+                    // Random albums in horizontal scroll
+                    item(span = { GridItemSpan(2) }) {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(vertical = 4.dp),
+                        ) {
+                            items(
+                                items = state.randomAlbums,
+                                key = { "random_${it.id}" },
+                            ) { album ->
+                                CompactAlbumCard(
+                                    album = album,
+                                    onClick = { onNavigateToAlbum(Screen.AlbumDetail(album.id, album.name)) },
+                                    onPlay = {
+                                        viewModel.playAlbum(album.id)
+                                        onOpenPlayer()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
-  }
 }
 
 /**
@@ -243,115 +248,122 @@ fun HomeScreen(
  */
 @Composable
 private fun QuickPickCard(
-  song: Song,
-  isCurrentSong: Boolean,
-  isPlaying: Boolean,
-  onClick: () -> Unit
+    song: Song,
+    isCurrentSong: Boolean,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
 ) {
-  val colors = MaterialTheme.colorScheme
+    val colors = MaterialTheme.colorScheme
 
-  Surface(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clickable(onClick = onClick),
-    shape = RoundedCornerShape(16.dp),
-    color = if (isCurrentSong) colors.primaryContainer else colors.surfaceContainerLow
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(64.dp),
-      verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = if (isCurrentSong) colors.primaryContainer else colors.surfaceContainerLow,
     ) {
-      // Album art - square, left aligned
-      Box(
-        modifier = Modifier
-          .size(64.dp)
-          .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-          .background(colors.surfaceVariant),
-        contentAlignment = Alignment.Center
-      ) {
-        if (song.albumArtUrl.isNullOrBlank()) {
-          Icon(
-            imageVector = Icons.Filled.MusicNote,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-            modifier = Modifier.size(24.dp)
-          )
-        } else {
-          SubcomposeAsyncImage(
-            model = song.albumArtUrl,
-            contentDescription = song.name,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            loading = {
-              Box(
-                modifier = Modifier
-                  .fillMaxSize()
-                  .background(colors.surfaceVariant)
-              )
-            },
-            error = {
-              Box(
-                modifier = Modifier
-                  .fillMaxSize()
-                  .background(colors.surfaceVariant),
-                contentAlignment = Alignment.Center
-              ) {
-                Icon(
-                  imageVector = Icons.Filled.MusicNote,
-                  contentDescription = null,
-                  tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-                  modifier = Modifier.size(24.dp)
-                )
-              }
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Album art - square, left aligned
+            Box(
+                modifier =
+                    Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                        .background(colors.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (song.albumArtUrl.isNullOrBlank()) {
+                    Icon(
+                        imageVector = Icons.Filled.MusicNote,
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
+                        modifier = Modifier.size(24.dp),
+                    )
+                } else {
+                    SubcomposeAsyncImage(
+                        model = song.albumArtUrl,
+                        contentDescription = song.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        loading = {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .background(colors.surfaceVariant),
+                            )
+                        },
+                        error = {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .background(colors.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.MusicNote,
+                                    contentDescription = null,
+                                    tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
+                        },
+                    )
+                }
+
+                // Playing indicator
+                if (isPlaying) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .background(colors.primary.copy(alpha = 0.8f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            tint = colors.onPrimary,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
+                }
             }
-          )
-        }
 
-        // Playing indicator
-        if (isPlaying) {
-          Box(
-            modifier = Modifier
-              .fillMaxSize()
-              .background(colors.primary.copy(alpha = 0.8f)),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.Filled.PlayArrow,
-              contentDescription = null,
-              tint = colors.onPrimary,
-              modifier = Modifier.size(24.dp)
-            )
-          }
+            // Song info
+            Column(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = song.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isCurrentSong) colors.onPrimaryContainer else colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = song.artists?.firstOrNull() ?: "Unknown",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isCurrentSong) colors.onPrimaryContainer.copy(alpha = 0.7f) else colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
-      }
-
-      // Song info
-      Column(
-        modifier = Modifier
-          .weight(1f)
-          .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.Center
-      ) {
-        Text(
-          text = song.name,
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = if (isCurrentSong) FontWeight.Bold else FontWeight.Medium,
-          color = if (isCurrentSong) colors.onPrimaryContainer else colors.onSurface,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-        Text(
-          text = song.artists?.firstOrNull() ?: "Unknown",
-          style = MaterialTheme.typography.bodySmall,
-          color = if (isCurrentSong) colors.onPrimaryContainer.copy(alpha = 0.7f) else colors.onSurfaceVariant,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-      }
     }
-  }
 }
 
 /**
@@ -359,111 +371,116 @@ private fun QuickPickCard(
  */
 @Composable
 private fun CompactAlbumCard(
-  album: AlbumItem,
-  onClick: () -> Unit,
-  onPlay: () -> Unit
+    album: AlbumItem,
+    onClick: () -> Unit,
+    onPlay: () -> Unit,
 ) {
-  val colors = MaterialTheme.colorScheme
+    val colors = MaterialTheme.colorScheme
 
-  Surface(
-    modifier = Modifier
-      .width(140.dp)
-      .clickable(onClick = onClick),
-    shape = RoundedCornerShape(16.dp),
-    color = colors.surfaceContainerLow
-  ) {
-    Column {
-      // Album artwork with play button
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .aspectRatio(1f)
-          .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-          .background(colors.surfaceVariant)
-      ) {
-        if (album.albumArtUrl.isNullOrBlank()) {
-          Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.Filled.Album,
-              contentDescription = null,
-              tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-              modifier = Modifier.fillMaxSize(0.4f)
-            )
-          }
-        } else {
-          SubcomposeAsyncImage(
-            model = album.albumArtUrl,
-            contentDescription = album.name,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            loading = {
-              Box(
-                modifier = Modifier
-                  .fillMaxSize()
-                  .background(colors.surfaceVariant)
-              )
-            },
-            error = {
-              Box(
-                modifier = Modifier
-                  .fillMaxSize()
-                  .background(colors.surfaceVariant),
-                contentAlignment = Alignment.Center
-              ) {
-                Icon(
-                  imageVector = Icons.Filled.Album,
-                  contentDescription = null,
-                  tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-                  modifier = Modifier.fillMaxSize(0.4f)
-                )
-              }
+    Surface(
+        modifier =
+            Modifier
+                .width(140.dp)
+                .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = colors.surfaceContainerLow,
+    ) {
+        Column {
+            // Album artwork with play button
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                        .background(colors.surfaceVariant),
+            ) {
+                if (album.albumArtUrl.isNullOrBlank()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Album,
+                            contentDescription = null,
+                            tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
+                            modifier = Modifier.fillMaxSize(0.4f),
+                        )
+                    }
+                } else {
+                    SubcomposeAsyncImage(
+                        model = album.albumArtUrl,
+                        contentDescription = album.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        loading = {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .background(colors.surfaceVariant),
+                            )
+                        },
+                        error = {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .fillMaxSize()
+                                        .background(colors.surfaceVariant),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Album,
+                                    contentDescription = null,
+                                    tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
+                                    modifier = Modifier.fillMaxSize(0.4f),
+                                )
+                            }
+                        },
+                    )
+                }
+
+                // Play button overlay
+                Box(
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(8.dp)
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(colors.primary)
+                            .clickable(onClick = onPlay),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PlayArrow,
+                        contentDescription = "Play album",
+                        tint = colors.onPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
-          )
-        }
 
-        // Play button overlay
-        Box(
-          modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(8.dp)
-            .size(32.dp)
-            .clip(CircleShape)
-            .background(colors.primary)
-            .clickable(onClick = onPlay),
-          contentAlignment = Alignment.Center
-        ) {
-          Icon(
-            imageVector = Icons.Filled.PlayArrow,
-            contentDescription = "Play album",
-            tint = colors.onPrimary,
-            modifier = Modifier.size(18.dp)
-          )
+            // Album info
+            Column(
+                modifier = Modifier.padding(10.dp),
+            ) {
+                Text(
+                    text = album.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = album.artist,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
-      }
-
-      // Album info
-      Column(
-        modifier = Modifier.padding(10.dp)
-      ) {
-        Text(
-          text = album.name,
-          style = MaterialTheme.typography.bodySmall,
-          fontWeight = FontWeight.SemiBold,
-          color = colors.onSurface,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-        Text(
-          text = album.artist,
-          style = MaterialTheme.typography.labelSmall,
-          color = colors.onSurfaceVariant,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-      }
     }
-  }
 }

@@ -30,6 +30,7 @@ target/
 .gemini
 .claude
 keystore.properties
+local.properties
 android/.gradle/
 android/**/.gradle/
 android/**/build/
@@ -49,11 +50,15 @@ android/app/build.gradle.kts
 /.agents/skills
 /.claude/skills
 /.codex/skills
+/.cursor/skills
 /.gemini/settings.json
 /.gemini/settings.json.bak
+/.gemini/skills
 /.mcp.json
 /.mcp.json.bak
 /.opencode/skill
+/.pi/skills
+/.roo/skills
 /.skillz
 /.vibe/skills
 /.vscode/mcp.json
