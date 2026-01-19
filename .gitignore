@@ -41,7 +41,6 @@ android/**/jniLibs/
 android/**/*.so
 android/app/src/main/java/uniffi/
 android/app/src/main/res/mipmap-*/
-android/app/build.gradle.kts
 
 
 # START Ruler Generated Files
