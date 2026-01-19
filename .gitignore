@@ -31,16 +31,12 @@ target/
 .claude
 keystore.properties
 local.properties
-android/.gradle/
-android/**/.gradle/
-android/**/build/
-android/*/build/
-android/*/build
-android/*/build/reports/
-android/**/jniLibs/
-android/**/*.so
-android/app/src/main/java/uniffi/
-android/app/src/main/res/mipmap-*/
+**/.gradle/
+**/build/
+**/jniLibs/
+**/*.so
+apps/mobile/android/app/src/main/java/uniffi/
+apps/mobile/android/app/src/main/res/mipmap-*/
 
 
 # START Ruler Generated Files

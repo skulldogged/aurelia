@@ -51,7 +51,7 @@ android.sourceSets["main"]
     .add("src/main/jniLibs")
 
 tasks.register<Exec>("buildRustHost") {
-    workingDir = file("$rootDir/..")
+    workingDir = file("$rootDir/../../..")
     commandLine("cargo", "build", "-p", "aurelia-core")
 }
 
@@ -64,7 +64,7 @@ tasks.register<JavaExec>("formatUniffiBindings") {
 }
 
 tasks.register<Exec>("generateUniffiBindings") {
-    workingDir = file("$rootDir/..")
+    workingDir = file("$rootDir/../../..")
     commandLine(
         "cargo",
         "run",
@@ -77,9 +77,9 @@ tasks.register<Exec>("generateUniffiBindings") {
         "--language",
         "kotlin",
         "--config",
-        "android/app/src/main/java/uniffi/aurelia_core/uniffi.toml",
+        "apps/mobile/android/app/src/main/java/uniffi/aurelia_core/uniffi.toml",
         "--out-dir",
-        "android/app/src/main/java",
+        "apps/mobile/android/app/src/main/java",
         "--no-format",
     )
     dependsOn("buildRustHost")
@@ -87,7 +87,7 @@ tasks.register<Exec>("generateUniffiBindings") {
 }
 
 tasks.register<Exec>("buildRustAndroid") {
-    workingDir = file("$rootDir/..")
+    workingDir = file("$rootDir/../../..")
     commandLine(
         "cargo",
         "ndk",
@@ -96,7 +96,7 @@ tasks.register<Exec>("buildRustAndroid") {
         "-t",
         "x86_64",
         "-o",
-        "android/app/src/main/jniLibs",
+        "apps/mobile/android/app/src/main/jniLibs",
         "build",
         "-p",
         "aurelia-core",

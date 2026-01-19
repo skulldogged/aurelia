@@ -1,0 +1,7 @@
+{
+  "name": "aurelia-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ]
+}
