@@ -99,6 +99,13 @@
 			"type": "git",
 			"url": "https://github.com/Kotlin/kotlinx.coroutines",
 			"branch": "master"
+		},
+		{
+			"name": "jellyfin",
+			"type": "git",
+			"url": "https://github.com/jellyfin/jellyfin",
+			"branch": "master",
+			"specialNotes": "Jellyfin media server API source code"
 		}
 	],
 	"model": "big-pickle",
