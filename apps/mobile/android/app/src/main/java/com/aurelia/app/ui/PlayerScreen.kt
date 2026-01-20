@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -351,6 +352,7 @@ fun PlayerScreen(
 
             AnimatedPlaybackControls(
                 isPlaying = state.isPlaying,
+                isBuffering = state.isBuffering,
                 hasPrevious = state.hasPrevious,
                 hasNext = state.hasNext,
                 onPrevious = { viewModel.skipPrevious() },
@@ -435,6 +437,7 @@ fun PlayerScreen(
 @Composable
 private fun AnimatedPlaybackControls(
     isPlaying: Boolean,
+    isBuffering: Boolean,
     hasPrevious: Boolean,
     hasNext: Boolean,
     onPrevious: () -> Unit,
@@ -516,7 +519,7 @@ private fun AnimatedPlaybackControls(
             label = "playWeight",
         )
         val playCorner by animateDpAsState(
-            targetValue = if (isPlaying) 26.dp else 50.dp,
+            targetValue = if (isPlaying || isBuffering) 26.dp else 50.dp,
             animationSpec =
                 spring(
                     dampingRatio = Spring.DampingRatioNoBouncy,
@@ -531,20 +534,34 @@ private fun AnimatedPlaybackControls(
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(playCorner))
                     .background(colors.primary)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) {
-                        lastClicked = ControlButton.PLAY_PAUSE
-                        onPlayPause()
-                    },
+                    .then(
+                        if (!isBuffering) {
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                lastClicked = ControlButton.PLAY_PAUSE
+                                onPlayPause()
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
             contentAlignment = Alignment.Center,
         ) {
-            AnimatedPlayPauseIcon(
-                isPlaying = isPlaying,
-                tint = colors.onPrimary,
-                modifier = Modifier.size(36.dp),
-            )
+            if (isBuffering) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(32.dp),
+                    color = colors.onPrimary,
+                    strokeWidth = 3.dp,
+                )
+            } else {
+                AnimatedPlayPauseIcon(
+                    isPlaying = isPlaying,
+                    tint = colors.onPrimary,
+                    modifier = Modifier.size(36.dp),
+                )
+            }
         }
 
         val nextWeight by animateFloatAsState(

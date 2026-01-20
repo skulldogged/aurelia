@@ -4,10 +4,14 @@
 
 ```
 aurelia/
-├── src/              # Desktop frontend (Vue 3 + TypeScript)
-├── src-tauri/        # Desktop backend (Rust, Tauri v2)
-├── android/          # Mobile app (Kotlin, Jetpack Compose)
-└── crates/aurelia-core/  # Shared Rust library (uniffi bindings)
+├── apps/
+│   ├── desktop/          # Desktop app (Tauri + Vue)
+│   │   ├── src/          # Vue 3 frontend
+│   │   └── src-tauri/    # Tauri/Rust backend
+│   └── mobile/
+│       └── android/      # Android app (Kotlin, Jetpack Compose)
+└── crates/
+    └── aurelia-core/     # Shared Rust library (uniffi bindings)
 ```
 
 ## Tech Stack

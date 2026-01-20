@@ -17,3 +17,4 @@ pub const RECENTLY_PLAYED: TableDefinition<&str, &[u8]> = TableDefinition::new("
 
 pub const SYNC_STATE: TableDefinition<&str, &[u8]> = TableDefinition::new("sync_state");
 pub const DB_VERSION: TableDefinition<&str, u32> = TableDefinition::new("db_version");
+pub const CREDENTIALS: TableDefinition<&str, &[u8]> = TableDefinition::new("credentials");

@@ -45,6 +45,7 @@ import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
@@ -112,6 +113,10 @@ fun MainScreen(
     // HomeViewModel hoisted here to survive tab switches
     val homeViewModelFactory = remember { HomeViewModelFactory(sessionStore, playerController) }
     val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory)
+
+    // SettingsViewModel hoisted here to survive tab switches
+    val settingsViewModelFactory = remember { SettingsViewModelFactory(sessionStore) }
+    val settingsViewModel: SettingsViewModel = viewModel(factory = settingsViewModelFactory)
 
     // Load home data once when ViewModel is created (not on every tab switch)
     LaunchedEffect(homeViewModel) {
@@ -298,6 +303,7 @@ fun MainScreen(
                     ) {
                         SettingsScreen(
                             sessionStore = sessionStore,
+                            settingsViewModel = settingsViewModel,
                             onLogout = onLogout,
                             hasPlayerBar = libraryState.nowPlaying != null,
                         )
@@ -478,6 +484,7 @@ fun MainScreen(
                             artist = nowPlaying.artist,
                             albumArtUrl = nowPlaying.albumArtUrl,
                             isPlaying = nowPlaying.isPlaying,
+                            isBuffering = nowPlaying.isBuffering,
                             hasPrevious = nowPlaying.hasPrevious,
                             hasNext = nowPlaying.hasNext,
                             onPrevious = { libraryViewModel.skipPrevious() },
@@ -664,6 +671,7 @@ fun MiniPlayerBar(
     artist: String,
     albumArtUrl: String?,
     isPlaying: Boolean,
+    isBuffering: Boolean,
     hasPrevious: Boolean,
     hasNext: Boolean,
     onPrevious: () -> Unit,
@@ -794,18 +802,32 @@ fun MiniPlayerBar(
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(colors.primary)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onPlayPause,
+                        .then(
+                            if (!isBuffering) {
+                                Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = onPlayPause,
+                                )
+                            } else {
+                                Modifier
+                            },
                         ),
                 contentAlignment = Alignment.Center,
             ) {
-                AnimatedPlayPauseIcon(
-                    isPlaying = isPlaying,
-                    tint = colors.onPrimary,
-                    modifier = Modifier.size(20.dp),
-                )
+                if (isBuffering) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = colors.onPrimary,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    AnimatedPlayPauseIcon(
+                        isPlaying = isPlaying,
+                        tint = colors.onPrimary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(8.dp))

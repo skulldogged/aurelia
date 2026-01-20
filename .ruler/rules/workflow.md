@@ -1,7 +1,7 @@
 # Workflow & Process
 
 ## Golden Rules
-1.  **Modernization First**: Prioritize modern patterns over consistency with legacy code. If you see deprecated patterns (e.g., Vue Options API), refactor them.
+1.  **Modernization First** (within scope): Prioritize modern patterns over consistency with legacy code. If you encounter deprecated patterns (e.g., Vue Options API) **in code you're already modifying**, refactor them. Don't refactor unrelated code.
 2.  **Read before writing**: Gather context (files/search) before touching code. Make max 2 assumptions.
 3.  **Execute**: Propose a short plan, then implement. Don't narrate excessively.
 
@@ -21,3 +21,13 @@
 ## When Stuck
 - State your assumption and keep moving.
 - Ask only if you truly cannot proceed.
+
+## Testing
+
+| Platform | Framework | Location | Run Command |
+|----------|-----------|----------|-------------|
+| Rust | `cargo test` | `crates/aurelia-core/src/**` (inline `#[cfg(test)]`) | `cargo test -p aurelia-core` |
+| Desktop | Vitest (if configured) | `apps/desktop/src/**/*.test.ts` | `cd apps/desktop && bun test` |
+| Android | JUnit + Compose | `apps/mobile/android/app/src/test/` | `cd apps/mobile/android && ./gradlew test` |
+
+**Note**: Test coverage is currently minimal. When adding tests, co-locate them with the code being tested.

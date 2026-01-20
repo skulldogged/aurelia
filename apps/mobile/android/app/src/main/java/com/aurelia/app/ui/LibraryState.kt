@@ -15,6 +15,7 @@ data class NowPlayingState(
     val artist: String,
     val albumArtUrl: String?,
     val isPlaying: Boolean,
+    val isBuffering: Boolean = false,
     val hasPrevious: Boolean = false,
     val hasNext: Boolean = false,
 )

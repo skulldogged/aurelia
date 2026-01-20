@@ -2,6 +2,7 @@ package com.aurelia.app.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.PlayerSnapshot
 import com.aurelia.app.player.QueueItem
@@ -66,7 +67,13 @@ class HomeViewModel(
 
         mutableState.update {
             it.copy(
-                nowPlaying = NowPlayingState(snapshot.title, snapshot.artist, snapshot.albumArtUrl, snapshot.isPlaying),
+                nowPlaying = NowPlayingState(
+                    title = snapshot.title,
+                    artist = snapshot.artist,
+                    albumArtUrl = snapshot.albumArtUrl,
+                    isPlaying = snapshot.isPlaying,
+                    isBuffering = snapshot.isBuffering,
+                ),
                 currentSongId = songId,
             )
         }
@@ -121,9 +128,13 @@ class HomeViewModel(
                 processHomeData(songs)
                 hasLoadedInitialData = true
             } catch (error: AppException) {
-                mutableState.update { it.copy(isLoading = false, error = error.message ?: "Failed to load") }
-            } catch (_: Exception) {
-                mutableState.update { it.copy(isLoading = false, error = "Failed to load") }
+                if (!AuthInterceptor.handlePotentialAuthError(error.message)) {
+                    mutableState.update { it.copy(isLoading = false, error = error.message ?: "Failed to load") }
+                }
+            } catch (error: Exception) {
+                if (!AuthInterceptor.handlePotentialAuthError(error)) {
+                    mutableState.update { it.copy(isLoading = false, error = "Failed to load") }
+                }
             }
         }
     }

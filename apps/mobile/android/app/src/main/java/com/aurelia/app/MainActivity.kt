@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlaybackService
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
@@ -81,6 +82,17 @@ private fun AureliaApp() {
 
     // Track dynamic color preference changes
     var useDynamicColor by remember { mutableStateOf(sessionStore.getUseDynamicColor()) }
+
+    // Set up auth interceptor for automatic logout on 401 errors
+    DisposableEffect(Unit) {
+        AuthInterceptor.setLogoutCallback {
+            sessionStore.clear()
+            appViewModel.checkSession()
+        }
+        onDispose {
+            AuthInterceptor.clearLogoutCallback()
+        }
+    }
 
     LaunchedEffect(Unit) {
         appViewModel.checkSession()

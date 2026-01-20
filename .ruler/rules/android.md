@@ -17,7 +17,7 @@
 - **Components**: Jetpack Compose with Material 3.
 - **Async**: Coroutines with `viewModelScope` and `Dispatchers.IO`.
 - **Theming**: Use `MaterialTheme.colorScheme`.
-- **Reference**: Follow patterns in `android/app/src/main/java/com/aurelia/app/`.
+- **Reference**: Follow patterns in `apps/mobile/android/app/src/main/java/com/aurelia/app/`.
 
 ### UX/Accessibility
 - Maintain contentDescription for accessibility.

@@ -1,23 +1,40 @@
 package com.aurelia.app.storage
 
 import android.content.Context
+import android.util.Log
+import uniffi.aurelia_core.Credentials
+import uniffi.aurelia_core.clearCredentials
+import uniffi.aurelia_core.loadCredentials
+import uniffi.aurelia_core.saveCredentials
 
 class SessionStore(
     context: Context,
 ) {
     private val prefs = context.getSharedPreferences("aurelia_session", Context.MODE_PRIVATE)
+    private var migrationAttempted = false
 
     fun save(
         serverUrl: String,
         userId: String,
         token: String,
+        username: String = "",
     ) {
-        prefs
-            .edit()
-            .putString("serverUrl", serverUrl)
-            .putString("userId", userId)
-            .putString("token", token)
-            .apply()
+        val appDataDir = getAppDataDir()
+        if (appDataDir.isNullOrEmpty()) {
+            Log.w(TAG, "Cannot save credentials: appDataDir not set")
+            return
+        }
+        try {
+            val credentials = Credentials(
+                serverUrl = serverUrl,
+                username = username,
+                token = token,
+                userId = userId,
+            )
+            saveCredentials(appDataDir, credentials)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save credentials to redb", e)
+        }
     }
 
     fun setAppDataDir(path: String) {
@@ -33,12 +50,91 @@ class SessionStore(
     fun getUseDynamicColor(): Boolean = prefs.getBoolean("useDynamicColor", true)
 
     fun clear() {
-        prefs.edit().clear().apply()
+        val appDataDir = getAppDataDir()
+        if (!appDataDir.isNullOrEmpty()) {
+            try {
+                clearCredentials(appDataDir)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear credentials from redb", e)
+            }
+        }
+        // Also clear legacy SharedPreferences credentials (but keep settings)
+        prefs.edit()
+            .remove("serverUrl")
+            .remove("userId")
+            .remove("token")
+            .apply()
     }
 
-    fun getServerUrl(): String? = prefs.getString("serverUrl", null)
+    fun getCredentials(): Credentials? {
+        val appDataDir = getAppDataDir() ?: return null
 
-    fun getUserId(): String? = prefs.getString("userId", null)
+        // Attempt migration from SharedPreferences on first access
+        if (!migrationAttempted) {
+            migrationAttempted = true
+            migrateFromSharedPreferences(appDataDir)
+        }
 
-    fun getToken(): String? = prefs.getString("token", null)
+        return try {
+            loadCredentials(appDataDir)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load credentials from redb", e)
+            null
+        }
+    }
+
+    fun getServerUrl(): String? = getCredentials()?.serverUrl
+
+    fun getUserId(): String? = getCredentials()?.userId
+
+    fun getToken(): String? = getCredentials()?.token
+
+    private fun migrateFromSharedPreferences(appDataDir: String) {
+        val oldServerUrl = prefs.getString("serverUrl", null)
+        val oldUserId = prefs.getString("userId", null)
+        val oldToken = prefs.getString("token", null)
+
+        // Only migrate if old credentials exist
+        if (oldServerUrl != null && oldUserId != null && oldToken != null) {
+            // Check if redb already has credentials
+            try {
+                val existingCreds = loadCredentials(appDataDir)
+                if (existingCreds != null) {
+                    // Already have credentials in redb, just clear old ones
+                    clearOldSharedPreferencesCredentials()
+                    Log.d(TAG, "Credentials already in redb, cleared legacy SharedPreferences")
+                    return
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not check existing redb credentials", e)
+            }
+
+            // Migrate to redb
+            try {
+                val credentials = Credentials(
+                    serverUrl = oldServerUrl,
+                    username = "",
+                    token = oldToken,
+                    userId = oldUserId,
+                )
+                saveCredentials(appDataDir, credentials)
+                clearOldSharedPreferencesCredentials()
+                Log.i(TAG, "Successfully migrated credentials from SharedPreferences to redb")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to migrate credentials to redb", e)
+            }
+        }
+    }
+
+    private fun clearOldSharedPreferencesCredentials() {
+        prefs.edit()
+            .remove("serverUrl")
+            .remove("userId")
+            .remove("token")
+            .apply()
+    }
+
+    companion object {
+        private const val TAG = "SessionStore"
+    }
 }

@@ -62,6 +62,15 @@ pub fn cache_songs(app_data_dir: String, songs: Vec<models::Song>) -> Result<(),
 }
 
 #[uniffi::export]
+pub fn clear_cache(app_data_dir: String) -> Result<(), error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(());
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::clear_cache(app_dir).map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
 pub fn get_library_sync_state(app_data_dir: String) -> Result<String, error::AppError> {
     if app_data_dir.is_empty() {
         return Ok("".to_string());
@@ -135,6 +144,37 @@ pub async fn get_lyrics(
 
     services::LrcLibClient::get_best_lyrics(&results)
         .ok_or_else(|| error::AppError::NotFound(format!("No lyrics found for '{title}'")))
+}
+
+#[uniffi::export]
+pub fn save_credentials(
+    app_data_dir: String,
+    credentials: models::Credentials,
+) -> Result<(), error::AppError> {
+    if app_data_dir.is_empty() {
+        return Err(error::AppError::Database("App data dir not set".to_string()));
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::save_credentials(app_dir, &credentials)
+        .map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
+pub fn load_credentials(app_data_dir: String) -> Result<Option<models::Credentials>, error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(None);
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::load_credentials(app_dir).map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
+pub fn clear_credentials(app_data_dir: String) -> Result<(), error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(());
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::clear_credentials(app_dir).map_err(|err| error::AppError::Database(err.to_string()))
 }
 
 uniffi::setup_scaffolding!();

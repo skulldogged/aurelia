@@ -9,6 +9,7 @@ data class PlayerState(
     val artist: String = "",
     val albumArtUrl: String? = null,
     val isPlaying: Boolean = false,
+    val isBuffering: Boolean = false,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val queue: List<QueueItem> = emptyList(),

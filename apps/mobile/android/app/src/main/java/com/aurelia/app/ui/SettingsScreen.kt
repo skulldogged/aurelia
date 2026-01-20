@@ -26,15 +26,21 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,18 +59,68 @@ private val NavBarContentHeight = 90.dp
 @Composable
 fun SettingsScreen(
     sessionStore: SessionStore,
+    settingsViewModel: SettingsViewModel,
     onLogout: () -> Unit,
     hasPlayerBar: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
+    val settingsState by settingsViewModel.state.collectAsState()
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showClearCacheDialog by remember { mutableStateOf(false) }
     var useDynamicColor by remember { mutableStateOf(sessionStore.getUseDynamicColor()) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Show snackbar for sync/clear results
+    LaunchedEffect(settingsState.syncSuccess, settingsState.clearSuccess, settingsState.error) {
+        when {
+            settingsState.syncSuccess == true -> {
+                snackbarHostState.showSnackbar("Library synced successfully")
+                settingsViewModel.clearMessages()
+            }
+            settingsState.clearSuccess == true -> {
+                snackbarHostState.showSnackbar("Cache cleared successfully")
+                settingsViewModel.clearMessages()
+            }
+            settingsState.error != null -> {
+                snackbarHostState.showSnackbar(settingsState.error ?: "An error occurred")
+                settingsViewModel.clearMessages()
+            }
+        }
+    }
 
     // Calculate bottom padding to avoid navbar/playerbar overlap
     val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomPadding =
         NavBarContentHeight + systemNavBarInset + 24.dp +
             (if (hasPlayerBar) MiniPlayerHeight + 12.dp else 0.dp)
+
+    if (showClearCacheDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearCacheDialog = false },
+            title = { Text("Clear cache?") },
+            text = { Text("This will remove all locally stored song data. You'll need to sync again to restore it.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showClearCacheDialog = false
+                        settingsViewModel.clearLocalCache()
+                    },
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = colors.error,
+                            contentColor = colors.onError,
+                        ),
+                ) {
+                    Text("Clear")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCacheDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
 
     if (showLogoutDialog) {
         AlertDialog(
@@ -94,14 +150,15 @@ fun SettingsScreen(
         )
     }
 
-    Column(
+    androidx.compose.foundation.layout.Box(
         modifier =
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding(),
     ) {
-        // Header (matching other screens like LibraryScreen)
-        Column(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header (matching other screens like LibraryScreen)
+            Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -147,8 +204,9 @@ fun SettingsScreen(
                 SettingsActionItem(
                     icon = Icons.Filled.Sync,
                     title = "Sync library",
-                    subtitle = "Refresh songs from server",
-                    onClick = { /* TODO: Sync library */ },
+                    subtitle = if (settingsState.isSyncing) "Syncing..." else "Refresh songs from server",
+                    isLoading = settingsState.isSyncing,
+                    onClick = { if (!settingsState.isSyncing) settingsViewModel.syncLibrary() },
                 )
                 HorizontalDivider(
                     modifier = Modifier.padding(start = 56.dp),
@@ -157,8 +215,9 @@ fun SettingsScreen(
                 SettingsActionItem(
                     icon = Icons.Filled.Delete,
                     title = "Clear cache",
-                    subtitle = "Remove locally stored data",
-                    onClick = { /* TODO: Clear cache */ },
+                    subtitle = if (settingsState.isClearing) "Clearing..." else "Remove locally stored data",
+                    isLoading = settingsState.isClearing,
+                    onClick = { if (!settingsState.isClearing) showClearCacheDialog = true },
                 )
             }
 
@@ -203,6 +262,12 @@ fun SettingsScreen(
                 )
             }
         }
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomPadding),
+        )
     }
 }
 
@@ -289,6 +354,7 @@ private fun SettingsActionItem(
     title: String,
     subtitle: String,
     isDestructive: Boolean = false,
+    isLoading: Boolean = false,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -298,7 +364,7 @@ private fun SettingsActionItem(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .clickable(enabled = !isLoading, onClick = onClick)
                 .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -322,12 +388,20 @@ private fun SettingsActionItem(
                 color = if (isDestructive) colors.error.copy(alpha = 0.7f) else colors.onSurfaceVariant,
             )
         }
-        Icon(
-            imageVector = Icons.Filled.ChevronRight,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.size(20.dp),
-        )
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+                color = colors.primary,
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 

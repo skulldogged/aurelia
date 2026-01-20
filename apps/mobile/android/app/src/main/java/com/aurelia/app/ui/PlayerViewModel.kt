@@ -2,6 +2,7 @@ package com.aurelia.app.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.data.model.Lyrics
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.PlayerSnapshot
@@ -75,7 +76,8 @@ class PlayerViewModel(
                     mutableState.update { it.copy(lyrics = lyrics) }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                // Only handle auth errors, ignore others (e.g., lyrics not found)
+                AuthInterceptor.handlePotentialAuthError(e)
             }
         }
     }
@@ -121,6 +123,7 @@ class PlayerViewModel(
             artist = snapshot.artist,
             albumArtUrl = snapshot.albumArtUrl,
             isPlaying = snapshot.isPlaying,
+            isBuffering = snapshot.isBuffering,
             positionMs = snapshot.positionMs,
             durationMs = snapshot.durationMs,
             queue = playerController.getQueue(),
@@ -184,8 +187,10 @@ class PlayerViewModel(
                     it.copy(isFavorite = newFavoriteState, isFavoriteLoading = false)
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
-                mutableState.update { it.copy(isFavoriteLoading = false) }
+                if (!AuthInterceptor.handlePotentialAuthError(e)) {
+                    e.printStackTrace()
+                    mutableState.update { it.copy(isFavoriteLoading = false) }
+                }
             }
         }
     }

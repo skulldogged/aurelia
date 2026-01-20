@@ -17,7 +17,7 @@ async loginToJellyfin(serverUrl: string, username: string, password: string) : P
 }
 },
 /**
- * Save user credentials to disk and cache in memory
+ * Save user credentials to redb and cache in memory
  */
 async saveCredentials(serverUrl: string, username: string, token: string, userId: string) : Promise<Result<null, string>> {
     try {
@@ -28,11 +28,22 @@ async saveCredentials(serverUrl: string, username: string, token: string, userId
 }
 },
 /**
- * Load saved credentials - checks memory cache first, then disk
+ * Load saved credentials - checks memory cache first, then redb (with migration from legacy file)
  */
 async getSavedCredentials() : Promise<Result<Credentials | null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_saved_credentials") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Clear saved credentials from redb and memory cache
+ */
+async clearSavedCredentials() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_saved_credentials") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

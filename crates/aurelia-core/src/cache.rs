@@ -1,6 +1,8 @@
 use crate::database;
-use crate::models::{Album, Artist, Song};
+use crate::db;
+use crate::models::{Album, Artist, Credentials, Song};
 use anyhow::{Result, anyhow};
+use redb::ReadableDatabase;
 use serde_json;
 use std::path::PathBuf;
 
@@ -76,5 +78,59 @@ pub fn set_sync_state(app_data_dir: PathBuf, state_json: &str) -> Result<()> {
     service
         .update_sync_state(&state)
         .map_err(|err| anyhow!("Failed to update sync state: {err}"))?;
+    Ok(())
+}
+
+const CREDENTIALS_KEY: &str = "current";
+
+pub fn save_credentials(app_data_dir: PathBuf, credentials: &Credentials) -> Result<()> {
+    init_db(&app_data_dir)?;
+    let db = database::DB
+        .get()
+        .ok_or_else(|| anyhow!("Database not initialized"))?;
+
+    let write_txn = db.begin_write()?;
+    {
+        let mut table = write_txn.open_table(db::schema::CREDENTIALS)?;
+        let encoded = postcard::to_stdvec(credentials)
+            .map_err(|e| anyhow!("Failed to encode credentials: {e}"))?;
+        table.insert(CREDENTIALS_KEY, encoded.as_slice())?;
+    }
+    write_txn.commit()?;
+    Ok(())
+}
+
+pub fn load_credentials(app_data_dir: PathBuf) -> Result<Option<Credentials>> {
+    init_db(&app_data_dir)?;
+    let db = database::DB
+        .get()
+        .ok_or_else(|| anyhow!("Database not initialized"))?;
+
+    let read_txn = db.begin_read()?;
+    let table = read_txn.open_table(db::schema::CREDENTIALS)?;
+
+    match table.get(CREDENTIALS_KEY)? {
+        Some(guard) => {
+            let bytes: &[u8] = guard.value();
+            let credentials: Credentials = postcard::from_bytes(bytes)
+                .map_err(|e| anyhow!("Failed to decode credentials: {e}"))?;
+            Ok(Some(credentials))
+        }
+        None => Ok(None),
+    }
+}
+
+pub fn clear_credentials(app_data_dir: PathBuf) -> Result<()> {
+    init_db(&app_data_dir)?;
+    let db = database::DB
+        .get()
+        .ok_or_else(|| anyhow!("Database not initialized"))?;
+
+    let write_txn = db.begin_write()?;
+    {
+        let mut table = write_txn.open_table(db::schema::CREDENTIALS)?;
+        let _ = table.remove(CREDENTIALS_KEY);
+    }
+    write_txn.commit()?;
     Ok(())
 }
