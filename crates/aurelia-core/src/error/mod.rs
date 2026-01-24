@@ -29,9 +29,6 @@ pub enum AppError {
     #[error("HTTP {status}: {detail}")]
     Http { status: u16, detail: String },
 
-    #[error("Not found: {0}")]
-    NotFound(String),
-
     #[error("Application error: {0}")]
     General(String),
 

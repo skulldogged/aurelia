@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 pub mod error_handling;
-pub mod lyrics;
 
 /// Application constants
 pub mod constants {

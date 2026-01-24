@@ -1,0 +1,2 @@
+[bindings.kotlin]
+package = "uniffi.aurelia_core"

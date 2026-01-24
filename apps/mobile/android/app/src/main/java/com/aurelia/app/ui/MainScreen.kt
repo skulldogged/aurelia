@@ -740,14 +740,16 @@ fun MiniPlayerBar(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.Center,
                 ) {
+                    // Dynamic font weight - slightly bolder when playing
+                    val titleFontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Medium
                     Text(
                         text = title,
                         style =
                             MaterialTheme.typography.titleSmall.copy(
                                 fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
                                 letterSpacing = (-0.2).sp,
                             ),
+                        fontWeight = titleFontWeight,
                         color = colors.onPrimaryContainer,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

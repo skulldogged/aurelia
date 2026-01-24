@@ -42,6 +42,7 @@ pub fn init(app_data_dir: &PathBuf) -> Result<()> {
         // Metadata tables
         let _ = write_txn.open_table(schema::FAVORITES)?;
         let _ = write_txn.open_table(schema::SYNC_STATE)?;
+        let _ = write_txn.open_table(schema::CREDENTIALS)?;
     }
     write_txn.commit()?;
 

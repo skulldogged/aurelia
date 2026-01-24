@@ -1,43 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+target/
+
 # Logs
-logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# Local/environment
 *.local
+.env
+.envrc
+.direnv/
+.cache/
 
-# Editor directories and files
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE (keep .vscode/extensions.json)
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+!.vscode/settings.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
 
-target/
-.cache
-.direnv/
-.env
-.gemini
-.claude
+# Android
 keystore.properties
 local.properties
-**/.gradle/
-**/build/
-**/jniLibs/
-**/*.so
-apps/mobile/android/app/src/main/java/uniffi/
-apps/mobile/android/app/src/main/res/mipmap-*/
-
+.gradle/
 
 # START Ruler Generated Files
 /.agent/rules/ruler.md
@@ -46,12 +44,18 @@ apps/mobile/android/app/src/main/res/mipmap-*/
 /.claude/skills
 /.codex/skills
 /.cursor/skills
+/.gemini/settings.json
+/.gemini/settings.json.bak
 /.gemini/skills
+/.mcp.json
+/.mcp.json.bak
 /.opencode/skill
 /.pi/skills
 /.roo/skills
 /.skillz
 /.vibe/skills
+/.vscode/mcp.json
+/.vscode/mcp.json.bak
 /.windsurf/mcp_config.json
 /.windsurf/mcp_config.json.bak
 /AGENTS.md
@@ -59,5 +63,3 @@ apps/mobile/android/app/src/main/res/mipmap-*/
 /CLAUDE.md
 /CLAUDE.md.bak
 # END Ruler Generated Files
-
-.btca

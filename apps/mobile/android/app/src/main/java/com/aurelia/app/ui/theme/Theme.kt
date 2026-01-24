@@ -104,7 +104,7 @@ fun AureliaTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AureliaTypography,
+        typography = rememberAureliaTypography(),
         shapes = AureliaShapes,
         content = content,
     )

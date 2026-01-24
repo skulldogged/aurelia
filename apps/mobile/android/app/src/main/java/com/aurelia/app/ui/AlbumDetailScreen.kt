@@ -160,7 +160,7 @@ fun AlbumDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Album name
+                    // Album name with display font for impact
                     Text(
                         text = albumName,
                         style = MaterialTheme.typography.headlineMedium,

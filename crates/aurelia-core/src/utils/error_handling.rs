@@ -122,7 +122,6 @@ pub fn error_to_user_message(err: &AppError) -> String {
         AppError::ApiParse(msg) => format!("Server response error: {msg}"),
         AppError::Config(msg) => format!("Configuration error: {msg}"),
         AppError::Http { status, detail } => format!("Server error ({status}): {detail}"),
-        AppError::NotFound(msg) => format!("Not found: {msg}"),
         AppError::General(msg) => msg.clone(),
         AppError::UniFfi(msg) => msg.clone(),
     }

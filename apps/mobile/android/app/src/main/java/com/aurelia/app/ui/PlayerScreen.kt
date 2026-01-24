@@ -93,6 +93,7 @@ import com.aurelia.app.player.RepeatMode
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.WavyMusicSlider
+import com.aurelia.app.ui.theme.rememberNowPlayingStyle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -277,9 +278,14 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.Start,
             ) {
+                // Dynamic "Now Playing" title with pulsing weight when playing
+                val nowPlayingStyle = rememberNowPlayingStyle(
+                    isPlaying = state.isPlaying,
+                    baseStyle = MaterialTheme.typography.headlineMedium,
+                )
                 Text(
                     text = state.title.ifBlank { "Nothing playing" },
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = nowPlayingStyle,
                     fontWeight = FontWeight.Bold,
                     color = colors.onPrimaryContainer,
                     maxLines = 1,
@@ -768,10 +774,19 @@ private fun LyricsView(
                         label = "color",
                     )
 
+                    // Dynamic font weight for lyrics - current line bolder
+                    val animatedWeight by animateFloatAsState(
+                        targetValue = if (isCurrentLine) FontWeight.Bold.weight.toFloat() else FontWeight.Normal.weight.toFloat(),
+                        animationSpec = tween(durationMillis = 400),
+                        label = "lyricsWeight",
+                    )
+
                     Text(
                         text = line.line,
-                        style = MaterialTheme.typography.headlineMedium.copy(fontSize = 28.sp),
-                        fontWeight = if (isCurrentLine) FontWeight.Bold else FontWeight.Normal,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = 28.sp,
+                        ),
+                        fontWeight = FontWeight(animatedWeight.toInt()),
                         color = textColor,
                         textAlign = TextAlign.Center,
                         modifier =

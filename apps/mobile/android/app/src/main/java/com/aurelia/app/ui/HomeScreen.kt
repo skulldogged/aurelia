@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.navigation.Screen
+import com.aurelia.app.ui.theme.ReadingContext
+import com.aurelia.app.ui.theme.rememberContextualStyle
 import uniffi.aurelia_core.Song
 import java.util.Calendar
 
@@ -126,26 +128,31 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                // Greeting header - spans full width
+                // Greeting header - spans full width with expanded display font
                 item(span = { GridItemSpan(2) }) {
                     Column(
                         modifier = Modifier.padding(bottom = 8.dp),
                     ) {
                         Text(
                             text = greeting,
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
+                            style = rememberContextualStyle(
+                                baseStyle = MaterialTheme.typography.headlineLarge,
+                                context = ReadingContext.DISPLAY,
+                            ),
                             color = colors.onBackground,
                         )
                     }
                 }
 
-                // Quick Picks section header - spans full width
+                // Quick Picks section header - spans full width with scanning context
                 if (state.mostPlayed.isNotEmpty() || state.recentlyPlayed.isNotEmpty()) {
                     item(span = { GridItemSpan(2) }) {
                         Text(
                             text = "Quick Picks",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = rememberContextualStyle(
+                                baseStyle = MaterialTheme.typography.titleLarge,
+                                context = ReadingContext.SCANNING,
+                            ),
                             fontWeight = FontWeight.Bold,
                             color = colors.onBackground,
                             modifier = Modifier.padding(top = 8.dp),
@@ -174,7 +181,10 @@ fun HomeScreen(
                     item(span = { GridItemSpan(2) }) {
                         Text(
                             text = "Recently Added",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = rememberContextualStyle(
+                                baseStyle = MaterialTheme.typography.titleLarge,
+                                context = ReadingContext.SCANNING,
+                            ),
                             fontWeight = FontWeight.Bold,
                             color = colors.onBackground,
                             modifier = Modifier.padding(top = 12.dp),
@@ -209,7 +219,10 @@ fun HomeScreen(
                     item(span = { GridItemSpan(2) }) {
                         Text(
                             text = "From Your Library",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = rememberContextualStyle(
+                                baseStyle = MaterialTheme.typography.titleLarge,
+                                context = ReadingContext.SCANNING,
+                            ),
                             fontWeight = FontWeight.Bold,
                             color = colors.onBackground,
                             modifier = Modifier.padding(top = 12.dp),
