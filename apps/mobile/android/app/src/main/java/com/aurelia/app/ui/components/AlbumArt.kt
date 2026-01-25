@@ -18,76 +18,86 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
 
 enum class AlbumArtStyle {
-    Song,
-    Album,
-    Playlist,
+  Song,
+  Album,
+  Playlist,
 }
 
 @Composable
 fun AlbumArt(
-    imageUrl: String?,
-    modifier: Modifier = Modifier,
-    size: Dp = 48.dp,
-    cornerRadius: Dp = 8.dp,
-    style: AlbumArtStyle = AlbumArtStyle.Song,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
-    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+  imageUrl: String?,
+  modifier: Modifier = Modifier,
+  size: Dp = 48.dp,
+  cornerRadius: Dp = 8.dp,
+  style: AlbumArtStyle = AlbumArtStyle.Song,
+  containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+  contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
 ) {
-    val shape = RoundedCornerShape(cornerRadius)
-    val icon =
-        when (style) {
-            AlbumArtStyle.Song -> Icons.Filled.MusicNote
-            AlbumArtStyle.Album -> Icons.Filled.Album
-            AlbumArtStyle.Playlist -> Icons.AutoMirrored.Filled.PlaylistPlay
-        }
-
-    Surface(
-        modifier =
-            modifier
-                .size(size)
-                .clip(shape),
-        shape = shape,
-        color = containerColor,
-    ) {
-        if (imageUrl.isNullOrBlank()) {
-            PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
-        } else {
-            SubcomposeAsyncImage(
-                model = imageUrl,
-                contentDescription = "Album art",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                loading = {
-                    PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
-                },
-                error = {
-                    PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
-                },
-            )
-        }
+  val shape = RoundedCornerShape(cornerRadius)
+  val icon =
+    when (style) {
+      AlbumArtStyle.Song -> Icons.Filled.MusicNote
+      AlbumArtStyle.Album -> Icons.Filled.Album
+      AlbumArtStyle.Playlist -> Icons.AutoMirrored.Filled.PlaylistPlay
     }
+
+  Surface(
+    modifier =
+      modifier
+        .size(size)
+        .clip(shape),
+    shape = shape,
+    color = containerColor,
+  ) {
+    if (imageUrl.isNullOrBlank()) {
+      PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
+    } else {
+      val context = LocalContext.current
+      val pxSize = with(LocalDensity.current) { size.toPx().toInt() }
+
+      SubcomposeAsyncImage(
+        model = ImageRequest.Builder(context)
+          .data(imageUrl)
+          .crossfade(true)
+          .size(pxSize)
+          .build(),
+        contentDescription = "Album art",
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop,
+        loading = {
+          PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
+        },
+        error = {
+          PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
+        },
+      )
+    }
+  }
 }
 
 @Composable
 private fun PlaceholderIcon(
-    icon: ImageVector,
-    contentColor: Color,
-    size: Dp,
+  icon: ImageVector,
+  contentColor: Color,
+  size: Dp,
 ) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = contentColor,
-            modifier = Modifier.size(size * 0.4f),
-        )
-    }
+  Box(
+    modifier = Modifier.fillMaxSize(),
+    contentAlignment = Alignment.Center,
+  ) {
+    Icon(
+      imageVector = icon,
+      contentDescription = null,
+      tint = contentColor,
+      modifier = Modifier.size(size * 0.4f),
+    )
+  }
 }

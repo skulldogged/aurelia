@@ -11,6 +11,7 @@
     android:theme="@style/Theme.Aurelia"
     android:supportsRtl="true"
     android:enableOnBackInvokedCallback="true">
+    <profileable android:shell="true" />
     <service
       android:name=".player.PlaybackService"
       android:exported="false"

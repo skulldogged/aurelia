@@ -1,35 +1,46 @@
 package com.aurelia.app.ui.navigation
 
-sealed class Screen(
-    val route: String,
-) {
-    data object Home : Screen("home")
+import kotlinx.serialization.Serializable
 
-    data object Songs : Screen("songs")
+@Serializable
+sealed class Screen {
+  @Serializable
+  data object Home : Screen()
 
-    data object Albums : Screen("albums")
+  @Serializable
+  data object Songs : Screen()
 
-    data object Artists : Screen("artists")
+  @Serializable
+  data object Albums : Screen()
 
-    data object Playlists : Screen("playlists")
+  @Serializable
+  data object Artists : Screen()
 
-    data object Search : Screen("search")
+  @Serializable
+  data object Playlists : Screen()
 
-    data object Settings : Screen("settings")
+  @Serializable
+  data object Search : Screen()
 
-    // Detail screens with parameters
-    data class AlbumDetail(
-        val albumId: String,
-        val albumName: String,
-    ) : Screen("album/$albumId")
+  @Serializable
+  data object Settings : Screen()
 
-    data class ArtistDetail(
-        val artistId: String,
-        val artistName: String,
-    ) : Screen("artist/$artistId")
+  // Detail screens with parameters
+  @Serializable
+  data class AlbumDetail(
+    val albumId: String,
+    val albumName: String,
+  ) : Screen()
 
-    data class PlaylistDetail(
-        val playlistId: String,
-        val playlistName: String,
-    ) : Screen("playlist/$playlistId")
+  @Serializable
+  data class ArtistDetail(
+    val artistId: String,
+    val artistName: String,
+  ) : Screen()
+
+  @Serializable
+  data class PlaylistDetail(
+    val playlistId: String,
+    val playlistName: String,
+  ) : Screen()
 }

@@ -63,11 +63,3 @@ souvlaki = { git = "https://github.com/skulldogged/souvlaki" }
 raw-window-handle = "0.6"
 
 
-[profile.dev]
-opt-level = 2
-
-[profile.dev.package."*"]
-opt-level = 3
-
-[profile.release]
-lto = "thin"

@@ -1,6 +1,7 @@
 package com.aurelia.app.ui
 
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -55,7 +56,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -76,6 +76,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavDestination
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
@@ -110,6 +119,8 @@ fun MainScreen(
   playerController: PlayerController,
   onLogout: () -> Unit,
 ) {
+  val navController = rememberNavController()
+
   // HomeViewModel hoisted here to survive tab switches
   val homeViewModelFactory = remember { HomeViewModelFactory(sessionStore, playerController) }
   val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory)
@@ -123,54 +134,31 @@ fun MainScreen(
     remember { PlaylistViewModelFactory(sessionStore, playerController) }
   val playlistViewModel: PlaylistViewModel = viewModel(factory = playlistViewModelFactory)
 
-  // Load home data once when ViewModel is created (not on every tab switch)
-  LaunchedEffect(homeViewModel) {
-    homeViewModel.loadHomeData()
-  }
-
-  // Navigation stack - bottom tabs are root screens that clear the stack
-  val navigationStack = remember { mutableStateListOf<Screen>(Screen.Home) }
-  val currentScreen = navigationStack.lastOrNull() ?: Screen.Home
-
-  // Navigate to a new screen (push to stack)
-  fun navigate(screen: Screen) {
-    navigationStack.add(screen)
-  }
-
-  // Navigate to a root tab (clears stack)
-  fun navigateToTab(screen: Screen) {
-    navigationStack.clear()
-    navigationStack.add(screen)
-  }
-
-  // Go back (pop from stack, or go to Home)
-  fun goBack(): Boolean =
-    when {
-      navigationStack.size > 1 -> {
-        navigationStack.removeAt(navigationStack.lastIndex)
-        true
-      }
-
-      currentScreen != Screen.Home -> {
-        // If at root of a tab that isn't Home, go to Home
-        navigateToTab(Screen.Home)
-        true
-      }
-
-      else -> {
-        false
-      }
-    }
-
-  // Check if we can go back (either stack has history, or we're on a non-Home tab)
-  val canGoBack = navigationStack.size > 1 || currentScreen != Screen.Home
-
   val libraryViewModel: LibraryViewModel =
     viewModel(
       factory = LibraryViewModelFactory(sessionStore, playerController),
     )
   val libraryState by libraryViewModel.state.collectAsState()
   val scope = rememberCoroutineScope()
+
+  // Load home data once when ViewModel is created (not on every tab switch)
+  LaunchedEffect(homeViewModel) {
+    homeViewModel.loadHomeData()
+  }
+
+  // --- NAVIGATION HELPERS ---
+  fun navigateToTab(screen: Screen) {
+    navController.navigate(screen) {
+      // Pop up to the start destination of the graph to avoid building up a large stack of tabs
+      popUpTo(navController.graph.findStartDestination().id) {
+        saveState = true
+      }
+      // Avoid multiple copies of the same destination
+      launchSingleTop = true
+      // Restore state when reselecting a previously selected item
+      restoreState = true
+    }
+  }
 
   @Suppress("UnusedBoxWithConstraintsScope")
   BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -201,7 +189,6 @@ fun MainScreen(
     val sheetHorizontalPadding = lerp(12.dp, 0.dp, dragProgress)
     val sheetHeightPx = miniPlayerHeightPx + (screenHeightPx - miniPlayerHeightPx) * dragProgress
     val sheetHeightDp = with(density) { sheetHeightPx.toDp() }
-    val backProgress = remember { Animatable(0f) }
 
     fun openPlayerAnimated(initialVelocity: Float = 0f) {
       scope.launch {
@@ -268,299 +255,269 @@ fun MainScreen(
       }
     }
 
-    // Navigation back handler
-    PredictiveBackHandler(enabled = canGoBack && dragProgress < 0.5f) { progress ->
-      try {
-        progress.collect { backEvent ->
-          backProgress.snapTo(backEvent.progress)
-        }
-        // Completed
-        backProgress.snapTo(0f)
-        goBack()
-      } catch (_: kotlin.coroutines.cancellation.CancellationException) {
-        // Cancelled - snap back to 0
-        backProgress.animateTo(0f)
-      }
-    }
-
+    // 1. SCAFFOLD / CONTENT AREA
     Box(
       modifier =
         Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                val scale = 1f - (backProgress.value * 0.1f)
-                scaleX = scale
-                scaleY = scale
-                alpha = 1f - (backProgress.value * 0.1f)
-                transformOrigin = TransformOrigin(0.5f, 0.5f)
-                clip = true
-                shape = RoundedCornerShape((32 * backProgress.value).dp)
-            },
+          .fillMaxSize()
+          .background(MaterialTheme.colorScheme.background),
     ) {
-      // Main content area
-      when (currentScreen) {
-        Screen.Settings -> {
-          Box(
-            modifier =
-              Modifier
-                  .fillMaxSize()
-                  .background(MaterialTheme.colorScheme.background),
-          ) {
-            SettingsScreen(
-              sessionStore = sessionStore,
-              settingsViewModel = settingsViewModel,
-              onLogout = onLogout,
-              hasPlayerBar = libraryState.nowPlaying != null,
-            )
 
-            Column(
-              modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth(),
-            ) {
-              BottomNavBar(
-                items = navItems,
-                currentScreen = currentScreen,
-                onNavigate = { destination -> navigateToTab(destination) },
-                onSettingsClick = { navigateToTab(Screen.Settings) },
-                hasPlayerBar = libraryState.nowPlaying != null,
-              )
-            }
-          }
-        }
-
-        is Screen.AlbumDetail -> {
-          AlbumDetailScreen(
-            albumId = currentScreen.albumId,
-            albumName = currentScreen.albumName,
+      NavHost(
+        navController = navController,
+        startDestination = Screen.Home,
+        // SETTINGS-STYLE ANIMATIONS
+        enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
+        exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(400)) },
+        popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(400)) },
+        popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(400)) }
+      ) {
+        // --- TABS ---
+        composable<Screen.Home> {
+          HomeScreen(
+            viewModel = homeViewModel,
             sessionStore = sessionStore,
             playerController = playerController,
             playlistViewModel = playlistViewModel,
-            onBack = { goBack() },
             onOpenPlayer = { openPlayerAnimated() },
-            onNavigateToArtist = { navigate(it) },
+            onNavigateToAlbum = { navController.navigate(it) },
+            onNavigateToArtist = { navController.navigate(it) },
+            hasPlayerBar = libraryState.nowPlaying != null,
           )
         }
 
-        is Screen.ArtistDetail -> {
-          ArtistDetailScreen(
-            artistId = currentScreen.artistId,
-            artistName = currentScreen.artistName,
+        composable<Screen.Songs> {
+          LibraryScreen(
             sessionStore = sessionStore,
             playerController = playerController,
-            onBack = { goBack() },
+            playlistViewModel = playlistViewModel,
             onOpenPlayer = { openPlayerAnimated() },
+            onNavigateToAlbum = { navController.navigate(it) },
+            onNavigateToArtist = { navController.navigate(it) },
+            hasPlayerBar = libraryState.nowPlaying != null,
           )
         }
 
-        is Screen.PlaylistDetail -> {
-          PlaylistDetailScreen(
-            playlistId = currentScreen.playlistId,
-            playlistName = currentScreen.playlistName,
+        composable<Screen.Albums> {
+          AlbumsScreen(
+            sessionStore = sessionStore,
+            playerController = playerController,
+            onNavigateToAlbum = { navController.navigate(it) },
+            hasPlayerBar = libraryState.nowPlaying != null,
+          )
+        }
+
+        composable<Screen.Artists> {
+          ArtistsScreen(
+            sessionStore = sessionStore,
+            playerController = playerController,
+            onNavigateToArtist = { navController.navigate(it) },
+            hasPlayerBar = libraryState.nowPlaying != null,
+          )
+        }
+
+        composable<Screen.Playlists> {
+          PlaylistsScreen(
             viewModel = playlistViewModel,
-            onBack = { goBack() },
+            onOpenPlayer = { openPlayerAnimated() },
+            onNavigateToPlaylist = { navController.navigate(it) },
+            hasPlayerBar = libraryState.nowPlaying != null,
+          )
+        }
+
+        composable<Screen.Search> {
+          SearchScreen(
+            sessionStore = sessionStore,
+            playerController = playerController,
+            onOpenPlayer = { openPlayerAnimated() },
+            hasPlayerBar = libraryState.nowPlaying != null,
+            playlistViewModel = playlistViewModel,
+          )
+        }
+
+        composable<Screen.Settings> {
+          SettingsScreen(
+            sessionStore = sessionStore,
+            settingsViewModel = settingsViewModel,
+            onLogout = onLogout,
+            hasPlayerBar = libraryState.nowPlaying != null,
+          )
+        }
+
+        // --- DETAILS SCREENS ---
+        composable<Screen.AlbumDetail> { backStackEntry ->
+          val args = backStackEntry.toRoute<Screen.AlbumDetail>()
+          AlbumDetailScreen(
+            albumId = args.albumId,
+            albumName = args.albumName,
+            sessionStore = sessionStore,
+            playerController = playerController,
+            playlistViewModel = playlistViewModel,
+            onBack = { navController.popBackStack() },
+            onOpenPlayer = { openPlayerAnimated() },
+            onNavigateToArtist = { navController.navigate(it) },
+          )
+        }
+
+        composable<Screen.ArtistDetail> { backStackEntry ->
+          val args = backStackEntry.toRoute<Screen.ArtistDetail>()
+          ArtistDetailScreen(
+            artistId = args.artistId,
+            artistName = args.artistName,
+            sessionStore = sessionStore,
+            playerController = playerController,
+            onBack = { navController.popBackStack() },
             onOpenPlayer = { openPlayerAnimated() },
           )
         }
 
-        else -> {
-          Box(
-            modifier =
-              Modifier
-                  .fillMaxSize()
-                  .background(MaterialTheme.colorScheme.background),
-          ) {
-            when (currentScreen) {
-              Screen.Home -> {
-                HomeScreen(
-                  viewModel = homeViewModel,
-                  sessionStore = sessionStore,
-                  playerController = playerController,
-                  playlistViewModel = playlistViewModel,
-                  onOpenPlayer = { openPlayerAnimated() },
-                  onNavigateToAlbum = { navigate(it) },
-                  onNavigateToArtist = { navigate(it) },
-                  hasPlayerBar = libraryState.nowPlaying != null,
-                )
-              }
-
-              Screen.Songs -> {
-                LibraryScreen(
-                  sessionStore = sessionStore,
-                  playerController = playerController,
-                  playlistViewModel = playlistViewModel,
-                  onOpenPlayer = { openPlayerAnimated() },
-                  onNavigateToAlbum = { navigate(it) },
-                  onNavigateToArtist = { navigate(it) },
-                  hasPlayerBar = libraryState.nowPlaying != null,
-                )
-              }
-
-              Screen.Albums -> {
-                AlbumsScreen(
-                  sessionStore = sessionStore,
-                  playerController = playerController,
-                  onNavigateToAlbum = { navigate(it) },
-                  hasPlayerBar = libraryState.nowPlaying != null,
-                )
-              }
-
-              Screen.Artists -> {
-                ArtistsScreen(
-                  sessionStore = sessionStore,
-                  playerController = playerController,
-                  onNavigateToArtist = { navigate(it) },
-                  hasPlayerBar = libraryState.nowPlaying != null,
-                )
-              }
-
-              Screen.Playlists -> {
-                PlaylistsScreen(
-                  viewModel = playlistViewModel,
-                  onOpenPlayer = { openPlayerAnimated() },
-                  onNavigateToPlaylist = { navigate(it) },
-                  hasPlayerBar = libraryState.nowPlaying != null,
-                )
-              }
-
-              Screen.Search -> {
-                SearchScreen(
-                  sessionStore = sessionStore,
-                  playerController = playerController,
-                  onOpenPlayer = { openPlayerAnimated() },
-                  hasPlayerBar = libraryState.nowPlaying != null,
-                  playlistViewModel = playlistViewModel,
-                )
-              }
-
-              else -> {}
-            }
-
-            Column(
-              modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth(),
-            ) {
-              BottomNavBar(
-                items = navItems,
-                currentScreen = currentScreen,
-                onNavigate = { navigateToTab(it) },
-                onSettingsClick = { navigateToTab(Screen.Settings) },
-                hasPlayerBar = libraryState.nowPlaying != null,
-              )
-            }
-          }
+        composable<Screen.PlaylistDetail> { backStackEntry ->
+          val args = backStackEntry.toRoute<Screen.PlaylistDetail>()
+          PlaylistDetailScreen(
+            playlistId = args.playlistId,
+            playlistName = args.playlistName,
+            viewModel = playlistViewModel,
+            onBack = { navController.popBackStack() },
+            onOpenPlayer = { openPlayerAnimated() },
+          )
         }
       }
 
-      if (libraryState.nowPlaying != null) {
-        // Handle predictive back gesture when player is expanded
-        PredictiveBackHandler(enabled = dragProgress > 0.5f) { progress ->
-          try {
-            progress.collect { backEvent ->
-              // Map back gesture progress (0-1) to player offset
-              val targetOffset = collapsedSheetY * backEvent.progress
-              playerDragOffset.snapTo(targetOffset)
-            }
-            // Gesture completed - close player
-            closePlayer()
-          } catch (_: kotlin.coroutines.cancellation.CancellationException) {
-            // Gesture cancelled - snap back to open
-            openPlayerAnimated()
+      // 2. BOTTOM NAV BAR OVERLAY
+      val navBackStackEntry by navController.currentBackStackEntryAsState()
+      val currentDestination = navBackStackEntry?.destination
+
+      // Logic to determine if we should show the bottom bar
+      // We show it on tab screens (Home, Songs, etc.) and Settings
+      // But NOT on detail screens
+      val shouldShowBottomBar = currentDestination?.let { dest ->
+        navItems.any { item -> dest.hierarchy.any { it.hasRoute(item.screen::class) } } ||
+          dest.hierarchy.any { it.hasRoute<Screen.Settings>() }
+      } ?: true // Default to true if destination is null (startup)
+
+      if (shouldShowBottomBar) {
+        Column(
+          modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+        ) {
+          BottomNavBar(
+            items = navItems,
+            currentDestination = currentDestination,
+            onNavigate = { navigateToTab(it) },
+            onSettingsClick = { navigateToTab(Screen.Settings) },
+            hasPlayerBar = libraryState.nowPlaying != null,
+          )
+        }
+      }
+    }
+
+    // 3. MINIPLAYER OVERLAY
+    if (libraryState.nowPlaying != null) {
+      // Handle predictive back gesture when player is expanded
+      PredictiveBackHandler(enabled = dragProgress > 0.5f) { progress ->
+        try {
+          progress.collect { backEvent ->
+            // Map back gesture progress (0-1) to player offset
+            val targetOffset = collapsedSheetY * backEvent.progress
+            playerDragOffset.snapTo(targetOffset)
           }
+          // Gesture completed - close player
+          closePlayer()
+        } catch (_: kotlin.coroutines.cancellation.CancellationException) {
+          // Gesture cancelled - snap back to open
+          openPlayerAnimated()
+        }
+      }
+
+      val playerSurfaceColor = MaterialTheme.colorScheme.primaryContainer
+      Box(
+        modifier =
+          Modifier
+            .offset { IntOffset(0, playerDragOffset.value.roundToInt()) }
+            .fillMaxWidth()
+            .padding(horizontal = sheetHorizontalPadding)
+            .height(sheetHeightDp)
+            .graphicsLayer {
+              scaleX = playerScale
+              scaleY = playerScale
+              clip = true
+              shape =
+                RoundedCornerShape(
+                  topStart = sheetTopCornerRadius,
+                  topEnd = sheetTopCornerRadius,
+                  bottomStart = sheetBottomCornerRadius,
+                  bottomEnd = sheetBottomCornerRadius,
+                )
+              transformOrigin = TransformOrigin(0.5f, 1f)
+            }
+            .background(
+              color = playerSurfaceColor,
+              shape =
+                RoundedCornerShape(
+                  topStart = sheetTopCornerRadius,
+                  topEnd = sheetTopCornerRadius,
+                  bottomStart = sheetBottomCornerRadius,
+                  bottomEnd = sheetBottomCornerRadius,
+                ),
+            )
+            .zIndex(1f),
+      ) {
+        libraryState.nowPlaying?.let { nowPlaying ->
+          MiniPlayerBar(
+            title = nowPlaying.title,
+            artist = nowPlaying.artist,
+            albumArtUrl = nowPlaying.albumArtUrl,
+            isPlaying = nowPlaying.isPlaying,
+            isBuffering = nowPlaying.isBuffering,
+            hasPrevious = nowPlaying.hasPrevious,
+            hasNext = nowPlaying.hasNext,
+            onPrevious = { libraryViewModel.skipPrevious() },
+            onPlayPause = { libraryViewModel.togglePlayPause() },
+            onNext = { libraryViewModel.skipNext() },
+            onClick = { openPlayerAnimated() },
+            onDrag = { delta -> onPlayerDrag(delta) },
+            onDragEnd = { velocity -> onPlayerDragEnd(velocity) },
+            modifier =
+              Modifier
+                .align(Alignment.BottomCenter)
+                .graphicsLayer { alpha = miniPlayerAlpha }
+                .zIndex(if (dragProgress < 0.5f) 1f else 0f),
+          )
         }
 
-        val playerSurfaceColor = MaterialTheme.colorScheme.primaryContainer
         Box(
           modifier =
             Modifier
-                .offset { IntOffset(0, playerDragOffset.value.roundToInt()) }
-                .fillMaxWidth()
-                .padding(horizontal = sheetHorizontalPadding)
-                .height(sheetHeightDp)
-                .graphicsLayer {
-                    scaleX = playerScale
-                    scaleY = playerScale
-                    clip = true
-                    shape =
-                        RoundedCornerShape(
-                            topStart = sheetTopCornerRadius,
-                            topEnd = sheetTopCornerRadius,
-                            bottomStart = sheetBottomCornerRadius,
-                            bottomEnd = sheetBottomCornerRadius,
-                        )
-                    transformOrigin = TransformOrigin(0.5f, 1f)
-                }
-                .background(
-                    color = playerSurfaceColor,
-                    shape =
-                        RoundedCornerShape(
-                            topStart = sheetTopCornerRadius,
-                            topEnd = sheetTopCornerRadius,
-                            bottomStart = sheetBottomCornerRadius,
-                            bottomEnd = sheetBottomCornerRadius,
-                        ),
+              .fillMaxSize()
+              .pointerInput(Unit) {
+                var totalDrag = 0f
+                detectVerticalDragGestures(
+                  onVerticalDrag = { _, dragAmount ->
+                    totalDrag += dragAmount
+                    onPlayerDrag(dragAmount)
+                  },
+                  onDragEnd = {
+                    val velocity = if (totalDrag != 0f) totalDrag * 12f else 0f
+                    onPlayerDragEnd(velocity)
+                    totalDrag = 0f
+                  },
                 )
-                .zIndex(1f),
+              }
+              .graphicsLayer {
+                alpha = fullPlayerAlpha
+                scaleX = lerp(0.92f, 1f, dragProgress)
+                scaleY = lerp(0.92f, 1f, dragProgress)
+                transformOrigin = TransformOrigin(0.5f, 1f)
+              }
+              .zIndex(if (dragProgress >= 0.5f) 1f else 0f),
         ) {
-          libraryState.nowPlaying?.let { nowPlaying ->
-            MiniPlayerBar(
-              title = nowPlaying.title,
-              artist = nowPlaying.artist,
-              albumArtUrl = nowPlaying.albumArtUrl,
-              isPlaying = nowPlaying.isPlaying,
-              isBuffering = nowPlaying.isBuffering,
-              hasPrevious = nowPlaying.hasPrevious,
-              hasNext = nowPlaying.hasNext,
-              onPrevious = { libraryViewModel.skipPrevious() },
-              onPlayPause = { libraryViewModel.togglePlayPause() },
-              onNext = { libraryViewModel.skipNext() },
-              onClick = { openPlayerAnimated() },
-              onDrag = { delta -> onPlayerDrag(delta) },
-              onDragEnd = { velocity -> onPlayerDragEnd(velocity) },
-              modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .graphicsLayer { alpha = miniPlayerAlpha }
-                    .zIndex(if (dragProgress < 0.5f) 1f else 0f),
-            )
-          }
-
-          Box(
-            modifier =
-              Modifier
-                  .fillMaxSize()
-                  .pointerInput(Unit) {
-                      var totalDrag = 0f
-                      detectVerticalDragGestures(
-                          onVerticalDrag = { _, dragAmount ->
-                              totalDrag += dragAmount
-                              onPlayerDrag(dragAmount)
-                          },
-                          onDragEnd = {
-                              val velocity = if (totalDrag != 0f) totalDrag * 12f else 0f
-                              onPlayerDragEnd(velocity)
-                              totalDrag = 0f
-                          },
-                      )
-                  }
-                  .graphicsLayer {
-                      alpha = fullPlayerAlpha
-                      scaleX = lerp(0.92f, 1f, dragProgress)
-                      scaleY = lerp(0.92f, 1f, dragProgress)
-                      transformOrigin = TransformOrigin(0.5f, 1f)
-                  }
-                  .zIndex(if (dragProgress >= 0.5f) 1f else 0f),
-          ) {
-            PlayerScreen(
-              playerController = playerController,
-              sessionStore = sessionStore,
-              onBack = { closePlayer() },
-              modifier = Modifier.fillMaxSize(),
-            )
-          }
+          PlayerScreen(
+            playerController = playerController,
+            sessionStore = sessionStore,
+            onBack = { closePlayer() },
+            modifier = Modifier.fillMaxSize(),
+          )
         }
       }
     }
@@ -575,7 +532,7 @@ fun MainScreen(
 @Composable
 fun BottomNavBar(
   items: List<NavItem>,
-  currentScreen: Screen,
+  currentDestination: NavDestination?,
   onNavigate: (Screen) -> Unit,
   onSettingsClick: () -> Unit,
   hasPlayerBar: Boolean,
@@ -589,9 +546,9 @@ fun BottomNavBar(
   Surface(
     modifier =
       modifier
-          .fillMaxWidth()
-          .padding(horizontal = 12.dp)
-          .padding(bottom = bottomInset + bottomPadding),
+        .fillMaxWidth()
+        .padding(horizontal = 12.dp)
+        .padding(bottom = bottomInset + bottomPadding),
     color = colors.surface,
     tonalElevation = 4.dp,
     shadowElevation = 12.dp,
@@ -606,8 +563,8 @@ fun BottomNavBar(
     Column(
       modifier =
         Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+          .fillMaxWidth()
+          .padding(horizontal = 18.dp, vertical = 12.dp),
     ) {
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -615,7 +572,8 @@ fun BottomNavBar(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         items.forEach { item ->
-          val isSelected = currentScreen == item.screen
+          // Use hierarchy to check if we are in this tab
+          val isSelected = currentDestination?.hierarchy?.any { it.hasRoute(item.screen::class) } == true
           BottomNavItem(
             label = item.label,
             icon = if (isSelected) item.selectedIcon else item.unselectedIcon,
@@ -624,10 +582,11 @@ fun BottomNavBar(
           )
         }
 
+        val isSettingsSelected = currentDestination?.hierarchy?.any { it.hasRoute<Screen.Settings>() } == true
         BottomNavItem(
           label = "Settings",
-          icon = if (currentScreen == Screen.Settings) Icons.Filled.Settings else Icons.Outlined.Settings,
-          selected = currentScreen == Screen.Settings,
+          icon = if (isSettingsSelected) Icons.Filled.Settings else Icons.Outlined.Settings,
+          selected = isSettingsSelected,
           onClick = onSettingsClick,
         )
       }
@@ -655,24 +614,24 @@ private fun RowScope.BottomNavItem(
   Column(
     modifier =
       Modifier
-          .weight(1f)
-          .clip(RoundedCornerShape(20.dp))
-          .clickable(
-              interactionSource = remember { MutableInteractionSource() },
-              indication = null,
-              role = Role.Tab,
-              onClick = onClick,
-          )
-          .padding(vertical = 6.dp),
+        .weight(1f)
+        .clip(RoundedCornerShape(20.dp))
+        .clickable(
+          interactionSource = remember { MutableInteractionSource() },
+          indication = null,
+          role = Role.Tab,
+          onClick = onClick,
+        )
+        .padding(vertical = 6.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Center,
   ) {
     Box(
       modifier =
         Modifier
-            .size(36.dp)
-            .clip(CircleShape)
-            .background(colors.primary.copy(alpha = if (selected) 0.2f else 0f)),
+          .size(36.dp)
+          .clip(CircleShape)
+          .background(colors.primary.copy(alpha = if (selected) 0.2f else 0f)),
       contentAlignment = Alignment.Center,
     ) {
       Icon(
@@ -717,27 +676,27 @@ fun MiniPlayerBar(
   Box(
     modifier =
       modifier
-          .fillMaxWidth()
-          .pointerInput(Unit) {
-              var netDrag = 0f
-              detectVerticalDragGestures(
-                  onVerticalDrag = { _, dragAmount ->
-                      netDrag += dragAmount
-                      // Only apply upward drags visually
-                      if (dragAmount < 0f) {
-                          onDrag(dragAmount)
-                      }
-                  },
-                  onDragEnd = {
-                      // Use net displacement for velocity - if user dragged back down, this cancels out
-                      val velocity = if (netDrag < 0f) netDrag * 12f else 0f
-                      onDragEnd(velocity)
-                      netDrag = 0f
-                  },
-              )
-          }
-          .height(MiniPlayerHeight)
-          .padding(horizontal = 18.dp),
+        .fillMaxWidth()
+        .pointerInput(Unit) {
+          var netDrag = 0f
+          detectVerticalDragGestures(
+            onVerticalDrag = { _, dragAmount ->
+              netDrag += dragAmount
+              // Only apply upward drags visually
+              if (dragAmount < 0f) {
+                onDrag(dragAmount)
+              }
+            },
+            onDragEnd = {
+              // Use net displacement for velocity - if user dragged back down, this cancels out
+              val velocity = if (netDrag < 0f) netDrag * 12f else 0f
+              onDragEnd(velocity)
+              netDrag = 0f
+            },
+          )
+        }
+        .height(MiniPlayerHeight)
+        .padding(horizontal = 18.dp),
   ) {
     Row(
       modifier = Modifier.fillMaxSize(),
@@ -747,13 +706,13 @@ fun MiniPlayerBar(
       Row(
         modifier =
           Modifier
-              .weight(1f)
-              .fillMaxHeight()
-              .clickable(
-                  interactionSource = remember { MutableInteractionSource() },
-                  indication = null,
-                  onClick = onClick,
-              ),
+            .weight(1f)
+            .fillMaxHeight()
+            .clickable(
+              interactionSource = remember { MutableInteractionSource() },
+              indication = null,
+              onClick = onClick,
+            ),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         AlbumArt(
@@ -803,20 +762,20 @@ fun MiniPlayerBar(
       Box(
         modifier =
           Modifier
-              .size(36.dp)
-              .clip(CircleShape)
-              .background(colors.primary.copy(alpha = if (hasPrevious) 0.2f else 0.08f))
-              .then(
-                  if (hasPrevious) {
-                      Modifier.clickable(
-                          interactionSource = remember { MutableInteractionSource() },
-                          indication = null,
-                          onClick = onPrevious,
-                      )
-                  } else {
-                      Modifier
-                  },
-              ),
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(colors.primary.copy(alpha = if (hasPrevious) 0.2f else 0.08f))
+            .then(
+              if (hasPrevious) {
+                Modifier.clickable(
+                  interactionSource = remember { MutableInteractionSource() },
+                  indication = null,
+                  onClick = onPrevious,
+                )
+              } else {
+                Modifier
+              },
+            ),
         contentAlignment = Alignment.Center,
       ) {
         Icon(
@@ -832,20 +791,20 @@ fun MiniPlayerBar(
       Box(
         modifier =
           Modifier
-              .size(36.dp)
-              .clip(CircleShape)
-              .background(colors.primary)
-              .then(
-                  if (!isBuffering) {
-                      Modifier.clickable(
-                          interactionSource = remember { MutableInteractionSource() },
-                          indication = null,
-                          onClick = onPlayPause,
-                      )
-                  } else {
-                      Modifier
-                  },
-              ),
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(colors.primary)
+            .then(
+              if (!isBuffering) {
+                Modifier.clickable(
+                  interactionSource = remember { MutableInteractionSource() },
+                  indication = null,
+                  onClick = onPlayPause,
+                )
+              } else {
+                Modifier
+              },
+            ),
         contentAlignment = Alignment.Center,
       ) {
         if (isBuffering) {
@@ -868,20 +827,20 @@ fun MiniPlayerBar(
       Box(
         modifier =
           Modifier
-              .size(36.dp)
-              .clip(CircleShape)
-              .background(colors.primary.copy(alpha = if (hasNext) 0.2f else 0.08f))
-              .then(
-                  if (hasNext) {
-                      Modifier.clickable(
-                          interactionSource = remember { MutableInteractionSource() },
-                          indication = null,
-                          onClick = onNext,
-                      )
-                  } else {
-                      Modifier
-                  },
-              ),
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(colors.primary.copy(alpha = if (hasNext) 0.2f else 0.08f))
+            .then(
+              if (hasNext) {
+                Modifier.clickable(
+                  interactionSource = remember { MutableInteractionSource() },
+                  indication = null,
+                  onClick = onNext,
+                )
+              } else {
+                Modifier
+              },
+            ),
         contentAlignment = Alignment.Center,
       ) {
         Icon(

@@ -19,354 +19,354 @@ import uniffi.aurelia_core.fetchSongs
 import uniffi.aurelia_core.loadCachedSongs
 
 class HomeViewModel(
-    private val sessionStore: SessionStore,
-    private val playerController: PlayerController,
+  private val sessionStore: SessionStore,
+  private val playerController: PlayerController,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(HomeState())
-    val state: StateFlow<HomeState> = mutableState
+  private val mutableState = MutableStateFlow(HomeState())
+  val state: StateFlow<HomeState> = mutableState
 
-    // Track if initial data load has been performed
-    private var hasLoadedInitialData = false
+  // Track if initial data load has been performed
+  private var hasLoadedInitialData = false
 
-    // All songs cache for queue building
-    private var allSongs: List<Song> = emptyList()
+  // All songs cache for queue building
+  private var allSongs: List<Song> = emptyList()
 
-    // Cache for song ID lookup
-    private var songIdByTitleArtist: Map<Pair<String, String>, String> = emptyMap()
+  // Cache for song ID lookup
+  private var songIdByTitleArtist: Map<Pair<String, String>, String> = emptyMap()
 
-    // Track last snapshot to avoid redundant updates
-    private var lastTitle: String = ""
-    private var lastArtist: String = ""
-    private var lastIsPlaying: Boolean = false
+  // Track last snapshot to avoid redundant updates
+  private var lastTitle: String = ""
+  private var lastArtist: String = ""
+  private var lastIsPlaying: Boolean = false
 
-    init {
-        playerController.observe { snapshot ->
-            handlePlayerUpdate(snapshot)
-        }
+  init {
+    playerController.observe { snapshot ->
+      handlePlayerUpdate(snapshot)
+    }
+  }
+
+  private fun handlePlayerUpdate(snapshot: PlayerSnapshot) {
+    val titleChanged = snapshot.title != lastTitle
+    val artistChanged = snapshot.artist != lastArtist
+    val playingChanged = snapshot.isPlaying != lastIsPlaying
+
+    if (!titleChanged && !artistChanged && !playingChanged) {
+      return
     }
 
-    private fun handlePlayerUpdate(snapshot: PlayerSnapshot) {
-        val titleChanged = snapshot.title != lastTitle
-        val artistChanged = snapshot.artist != lastArtist
-        val playingChanged = snapshot.isPlaying != lastIsPlaying
+    lastTitle = snapshot.title
+    lastArtist = snapshot.artist
+    lastIsPlaying = snapshot.isPlaying
 
-        if (!titleChanged && !artistChanged && !playingChanged) {
-            return
-        }
-
-        lastTitle = snapshot.title
-        lastArtist = snapshot.artist
-        lastIsPlaying = snapshot.isPlaying
-
-        if (snapshot.title.isBlank()) {
-            mutableState.update { it.copy(nowPlaying = null, currentSongId = null) }
-            return
-        }
-
-        val songId = songIdByTitleArtist[Pair(snapshot.title, snapshot.artist)]
-
-        mutableState.update {
-            it.copy(
-                nowPlaying = NowPlayingState(
-                    title = snapshot.title,
-                    artist = snapshot.artist,
-                    albumArtUrl = snapshot.albumArtUrl,
-                    isPlaying = snapshot.isPlaying,
-                    isBuffering = snapshot.isBuffering,
-                ),
-                currentSongId = songId,
-            )
-        }
+    if (snapshot.title.isBlank()) {
+      mutableState.update { it.copy(nowPlaying = null, currentSongId = null) }
+      return
     }
 
-    private fun buildSongIdCache(songs: List<Song>) {
-        songIdByTitleArtist =
-            songs.associate { song ->
-                val artist = song.artists?.joinToString(", ") ?: ""
-                Pair(song.name, artist) to song.id
-            }
+    val songId = songIdByTitleArtist[Pair(snapshot.title, snapshot.artist)]
+
+    mutableState.update {
+      it.copy(
+        nowPlaying = NowPlayingState(
+          title = snapshot.title,
+          artist = snapshot.artist,
+          albumArtUrl = snapshot.albumArtUrl,
+          isPlaying = snapshot.isPlaying,
+          isBuffering = snapshot.isBuffering,
+        ),
+        currentSongId = songId,
+      )
+    }
+  }
+
+  private fun buildSongIdCache(songs: List<Song>) {
+    songIdByTitleArtist =
+      songs.associate { song ->
+        val artist = song.artists?.joinToString(", ") ?: ""
+        Pair(song.name, artist) to song.id
+      }
+  }
+
+  fun loadHomeData() {
+    // Skip if already loaded
+    if (hasLoadedInitialData) return
+
+    val serverUrl = sessionStore.getServerUrl()
+    val userId = sessionStore.getUserId()
+    val token = sessionStore.getToken()
+    val appDataDir = sessionStore.getAppDataDir()
+
+    if (serverUrl.isNullOrBlank() || userId.isNullOrBlank() || token.isNullOrBlank()) {
+      mutableState.update { it.copy(error = "Missing session data") }
+      return
     }
 
-    fun loadHomeData() {
-        // Skip if already loaded
-        if (hasLoadedInitialData) return
+    mutableState.update { it.copy(isLoading = true, error = null) }
 
-        val serverUrl = sessionStore.getServerUrl()
-        val userId = sessionStore.getUserId()
-        val token = sessionStore.getToken()
-        val appDataDir = sessionStore.getAppDataDir()
-
-        if (serverUrl.isNullOrBlank() || userId.isNullOrBlank() || token.isNullOrBlank()) {
-            mutableState.update { it.copy(error = "Missing session data") }
-            return
+    // Try loading from cache first
+    if (!appDataDir.isNullOrBlank()) {
+      viewModelScope.launch(Dispatchers.IO) {
+        try {
+          val cachedSongs = loadCachedSongs(appDataDir)
+          if (cachedSongs.isNotEmpty()) {
+            allSongs = cachedSongs
+            buildSongIdCache(cachedSongs)
+            processHomeData(cachedSongs)
+          }
+        } catch (_: Exception) {
+          // Ignore cache errors
         }
+      }
+    }
 
-        mutableState.update { it.copy(isLoading = true, error = null) }
-
-        // Try loading from cache first
-        if (!appDataDir.isNullOrBlank()) {
-            viewModelScope.launch(Dispatchers.IO) {
-                try {
-                    val cachedSongs = loadCachedSongs(appDataDir)
-                    if (cachedSongs.isNotEmpty()) {
-                        allSongs = cachedSongs
-                        buildSongIdCache(cachedSongs)
-                        processHomeData(cachedSongs)
-                    }
-                } catch (_: Exception) {
-                    // Ignore cache errors
-                }
-            }
+    // Fetch fresh data
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        val songs = fetchSongs(serverUrl, token, userId, appDataDir ?: "")
+        allSongs = songs
+        buildSongIdCache(songs)
+        processHomeData(songs)
+        hasLoadedInitialData = true
+      } catch (error: AppException) {
+        if (!AuthInterceptor.handlePotentialAuthError(error.message)) {
+          mutableState.update { it.copy(isLoading = false, error = error.message ?: "Failed to load") }
         }
-
-        // Fetch fresh data
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val songs = fetchSongs(serverUrl, token, userId, appDataDir ?: "")
-                allSongs = songs
-                buildSongIdCache(songs)
-                processHomeData(songs)
-                hasLoadedInitialData = true
-            } catch (error: AppException) {
-                if (!AuthInterceptor.handlePotentialAuthError(error.message)) {
-                    mutableState.update { it.copy(isLoading = false, error = error.message ?: "Failed to load") }
-                }
-            } catch (error: Exception) {
-                if (!AuthInterceptor.handlePotentialAuthError(error)) {
-                    mutableState.update { it.copy(isLoading = false, error = "Failed to load") }
-                }
-            }
+      } catch (error: Exception) {
+        if (!AuthInterceptor.handlePotentialAuthError(error)) {
+          mutableState.update { it.copy(isLoading = false, error = "Failed to load") }
         }
+      }
     }
+  }
 
-    private fun processHomeData(songs: List<Song>) {
-        // Most played - top 10 by playCount
-        val mostPlayed =
-            songs
-                .filter { (it.playCount ?: 0) > 0 }
-                .sortedByDescending { it.playCount ?: 0 }
-                .take(10)
+  private fun processHomeData(songs: List<Song>) {
+    // Most played - top 10 by playCount
+    val mostPlayed =
+      songs
+        .filter { (it.playCount ?: 0) > 0 }
+        .sortedByDescending { it.playCount ?: 0 }
+        .take(10)
 
-        // Recently played - top 10 by datePlayed
-        val recentlyPlayed =
-            songs
-                .filter { !it.datePlayed.isNullOrBlank() }
-                .sortedByDescending { it.datePlayed ?: "" }
-                .take(10)
+    // Recently played - top 10 by datePlayed
+    val recentlyPlayed =
+      songs
+        .filter { !it.datePlayed.isNullOrBlank() }
+        .sortedByDescending { it.datePlayed ?: "" }
+        .take(10)
 
-        // Group songs by album for album-based sections
-        val albumsMap =
-            songs
-                .filter { !it.albumId.isNullOrBlank() }
-                .groupBy { it.albumId!! }
+    // Group songs by album for album-based sections
+    val albumsMap =
+      songs
+        .filter { !it.albumId.isNullOrBlank() }
+        .groupBy { it.albumId!! }
 
-        // Recently added albums - by dateCreated of first song
-        val recentlyAddedAlbums =
-            albumsMap
-                .map { (albumId, albumSongs) ->
-                    val firstSong = albumSongs.maxByOrNull { it.dateCreated ?: "" } ?: albumSongs.first()
-                    AlbumItemWithDate(
-                        album =
-                            AlbumItem(
-                                id = albumId,
-                                name = firstSong.album ?: "Unknown Album",
-                                artist = firstSong.artists?.firstOrNull() ?: "Unknown Artist",
-                                albumArtUrl = firstSong.albumArtUrl,
-                                songCount = albumSongs.size,
-                            ),
-                        dateCreated = firstSong.dateCreated ?: "",
-                    )
-                }.sortedByDescending { it.dateCreated }
-                .take(12)
-                .map { it.album }
+    // Recently added albums - by dateCreated of first song
+    val recentlyAddedAlbums =
+      albumsMap
+        .map { (albumId, albumSongs) ->
+          val firstSong = albumSongs.maxByOrNull { it.dateCreated ?: "" } ?: albumSongs.first()
+          AlbumItemWithDate(
+            album =
+              AlbumItem(
+                id = albumId,
+                name = firstSong.album ?: "Unknown Album",
+                artist = firstSong.artists?.firstOrNull() ?: "Unknown Artist",
+                albumArtUrl = firstSong.albumArtUrl,
+                songCount = albumSongs.size,
+              ),
+            dateCreated = firstSong.dateCreated ?: "",
+          )
+        }.sortedByDescending { it.dateCreated }
+        .take(12)
+        .map { it.album }
 
-        // Random albums for "From Your Library"
-        val randomAlbums =
-            albumsMap
-                .map { (albumId, albumSongs) ->
-                    val firstSong = albumSongs.first()
-                    AlbumItem(
-                        id = albumId,
-                        name = firstSong.album ?: "Unknown Album",
-                        artist = firstSong.artists?.firstOrNull() ?: "Unknown Artist",
-                        albumArtUrl = firstSong.albumArtUrl,
-                        songCount = albumSongs.size,
-                    )
-                }.shuffled()
-                .take(12)
+    // Random albums for "From Your Library"
+    val randomAlbums =
+      albumsMap
+        .map { (albumId, albumSongs) ->
+          val firstSong = albumSongs.first()
+          AlbumItem(
+            id = albumId,
+            name = firstSong.album ?: "Unknown Album",
+            artist = firstSong.artists?.firstOrNull() ?: "Unknown Artist",
+            albumArtUrl = firstSong.albumArtUrl,
+            songCount = albumSongs.size,
+          )
+        }.shuffled()
+        .take(12)
 
-        // Featured albums - random selection with album art
-        val featuredAlbums =
-            albumsMap
-                .filter { (_, albumSongs) -> albumSongs.any { !it.albumArtUrl.isNullOrBlank() } }
-                .map { (albumId, albumSongs) ->
-                    val firstSong = albumSongs.first()
-                    FeaturedAlbum(
-                        id = albumId,
-                        name = firstSong.album ?: "Unknown Album",
-                        artist = firstSong.artists?.joinToString(", ") ?: "Unknown Artist",
-                        albumArtUrl = firstSong.albumArtUrl,
-                        songCount = albumSongs.size,
-                    )
-                }.shuffled()
-                .take(5)
+    // Featured albums - random selection with album art
+    val featuredAlbums =
+      albumsMap
+        .filter { (_, albumSongs) -> albumSongs.any { !it.albumArtUrl.isNullOrBlank() } }
+        .map { (albumId, albumSongs) ->
+          val firstSong = albumSongs.first()
+          FeaturedAlbum(
+            id = albumId,
+            name = firstSong.album ?: "Unknown Album",
+            artist = firstSong.artists?.joinToString(", ") ?: "Unknown Artist",
+            albumArtUrl = firstSong.albumArtUrl,
+            songCount = albumSongs.size,
+          )
+        }.shuffled()
+        .take(5)
 
-        mutableState.update {
-            it.copy(
-                isLoading = false,
-                featuredAlbums = featuredAlbums,
-                mostPlayed = mostPlayed,
-                recentlyPlayed = recentlyPlayed,
-                recentlyAddedAlbums = recentlyAddedAlbums,
-                randomAlbums = randomAlbums,
-            )
-        }
+    mutableState.update {
+      it.copy(
+        isLoading = false,
+        featuredAlbums = featuredAlbums,
+        mostPlayed = mostPlayed,
+        recentlyPlayed = recentlyPlayed,
+        recentlyAddedAlbums = recentlyAddedAlbums,
+        randomAlbums = randomAlbums,
+      )
     }
+  }
 
-    fun nextFeaturedAlbum() {
-        val current = mutableState.value
-        if (current.featuredAlbums.isNotEmpty()) {
-            val nextIndex = (current.currentFeaturedIndex + 1) % current.featuredAlbums.size
-            mutableState.update { it.copy(currentFeaturedIndex = nextIndex) }
-        }
+  fun nextFeaturedAlbum() {
+    val current = mutableState.value
+    if (current.featuredAlbums.isNotEmpty()) {
+      val nextIndex = (current.currentFeaturedIndex + 1) % current.featuredAlbums.size
+      mutableState.update { it.copy(currentFeaturedIndex = nextIndex) }
     }
+  }
 
-    fun previousFeaturedAlbum() {
-        val current = mutableState.value
-        if (current.featuredAlbums.isNotEmpty()) {
-            val prevIndex =
-                if (current.currentFeaturedIndex > 0) {
-                    current.currentFeaturedIndex - 1
-                } else {
-                    current.featuredAlbums.size - 1
-                }
-            mutableState.update { it.copy(currentFeaturedIndex = prevIndex) }
-        }
-    }
-
-    fun setFeaturedIndex(index: Int) {
-        val current = mutableState.value
-        if (index in current.featuredAlbums.indices) {
-            mutableState.update { it.copy(currentFeaturedIndex = index) }
-        }
-    }
-
-    /**
-     * Play a song from a specific list, setting up the queue from that list
-     */
-    fun playSongFromList(
-        songId: String,
-        songList: List<Song>,
-    ) {
-        val serverUrl = sessionStore.getServerUrl() ?: return
-        val token = sessionStore.getToken() ?: return
-
-        val startIndex = songList.indexOfFirst { it.id == songId }
-        if (startIndex < 0) return
-
-        val queueItems =
-            songList.map { song ->
-                QueueItem(
-                    id = song.id,
-                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                    title = song.name,
-                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                    albumArtUrl = song.albumArtUrl,
-                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-                    isFavorite = song.isFavorite ?: false,
-                )
-            }
-
-        mutableState.update { it.copy(currentSongId = songId) }
-        playerController.setQueue(queueItems, startIndex)
-    }
-
-    /**
-     * Play all songs from an album
-     */
-    fun playAlbum(albumId: String) {
-        val serverUrl = sessionStore.getServerUrl() ?: return
-        val token = sessionStore.getToken() ?: return
-
-        val albumSongs =
-            allSongs
-                .filter { it.albumId == albumId }
-                .sortedBy { it.trackNumber ?: 0 }
-
-        if (albumSongs.isEmpty()) return
-
-        val queueItems =
-            albumSongs.map { song ->
-                QueueItem(
-                    id = song.id,
-                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                    title = song.name,
-                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                    albumArtUrl = song.albumArtUrl,
-                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-                    isFavorite = song.isFavorite ?: false,
-                )
-            }
-
-        mutableState.update { it.copy(currentSongId = albumSongs.first().id) }
-        playerController.setQueue(queueItems, 0)
-    }
-
-    /**
-     * Shuffle play an album
-     */
-    fun shuffleAlbum(albumId: String) {
-        val serverUrl = sessionStore.getServerUrl() ?: return
-        val token = sessionStore.getToken() ?: return
-
-        val albumSongs =
-            allSongs
-                .filter { it.albumId == albumId }
-                .shuffled()
-
-        if (albumSongs.isEmpty()) return
-
-        val queueItems =
-            albumSongs.map { song ->
-                QueueItem(
-                    id = song.id,
-                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                    title = song.name,
-                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                    albumArtUrl = song.albumArtUrl,
-                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-                    isFavorite = song.isFavorite ?: false,
-                )
-            }
-
-        mutableState.update { it.copy(currentSongId = albumSongs.first().id) }
-        playerController.setQueue(queueItems, 0)
-    }
-
-    fun togglePlayPause() {
-        val nowPlaying = mutableState.value.nowPlaying ?: return
-        if (nowPlaying.isPlaying) {
-            playerController.pause()
+  fun previousFeaturedAlbum() {
+    val current = mutableState.value
+    if (current.featuredAlbums.isNotEmpty()) {
+      val prevIndex =
+        if (current.currentFeaturedIndex > 0) {
+          current.currentFeaturedIndex - 1
         } else {
-            playerController.resume()
+          current.featuredAlbums.size - 1
         }
+      mutableState.update { it.copy(currentFeaturedIndex = prevIndex) }
     }
+  }
 
-    fun skipPrevious() {
-        playerController.skipPrevious()
+  fun setFeaturedIndex(index: Int) {
+    val current = mutableState.value
+    if (index in current.featuredAlbums.indices) {
+      mutableState.update { it.copy(currentFeaturedIndex = index) }
     }
+  }
 
-    fun skipNext() {
-        playerController.skipNext()
-    }
+  /**
+   * Play a song from a specific list, setting up the queue from that list
+   */
+  fun playSongFromList(
+    songId: String,
+    songList: List<Song>,
+  ) {
+    val serverUrl = sessionStore.getServerUrl() ?: return
+    val token = sessionStore.getToken() ?: return
 
-    override fun onCleared() {
-        super.onCleared()
-        playerController.release()
+    val startIndex = songList.indexOfFirst { it.id == songId }
+    if (startIndex < 0) return
+
+    val queueItems =
+      songList.map { song ->
+        QueueItem(
+          id = song.id,
+          uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+          title = song.name,
+          artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+          albumArtUrl = song.albumArtUrl,
+          durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+          isFavorite = song.isFavorite ?: false,
+        )
+      }
+
+    mutableState.update { it.copy(currentSongId = songId) }
+    playerController.setQueue(queueItems, startIndex)
+  }
+
+  /**
+   * Play all songs from an album
+   */
+  fun playAlbum(albumId: String) {
+    val serverUrl = sessionStore.getServerUrl() ?: return
+    val token = sessionStore.getToken() ?: return
+
+    val albumSongs =
+      allSongs
+        .filter { it.albumId == albumId }
+        .sortedBy { it.trackNumber ?: 0 }
+
+    if (albumSongs.isEmpty()) return
+
+    val queueItems =
+      albumSongs.map { song ->
+        QueueItem(
+          id = song.id,
+          uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+          title = song.name,
+          artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+          albumArtUrl = song.albumArtUrl,
+          durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+          isFavorite = song.isFavorite ?: false,
+        )
+      }
+
+    mutableState.update { it.copy(currentSongId = albumSongs.first().id) }
+    playerController.setQueue(queueItems, 0)
+  }
+
+  /**
+   * Shuffle play an album
+   */
+  fun shuffleAlbum(albumId: String) {
+    val serverUrl = sessionStore.getServerUrl() ?: return
+    val token = sessionStore.getToken() ?: return
+
+    val albumSongs =
+      allSongs
+        .filter { it.albumId == albumId }
+        .shuffled()
+
+    if (albumSongs.isEmpty()) return
+
+    val queueItems =
+      albumSongs.map { song ->
+        QueueItem(
+          id = song.id,
+          uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+          title = song.name,
+          artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+          albumArtUrl = song.albumArtUrl,
+          durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+          isFavorite = song.isFavorite ?: false,
+        )
+      }
+
+    mutableState.update { it.copy(currentSongId = albumSongs.first().id) }
+    playerController.setQueue(queueItems, 0)
+  }
+
+  fun togglePlayPause() {
+    val nowPlaying = mutableState.value.nowPlaying ?: return
+    if (nowPlaying.isPlaying) {
+      playerController.pause()
+    } else {
+      playerController.resume()
     }
+  }
+
+  fun skipPrevious() {
+    playerController.skipPrevious()
+  }
+
+  fun skipNext() {
+    playerController.skipNext()
+  }
+
+  override fun onCleared() {
+    super.onCleared()
+    playerController.release()
+  }
 }
 
 private data class AlbumItemWithDate(
-    val album: AlbumItem,
-    val dateCreated: String,
+  val album: AlbumItem,
+  val dateCreated: String,
 )

@@ -48,299 +48,298 @@ import com.aurelia.app.ui.components.AlbumArtStyle
 
 @Composable
 fun PlaylistDetailScreen(
-    playlistId: String,
-    playlistName: String,
-    viewModel: PlaylistViewModel,
-    onBack: () -> Unit,
-    onOpenPlayer: () -> Unit,
+  playlistId: String,
+  playlistName: String,
+  viewModel: PlaylistViewModel,
+  onBack: () -> Unit,
+  onOpenPlayer: () -> Unit,
 ) {
-    val state by viewModel.detailState.collectAsState()
-    val colors = MaterialTheme.colorScheme
+  val state by viewModel.detailState.collectAsState()
+  val colors = MaterialTheme.colorScheme
 
-    LaunchedEffect(playlistId) {
-        viewModel.loadPlaylistDetail(playlistId, playlistName)
-    }
+  LaunchedEffect(playlistId) {
+    viewModel.loadPlaylistDetail(playlistId, playlistName)
+  }
 
-    val gradient =
-        Brush.verticalGradient(
-            colors =
-                listOf(
-                    colors.primaryContainer,
-                    colors.background,
-                ),
-        )
+  val gradient =
+    Brush.verticalGradient(
+      colors =
+        listOf(
+          colors.primaryContainer,
+          colors.background,
+        ),
+    )
 
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(gradient)
-                .statusBarsPadding(),
+  Column(
+    modifier =
+      Modifier
+        .fillMaxSize()
+        .background(gradient)
+        .statusBarsPadding(),
+  ) {
+    // Header with back button
+    Row(
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 8.dp, vertical = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Header with back button
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = colors.onPrimaryContainer,
-                )
-            }
-        }
-
-        when {
-            state.isLoading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            state.error != null -> {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .padding(32.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = state.error ?: "An error occurred",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.error,
-                        textAlign = TextAlign.Center,
-                    )
-                }
-            }
-
-            else -> {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                ) {
-                    // Playlist header
-                    item {
-                        Column(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            // Playlist art placeholder
-                            Surface(
-                                modifier =
-                                    Modifier
-                                        .size(200.dp)
-                                        .clip(RoundedCornerShape(24.dp)),
-                                shape = RoundedCornerShape(24.dp),
-                                color = colors.primaryContainer,
-                                tonalElevation = 8.dp,
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(64.dp),
-                                        tint = colors.onPrimaryContainer.copy(alpha = 0.5f),
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Playlist name
-                            Text(
-                                text = playlistName,
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.onPrimaryContainer,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            // Song count
-                            Text(
-                                text = "${state.songs.size} songs",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onPrimaryContainer.copy(alpha = 0.5f),
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Play and shuffle buttons
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            ) {
-                                // Play all button
-                                FilledIconButton(
-                                    onClick = {
-                                        if (state.songs.isNotEmpty()) {
-                                            viewModel.playPlaylist(0)
-                                            onOpenPlayer()
-                                        }
-                                    },
-                                    modifier = Modifier.size(56.dp),
-                                    shape = CircleShape,
-                                    colors =
-                                        IconButtonDefaults.filledIconButtonColors(
-                                            containerColor = colors.primary,
-                                            contentColor = colors.onPrimary,
-                                        ),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.PlayArrow,
-                                        contentDescription = "Play all",
-                                        modifier = Modifier.size(28.dp),
-                                    )
-                                }
-
-                                // Shuffle button
-                                FilledIconButton(
-                                    onClick = {
-                                        if (state.songs.isNotEmpty()) {
-                                            viewModel.shufflePlaylist()
-                                            onOpenPlayer()
-                                        }
-                                    },
-                                    modifier = Modifier.size(56.dp),
-                                    shape = CircleShape,
-                                    colors =
-                                        IconButtonDefaults.filledIconButtonColors(
-                                            containerColor = colors.secondaryContainer,
-                                            contentColor = colors.onSecondaryContainer,
-                                        ),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Shuffle,
-                                        contentDescription = "Shuffle",
-                                        modifier = Modifier.size(24.dp),
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(24.dp))
-                        }
-                    }
-
-                    // Song list
-                    if (state.songs.isEmpty()) {
-                        item {
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(32.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    text = "This playlist is empty",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = colors.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    } else {
-                        itemsIndexed(
-                            items = state.songs,
-                            key = { index, song -> "${song.id}_$index" },
-                        ) { index, song ->
-                            PlaylistSongItem(
-                                title = song.name,
-                                artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                                albumArtUrl = song.albumArtUrl,
-                                duration = song.duration?.let { formatDuration((it * 1000).toLong()) },
-                                onClick = {
-                                    viewModel.playPlaylist(index)
-                                    onOpenPlayer()
-                                },
-                            )
-                        }
-                    }
-                }
-            }
-        }
+      IconButton(onClick = onBack) {
+        Icon(
+          imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+          contentDescription = "Back",
+          tint = colors.onPrimaryContainer,
+        )
+      }
     }
+
+    when {
+      state.isLoading -> {
+        Box(
+          modifier = Modifier.fillMaxSize(),
+          contentAlignment = Alignment.Center,
+        ) {
+          CircularProgressIndicator()
+        }
+      }
+
+      state.error != null -> {
+        Box(
+          modifier =
+            Modifier
+              .fillMaxSize()
+              .padding(32.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          Text(
+            text = state.error ?: "An error occurred",
+            style = MaterialTheme.typography.bodyLarge,
+            color = colors.error,
+            textAlign = TextAlign.Center,
+          )
+        }
+      }
+
+      else -> {
+        LazyColumn(
+          modifier = Modifier.fillMaxSize(),
+          contentPadding = PaddingValues(bottom = 16.dp),
+        ) {
+          // Playlist header
+          item {
+            Column(
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = 24.dp),
+              horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+              // Playlist art placeholder
+              Surface(
+                modifier =
+                  Modifier
+                    .size(200.dp)
+                    .clip(RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
+                color = colors.primaryContainer,
+                tonalElevation = 8.dp,
+              ) {
+                Box(
+                  modifier = Modifier.fillMaxSize(),
+                  contentAlignment = Alignment.Center,
+                ) {
+                  Icon(
+                    imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = colors.onPrimaryContainer.copy(alpha = 0.5f),
+                  )
+                }
+              }
+
+              Spacer(modifier = Modifier.height(16.dp))
+
+              // Playlist name
+              Text(
+                text = playlistName,
+                style = MaterialTheme.typography.headlineMedium,
+                color = colors.onPrimaryContainer,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+              )
+
+              Spacer(modifier = Modifier.height(4.dp))
+
+              // Song count
+              Text(
+                text = "${state.songs.size} songs",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onPrimaryContainer.copy(alpha = 0.5f),
+              )
+
+              Spacer(modifier = Modifier.height(16.dp))
+
+              // Play and shuffle buttons
+              Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+              ) {
+                // Play all button
+                FilledIconButton(
+                  onClick = {
+                    if (state.songs.isNotEmpty()) {
+                      viewModel.playPlaylist(0)
+                      onOpenPlayer()
+                    }
+                  },
+                  modifier = Modifier.size(56.dp),
+                  shape = CircleShape,
+                  colors =
+                    IconButtonDefaults.filledIconButtonColors(
+                      containerColor = colors.primary,
+                      contentColor = colors.onPrimary,
+                    ),
+                ) {
+                  Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = "Play all",
+                    modifier = Modifier.size(28.dp),
+                  )
+                }
+
+                // Shuffle button
+                FilledIconButton(
+                  onClick = {
+                    if (state.songs.isNotEmpty()) {
+                      viewModel.shufflePlaylist()
+                      onOpenPlayer()
+                    }
+                  },
+                  modifier = Modifier.size(56.dp),
+                  shape = CircleShape,
+                  colors =
+                    IconButtonDefaults.filledIconButtonColors(
+                      containerColor = colors.secondaryContainer,
+                      contentColor = colors.onSecondaryContainer,
+                    ),
+                ) {
+                  Icon(
+                    imageVector = Icons.Filled.Shuffle,
+                    contentDescription = "Shuffle",
+                    modifier = Modifier.size(24.dp),
+                  )
+                }
+              }
+
+              Spacer(modifier = Modifier.height(24.dp))
+            }
+          }
+
+          // Song list
+          if (state.songs.isEmpty()) {
+            item {
+              Box(
+                modifier =
+                  Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center,
+              ) {
+                Text(
+                  text = "This playlist is empty",
+                  style = MaterialTheme.typography.bodyLarge,
+                  color = colors.onSurfaceVariant,
+                )
+              }
+            }
+          } else {
+            itemsIndexed(
+              items = state.songs,
+              key = { index, song -> "${song.id}_$index" },
+            ) { index, song ->
+              PlaylistSongItem(
+                title = song.name,
+                artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+                albumArtUrl = song.albumArtUrl,
+                duration = song.duration?.let { formatDuration((it * 1000).toLong()) },
+                onClick = {
+                  viewModel.playPlaylist(index)
+                  onOpenPlayer()
+                },
+              )
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 @Composable
 private fun PlaylistSongItem(
-    title: String,
-    artist: String,
-    albumArtUrl: String?,
-    duration: String?,
-    onClick: () -> Unit,
+  title: String,
+  artist: String,
+  albumArtUrl: String?,
+  duration: String?,
+  onClick: () -> Unit,
 ) {
-    val colors = MaterialTheme.colorScheme
+  val colors = MaterialTheme.colorScheme
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = colors.surface.copy(alpha = 0f),
-        onClick = onClick,
+  Surface(
+    modifier = Modifier.fillMaxWidth(),
+    color = colors.surface.copy(alpha = 0f),
+    onClick = onClick,
+  ) {
+    Row(
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 16.dp, vertical = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AlbumArt(
-                imageUrl = albumArtUrl,
-                size = 48.dp,
-                cornerRadius = 8.dp,
-                style = AlbumArtStyle.Song,
-                containerColor = colors.surfaceVariant,
-                contentColor = colors.onSurfaceVariant.copy(alpha = 0.5f),
-            )
+      AlbumArt(
+        imageUrl = albumArtUrl,
+        size = 48.dp,
+        cornerRadius = 8.dp,
+        style = AlbumArtStyle.Song,
+        containerColor = colors.surfaceVariant,
+        contentColor = colors.onSurfaceVariant.copy(alpha = 0.5f),
+      )
 
-            Spacer(modifier = Modifier.width(12.dp))
+      Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = artist,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = title,
+          style = MaterialTheme.typography.bodyLarge,
+          fontWeight = FontWeight.Medium,
+          color = colors.onSurface,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+          text = artist,
+          style = MaterialTheme.typography.bodySmall,
+          color = colors.onSurfaceVariant,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
 
-            duration?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                )
-            }
-        }
+      duration?.let {
+        Text(
+          text = it,
+          style = MaterialTheme.typography.bodySmall,
+          color = colors.onSurfaceVariant,
+        )
+      }
     }
+  }
 }
 
 private fun formatDuration(durationMs: Long): String {
-    val totalSeconds = durationMs / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return "%d:%02d".format(minutes, seconds)
+  val totalSeconds = durationMs / 1000
+  val minutes = totalSeconds / 60
+  val seconds = totalSeconds % 60
+  return "%d:%02d".format(minutes, seconds)
 }

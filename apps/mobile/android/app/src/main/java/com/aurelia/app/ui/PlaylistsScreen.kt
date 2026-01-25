@@ -1,6 +1,5 @@
 package com.aurelia.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,338 +61,337 @@ private val NavBarContentHeight = 90.dp
 
 @Composable
 fun PlaylistsScreen(
-    viewModel: PlaylistViewModel,
-    onOpenPlayer: () -> Unit,
-    onNavigateToPlaylist: (Screen.PlaylistDetail) -> Unit,
-    hasPlayerBar: Boolean = false,
+  viewModel: PlaylistViewModel,
+  onOpenPlayer: () -> Unit,
+  onNavigateToPlaylist: (Screen.PlaylistDetail) -> Unit,
+  hasPlayerBar: Boolean = false,
 ) {
-    val state by viewModel.state.collectAsState()
-    val colors = MaterialTheme.colorScheme
+  val state by viewModel.state.collectAsState()
+  val colors = MaterialTheme.colorScheme
 
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
+  var showCreateDialog by remember { mutableStateOf(false) }
+  var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadPlaylists()
-    }
+  LaunchedEffect(Unit) {
+    viewModel.loadPlaylists()
+  }
 
-    val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val fabBottomPadding =
-        NavBarContentHeight + systemNavBarInset + 24.dp +
-            (if (hasPlayerBar) MiniPlayerHeight + 12.dp else 0.dp)
+  val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+  val fabBottomPadding =
+    NavBarContentHeight + systemNavBarInset + 24.dp +
+      (if (hasPlayerBar) MiniPlayerHeight + 12.dp else 0.dp)
 
-    Box(
+  Box(
+    modifier =
+      Modifier
+        .fillMaxSize()
+        .statusBarsPadding(),
+  ) {
+    Column(modifier = Modifier.fillMaxSize()) {
+      // Header
+      Column(
         modifier =
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding(),
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Header
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-            ) {
-                Text(
-                    text = "Playlists",
-                    style = MaterialTheme.typography.displayLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.onBackground,
-                )
-                Text(
-                    text = "Your music collections",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurfaceVariant,
-                )
-            }
+          Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+      ) {
+        Text(
+          text = "Playlists",
+          style = MaterialTheme.typography.displayLarge,
+          color = colors.onBackground,
+        )
+        Text(
+          text = "Your music collections",
+          style = MaterialTheme.typography.bodyMedium,
+          color = colors.onSurfaceVariant,
+        )
+      }
 
-            when {
-                state.isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-
-                state.error != null -> {
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .padding(32.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = state.error ?: "An error occurred",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = colors.error,
-                                textAlign = TextAlign.Center,
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            TextButton(onClick = { viewModel.loadPlaylists() }) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-                }
-
-                state.playlists.isEmpty() -> {
-                    EmptyPlaylistsView()
-                }
-
-                else -> {
-                    val bottomPadding =
-                        NavBarContentHeight + systemNavBarInset +
-                            (if (hasPlayerBar) MiniPlayerHeight + 12.dp else 0.dp)
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding =
-                            PaddingValues(
-                                start = 16.dp,
-                                end = 16.dp,
-                                bottom = bottomPadding + 80.dp,
-                            ),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(state.playlists, key = { it.id }) { playlist ->
-                            PlaylistItem(
-                                playlist = playlist,
-                                onClick = {
-                                    onNavigateToPlaylist(
-                                        Screen.PlaylistDetail(
-                                            playlistId = playlist.id,
-                                            playlistName = playlist.name,
-                                        ),
-                                    )
-                                },
-                                onDelete = { playlistToDelete = playlist },
-                            )
-                        }
-                    }
-                }
-            }
+      when {
+        state.isLoading -> {
+          Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+          ) {
+            CircularProgressIndicator()
+          }
         }
 
-        // FAB
-        FloatingActionButton(
-            onClick = { showCreateDialog = true },
+        state.error != null -> {
+          Box(
             modifier =
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 16.dp, bottom = fabBottomPadding),
-            containerColor = colors.primary,
-            contentColor = colors.onPrimary,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Add,
-                contentDescription = "Create playlist",
-            )
+              Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center,
+          ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+              Text(
+                text = state.error ?: "An error occurred",
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.error,
+                textAlign = TextAlign.Center,
+              )
+              Spacer(modifier = Modifier.height(16.dp))
+              TextButton(onClick = { viewModel.loadPlaylists() }) {
+                Text("Retry")
+              }
+            }
+          }
         }
+
+        state.playlists.isEmpty() -> {
+          EmptyPlaylistsView()
+        }
+
+        else -> {
+          val bottomPadding =
+            NavBarContentHeight + systemNavBarInset +
+              (if (hasPlayerBar) MiniPlayerHeight + 12.dp else 0.dp)
+
+          LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding =
+              PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                bottom = bottomPadding + 80.dp,
+              ),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            items(state.playlists, key = { it.id }) { playlist ->
+              PlaylistItem(
+                playlist = playlist,
+                onClick = {
+                  onNavigateToPlaylist(
+                    Screen.PlaylistDetail(
+                      playlistId = playlist.id,
+                      playlistName = playlist.name,
+                    ),
+                  )
+                },
+                onDelete = { playlistToDelete = playlist },
+              )
+            }
+          }
+        }
+      }
     }
 
-    // Create playlist dialog
-    if (showCreateDialog) {
-        CreatePlaylistDialog(
-            isCreating = state.isCreating,
-            onDismiss = { showCreateDialog = false },
-            onCreate = { name ->
-                viewModel.createPlaylist(name)
-                showCreateDialog = false
-            },
-        )
+    // FAB
+    FloatingActionButton(
+      onClick = { showCreateDialog = true },
+      modifier =
+        Modifier
+          .align(Alignment.BottomEnd)
+          .padding(end = 16.dp, bottom = fabBottomPadding),
+      containerColor = colors.primary,
+      contentColor = colors.onPrimary,
+    ) {
+      Icon(
+        imageVector = Icons.Filled.Add,
+        contentDescription = "Create playlist",
+      )
     }
+  }
 
-    // Delete confirmation dialog
-    playlistToDelete?.let { playlist ->
-        AlertDialog(
-            onDismissRequest = { playlistToDelete = null },
-            title = { Text("Delete Playlist") },
-            text = { Text("Are you sure you want to delete \"${playlist.name}\"?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deletePlaylist(playlist.id)
-                        playlistToDelete = null
-                    },
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { playlistToDelete = null }) {
-                    Text("Cancel")
-                }
-            },
-        )
-    }
+  // Create playlist dialog
+  if (showCreateDialog) {
+    CreatePlaylistDialog(
+      isCreating = state.isCreating,
+      onDismiss = { showCreateDialog = false },
+      onCreate = { name ->
+        viewModel.createPlaylist(name)
+        showCreateDialog = false
+      },
+    )
+  }
+
+  // Delete confirmation dialog
+  playlistToDelete?.let { playlist ->
+    AlertDialog(
+      onDismissRequest = { playlistToDelete = null },
+      title = { Text("Delete Playlist") },
+      text = { Text("Are you sure you want to delete \"${playlist.name}\"?") },
+      confirmButton = {
+        TextButton(
+          onClick = {
+            viewModel.deletePlaylist(playlist.id)
+            playlistToDelete = null
+          },
+        ) {
+          Text("Delete", color = MaterialTheme.colorScheme.error)
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { playlistToDelete = null }) {
+          Text("Cancel")
+        }
+      },
+    )
+  }
 }
 
 @Composable
 private fun EmptyPlaylistsView() {
-    val colors = MaterialTheme.colorScheme
+  val colors = MaterialTheme.colorScheme
 
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(32.dp),
-        contentAlignment = Alignment.Center,
+  Box(
+    modifier =
+      Modifier
+        .fillMaxSize()
+        .padding(32.dp),
+    contentAlignment = Alignment.Center,
+  ) {
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Surface(
-                modifier = Modifier.size(80.dp),
-                shape = RoundedCornerShape(24.dp),
-                color = colors.surfaceVariant,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(40.dp),
-                    )
-                }
-            }
-            Text(
-                text = "No playlists yet",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface,
-            )
-            Text(
-                text = "Create a playlist to organize your favorite music",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
+      Surface(
+        modifier = Modifier.size(80.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = colors.surfaceVariant,
+      ) {
+        Box(contentAlignment = Alignment.Center) {
+          Icon(
+            imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
+            contentDescription = null,
+            tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(40.dp),
+          )
         }
+      }
+      Text(
+        text = "No playlists yet",
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = colors.onSurface,
+      )
+      Text(
+        text = "Create a playlist to organize your favorite music",
+        style = MaterialTheme.typography.bodyMedium,
+        color = colors.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+      )
     }
+  }
 }
 
 @Composable
 private fun PlaylistItem(
-    playlist: Playlist,
-    onClick: () -> Unit,
-    onDelete: () -> Unit,
+  playlist: Playlist,
+  onClick: () -> Unit,
+  onDelete: () -> Unit,
 ) {
-    val colors = MaterialTheme.colorScheme
-    val songCount = playlist.childCount ?: 0
+  val colors = MaterialTheme.colorScheme
+  val songCount = playlist.childCount ?: 0
 
-    Surface(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .clickable(onClick = onClick),
-        color = colors.surface,
-        tonalElevation = 1.dp,
+  Surface(
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(12.dp))
+        .clickable(onClick = onClick),
+    color = colors.surface,
+    tonalElevation = 1.dp,
+  ) {
+    Row(
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(12.dp),
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            // Playlist artwork placeholder
-            AlbumArt(
-                imageUrl = null, // Playlists don't have images by default
-                size = 56.dp,
-                cornerRadius = 8.dp,
-                style = AlbumArtStyle.Playlist,
-                containerColor = colors.primaryContainer,
-                contentColor = colors.onPrimaryContainer,
-            )
+      // Playlist artwork placeholder
+      AlbumArt(
+        imageUrl = null, // Playlists don't have images by default
+        size = 56.dp,
+        cornerRadius = 8.dp,
+        style = AlbumArtStyle.Playlist,
+        containerColor = colors.primaryContainer,
+        contentColor = colors.onPrimaryContainer,
+      )
 
-            Spacer(modifier = Modifier.width(16.dp))
+      Spacer(modifier = Modifier.width(16.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = playlist.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "$songCount songs",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                )
-            }
+      Column(modifier = Modifier.weight(1f)) {
+        Text(
+          text = playlist.name,
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Medium,
+          color = colors.onSurface,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+          text = "$songCount songs",
+          style = MaterialTheme.typography.bodySmall,
+          color = colors.onSurfaceVariant,
+        )
+      }
 
-            if (playlist.canDelete == true) {
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete playlist",
-                        tint = colors.onSurfaceVariant,
-                    )
-                }
-            }
+      if (playlist.canDelete == true) {
+        IconButton(onClick = onDelete) {
+          Icon(
+            imageVector = Icons.Default.Delete,
+            contentDescription = "Delete playlist",
+            tint = colors.onSurfaceVariant,
+          )
         }
+      }
     }
+  }
 }
 
 @Composable
 private fun CreatePlaylistDialog(
-    isCreating: Boolean,
-    onDismiss: () -> Unit,
-    onCreate: (String) -> Unit,
+  isCreating: Boolean,
+  onDismiss: () -> Unit,
+  onCreate: (String) -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
+  var name by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Create Playlist") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Playlist name") },
-                singleLine = true,
-                enabled = !isCreating,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions =
-                    KeyboardActions(
-                        onDone = {
-                            if (name.isNotBlank()) {
-                                onCreate(name.trim())
-                            }
-                        },
-                    ),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onCreate(name.trim()) },
-                enabled = name.isNotBlank() && !isCreating,
-            ) {
-                if (isCreating) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    Text("Create")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isCreating) {
-                Text("Cancel")
-            }
-        },
-    )
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text("Create Playlist") },
+    text = {
+      OutlinedTextField(
+        value = name,
+        onValueChange = { name = it },
+        label = { Text("Playlist name") },
+        singleLine = true,
+        enabled = !isCreating,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions =
+          KeyboardActions(
+            onDone = {
+              if (name.isNotBlank()) {
+                onCreate(name.trim())
+              }
+            },
+          ),
+        modifier = Modifier.fillMaxWidth(),
+      )
+    },
+    confirmButton = {
+      TextButton(
+        onClick = { onCreate(name.trim()) },
+        enabled = name.isNotBlank() && !isCreating,
+      ) {
+        if (isCreating) {
+          CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            strokeWidth = 2.dp,
+          )
+        } else {
+          Text("Create")
+        }
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss, enabled = !isCreating) {
+        Text("Cancel")
+      }
+    },
+  )
 }

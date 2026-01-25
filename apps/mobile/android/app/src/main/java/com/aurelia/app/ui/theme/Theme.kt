@@ -17,95 +17,98 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColors =
-    darkColorScheme(
-        primary = AureliaPurplePrimary,
-        onPrimary = Color.White,
-        primaryContainer = AureliaPrimaryContainer,
-        onPrimaryContainer = AureliaOnPrimaryContainer,
-        secondary = AureliaPink,
-        onSecondary = Color.White,
-        secondaryContainer = AureliaPink.copy(alpha = 0.2f),
-        onSecondaryContainer = AureliaPink,
-        tertiary = AureliaOrange,
-        onTertiary = Color.Black,
-        tertiaryContainer = AureliaOrange.copy(alpha = 0.2f),
-        onTertiaryContainer = AureliaOrange,
-        background = AureliaPurpleDark,
-        onBackground = AureliaOnSurface,
-        surface = AureliaSurface,
-        onSurface = AureliaOnSurface,
-        surfaceVariant = AureliaSurfaceVariant,
-        onSurfaceVariant = AureliaOnSurfaceMuted,
-        surfaceContainerLowest = AureliaPurpleDark,
-        surfaceContainerLow = AureliaSurfaceContainerLow,
-        surfaceContainer = AureliaSurface,
-        surfaceContainerHigh = AureliaSurfaceContainerHigh,
-        surfaceContainerHighest = AureliaSurfaceVariant,
-        outline = AureliaOutline,
-        outlineVariant = AureliaOutline.copy(alpha = 0.5f),
-        error = Color(0xFFFF6B6B),
-        onError = Color.White,
-    )
+  darkColorScheme(
+    primary = AureliaPurplePrimary,
+    onPrimary = Color.White,
+    primaryContainer = AureliaPrimaryContainer,
+    onPrimaryContainer = AureliaOnPrimaryContainer,
+    secondary = AureliaPink,
+    onSecondary = Color.White,
+    secondaryContainer = AureliaPink.copy(alpha = 0.2f),
+    onSecondaryContainer = AureliaPink,
+    tertiary = AureliaOrange,
+    onTertiary = Color.Black,
+    tertiaryContainer = AureliaOrange.copy(alpha = 0.2f),
+    onTertiaryContainer = AureliaOrange,
+    background = AureliaPurpleDark,
+    onBackground = AureliaOnSurface,
+    surface = AureliaSurface,
+    onSurface = AureliaOnSurface,
+    surfaceVariant = AureliaSurfaceVariant,
+    onSurfaceVariant = AureliaOnSurfaceMuted,
+    surfaceContainerLowest = AureliaPurpleDark,
+    surfaceContainerLow = AureliaSurfaceContainerLow,
+    surfaceContainer = AureliaSurface,
+    surfaceContainerHigh = AureliaSurfaceContainerHigh,
+    surfaceContainerHighest = AureliaSurfaceVariant,
+    outline = AureliaOutline,
+    outlineVariant = AureliaOutline.copy(alpha = 0.5f),
+    error = Color(0xFFFF6B6B),
+    onError = Color.White,
+  )
 
 private val LightColors =
-    lightColorScheme(
-        primary = AureliaLightPrimary,
-        onPrimary = Color.White,
-        primaryContainer = AureliaLightPrimaryContainer,
-        onPrimaryContainer = AureliaLightOnPrimaryContainer,
-        secondary = AureliaPink,
-        onSecondary = Color.White,
-        tertiary = AureliaOrange,
-        onTertiary = Color.Black,
-        background = AureliaLightBackground,
-        onBackground = AureliaLightOnSurface,
-        surface = AureliaLightSurface,
-        onSurface = AureliaLightOnSurface,
-        surfaceVariant = AureliaLightSurfaceVariant,
-        onSurfaceVariant = AureliaLightOnSurfaceMuted,
-        surfaceContainerLowest = AureliaLightBackground,
-        surfaceContainerLow = AureliaLightSurfaceContainerLow,
-        surfaceContainer = AureliaLightSurface,
-        surfaceContainerHigh = AureliaLightSurfaceContainerHigh,
-        surfaceContainerHighest = AureliaLightSurfaceVariant,
-        outline = AureliaLightOutline,
-        outlineVariant = AureliaLightOutline.copy(alpha = 0.6f),
-        error = Color(0xFFD32F2F),
-        onError = Color.White,
-    )
+  lightColorScheme(
+    primary = AureliaLightPrimary,
+    onPrimary = Color.White,
+    primaryContainer = AureliaLightPrimaryContainer,
+    onPrimaryContainer = AureliaLightOnPrimaryContainer,
+    secondary = AureliaPink,
+    onSecondary = Color.White,
+    tertiary = AureliaOrange,
+    onTertiary = Color.Black,
+    background = AureliaLightBackground,
+    onBackground = AureliaLightOnSurface,
+    surface = AureliaLightSurface,
+    onSurface = AureliaLightOnSurface,
+    surfaceVariant = AureliaLightSurfaceVariant,
+    onSurfaceVariant = AureliaLightOnSurfaceMuted,
+    surfaceContainerLowest = AureliaLightBackground,
+    surfaceContainerLow = AureliaLightSurfaceContainerLow,
+    surfaceContainer = AureliaLightSurface,
+    surfaceContainerHigh = AureliaLightSurfaceContainerHigh,
+    surfaceContainerHighest = AureliaLightSurfaceVariant,
+    outline = AureliaLightOutline,
+    outlineVariant = AureliaLightOutline.copy(alpha = 0.6f),
+    error = Color(0xFFD32F2F),
+    onError = Color.White,
+  )
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable
 fun AureliaTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    useDynamicColor: Boolean = true,
-    content: @Composable () -> Unit,
+  darkTheme: Boolean = isSystemInDarkTheme(),
+  useDynamicColor: Boolean = true,
+  content: @Composable () -> Unit,
 ) {
-    val context = LocalContext.current
-    val colorScheme =
-        when {
-            useDynamicColor && darkTheme -> dynamicDarkColorScheme(context)
-            useDynamicColor -> dynamicLightColorScheme(context)
-            darkTheme -> DarkColors
-            else -> LightColors
-        }
-
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            // Let enableEdgeToEdge handle the system bar colors (transparent)
-            // Just set the icon appearance based on theme
-            val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = !darkTheme
-            insetsController.isAppearanceLightNavigationBars = !darkTheme
-        }
+  val context = LocalContext.current
+  val colorScheme =
+    when {
+      useDynamicColor && darkTheme -> dynamicDarkColorScheme(context)
+      useDynamicColor -> dynamicLightColorScheme(context)
+      darkTheme -> DarkColors
+      else -> LightColors
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = rememberAureliaTypography(),
-        shapes = AureliaShapes,
-        content = content,
-    )
+  val view = LocalView.current
+  if (!view.isInEditMode) {
+    SideEffect {
+      val window = (view.context as Activity).window
+      // Let enableEdgeToEdge handle the system bar colors (transparent)
+      // Just set the icon appearance based on theme
+      val insetsController = WindowCompat.getInsetsController(window, view)
+      insetsController.isAppearanceLightStatusBars = !darkTheme
+      insetsController.isAppearanceLightNavigationBars = !darkTheme
+
+      // Fix for "Black Void" during predictive back gesture
+      window.setBackgroundDrawableResource(android.R.color.transparent)
+    }
+  }
+
+  MaterialTheme(
+    colorScheme = colorScheme,
+    typography = rememberAureliaTypography(),
+    shapes = AureliaShapes,
+    content = content,
+  )
 }

@@ -9,11 +9,9 @@ import com.aurelia.app.player.PlayerSnapshot
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.utils.LyricsUtils
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import uniffi.aurelia_core.getLyrics as uniffiGetLyrics
 import uniffi.aurelia_core.toggleFavorite as uniffiToggleFavorite
@@ -46,15 +44,11 @@ class PlayerViewModel(
                 current.fromSnapshot(snapshot, isFavorite)
             }
 
-            val currentTitle = snapshot.title
-            if (currentTitle != mutableState.value.title || newSongId != previousSongId) {
-                if (currentTitle.isNotBlank() && currentTitle != lastFetchedSongId) {
-                    lastFetchedSongId = currentTitle
-                    fetchLyrics(newSongId, snapshot.artist, currentTitle)
-                }
+            if (newSongId != null && newSongId.isNotBlank() && newSongId != lastFetchedSongId) {
+                lastFetchedSongId = newSongId
+                fetchLyrics(newSongId, snapshot.artist, snapshot.title)
             }
         }
-        startProgressUpdates()
     }
 
     private fun fetchLyrics(
@@ -63,6 +57,7 @@ class PlayerViewModel(
         title: String,
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            lastFetchedSongId = songId
             mutableState.update { it.copy(lyrics = null) }
             try {
                 val serverUrl = sessionStore.getServerUrl() ?: ""
@@ -74,21 +69,13 @@ class PlayerViewModel(
 
                 if (lyrics.isValid()) {
                     mutableState.update { it.copy(lyrics = lyrics) }
+                } else {
+                    mutableState.update { it.copy(showLyrics = false) }
                 }
             } catch (e: Exception) {
+                mutableState.update { it.copy(showLyrics = false) }
                 // Only handle auth errors, ignore others (e.g., lyrics not found)
                 AuthInterceptor.handlePotentialAuthError(e)
-            }
-        }
-    }
-
-    private fun startProgressUpdates() {
-        viewModelScope.launch {
-            while (isActive) {
-                mutableState.update { current ->
-                    current.copy(positionMs = playerController.getCurrentState().positionMs)
-                }
-                delay(500L)
             }
         }
     }
@@ -132,6 +119,8 @@ class PlayerViewModel(
             repeatMode = snapshot.repeatMode,
             currentSongId = snapshot.currentSongId,
             isFavorite = isFavorite,
+            playbackSpeed = snapshot.playbackSpeed,
+            updateTimeMs = snapshot.updateTimeMs,
         )
 
     fun playQueueItem(index: Int) {
