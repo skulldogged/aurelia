@@ -16,7 +16,7 @@ pub struct NameIdPair {
 }
 
 /// User data for items (play count, favorites, etc.)
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 #[specta(rename_all = "camelCase")]
 pub struct UserData {
@@ -218,7 +218,7 @@ pub struct PlaylistItem {
 }
 
 /// Playlist representing a collection of items
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 #[specta(rename_all = "camelCase")]
 pub struct Playlist {
@@ -285,7 +285,7 @@ pub struct Playlist {
 }
 
 /// Data for creating a new playlist
-#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 #[specta(rename_all = "camelCase")]
 pub struct PlaylistCreateData {
@@ -301,7 +301,7 @@ pub struct PlaylistCreateData {
 }
 
 /// Data for updating a playlist
-#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 #[specta(rename_all = "camelCase")]
 pub struct PlaylistUpdateData {
@@ -318,4 +318,42 @@ pub struct PlaylistUpdateData {
     pub songs: Option<Vec<Song>>,
     /// Whether playlist is favorited
     pub is_favorite: Option<bool>,
+}
+
+/// Data for a single item in the player queue (for persistence)
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
+#[serde(rename_all = "camelCase")]
+#[specta(rename_all = "camelCase")]
+pub struct QueueItemData {
+    /// Song ID
+    pub id: String,
+    /// Song title
+    pub title: String,
+    /// Artist name(s)
+    pub artist: String,
+    /// Album art URL
+    pub album_art_url: Option<String>,
+    /// Duration in milliseconds
+    pub duration_ms: i64,
+    /// Audio container/format
+    pub container: Option<String>,
+    /// Whether this item is a favorite
+    pub is_favorite: bool,
+}
+
+/// Player state data for persistence
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
+#[serde(rename_all = "camelCase")]
+#[specta(rename_all = "camelCase")]
+pub struct PlayerStateData {
+    /// Queue items
+    pub queue: Vec<QueueItemData>,
+    /// Current index in queue (-1 if nothing playing)
+    pub current_index: i32,
+    /// Playback position in milliseconds
+    pub position_ms: i64,
+    /// Whether shuffle is enabled
+    pub shuffle_enabled: bool,
+    /// Repeat mode: "OFF", "ONE", "ALL"
+    pub repeat_mode: String,
 }

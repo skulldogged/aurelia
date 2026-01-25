@@ -27,4 +27,9 @@ sealed class Screen(
         val artistId: String,
         val artistName: String,
     ) : Screen("artist/$artistId")
+
+    data class PlaylistDetail(
+        val playlistId: String,
+        val playlistName: String,
+    ) : Screen("playlist/$playlistId")
 }

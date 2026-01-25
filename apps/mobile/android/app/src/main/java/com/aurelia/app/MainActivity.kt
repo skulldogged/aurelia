@@ -29,6 +29,7 @@ import com.aurelia.app.ui.AppViewModelFactory
 import com.aurelia.app.ui.LoginScreen
 import com.aurelia.app.ui.MainScreen
 import com.aurelia.app.ui.theme.AureliaTheme
+import uniffi.aurelia_core.buildStreamUrl
 
 class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher =
@@ -68,8 +69,26 @@ private fun AureliaApp() {
 
     // Remember PlayerController and release it when the composable leaves composition
     val playerController = remember { PlayerController(context) }
+
+    // Restore player state on startup
+    LaunchedEffect(playerController) {
+        val appDataDir = sessionStore.getAppDataDir()
+        val serverUrl = sessionStore.getServerUrl()
+        val token = sessionStore.getToken()
+
+        if (!appDataDir.isNullOrBlank() && !serverUrl.isNullOrBlank() && !token.isNullOrBlank()) {
+            playerController.restoreState(appDataDir) { songId, container ->
+                buildStreamUrl(serverUrl, token, songId, container)
+            }
+        }
+    }
+
+    // Save player state when leaving composition
     DisposableEffect(Unit) {
         onDispose {
+            sessionStore.getAppDataDir()?.let { appDataDir ->
+                playerController.saveState(appDataDir)
+            }
             playerController.release()
         }
     }

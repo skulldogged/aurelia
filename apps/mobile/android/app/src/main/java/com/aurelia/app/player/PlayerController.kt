@@ -3,6 +3,7 @@ package com.aurelia.app.player
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -11,6 +12,13 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import uniffi.aurelia_core.PlayerStateData
+import uniffi.aurelia_core.QueueItemData
+import uniffi.aurelia_core.loadPlayerState
+import uniffi.aurelia_core.savePlayerState
 
 data class QueueItem(
     val id: String,
@@ -108,6 +116,57 @@ class PlayerController(
                 controller.seekToDefaultPosition(index)
                 controller.playWhenReady = true
             }
+        }
+    }
+
+    fun addToQueue(item: QueueItem) {
+        if (item.durationMs > 0L) {
+            durationByMediaId[item.id] = item.durationMs
+        }
+
+        withController { controller ->
+            val metadataBuilder =
+                MediaMetadata
+                    .Builder()
+                    .setTitle(item.title)
+                    .setArtist(item.artist)
+            item.albumArtUrl?.let { metadataBuilder.setArtworkUri(Uri.parse(it)) }
+
+            val mediaItem =
+                MediaItem
+                    .Builder()
+                    .setMediaId(item.id)
+                    .setUri(item.uri)
+                    .setMediaMetadata(metadataBuilder.build())
+                    .build()
+
+            controller.addMediaItem(mediaItem)
+        }
+    }
+
+    fun playNext(item: QueueItem) {
+        if (item.durationMs > 0L) {
+            durationByMediaId[item.id] = item.durationMs
+        }
+
+        withController { controller ->
+            val metadataBuilder =
+                MediaMetadata
+                    .Builder()
+                    .setTitle(item.title)
+                    .setArtist(item.artist)
+            item.albumArtUrl?.let { metadataBuilder.setArtworkUri(Uri.parse(it)) }
+
+            val mediaItem =
+                MediaItem
+                    .Builder()
+                    .setMediaId(item.id)
+                    .setUri(item.uri)
+                    .setMediaMetadata(metadataBuilder.build())
+                    .build()
+
+            val insertIndex = controller.currentMediaItemIndex + 1
+            controller.addMediaItem(insertIndex, mediaItem)
         }
     }
 
@@ -283,6 +342,135 @@ class PlayerController(
 
     fun release() {
         MediaController.releaseFuture(controllerFuture)
+    }
+
+    fun saveState(appDataDir: String) {
+        if (appDataDir.isBlank()) return
+
+        val controller = mediaController ?: return
+        if (controller.mediaItemCount == 0) return
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val queueItems = mutableListOf<QueueItemData>()
+                for (i in 0 until controller.mediaItemCount) {
+                    val mediaItem = controller.getMediaItemAt(i)
+                    queueItems.add(
+                        QueueItemData(
+                            id = mediaItem.mediaId,
+                            title = mediaItem.mediaMetadata.title?.toString() ?: "",
+                            artist = mediaItem.mediaMetadata.artist?.toString() ?: "",
+                            albumArtUrl = mediaItem.mediaMetadata.artworkUri?.toString(),
+                            durationMs = durationByMediaId[mediaItem.mediaId] ?: 0L,
+                            container = null,
+                            isFavorite = false,
+                        ),
+                    )
+                }
+
+                val repeatModeStr =
+                    when (controller.repeatMode) {
+                        Player.REPEAT_MODE_ONE -> "ONE"
+                        Player.REPEAT_MODE_ALL -> "ALL"
+                        else -> "OFF"
+                    }
+
+                val state =
+                    PlayerStateData(
+                        queue = queueItems,
+                        currentIndex = controller.currentMediaItemIndex,
+                        positionMs = controller.currentPosition,
+                        shuffleEnabled = controller.shuffleModeEnabled,
+                        repeatMode = repeatModeStr,
+                    )
+
+                savePlayerState(appDataDir, state)
+                Log.d(TAG, "Player state saved: ${queueItems.size} items, position ${controller.currentPosition}ms")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save player state", e)
+            }
+        }
+    }
+
+    fun restoreState(
+        appDataDir: String,
+        buildStreamUrl: (String, String?) -> String,
+    ) {
+        if (appDataDir.isBlank()) return
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val state = loadPlayerState(appDataDir) ?: return@launch
+
+                if (state.queue.isEmpty()) return@launch
+
+                val queueItems =
+                    state.queue.map { item ->
+                        QueueItem(
+                            id = item.id,
+                            uri = buildStreamUrl(item.id, item.container),
+                            title = item.title,
+                            artist = item.artist,
+                            albumArtUrl = item.albumArtUrl,
+                            durationMs = item.durationMs,
+                            isFavorite = item.isFavorite,
+                        )
+                    }
+
+                // Store durations in our map
+                queueItems.forEach { item ->
+                    if (item.durationMs > 0L) {
+                        durationByMediaId[item.id] = item.durationMs
+                    }
+                }
+
+                withController { controller ->
+                    val mediaItems =
+                        queueItems.map { item ->
+                            val metadataBuilder =
+                                MediaMetadata
+                                    .Builder()
+                                    .setTitle(item.title)
+                                    .setArtist(item.artist)
+                            item.albumArtUrl?.let { metadataBuilder.setArtworkUri(Uri.parse(it)) }
+
+                            MediaItem
+                                .Builder()
+                                .setMediaId(item.id)
+                                .setUri(item.uri)
+                                .setMediaMetadata(metadataBuilder.build())
+                                .build()
+                        }
+
+                    controller.setMediaItems(
+                        mediaItems,
+                        state.currentIndex.coerceIn(0, mediaItems.size - 1),
+                        state.positionMs.coerceAtLeast(0),
+                    )
+
+                    controller.shuffleModeEnabled = state.shuffleEnabled
+
+                    controller.repeatMode =
+                        when (state.repeatMode) {
+                            "ONE" -> Player.REPEAT_MODE_ONE
+                            "ALL" -> Player.REPEAT_MODE_ALL
+                            else -> Player.REPEAT_MODE_OFF
+                        }
+
+                    controller.prepare()
+                    // Don't auto-play on restore - just prepare
+                    controller.playWhenReady = false
+                }
+
+                Log.d(TAG, "Player state restored: ${queueItems.size} items at position ${state.positionMs}ms")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to restore player state", e)
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "PlayerController"
     }
 
     private fun snapshotFrom(controller: MediaController): PlayerSnapshot {

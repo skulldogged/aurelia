@@ -1,6 +1,8 @@
 package com.aurelia.app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -33,7 +36,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +52,10 @@ import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.QueueItem
 import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.ui.components.PlaylistPickerDialog
+import com.aurelia.app.ui.components.SongContextMenu
+import com.aurelia.app.ui.navigation.Screen
+import uniffi.aurelia_core.Song
 import uniffi.aurelia_core.buildStreamUrl
 
 @Composable
@@ -55,18 +64,27 @@ fun AlbumDetailScreen(
     albumName: String,
     sessionStore: SessionStore,
     playerController: PlayerController,
+    playlistViewModel: PlaylistViewModel,
     onBack: () -> Unit,
     onOpenPlayer: () -> Unit,
+    onNavigateToArtist: ((Screen.ArtistDetail) -> Unit)? = null,
 ) {
     val libraryViewModel: LibraryViewModel =
         viewModel(
             factory = LibraryViewModelFactory(sessionStore, playerController),
         )
     val state by libraryViewModel.state.collectAsState()
+    val playlistState by playlistViewModel.state.collectAsState()
     val colors = MaterialTheme.colorScheme
+
+    // Context menu state
+    var selectedSong by remember { mutableStateOf<Song?>(null) }
+    var showContextMenu by remember { mutableStateOf(false) }
+    var showPlaylistPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         libraryViewModel.loadLibrary()
+        playlistViewModel.loadPlaylists()
     }
 
     // Filter songs for this album
@@ -239,8 +257,8 @@ fun AlbumDetailScreen(
                 val isPlaying = state.nowPlaying?.isPlaying == true && isCurrentSong
 
                 AlbumSongItem(
+                    song = song,
                     trackNumber = song.trackNumber ?: (index + 1),
-                    title = song.name,
                     duration = song.duration?.let { formatDuration((it * 1000).toLong()) },
                     isPlaying = isPlaying,
                     isCurrentSong = isCurrentSong,
@@ -263,77 +281,200 @@ fun AlbumDetailScreen(
                         playerController.setQueue(queueItems, index)
                         onOpenPlayer()
                     },
+                    onLongClick = {
+                        selectedSong = song
+                        showContextMenu = true
+                    },
+                    onMoreClick = {
+                        selectedSong = song
+                        showContextMenu = true
+                    },
+                    showContextMenu = showContextMenu && selectedSong?.id == song.id,
+                    onDismissMenu = { showContextMenu = false },
+                    onAddToQueue = {
+                        val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
+                        val token = sessionStore.getToken() ?: return@AlbumSongItem
+                        playerController.addToQueue(
+                            QueueItem(
+                                id = song.id,
+                                uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+                                title = song.name,
+                                artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+                                albumArtUrl = song.albumArtUrl,
+                                durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+                                isFavorite = song.isFavorite ?: false,
+                            ),
+                        )
+                    },
+                    onPlayNext = {
+                        val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
+                        val token = sessionStore.getToken() ?: return@AlbumSongItem
+                        playerController.playNext(
+                            QueueItem(
+                                id = song.id,
+                                uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+                                title = song.name,
+                                artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+                                albumArtUrl = song.albumArtUrl,
+                                durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+                                isFavorite = song.isFavorite ?: false,
+                            ),
+                        )
+                    },
+                    onAddToPlaylist = {
+                        selectedSong = song
+                        showPlaylistPicker = true
+                    },
+                    onGoToArtist =
+                        if (onNavigateToArtist != null && song.artistIds?.isNotEmpty() == true) {
+                            {
+                                onNavigateToArtist(
+                                    Screen.ArtistDetail(
+                                        artistId = song.artistIds!!.first(),
+                                        artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
+                                    ),
+                                )
+                            }
+                        } else {
+                            null
+                        },
                 )
             }
         }
     }
+
+    // Playlist picker dialog
+    if (showPlaylistPicker && selectedSong != null) {
+        PlaylistPickerDialog(
+            playlists = playlistState.playlists,
+            isLoading = playlistState.isLoading,
+            onDismiss = {
+                showPlaylistPicker = false
+                selectedSong = null
+            },
+            onSelectPlaylist = { playlist ->
+                selectedSong?.let { song ->
+                    playlistViewModel.addSongsToPlaylist(playlist.id, listOf(song.id))
+                }
+                showPlaylistPicker = false
+                selectedSong = null
+            },
+            onCreatePlaylist = { name ->
+                selectedSong?.let { song ->
+                    playlistViewModel.createPlaylist(name, listOf(song.id))
+                }
+                showPlaylistPicker = false
+                selectedSong = null
+            },
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AlbumSongItem(
+    song: Song,
     trackNumber: Int,
-    title: String,
     duration: String?,
     isPlaying: Boolean,
     isCurrentSong: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onMoreClick: () -> Unit,
+    showContextMenu: Boolean,
+    onDismissMenu: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onGoToArtist: (() -> Unit)?,
 ) {
     val colors = MaterialTheme.colorScheme
     val containerColor =
         if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.5f) else colors.surface.copy(alpha = 0f)
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = containerColor,
-        onClick = onClick,
-    ) {
-        Row(
+    Box {
+        Surface(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    .combinedClickable(
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    ),
+            color = containerColor,
         ) {
-            // Track number or playing indicator
-            Box(
-                modifier = Modifier.width(24.dp),
-                contentAlignment = Alignment.Center,
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (isPlaying) {
-                    Icon(
-                        imageVector = Icons.Filled.PlayArrow,
-                        contentDescription = null,
-                        tint = colors.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                } else {
+                // Track number or playing indicator
+                Box(
+                    modifier = Modifier.width(24.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isPlaying) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    } else {
+                        Text(
+                            text = trackNumber.toString(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (isCurrentSong) colors.primary else colors.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // Song title
+                Text(
+                    text = song.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isCurrentSong) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isCurrentSong) colors.primary else colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+
+                // Duration
+                duration?.let {
                     Text(
-                        text = trackNumber.toString(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isCurrentSong) colors.primary else colors.onSurfaceVariant,
+                        text = it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
                     )
                 }
-            }
 
-            // Song title
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isCurrentSong) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isCurrentSong) colors.primary else colors.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+                // More options button
+                Box {
+                    IconButton(onClick = onMoreClick) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "More options",
+                            tint = colors.onSurfaceVariant,
+                        )
+                    }
 
-            // Duration
-            duration?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                )
+                    SongContextMenu(
+                        song = song,
+                        expanded = showContextMenu,
+                        onDismiss = onDismissMenu,
+                        onAddToQueue = onAddToQueue,
+                        onPlayNext = onPlayNext,
+                        onAddToPlaylist = onAddToPlaylist,
+                        onGoToAlbum = null, // Already on album
+                        onGoToArtist = onGoToArtist,
+                        onToggleFavorite = null,
+                    )
+                }
             }
         }
     }

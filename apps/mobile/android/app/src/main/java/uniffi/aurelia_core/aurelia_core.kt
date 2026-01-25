@@ -741,6 +741,8 @@ internal object IntegrityCheckingUniffiLib {
         uniffiCheckApiChecksums(this)
     }
 
+    external fun uniffi_aurelia_core_checksum_func_add_playlist_items(): Short
+
     external fun uniffi_aurelia_core_checksum_func_authenticate(): Short
 
     external fun uniffi_aurelia_core_checksum_func_build_stream_url(): Short
@@ -751,23 +753,39 @@ internal object IntegrityCheckingUniffiLib {
 
     external fun uniffi_aurelia_core_checksum_func_clear_credentials(): Short
 
+    external fun uniffi_aurelia_core_checksum_func_create_playlist(): Short
+
+    external fun uniffi_aurelia_core_checksum_func_delete_playlist(): Short
+
     external fun uniffi_aurelia_core_checksum_func_fetch_songs(): Short
 
     external fun uniffi_aurelia_core_checksum_func_get_library_sync_state(): Short
 
     external fun uniffi_aurelia_core_checksum_func_get_lyrics(): Short
 
+    external fun uniffi_aurelia_core_checksum_func_get_playlist_items(): Short
+
+    external fun uniffi_aurelia_core_checksum_func_get_playlists(): Short
+
     external fun uniffi_aurelia_core_checksum_func_load_cached_songs(): Short
 
     external fun uniffi_aurelia_core_checksum_func_load_credentials(): Short
 
+    external fun uniffi_aurelia_core_checksum_func_load_player_state(): Short
+
     external fun uniffi_aurelia_core_checksum_func_ping(): Short
 
+    external fun uniffi_aurelia_core_checksum_func_remove_playlist_items(): Short
+
     external fun uniffi_aurelia_core_checksum_func_save_credentials(): Short
+
+    external fun uniffi_aurelia_core_checksum_func_save_player_state(): Short
 
     external fun uniffi_aurelia_core_checksum_func_set_library_sync_state(): Short
 
     external fun uniffi_aurelia_core_checksum_func_toggle_favorite(): Short
+
+    external fun uniffi_aurelia_core_checksum_func_update_playlist(): Short
 
     external fun ffi_aurelia_core_uniffi_contract_version(): Int
 }
@@ -776,6 +794,14 @@ internal object UniffiLib {
     init {
         Native.register(UniffiLib::class.java, findLibraryName(componentName = "aurelia_core"))
     }
+
+    external fun uniffi_aurelia_core_fn_func_add_playlist_items(
+        `serverUrl`: RustBuffer.ByValue,
+        `token`: RustBuffer.ByValue,
+        `playlistId`: RustBuffer.ByValue,
+        `itemIds`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
 
     external fun uniffi_aurelia_core_fn_func_authenticate(
         `serverUrl`: RustBuffer.ByValue,
@@ -808,6 +834,20 @@ internal object UniffiLib {
         uniffi_out_err: UniffiRustCallStatus,
     ): Unit
 
+    external fun uniffi_aurelia_core_fn_func_create_playlist(
+        `serverUrl`: RustBuffer.ByValue,
+        `token`: RustBuffer.ByValue,
+        `data`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun uniffi_aurelia_core_fn_func_delete_playlist(
+        `serverUrl`: RustBuffer.ByValue,
+        `token`: RustBuffer.ByValue,
+        `playlistId`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+
     external fun uniffi_aurelia_core_fn_func_fetch_songs(
         `serverUrl`: RustBuffer.ByValue,
         `token`: RustBuffer.ByValue,
@@ -830,6 +870,20 @@ internal object UniffiLib {
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
 
+    external fun uniffi_aurelia_core_fn_func_get_playlist_items(
+        `serverUrl`: RustBuffer.ByValue,
+        `token`: RustBuffer.ByValue,
+        `playlistId`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
+    external fun uniffi_aurelia_core_fn_func_get_playlists(
+        `serverUrl`: RustBuffer.ByValue,
+        `token`: RustBuffer.ByValue,
+        `userId`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
     external fun uniffi_aurelia_core_fn_func_load_cached_songs(
         `appDataDir`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
@@ -840,11 +894,30 @@ internal object UniffiLib {
         uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
 
+    external fun uniffi_aurelia_core_fn_func_load_player_state(
+        `appDataDir`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+
     external fun uniffi_aurelia_core_fn_func_ping(uniffi_out_err: UniffiRustCallStatus): RustBuffer.ByValue
+
+    external fun uniffi_aurelia_core_fn_func_remove_playlist_items(
+        `serverUrl`: RustBuffer.ByValue,
+        `token`: RustBuffer.ByValue,
+        `playlistId`: RustBuffer.ByValue,
+        `itemIds`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
 
     external fun uniffi_aurelia_core_fn_func_save_credentials(
         `appDataDir`: RustBuffer.ByValue,
         `credentials`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+
+    external fun uniffi_aurelia_core_fn_func_save_player_state(
+        `appDataDir`: RustBuffer.ByValue,
+        `state`: RustBuffer.ByValue,
         uniffi_out_err: UniffiRustCallStatus,
     ): Unit
 
@@ -862,6 +935,14 @@ internal object UniffiLib {
         `isFavorite`: Byte,
         uniffi_out_err: UniffiRustCallStatus,
     ): Byte
+
+    external fun uniffi_aurelia_core_fn_func_update_playlist(
+        `serverUrl`: RustBuffer.ByValue,
+        `token`: RustBuffer.ByValue,
+        `playlistId`: RustBuffer.ByValue,
+        `updates`: RustBuffer.ByValue,
+        uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
 
     external fun ffi_aurelia_core_rustbuffer_alloc(
         `size`: Long,
@@ -1077,6 +1158,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_aurelia_core_checksum_func_add_playlist_items() != 48662.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_authenticate() != 32712.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1092,6 +1176,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_clear_credentials() != 41651.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_create_playlist() != 45756.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_delete_playlist() != 1214.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_fetch_songs() != 32746.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1101,22 +1191,40 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_get_lyrics() != 31342.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_get_playlist_items() != 8083.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_playlists() != 58832.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_load_cached_songs() != 48653.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_load_credentials() != 1313.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_load_player_state() != 60797.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_ping() != 25925.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_remove_playlist_items() != 26590.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_save_credentials() != 2487.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_save_player_state() != 40117.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_toggle_favorite() != 2722.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_update_playlist() != 30349.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1254,6 +1362,26 @@ public object FfiConverterInt : FfiConverter<Int, Int> {
         buf: ByteBuffer,
     ) {
         buf.putInt(value)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterLong : FfiConverter<Long, Long> {
+    override fun lift(value: Long): Long = value
+
+    override fun read(buf: ByteBuffer): Long = buf.getLong()
+
+    override fun lower(value: Long): Long = value
+
+    override fun allocationSize(value: Long) = 8UL
+
+    override fun write(
+        value: Long,
+        buf: ByteBuffer,
+    ) {
+        buf.putLong(value)
     }
 }
 
@@ -1495,6 +1623,435 @@ public object FfiConverterTypeNameIdPair : FfiConverterRustBuffer<NameIdPair> {
 }
 
 /**
+ * Player state data for persistence
+ */
+data class PlayerStateData(
+    /**
+     * Queue items
+     */
+    var `queue`: List<QueueItemData>,
+    /**
+     * Current index in queue (-1 if nothing playing)
+     */
+    var `currentIndex`: kotlin.Int,
+    /**
+     * Playback position in milliseconds
+     */
+    var `positionMs`: kotlin.Long,
+    /**
+     * Whether shuffle is enabled
+     */
+    var `shuffleEnabled`: kotlin.Boolean,
+    /**
+     * Repeat mode: "OFF", "ONE", "ALL"
+     */
+    var `repeatMode`: kotlin.String,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePlayerStateData : FfiConverterRustBuffer<PlayerStateData> {
+    override fun read(buf: ByteBuffer): PlayerStateData =
+        PlayerStateData(
+            FfiConverterSequenceTypeQueueItemData.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterString.read(buf),
+        )
+
+    override fun allocationSize(value: PlayerStateData) =
+        (
+            FfiConverterSequenceTypeQueueItemData.allocationSize(value.`queue`) +
+                FfiConverterInt.allocationSize(value.`currentIndex`) +
+                FfiConverterLong.allocationSize(value.`positionMs`) +
+                FfiConverterBoolean.allocationSize(value.`shuffleEnabled`) +
+                FfiConverterString.allocationSize(value.`repeatMode`)
+        )
+
+    override fun write(
+        value: PlayerStateData,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterSequenceTypeQueueItemData.write(value.`queue`, buf)
+        FfiConverterInt.write(value.`currentIndex`, buf)
+        FfiConverterLong.write(value.`positionMs`, buf)
+        FfiConverterBoolean.write(value.`shuffleEnabled`, buf)
+        FfiConverterString.write(value.`repeatMode`, buf)
+    }
+}
+
+/**
+ * Playlist representing a collection of items
+ */
+data class Playlist(
+    /**
+     * Playlist name
+     */
+    var `name`: kotlin.String,
+    /**
+     * Server ID
+     */
+    var `serverId`: kotlin.String,
+    /**
+     * Playlist ID
+     */
+    var `id`: kotlin.String,
+    /**
+     * Whether playlist can be deleted
+     */
+    var `canDelete`: kotlin.Boolean?,
+    /**
+     * Sort name
+     */
+    var `sortName`: kotlin.String?,
+    /**
+     * Whether this is a folder (playlists are folders containing items)
+     */
+    var `isFolder`: kotlin.Boolean,
+    /**
+     * Item type (should be "Playlist")
+     */
+    var `itemType`: kotlin.String,
+    /**
+     * User data
+     */
+    var `userData`: UserData?,
+    /**
+     * Runtime ticks (total duration)
+     */
+    var `runTimeTicks`: kotlin.Long?,
+    /**
+     * Child count (number of items in playlist)
+     */
+    var `childCount`: kotlin.Int?,
+    /**
+     * Image tags
+     */
+    var `imageTags`: Map<kotlin.String, kotlin.String>?,
+    /**
+     * Backdrop image tags
+     */
+    var `backdropImageTags`: List<kotlin.String>?,
+    /**
+     * Image blur hashes
+     */
+    var `imageBlurHashes`: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?,
+    /**
+     * Location type
+     */
+    var `locationType`: kotlin.String,
+    /**
+     * Media type
+     */
+    var `mediaType`: kotlin.String?,
+    /**
+     * Date created
+     */
+    var `dateCreated`: kotlin.String?,
+    /**
+     * Date last modified
+     */
+    var `dateLastSaved`: kotlin.String?,
+    /**
+     * Whether playlist is favorited
+     */
+    var `isFavorite`: kotlin.Boolean?,
+    /**
+     * Playlist description
+     */
+    var `description`: kotlin.String?,
+    /**
+     * Songs in the playlist
+     */
+    var `songs`: List<Song>?,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePlaylist : FfiConverterRustBuffer<Playlist> {
+    override fun read(buf: ByteBuffer): Playlist =
+        Playlist(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalTypeUserData.read(buf),
+            FfiConverterOptionalLong.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalMapStringString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterOptionalMapStringMapStringString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalSequenceTypeSong.read(buf),
+        )
+
+    override fun allocationSize(value: Playlist) =
+        (
+            FfiConverterString.allocationSize(value.`name`) +
+                FfiConverterString.allocationSize(value.`serverId`) +
+                FfiConverterString.allocationSize(value.`id`) +
+                FfiConverterOptionalBoolean.allocationSize(value.`canDelete`) +
+                FfiConverterOptionalString.allocationSize(value.`sortName`) +
+                FfiConverterBoolean.allocationSize(value.`isFolder`) +
+                FfiConverterString.allocationSize(value.`itemType`) +
+                FfiConverterOptionalTypeUserData.allocationSize(value.`userData`) +
+                FfiConverterOptionalLong.allocationSize(value.`runTimeTicks`) +
+                FfiConverterOptionalInt.allocationSize(value.`childCount`) +
+                FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
+                FfiConverterOptionalSequenceString.allocationSize(value.`backdropImageTags`) +
+                FfiConverterOptionalMapStringMapStringString.allocationSize(value.`imageBlurHashes`) +
+                FfiConverterString.allocationSize(value.`locationType`) +
+                FfiConverterOptionalString.allocationSize(value.`mediaType`) +
+                FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
+                FfiConverterOptionalString.allocationSize(value.`dateLastSaved`) +
+                FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`) +
+                FfiConverterOptionalString.allocationSize(value.`description`) +
+                FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`)
+        )
+
+    override fun write(
+        value: Playlist,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`name`, buf)
+        FfiConverterString.write(value.`serverId`, buf)
+        FfiConverterString.write(value.`id`, buf)
+        FfiConverterOptionalBoolean.write(value.`canDelete`, buf)
+        FfiConverterOptionalString.write(value.`sortName`, buf)
+        FfiConverterBoolean.write(value.`isFolder`, buf)
+        FfiConverterString.write(value.`itemType`, buf)
+        FfiConverterOptionalTypeUserData.write(value.`userData`, buf)
+        FfiConverterOptionalLong.write(value.`runTimeTicks`, buf)
+        FfiConverterOptionalInt.write(value.`childCount`, buf)
+        FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+        FfiConverterOptionalSequenceString.write(value.`backdropImageTags`, buf)
+        FfiConverterOptionalMapStringMapStringString.write(value.`imageBlurHashes`, buf)
+        FfiConverterString.write(value.`locationType`, buf)
+        FfiConverterOptionalString.write(value.`mediaType`, buf)
+        FfiConverterOptionalString.write(value.`dateCreated`, buf)
+        FfiConverterOptionalString.write(value.`dateLastSaved`, buf)
+        FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
+        FfiConverterOptionalString.write(value.`description`, buf)
+        FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
+    }
+}
+
+/**
+ * Data for creating a new playlist
+ */
+data class PlaylistCreateData(
+    /**
+     * Playlist name
+     */
+    var `name`: kotlin.String,
+    /**
+     * Item IDs to include in the playlist
+     */
+    var `ids`: List<kotlin.String>?,
+    /**
+     * User ID creating the playlist
+     */
+    var `userId`: kotlin.String,
+    /**
+     * Whether playlist is public
+     */
+    var `isPublic`: kotlin.Boolean?,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePlaylistCreateData : FfiConverterRustBuffer<PlaylistCreateData> {
+    override fun read(buf: ByteBuffer): PlaylistCreateData =
+        PlaylistCreateData(
+            FfiConverterString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+        )
+
+    override fun allocationSize(value: PlaylistCreateData) =
+        (
+            FfiConverterString.allocationSize(value.`name`) +
+                FfiConverterOptionalSequenceString.allocationSize(value.`ids`) +
+                FfiConverterString.allocationSize(value.`userId`) +
+                FfiConverterOptionalBoolean.allocationSize(value.`isPublic`)
+        )
+
+    override fun write(
+        value: PlaylistCreateData,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`name`, buf)
+        FfiConverterOptionalSequenceString.write(value.`ids`, buf)
+        FfiConverterString.write(value.`userId`, buf)
+        FfiConverterOptionalBoolean.write(value.`isPublic`, buf)
+    }
+}
+
+/**
+ * Data for updating a playlist
+ */
+data class PlaylistUpdateData(
+    /**
+     * New playlist name
+     */
+    var `name`: kotlin.String?,
+    /**
+     * Item IDs to set for the playlist
+     */
+    var `ids`: List<kotlin.String>?,
+    /**
+     * User ID updating the playlist
+     */
+    var `userId`: kotlin.String?,
+    /**
+     * Whether playlist is public
+     */
+    var `isPublic`: kotlin.Boolean?,
+    /**
+     * Songs to set for the playlist
+     */
+    var `songs`: List<Song>?,
+    /**
+     * Whether playlist is favorited
+     */
+    var `isFavorite`: kotlin.Boolean?,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePlaylistUpdateData : FfiConverterRustBuffer<PlaylistUpdateData> {
+    override fun read(buf: ByteBuffer): PlaylistUpdateData =
+        PlaylistUpdateData(
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalSequenceTypeSong.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+        )
+
+    override fun allocationSize(value: PlaylistUpdateData) =
+        (
+            FfiConverterOptionalString.allocationSize(value.`name`) +
+                FfiConverterOptionalSequenceString.allocationSize(value.`ids`) +
+                FfiConverterOptionalString.allocationSize(value.`userId`) +
+                FfiConverterOptionalBoolean.allocationSize(value.`isPublic`) +
+                FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`) +
+                FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`)
+        )
+
+    override fun write(
+        value: PlaylistUpdateData,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterOptionalString.write(value.`name`, buf)
+        FfiConverterOptionalSequenceString.write(value.`ids`, buf)
+        FfiConverterOptionalString.write(value.`userId`, buf)
+        FfiConverterOptionalBoolean.write(value.`isPublic`, buf)
+        FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
+        FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
+    }
+}
+
+/**
+ * Data for a single item in the player queue (for persistence)
+ */
+data class QueueItemData(
+    /**
+     * Song ID
+     */
+    var `id`: kotlin.String,
+    /**
+     * Song title
+     */
+    var `title`: kotlin.String,
+    /**
+     * Artist name(s)
+     */
+    var `artist`: kotlin.String,
+    /**
+     * Album art URL
+     */
+    var `albumArtUrl`: kotlin.String?,
+    /**
+     * Duration in milliseconds
+     */
+    var `durationMs`: kotlin.Long,
+    /**
+     * Audio container/format
+     */
+    var `container`: kotlin.String?,
+    /**
+     * Whether this item is a favorite
+     */
+    var `isFavorite`: kotlin.Boolean,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeQueueItemData : FfiConverterRustBuffer<QueueItemData> {
+    override fun read(buf: ByteBuffer): QueueItemData =
+        QueueItemData(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+
+    override fun allocationSize(value: QueueItemData) =
+        (
+            FfiConverterString.allocationSize(value.`id`) +
+                FfiConverterString.allocationSize(value.`title`) +
+                FfiConverterString.allocationSize(value.`artist`) +
+                FfiConverterOptionalString.allocationSize(value.`albumArtUrl`) +
+                FfiConverterLong.allocationSize(value.`durationMs`) +
+                FfiConverterOptionalString.allocationSize(value.`container`) +
+                FfiConverterBoolean.allocationSize(value.`isFavorite`)
+        )
+
+    override fun write(
+        value: QueueItemData,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterString.write(value.`id`, buf)
+        FfiConverterString.write(value.`title`, buf)
+        FfiConverterString.write(value.`artist`, buf)
+        FfiConverterOptionalString.write(value.`albumArtUrl`, buf)
+        FfiConverterLong.write(value.`durationMs`, buf)
+        FfiConverterOptionalString.write(value.`container`, buf)
+        FfiConverterBoolean.write(value.`isFavorite`, buf)
+    }
+}
+
+/**
  * Song representing a music track or audio file
  */
 data class Song(
@@ -1693,6 +2250,53 @@ public object FfiConverterTypeSong : FfiConverterRustBuffer<Song> {
         FfiConverterOptionalSequenceTypeNameIdPair.write(value.`albumArtists`, buf)
         FfiConverterOptionalString.write(value.`lyrics`, buf)
         FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+    }
+}
+
+/**
+ * User data for items (play count, favorites, etc.)
+ */
+data class UserData(
+    var `playbackPositionTicks`: kotlin.Long,
+    var `playCount`: kotlin.Int,
+    var `isFavorite`: kotlin.Boolean,
+    var `played`: kotlin.Boolean,
+    var `lastPlayedDate`: kotlin.String?,
+) {
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeUserData : FfiConverterRustBuffer<UserData> {
+    override fun read(buf: ByteBuffer): UserData =
+        UserData(
+            FfiConverterLong.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+
+    override fun allocationSize(value: UserData) =
+        (
+            FfiConverterLong.allocationSize(value.`playbackPositionTicks`) +
+                FfiConverterInt.allocationSize(value.`playCount`) +
+                FfiConverterBoolean.allocationSize(value.`isFavorite`) +
+                FfiConverterBoolean.allocationSize(value.`played`) +
+                FfiConverterOptionalString.allocationSize(value.`lastPlayedDate`)
+        )
+
+    override fun write(
+        value: UserData,
+        buf: ByteBuffer,
+    ) {
+        FfiConverterLong.write(value.`playbackPositionTicks`, buf)
+        FfiConverterInt.write(value.`playCount`, buf)
+        FfiConverterBoolean.write(value.`isFavorite`, buf)
+        FfiConverterBoolean.write(value.`played`, buf)
+        FfiConverterOptionalString.write(value.`lastPlayedDate`, buf)
     }
 }
 
@@ -2016,6 +2620,38 @@ public object FfiConverterOptionalInt : FfiConverterRustBuffer<kotlin.Int?> {
 /**
  * @suppress
  */
+public object FfiConverterOptionalLong : FfiConverterRustBuffer<kotlin.Long?> {
+    override fun read(buf: ByteBuffer): kotlin.Long? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterLong.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.Long?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterLong.allocationSize(value)
+        }
+    }
+
+    override fun write(
+        value: kotlin.Long?,
+        buf: ByteBuffer,
+    ) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterLong.write(value, buf)
+        }
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalDouble : FfiConverterRustBuffer<kotlin.Double?> {
     override fun read(buf: ByteBuffer): kotlin.Double? {
         if (buf.get().toInt() == 0) {
@@ -2144,6 +2780,70 @@ public object FfiConverterOptionalTypeCredentials : FfiConverterRustBuffer<Crede
 /**
  * @suppress
  */
+public object FfiConverterOptionalTypePlayerStateData : FfiConverterRustBuffer<PlayerStateData?> {
+    override fun read(buf: ByteBuffer): PlayerStateData? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypePlayerStateData.read(buf)
+    }
+
+    override fun allocationSize(value: PlayerStateData?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypePlayerStateData.allocationSize(value)
+        }
+    }
+
+    override fun write(
+        value: PlayerStateData?,
+        buf: ByteBuffer,
+    ) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypePlayerStateData.write(value, buf)
+        }
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeUserData : FfiConverterRustBuffer<UserData?> {
+    override fun read(buf: ByteBuffer): UserData? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeUserData.read(buf)
+    }
+
+    override fun allocationSize(value: UserData?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeUserData.allocationSize(value)
+        }
+    }
+
+    override fun write(
+        value: UserData?,
+        buf: ByteBuffer,
+    ) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeUserData.write(value, buf)
+        }
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalSequenceString : FfiConverterRustBuffer<List<kotlin.String>?> {
     override fun read(buf: ByteBuffer): List<kotlin.String>? {
         if (buf.get().toInt() == 0) {
@@ -2208,6 +2908,38 @@ public object FfiConverterOptionalSequenceTypeNameIdPair : FfiConverterRustBuffe
 /**
  * @suppress
  */
+public object FfiConverterOptionalSequenceTypeSong : FfiConverterRustBuffer<List<Song>?> {
+    override fun read(buf: ByteBuffer): List<Song>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterSequenceTypeSong.read(buf)
+    }
+
+    override fun allocationSize(value: List<Song>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterSequenceTypeSong.allocationSize(value)
+        }
+    }
+
+    override fun write(
+        value: List<Song>?,
+        buf: ByteBuffer,
+    ) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterSequenceTypeSong.write(value, buf)
+        }
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalMapStringString : FfiConverterRustBuffer<Map<kotlin.String, kotlin.String>?> {
     override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.String>? {
         if (buf.get().toInt() == 0) {
@@ -2233,6 +2965,38 @@ public object FfiConverterOptionalMapStringString : FfiConverterRustBuffer<Map<k
         } else {
             buf.put(1)
             FfiConverterMapStringString.write(value, buf)
+        }
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalMapStringMapStringString : FfiConverterRustBuffer<Map<kotlin.String, Map<kotlin.String, kotlin.String>>?> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, Map<kotlin.String, kotlin.String>>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterMapStringMapStringString.read(buf)
+    }
+
+    override fun allocationSize(value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterMapStringMapStringString.allocationSize(value)
+        }
+    }
+
+    override fun write(
+        value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?,
+        buf: ByteBuffer,
+    ) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterMapStringMapStringString.write(value, buf)
         }
     }
 }
@@ -2289,6 +3053,62 @@ public object FfiConverterSequenceTypeNameIdPair : FfiConverterRustBuffer<List<N
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeNameIdPair.write(it, buf)
+        }
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypePlaylist : FfiConverterRustBuffer<List<Playlist>> {
+    override fun read(buf: ByteBuffer): List<Playlist> {
+        val len = buf.getInt()
+        return List<Playlist>(len) {
+            FfiConverterTypePlaylist.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<Playlist>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypePlaylist.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(
+        value: List<Playlist>,
+        buf: ByteBuffer,
+    ) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypePlaylist.write(it, buf)
+        }
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeQueueItemData : FfiConverterRustBuffer<List<QueueItemData>> {
+    override fun read(buf: ByteBuffer): List<QueueItemData> {
+        val len = buf.getInt()
+        return List<QueueItemData>(len) {
+            FfiConverterTypeQueueItemData.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<QueueItemData>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeQueueItemData.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(
+        value: List<QueueItemData>,
+        buf: ByteBuffer,
+    ) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeQueueItemData.write(it, buf)
         }
     }
 }
@@ -2362,6 +3182,63 @@ public object FfiConverterMapStringString : FfiConverterRustBuffer<Map<kotlin.St
     }
 }
 
+/**
+ * @suppress
+ */
+public object FfiConverterMapStringMapStringString : FfiConverterRustBuffer<Map<kotlin.String, Map<kotlin.String, kotlin.String>>> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, Map<kotlin.String, kotlin.String>> {
+        val len = buf.getInt()
+        return buildMap<kotlin.String, Map<kotlin.String, kotlin.String>>(len) {
+            repeat(len) {
+                val k = FfiConverterString.read(buf)
+                val v = FfiConverterMapStringString.read(buf)
+                this[k] = v
+            }
+        }
+    }
+
+    override fun allocationSize(value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>): ULong {
+        val spaceForMapSize = 4UL
+        val spaceForChildren =
+            value
+                .map { (k, v) ->
+                    FfiConverterString.allocationSize(k) +
+                        FfiConverterMapStringString.allocationSize(v)
+                }.sum()
+        return spaceForMapSize + spaceForChildren
+    }
+
+    override fun write(
+        value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>,
+        buf: ByteBuffer,
+    ) {
+        buf.putInt(value.size)
+        // The parens on `(k, v)` here ensure we're calling the right method,
+        // which is important for compatibility with older android devices.
+        // Ref https://blog.danlew.net/2017/03/16/kotlin-puzzler-whose-line-is-it-anyways/
+        value.forEach { (k, v) ->
+            FfiConverterString.write(k, buf)
+            FfiConverterMapStringString.write(v, buf)
+        }
+    }
+}
+
+@Throws(AppException::class)
+fun `addPlaylistItems`(
+    `serverUrl`: kotlin.String,
+    `token`: kotlin.String,
+    `playlistId`: kotlin.String,
+    `itemIds`: List<kotlin.String>,
+) = uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_add_playlist_items(
+        FfiConverterString.lower(`serverUrl`),
+        FfiConverterString.lower(`token`),
+        FfiConverterString.lower(`playlistId`),
+        FfiConverterSequenceString.lower(`itemIds`),
+        _status,
+    )
+}
+
 @Throws(AppException::class)
 fun `authenticate`(
     `serverUrl`: kotlin.String,
@@ -2422,6 +3299,37 @@ fun `clearCredentials`(`appDataDir`: kotlin.String) =
     }
 
 @Throws(AppException::class)
+fun `createPlaylist`(
+    `serverUrl`: kotlin.String,
+    `token`: kotlin.String,
+    `data`: PlaylistCreateData,
+): Playlist =
+    FfiConverterTypePlaylist.lift(
+        uniffiRustCallWithError(AppException) { _status ->
+            UniffiLib.uniffi_aurelia_core_fn_func_create_playlist(
+                FfiConverterString.lower(`serverUrl`),
+                FfiConverterString.lower(`token`),
+                FfiConverterTypePlaylistCreateData.lower(`data`),
+                _status,
+            )
+        },
+    )
+
+@Throws(AppException::class)
+fun `deletePlaylist`(
+    `serverUrl`: kotlin.String,
+    `token`: kotlin.String,
+    `playlistId`: kotlin.String,
+) = uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_delete_playlist(
+        FfiConverterString.lower(`serverUrl`),
+        FfiConverterString.lower(`token`),
+        FfiConverterString.lower(`playlistId`),
+        _status,
+    )
+}
+
+@Throws(AppException::class)
 fun `fetchSongs`(
     `serverUrl`: kotlin.String,
     `token`: kotlin.String,
@@ -2469,6 +3377,40 @@ fun `getLyrics`(
     )
 
 @Throws(AppException::class)
+fun `getPlaylistItems`(
+    `serverUrl`: kotlin.String,
+    `token`: kotlin.String,
+    `playlistId`: kotlin.String,
+): List<Song> =
+    FfiConverterSequenceTypeSong.lift(
+        uniffiRustCallWithError(AppException) { _status ->
+            UniffiLib.uniffi_aurelia_core_fn_func_get_playlist_items(
+                FfiConverterString.lower(`serverUrl`),
+                FfiConverterString.lower(`token`),
+                FfiConverterString.lower(`playlistId`),
+                _status,
+            )
+        },
+    )
+
+@Throws(AppException::class)
+fun `getPlaylists`(
+    `serverUrl`: kotlin.String,
+    `token`: kotlin.String,
+    `userId`: kotlin.String,
+): List<Playlist> =
+    FfiConverterSequenceTypePlaylist.lift(
+        uniffiRustCallWithError(AppException) { _status ->
+            UniffiLib.uniffi_aurelia_core_fn_func_get_playlists(
+                FfiConverterString.lower(`serverUrl`),
+                FfiConverterString.lower(`token`),
+                FfiConverterString.lower(`userId`),
+                _status,
+            )
+        },
+    )
+
+@Throws(AppException::class)
 fun `loadCachedSongs`(`appDataDir`: kotlin.String): List<Song> =
     FfiConverterSequenceTypeSong.lift(
         uniffiRustCallWithError(AppException) { _status ->
@@ -2484,12 +3426,36 @@ fun `loadCredentials`(`appDataDir`: kotlin.String): Credentials? =
         },
     )
 
+@Throws(AppException::class)
+fun `loadPlayerState`(`appDataDir`: kotlin.String): PlayerStateData? =
+    FfiConverterOptionalTypePlayerStateData.lift(
+        uniffiRustCallWithError(AppException) { _status ->
+            UniffiLib.uniffi_aurelia_core_fn_func_load_player_state(FfiConverterString.lower(`appDataDir`), _status)
+        },
+    )
+
 fun `ping`(): kotlin.String =
     FfiConverterString.lift(
         uniffiRustCall { _status ->
             UniffiLib.uniffi_aurelia_core_fn_func_ping(_status)
         },
     )
+
+@Throws(AppException::class)
+fun `removePlaylistItems`(
+    `serverUrl`: kotlin.String,
+    `token`: kotlin.String,
+    `playlistId`: kotlin.String,
+    `itemIds`: List<kotlin.String>,
+) = uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_remove_playlist_items(
+        FfiConverterString.lower(`serverUrl`),
+        FfiConverterString.lower(`token`),
+        FfiConverterString.lower(`playlistId`),
+        FfiConverterSequenceString.lower(`itemIds`),
+        _status,
+    )
+}
 
 @Throws(AppException::class)
 fun `saveCredentials`(
@@ -2499,6 +3465,18 @@ fun `saveCredentials`(
     UniffiLib.uniffi_aurelia_core_fn_func_save_credentials(
         FfiConverterString.lower(`appDataDir`),
         FfiConverterTypeCredentials.lower(`credentials`),
+        _status,
+    )
+}
+
+@Throws(AppException::class)
+fun `savePlayerState`(
+    `appDataDir`: kotlin.String,
+    `state`: PlayerStateData,
+) = uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_save_player_state(
+        FfiConverterString.lower(`appDataDir`),
+        FfiConverterTypePlayerStateData.lower(`state`),
         _status,
     )
 }
@@ -2531,6 +3509,25 @@ fun `toggleFavorite`(
                 FfiConverterString.lower(`userId`),
                 FfiConverterString.lower(`itemId`),
                 FfiConverterBoolean.lower(`isFavorite`),
+                _status,
+            )
+        },
+    )
+
+@Throws(AppException::class)
+fun `updatePlaylist`(
+    `serverUrl`: kotlin.String,
+    `token`: kotlin.String,
+    `playlistId`: kotlin.String,
+    `updates`: PlaylistUpdateData,
+): Playlist =
+    FfiConverterTypePlaylist.lift(
+        uniffiRustCallWithError(AppException) { _status ->
+            UniffiLib.uniffi_aurelia_core_fn_func_update_playlist(
+                FfiConverterString.lower(`serverUrl`),
+                FfiConverterString.lower(`token`),
+                FfiConverterString.lower(`playlistId`),
+                FfiConverterTypePlaylistUpdateData.lower(`updates`),
                 _status,
             )
         },

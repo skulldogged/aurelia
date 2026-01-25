@@ -1,6 +1,8 @@
 package com.aurelia.app.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,7 +38,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,26 +49,43 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
+import com.aurelia.app.player.PlayerController
+import com.aurelia.app.player.QueueItem
+import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.BottomBarDimensions
+import com.aurelia.app.ui.components.PlaylistPickerDialog
+import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.navigation.Screen
 import com.aurelia.app.ui.theme.ReadingContext
 import com.aurelia.app.ui.theme.rememberContextualStyle
 import uniffi.aurelia_core.Song
+import uniffi.aurelia_core.buildStreamUrl
 import java.util.Calendar
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
+    sessionStore: SessionStore,
+    playerController: PlayerController,
+    playlistViewModel: PlaylistViewModel,
     onOpenPlayer: () -> Unit,
     onNavigateToAlbum: (Screen.AlbumDetail) -> Unit = {},
+    onNavigateToArtist: (Screen.ArtistDetail) -> Unit = {},
     hasPlayerBar: Boolean = false,
 ) {
     val state by viewModel.state.collectAsState()
+    val playlistState by playlistViewModel.state.collectAsState()
     val colors = MaterialTheme.colorScheme
     val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
 
+    // Context menu state
+    var selectedSong by remember { mutableStateOf<Song?>(null) }
+    var showContextMenu by remember { mutableStateOf(false) }
+    var showPlaylistPicker by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         viewModel.loadHomeData()
+        playlistViewModel.loadPlaylists()
     }
 
     // Time-based greeting
@@ -173,6 +194,66 @@ fun HomeScreen(
                             viewModel.playSongFromList(song.id, quickPicks)
                             onOpenPlayer()
                         },
+                        onLongClick = {
+                            selectedSong = song
+                            showContextMenu = true
+                        },
+                        showContextMenu = showContextMenu && selectedSong?.id == song.id,
+                        onDismissMenu = { showContextMenu = false },
+                        onAddToQueue = {
+                            val serverUrl = sessionStore.getServerUrl() ?: return@QuickPickCard
+                            val token = sessionStore.getToken() ?: return@QuickPickCard
+                            playerController.addToQueue(
+                                QueueItem(
+                                    id = song.id,
+                                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+                                    title = song.name,
+                                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+                                    albumArtUrl = song.albumArtUrl,
+                                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+                                    isFavorite = song.isFavorite ?: false,
+                                ),
+                            )
+                        },
+                        onPlayNext = {
+                            val serverUrl = sessionStore.getServerUrl() ?: return@QuickPickCard
+                            val token = sessionStore.getToken() ?: return@QuickPickCard
+                            playerController.playNext(
+                                QueueItem(
+                                    id = song.id,
+                                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+                                    title = song.name,
+                                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+                                    albumArtUrl = song.albumArtUrl,
+                                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+                                    isFavorite = song.isFavorite ?: false,
+                                ),
+                            )
+                        },
+                        onAddToPlaylist = {
+                            selectedSong = song
+                            showPlaylistPicker = true
+                        },
+                        onGoToAlbum = if (song.albumId != null) {
+                            {
+                                onNavigateToAlbum(
+                                    Screen.AlbumDetail(
+                                        albumId = song.albumId!!,
+                                        albumName = song.album ?: "Unknown Album",
+                                    ),
+                                )
+                            }
+                        } else null,
+                        onGoToArtist = if (song.artistIds?.isNotEmpty() == true) {
+                            {
+                                onNavigateToArtist(
+                                    Screen.ArtistDetail(
+                                        artistId = song.artistIds!!.first(),
+                                        artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
+                                    ),
+                                )
+                            }
+                        } else null,
                     )
                 }
 
@@ -254,29 +335,69 @@ fun HomeScreen(
             }
         }
     }
+
+    // Playlist picker dialog
+    if (showPlaylistPicker && selectedSong != null) {
+        PlaylistPickerDialog(
+            playlists = playlistState.playlists,
+            isLoading = playlistState.isLoading,
+            onDismiss = {
+                showPlaylistPicker = false
+                selectedSong = null
+            },
+            onSelectPlaylist = { playlist ->
+                selectedSong?.let { song ->
+                    playlistViewModel.addSongsToPlaylist(playlist.id, listOf(song.id))
+                }
+                showPlaylistPicker = false
+                selectedSong = null
+            },
+            onCreatePlaylist = { name ->
+                selectedSong?.let { song ->
+                    playlistViewModel.createPlaylist(name, listOf(song.id))
+                }
+                showPlaylistPicker = false
+                selectedSong = null
+            },
+        )
+    }
 }
 
 /**
  * Quick pick card - compact song card for the 2-column grid
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun QuickPickCard(
     song: Song,
     isCurrentSong: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    showContextMenu: Boolean,
+    onDismissMenu: () -> Unit,
+    onAddToQueue: () -> Unit,
+    onPlayNext: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onGoToAlbum: (() -> Unit)?,
+    onGoToArtist: (() -> Unit)?,
 ) {
     val colors = MaterialTheme.colorScheme
 
-    Surface(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = if (isCurrentSong) colors.primaryContainer else colors.surfaceContainerLow,
-    ) {
-        Row(
+    Box {
+        Surface(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .combinedClickable(
+                        onClick = onClick,
+                        onLongClick = onLongClick,
+                    ),
+            shape = RoundedCornerShape(16.dp),
+            color = if (isCurrentSong) colors.primaryContainer else colors.surfaceContainerLow,
+        ) {
+            Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
@@ -376,6 +497,19 @@ private fun QuickPickCard(
                 )
             }
         }
+        }
+
+        SongContextMenu(
+            song = song,
+            expanded = showContextMenu,
+            onDismiss = onDismissMenu,
+            onAddToQueue = onAddToQueue,
+            onPlayNext = onPlayNext,
+            onAddToPlaylist = onAddToPlaylist,
+            onGoToAlbum = onGoToAlbum,
+            onGoToArtist = onGoToArtist,
+            onToggleFavorite = null,
+        )
     }
 }
 

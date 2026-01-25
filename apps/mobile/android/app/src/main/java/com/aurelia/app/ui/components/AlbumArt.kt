@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
@@ -24,6 +25,7 @@ import coil.compose.SubcomposeAsyncImage
 enum class AlbumArtStyle {
     Song,
     Album,
+    Playlist,
 }
 
 @Composable
@@ -41,6 +43,7 @@ fun AlbumArt(
         when (style) {
             AlbumArtStyle.Song -> Icons.Filled.MusicNote
             AlbumArtStyle.Album -> Icons.Filled.Album
+            AlbumArtStyle.Playlist -> Icons.AutoMirrored.Filled.PlaylistPlay
         }
 
     Surface(

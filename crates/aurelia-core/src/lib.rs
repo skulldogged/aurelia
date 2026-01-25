@@ -170,13 +170,143 @@ pub fn toggle_favorite(
 ) -> Result<bool, error::AppError> {
     let runtime = tokio::runtime::Runtime::new()
         .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    
+
     runtime.block_on(async {
         let client = services::JellyfinClient::with_auth(server_url, token);
         let new_state = !is_favorite;
         client.toggle_favorite(&user_id, &item_id, new_state).await?;
         Ok(new_state)
     })
+}
+
+// Playlist operations
+
+#[uniffi::export]
+pub fn get_playlists(
+    server_url: String,
+    token: String,
+    user_id: String,
+) -> Result<Vec<models::Playlist>, error::AppError> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_playlists(&user_id).await
+    })
+}
+
+#[uniffi::export]
+pub fn create_playlist(
+    server_url: String,
+    token: String,
+    data: models::PlaylistCreateData,
+) -> Result<models::Playlist, error::AppError> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.create_playlist(&data).await
+    })
+}
+
+#[uniffi::export]
+pub fn update_playlist(
+    server_url: String,
+    token: String,
+    playlist_id: String,
+    updates: models::PlaylistUpdateData,
+) -> Result<models::Playlist, error::AppError> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.update_playlist(&playlist_id, &updates).await
+    })
+}
+
+#[uniffi::export]
+pub fn delete_playlist(
+    server_url: String,
+    token: String,
+    playlist_id: String,
+) -> Result<(), error::AppError> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.delete_playlist(&playlist_id).await
+    })
+}
+
+#[uniffi::export]
+pub fn add_playlist_items(
+    server_url: String,
+    token: String,
+    playlist_id: String,
+    item_ids: Vec<String>,
+) -> Result<(), error::AppError> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.add_playlist_items(&playlist_id, &item_ids).await
+    })
+}
+
+#[uniffi::export]
+pub fn remove_playlist_items(
+    server_url: String,
+    token: String,
+    playlist_id: String,
+    item_ids: Vec<String>,
+) -> Result<(), error::AppError> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.remove_playlist_items(&playlist_id, &item_ids).await
+    })
+}
+
+#[uniffi::export]
+pub fn get_playlist_items(
+    server_url: String,
+    token: String,
+    playlist_id: String,
+) -> Result<Vec<models::Song>, error::AppError> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_playlist_items(&playlist_id).await
+    })
+}
+
+// Player state persistence
+
+#[uniffi::export]
+pub fn save_player_state(
+    app_data_dir: String,
+    state: models::PlayerStateData,
+) -> Result<(), error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(());
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::save_player_state(app_dir, &state)
+        .map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
+pub fn load_player_state(
+    app_data_dir: String,
+) -> Result<Option<models::PlayerStateData>, error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(None);
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::load_player_state(app_dir)
+        .map_err(|err| error::AppError::Database(err.to_string()))
 }
 
 uniffi::setup_scaffolding!();
