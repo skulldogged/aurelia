@@ -73,6 +73,9 @@ class HomeViewModel(
           albumArtUrl = snapshot.albumArtUrl,
           isPlaying = snapshot.isPlaying,
           isBuffering = snapshot.isBuffering,
+          albumId = snapshot.currentAlbumId,
+          artistId = snapshot.currentArtistId,
+          albumName = snapshot.currentAlbumName,
         ),
         currentSongId = songId,
       )
@@ -274,6 +277,9 @@ class HomeViewModel(
           albumArtUrl = song.albumArtUrl,
           durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
           isFavorite = song.isFavorite ?: false,
+          albumId = song.albumId,
+          artistId = song.artistIds?.firstOrNull(),
+          albumName = song.album,
         )
       }
 
@@ -305,6 +311,9 @@ class HomeViewModel(
           albumArtUrl = song.albumArtUrl,
           durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
           isFavorite = song.isFavorite ?: false,
+          albumId = song.albumId,
+          artistId = song.artistIds?.firstOrNull(),
+          albumName = song.album,
         )
       }
 
@@ -336,6 +345,9 @@ class HomeViewModel(
           albumArtUrl = song.albumArtUrl,
           durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
           isFavorite = song.isFavorite ?: false,
+          albumId = song.albumId,
+          artistId = song.artistIds?.firstOrNull(),
+          albumName = song.album,
         )
       }
 
@@ -358,11 +370,6 @@ class HomeViewModel(
 
   fun skipNext() {
     playerController.skipNext()
-  }
-
-  override fun onCleared() {
-    super.onCleared()
-    playerController.release()
   }
 }
 

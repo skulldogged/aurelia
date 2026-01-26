@@ -2007,6 +2007,18 @@ data class QueueItemData(
    * Whether this item is a favorite
    */
   var `isFavorite`: kotlin.Boolean,
+  /**
+   * Artist ID (optional)
+   */
+  var `artistId`: kotlin.String?,
+  /**
+   * Album ID (optional)
+   */
+  var `albumId`: kotlin.String?,
+  /**
+   * Album name (optional)
+   */
+  var `albumName`: kotlin.String?,
 ) {
   companion object
 }
@@ -2024,6 +2036,9 @@ public object FfiConverterTypeQueueItemData : FfiConverterRustBuffer<QueueItemDa
       FfiConverterLong.read(buf),
       FfiConverterOptionalString.read(buf),
       FfiConverterBoolean.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalString.read(buf),
     )
 
   override fun allocationSize(value: QueueItemData) =
@@ -2034,7 +2049,10 @@ public object FfiConverterTypeQueueItemData : FfiConverterRustBuffer<QueueItemDa
         FfiConverterOptionalString.allocationSize(value.`albumArtUrl`) +
         FfiConverterLong.allocationSize(value.`durationMs`) +
         FfiConverterOptionalString.allocationSize(value.`container`) +
-        FfiConverterBoolean.allocationSize(value.`isFavorite`)
+        FfiConverterBoolean.allocationSize(value.`isFavorite`) +
+        FfiConverterOptionalString.allocationSize(value.`artistId`) +
+        FfiConverterOptionalString.allocationSize(value.`albumId`) +
+        FfiConverterOptionalString.allocationSize(value.`albumName`)
     )
 
   override fun write(
@@ -2048,6 +2066,9 @@ public object FfiConverterTypeQueueItemData : FfiConverterRustBuffer<QueueItemDa
     FfiConverterLong.write(value.`durationMs`, buf)
     FfiConverterOptionalString.write(value.`container`, buf)
     FfiConverterBoolean.write(value.`isFavorite`, buf)
+    FfiConverterOptionalString.write(value.`artistId`, buf)
+    FfiConverterOptionalString.write(value.`albumId`, buf)
+    FfiConverterOptionalString.write(value.`albumName`, buf)
   }
 }
 

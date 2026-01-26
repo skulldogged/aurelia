@@ -198,6 +198,9 @@ class PlaylistViewModel(
           albumArtUrl = song.albumArtUrl,
           durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
           isFavorite = song.isFavorite ?: false,
+          albumId = song.albumId,
+          artistId = song.artistIds?.firstOrNull(),
+          albumName = song.album,
         )
       }
 
@@ -221,6 +224,9 @@ class PlaylistViewModel(
           albumArtUrl = song.albumArtUrl,
           durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
           isFavorite = song.isFavorite ?: false,
+          albumId = song.albumId,
+          artistId = song.artistIds?.firstOrNull(),
+          albumName = song.album,
         )
       }
 

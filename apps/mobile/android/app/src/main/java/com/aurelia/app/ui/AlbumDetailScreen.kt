@@ -2,7 +2,9 @@ package com.aurelia.app.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,17 +19,17 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -44,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,19 +55,14 @@ import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.QueueItem
 import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.navigation.Screen
-import uniffi.aurelia_core.Song
-import uniffi.aurelia_core.buildStreamUrl
-
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.ui.text.style.TextAlign
+import uniffi.aurelia_core.Song
+import uniffi.aurelia_core.buildStreamUrl
 
 @Composable
 fun AlbumDetailScreen(
@@ -76,6 +74,7 @@ fun AlbumDetailScreen(
   onBack: () -> Unit,
   onOpenPlayer: () -> Unit,
   onNavigateToArtist: ((Screen.ArtistDetail) -> Unit)? = null,
+  hasPlayerBar: Boolean = false,
 ) {
   val libraryViewModel: LibraryViewModel =
     viewModel(
@@ -90,6 +89,9 @@ fun AlbumDetailScreen(
   var selectedSong by remember { mutableStateOf<Song?>(null) }
   var showContextMenu by remember { mutableStateOf(false) }
   var showPlaylistPicker by remember { mutableStateOf(false) }
+
+  // Calculate bottom padding for miniplayer
+  val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
 
   LaunchedEffect(Unit) {
     libraryViewModel.loadLibrary()
@@ -106,6 +108,7 @@ fun AlbumDetailScreen(
 
   val albumArtUrl = albumSongs.firstOrNull()?.albumArtUrl
   val artistName = albumSongs.firstOrNull()?.artists?.joinToString(", ") ?: "Unknown Artist"
+  val artistId = albumSongs.firstOrNull()?.artistIds?.firstOrNull()
 
   val gradient =
     Brush.verticalGradient(
@@ -142,7 +145,7 @@ fun AlbumDetailScreen(
 
     LazyColumn(
       modifier = Modifier.fillMaxSize(),
-      contentPadding = PaddingValues(bottom = 16.dp),
+      contentPadding = PaddingValues(bottom = bottomPadding),
     ) {
       // Album header with art
       item {
@@ -200,7 +203,7 @@ fun AlbumDetailScreen(
             color = colors.onPrimaryContainer,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
           )
 
           Spacer(modifier = Modifier.height(8.dp))
@@ -210,7 +213,16 @@ fun AlbumDetailScreen(
             text = artistName,
             style = MaterialTheme.typography.titleMedium,
             color = colors.onPrimaryContainer.copy(alpha = 0.8f),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
+            modifier =
+              Modifier.clickable(
+                enabled = artistId != null && onNavigateToArtist != null,
+                onClick = {
+                  artistId?.let { id ->
+                    onNavigateToArtist?.invoke(Screen.ArtistDetail(id, artistName))
+                  }
+                },
+              ),
           )
 
           // Song count
@@ -223,7 +235,7 @@ fun AlbumDetailScreen(
 
           Spacer(modifier = Modifier.height(24.dp))
 
-          // Play all button (M3 Expressive: Large Pill Button)
+          // Play all and Shuffle buttons (grouped)
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
@@ -244,6 +256,9 @@ fun AlbumDetailScreen(
                         albumArtUrl = song.albumArtUrl,
                         durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
                         isFavorite = song.isFavorite ?: false,
+                        albumId = song.albumId,
+                        artistId = song.artistIds?.firstOrNull(),
+                        albumName = song.album,
                       )
                     }
                   playerController.setQueue(queueItems, 0)
@@ -253,6 +268,7 @@ fun AlbumDetailScreen(
               modifier = Modifier
                 .height(56.dp)
                 .width(160.dp),
+              shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp, topEnd = 4.dp, bottomEnd = 4.dp),
               colors = ButtonDefaults.buttonColors(
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
@@ -271,13 +287,13 @@ fun AlbumDetailScreen(
                 fontWeight = FontWeight.Bold,
               )
             }
-            
-            Spacer(modifier = Modifier.width(12.dp))
-            
+
+            Spacer(modifier = Modifier.width(6.dp))
+
             // Shuffle Button (Secondary Action)
             Button(
               onClick = {
-                 if (albumSongs.isNotEmpty()) {
+                if (albumSongs.isNotEmpty()) {
                   val serverUrl = sessionStore.getServerUrl() ?: return@Button
                   val token = sessionStore.getToken() ?: return@Button
 
@@ -291,6 +307,9 @@ fun AlbumDetailScreen(
                         albumArtUrl = song.albumArtUrl,
                         durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
                         isFavorite = song.isFavorite ?: false,
+                        albumId = song.albumId,
+                        artistId = song.artistIds?.firstOrNull(),
+                        albumName = song.album,
                       )
                     }.shuffled()
                   playerController.setQueue(queueItems, 0)
@@ -299,13 +318,14 @@ fun AlbumDetailScreen(
               },
               modifier = Modifier
                 .height(56.dp),
+              shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 28.dp, bottomEnd = 28.dp),
               colors = ButtonDefaults.buttonColors(
                 containerColor = colors.secondaryContainer,
                 contentColor = colors.onSecondaryContainer,
               ),
               contentPadding = PaddingValues(horizontal = 20.dp),
             ) {
-               Icon(
+              Icon(
                 imageVector = Icons.Filled.Shuffle,
                 contentDescription = "Shuffle",
                 modifier = Modifier.size(24.dp),
@@ -345,6 +365,9 @@ fun AlbumDetailScreen(
                   albumArtUrl = s.albumArtUrl,
                   durationMs = (s.duration ?: 0.0).let { (it * 1000).toLong() },
                   isFavorite = s.isFavorite ?: false,
+                  albumId = s.albumId,
+                  artistId = s.artistIds?.firstOrNull(),
+                  albumName = s.album,
                 )
               }
             playerController.setQueue(queueItems, index)
@@ -372,6 +395,9 @@ fun AlbumDetailScreen(
                 albumArtUrl = song.albumArtUrl,
                 durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
                 isFavorite = song.isFavorite ?: false,
+                albumId = song.albumId,
+                artistId = song.artistIds?.firstOrNull(),
+                albumName = song.album,
               ),
             )
           },
@@ -387,6 +413,9 @@ fun AlbumDetailScreen(
                 albumArtUrl = song.albumArtUrl,
                 durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
                 isFavorite = song.isFavorite ?: false,
+                albumId = song.albumId,
+                artistId = song.artistIds?.firstOrNull(),
+                albumName = song.album,
               ),
             )
           },
@@ -565,7 +594,7 @@ private fun calculateTotalDuration(songs: List<Song>): String {
   val totalSeconds = songs.sumOf { (it.duration ?: 0.0) }.toLong()
   val hours = totalSeconds / 3600
   val minutes = (totalSeconds % 3600) / 60
-  
+
   return if (hours > 0) {
     "${hours}h ${minutes}m"
   } else {

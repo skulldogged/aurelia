@@ -2,6 +2,7 @@ package com.aurelia.app.player
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.net.toUri
@@ -15,6 +16,11 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.aurelia_core.PlayerStateData
@@ -30,26 +36,111 @@ data class QueueItem(
   val albumArtUrl: String?,
   val durationMs: Long = 0L,
   val isFavorite: Boolean = false,
+  val albumId: String? = null,
+  val artistId: String? = null,
+  val albumName: String? = null,
 )
 
 class PlayerController(
-  context: Context,
+  private val context: Context,
 ) {
   private val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-  private val controllerFuture: ListenableFuture<MediaController> =
-    MediaController.Builder(context, sessionToken).buildAsync()
+  private var controllerFuture: ListenableFuture<MediaController>? = null
   private var mediaController: MediaController? = null
   private var playbackEndedCallback: (() -> Unit)? = null
   private val durationByMediaId: MutableMap<String, Long> = mutableMapOf()
+  private val artistIdByMediaId: MutableMap<String, String> = mutableMapOf()
+  private val albumIdByMediaId: MutableMap<String, String> = mutableMapOf()
+  private val albumNameByMediaId: MutableMap<String, String> = mutableMapOf()
+
+  // Connection state tracking
+  private val _isConnected = MutableStateFlow(false)
+  val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
+
+  // Pending actions to run once connected
+  private val pendingActions = mutableListOf<(MediaController) -> Unit>()
+
+  // Track if we're in the process of connecting
+  private var isConnecting = false
 
   init {
-    controllerFuture.addListener(
+    connectToService()
+  }
+
+  private fun connectToService() {
+    synchronized(this) {
+      if (isConnecting) return
+      isConnecting = true
+    }
+
+    Log.d(TAG, "Connecting to PlaybackService...")
+    val future = MediaController.Builder(context, sessionToken).buildAsync()
+    controllerFuture = future
+
+    future.addListener(
       {
-        mediaController = controllerFuture.get()
-        playbackEndedCallback?.let { registerPlaybackEndedListener(it) }
+        try {
+          val controller = future.get()
+          mediaController = controller
+
+          // Add listener to track connection state changes
+          controller.addListener(object : Player.Listener {
+            override fun onEvents(player: Player, events: Player.Events) {
+              val wasConnected = _isConnected.value
+              val nowConnected = controller.isConnected
+
+              if (nowConnected && !wasConnected) {
+                onControllerConnected(controller)
+              } else if (!nowConnected && wasConnected) {
+                Log.d(TAG, "MediaController disconnected - will reconnect")
+                _isConnected.value = false
+                isConnecting = false
+                // Reconnect after a short delay
+                CoroutineScope(Dispatchers.Main).launch {
+                  delay(100)
+                  connectToService()
+                }
+              }
+            }
+          })
+
+          // Check if already connected
+          if (controller.isConnected) {
+            onControllerConnected(controller)
+          }
+
+          playbackEndedCallback?.let { registerPlaybackEndedListener(it) }
+        } catch (e: Exception) {
+          Log.e(TAG, "Failed to connect to PlaybackService", e)
+          isConnecting = false
+        }
       },
       MoreExecutors.directExecutor(),
     )
+  }
+
+  private fun onControllerConnected(controller: MediaController) {
+    Log.d(TAG, "MediaController connected")
+    _isConnected.value = true
+    isConnecting = false
+    // Execute any pending actions
+    synchronized(pendingActions) {
+      pendingActions.forEach { action ->
+        try {
+          action(controller)
+        } catch (e: Exception) {
+          Log.e(TAG, "Error executing pending action", e)
+        }
+      }
+      pendingActions.clear()
+    }
+  }
+
+  /**
+   * Suspends until the MediaController is connected to the session.
+   */
+  suspend fun awaitConnection() {
+    isConnected.first { it }
   }
 
   fun setQueue(
@@ -57,19 +148,32 @@ class PlayerController(
     startIndex: Int = 0,
   ) {
     durationByMediaId.clear()
+    artistIdByMediaId.clear()
+    albumIdByMediaId.clear()
+    albumNameByMediaId.clear()
+
     items.forEach { item ->
-      if (item.durationMs > 0L)
+      if (item.durationMs > 0L) {
         durationByMediaId[item.id] = item.durationMs
+      }
+      item.artistId?.let { artistIdByMediaId[item.id] = it }
+      item.albumId?.let { albumIdByMediaId[item.id] = it }
+      item.albumName?.let { albumNameByMediaId[item.id] = it }
     }
 
     withController { controller ->
       val mediaItems =
         items.map { item ->
+          val extras = Bundle().apply {
+            item.albumId?.let { putString(EXTRA_ALBUM_ID, it) }
+            item.artistId?.let { putString(EXTRA_ARTIST_ID, it) }
+          }
           val metadataBuilder =
             MediaMetadata
               .Builder()
               .setTitle(item.title)
               .setArtist(item.artist)
+              .setExtras(extras)
           item.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
 
           MediaItem
@@ -90,6 +194,7 @@ class PlayerController(
     val items = mutableListOf<QueueItem>()
     for (i in 0 until controller.mediaItemCount) {
       val mediaItem = controller.getMediaItemAt(i)
+      val extras = mediaItem.mediaMetadata.extras
       items.add(
         QueueItem(
           id = mediaItem.mediaId,
@@ -98,6 +203,9 @@ class PlayerController(
           artist = mediaItem.mediaMetadata.artist?.toString() ?: "",
           albumArtUrl = mediaItem.mediaMetadata.artworkUri?.toString(),
           durationMs = durationByMediaId[mediaItem.mediaId] ?: 0L,
+          albumId = albumIdByMediaId[mediaItem.mediaId] ?: extras?.getString(EXTRA_ALBUM_ID),
+          artistId = artistIdByMediaId[mediaItem.mediaId] ?: extras?.getString(EXTRA_ARTIST_ID),
+          albumName = albumNameByMediaId[mediaItem.mediaId] ?: extras?.getString(EXTRA_ALBUM_NAME),
         ),
       )
     }
@@ -122,13 +230,22 @@ class PlayerController(
     if (item.durationMs > 0L) {
       durationByMediaId[item.id] = item.durationMs
     }
+    item.artistId?.let { artistIdByMediaId[item.id] = it }
+    item.albumId?.let { albumIdByMediaId[item.id] = it }
+    item.albumName?.let { albumNameByMediaId[item.id] = it }
 
     withController { controller ->
+      val extras = Bundle().apply {
+        item.albumId?.let { putString(EXTRA_ALBUM_ID, it) }
+        item.artistId?.let { putString(EXTRA_ARTIST_ID, it) }
+        item.albumName?.let { putString(EXTRA_ALBUM_NAME, it) }
+      }
       val metadataBuilder =
         MediaMetadata
           .Builder()
           .setTitle(item.title)
           .setArtist(item.artist)
+          .setExtras(extras)
       item.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
 
       val mediaItem =
@@ -144,15 +261,25 @@ class PlayerController(
   }
 
   fun playNext(item: QueueItem) {
-    if (item.durationMs > 0L)
+    if (item.durationMs > 0L) {
       durationByMediaId[item.id] = item.durationMs
+    }
+    item.artistId?.let { artistIdByMediaId[item.id] = it }
+    item.albumId?.let { albumIdByMediaId[item.id] = it }
+    item.albumName?.let { albumNameByMediaId[item.id] = it }
 
     withController { controller ->
+      val extras = Bundle().apply {
+        item.albumId?.let { putString(EXTRA_ALBUM_ID, it) }
+        item.artistId?.let { putString(EXTRA_ARTIST_ID, it) }
+        item.albumName?.let { putString(EXTRA_ALBUM_NAME, it) }
+      }
       val metadataBuilder =
         MediaMetadata
           .Builder()
           .setTitle(item.title)
           .setArtist(item.artist)
+          .setExtras(extras)
       item.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
 
       val mediaItem =
@@ -175,21 +302,30 @@ class PlayerController(
     artist: String?,
     albumArtUrl: String? = null,
     durationMs: Long = 0L,
+    albumId: String? = null,
+    artistId: String? = null,
+    albumName: String? = null,
   ) {
     if (durationMs > 0L) {
       durationByMediaId[mediaId] = durationMs
     }
+    artistId?.let { artistIdByMediaId[mediaId] = it }
+    albumId?.let { albumIdByMediaId[mediaId] = it }
+    albumName?.let { albumNameByMediaId[mediaId] = it }
 
     withController { controller ->
+      val extras = Bundle().apply {
+        albumId?.let { putString(EXTRA_ALBUM_ID, it) }
+        artistId?.let { putString(EXTRA_ARTIST_ID, it) }
+        albumName?.let { putString(EXTRA_ALBUM_NAME, it) }
+      }
       val metadataBuilder =
         MediaMetadata
           .Builder()
           .setTitle(title)
-          .setArtist(artist ?: "Unknown Artist")
-
-      albumArtUrl?.let { artUrl ->
-        metadataBuilder.setArtworkUri(artUrl.toUri())
-      }
+          .setArtist(artist)
+          .setExtras(extras)
+      albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
 
       val mediaItem =
         MediaItem
@@ -285,22 +421,7 @@ class PlayerController(
     return if (controller == null) {
       PlayerSnapshot()
     } else {
-      val controllerDuration = controller.duration
-      val mediaId = controller.currentMediaItem?.mediaId
-      val fallbackDuration = mediaId?.let { durationByMediaId[it] } ?: 0L
-      val duration =
-        when {
-          controllerDuration == C.TIME_UNSET || controllerDuration <= 0L -> fallbackDuration
-          else -> controllerDuration
-        }
-
-      PlayerSnapshot(
-        title = controller.mediaMetadata.title?.toString() ?: "",
-        artist = controller.mediaMetadata.artist?.toString() ?: "",
-        isPlaying = controller.isPlaying,
-        positionMs = controller.currentPosition,
-        durationMs = duration,
-      )
+      snapshotFrom(controller)
     }
   }
 
@@ -342,7 +463,10 @@ class PlayerController(
   }
 
   fun release() {
-    MediaController.releaseFuture(controllerFuture)
+    controllerFuture?.let { MediaController.releaseFuture(it) }
+    controllerFuture = null
+    mediaController = null
+    _isConnected.value = false
   }
 
   fun saveState(appDataDir: String) {
@@ -363,6 +487,9 @@ class PlayerController(
           durationMs = durationByMediaId[mediaItem.mediaId] ?: 0L,
           container = null,
           isFavorite = false,
+          artistId = artistIdByMediaId[mediaItem.mediaId],
+          albumId = albumIdByMediaId[mediaItem.mediaId],
+          albumName = albumNameByMediaId[mediaItem.mediaId],
         ),
       )
     }
@@ -417,6 +544,9 @@ class PlayerController(
               albumArtUrl = item.albumArtUrl,
               durationMs = item.durationMs,
               isFavorite = item.isFavorite,
+              artistId = item.artistId,
+              albumId = item.albumId,
+              albumName = item.albumName,
             )
           }
 
@@ -426,6 +556,9 @@ class PlayerController(
             if (item.durationMs > 0L) {
               durationByMediaId[item.id] = item.durationMs
             }
+            item.artistId?.let { artistIdByMediaId[item.id] = it }
+            item.albumId?.let { albumIdByMediaId[item.id] = it }
+            item.albumName?.let { albumNameByMediaId[item.id] = it }
           }
 
           withController { controller ->
@@ -475,17 +608,25 @@ class PlayerController(
 
   companion object {
     private const val TAG = "PlayerController"
+    private const val EXTRA_ALBUM_ID = "album_id"
+    private const val EXTRA_ARTIST_ID = "artist_id"
+    private const val EXTRA_ALBUM_NAME = "album_name"
   }
 
   private fun snapshotFrom(controller: MediaController): PlayerSnapshot {
     val controllerDuration = controller.duration
     val mediaId = controller.currentMediaItem?.mediaId
+    val extras = controller.currentMediaItem?.mediaMetadata?.extras
     val fallbackDuration = mediaId?.let { durationByMediaId[it] } ?: 0L
     val duration =
       when {
         controllerDuration == C.TIME_UNSET || controllerDuration <= 0L -> fallbackDuration
         else -> controllerDuration
       }
+
+    val currentArtistId = mediaId?.let { artistIdByMediaId[it] } ?: extras?.getString(EXTRA_ARTIST_ID)
+    val currentAlbumId = mediaId?.let { albumIdByMediaId[it] } ?: extras?.getString(EXTRA_ALBUM_ID)
+    val currentAlbumName = mediaId?.let { albumNameByMediaId[it] } ?: extras?.getString(EXTRA_ALBUM_NAME)
 
     val repeatMode =
       when (controller.repeatMode) {
@@ -507,6 +648,9 @@ class PlayerController(
       isShuffled = controller.shuffleModeEnabled,
       repeatMode = repeatMode,
       currentSongId = mediaId,
+      currentAlbumId = currentAlbumId,
+      currentArtistId = currentArtistId,
+      currentAlbumName = currentAlbumName,
       playbackSpeed = controller.playbackParameters.speed,
       updateTimeMs = SystemClock.elapsedRealtime(),
     )
@@ -514,14 +658,22 @@ class PlayerController(
 
   private fun withController(action: (MediaController) -> Unit) {
     val currentController = mediaController
-    if (currentController != null) {
+    // Check actual connection state from the controller itself
+    if (currentController != null && currentController.isConnected) {
       action(currentController)
       return
     }
-    controllerFuture.addListener(
-      { action(controllerFuture.get()) },
-      MoreExecutors.directExecutor(),
-    )
+    // Queue action until connected
+    synchronized(pendingActions) {
+      val controller = mediaController
+      if (controller != null && controller.isConnected) {
+        // Double-check after acquiring lock
+        action(controller)
+      } else {
+        Log.d(TAG, "Queueing action - controller not connected")
+        pendingActions.add(action)
+      }
+    }
   }
 
   private fun registerPlaybackEndedListener(onEnded: () -> Unit) {
@@ -552,6 +704,9 @@ data class PlayerSnapshot(
   val isShuffled: Boolean = false,
   val repeatMode: RepeatMode = RepeatMode.NONE,
   val currentSongId: String? = null,
+  val currentAlbumId: String? = null,
+  val currentArtistId: String? = null,
+  val currentAlbumName: String? = null,
   val playbackSpeed: Float = 1f,
   val updateTimeMs: Long = 0L,
 )

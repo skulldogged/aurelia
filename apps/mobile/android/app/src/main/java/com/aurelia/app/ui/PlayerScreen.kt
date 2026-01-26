@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -90,6 +91,7 @@ import com.aurelia.app.player.RepeatMode
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.WavyMusicSlider
+import com.aurelia.app.ui.navigation.Screen
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberNowPlayingStyle
 import kotlinx.coroutines.delay
@@ -104,6 +106,8 @@ fun PlayerScreen(
   playerController: PlayerController,
   sessionStore: com.aurelia.app.storage.SessionStore,
   onBack: () -> Unit,
+  onNavigateToAlbum: (Screen.AlbumDetail) -> Unit = {},
+  onNavigateToArtist: (Screen.ArtistDetail) -> Unit = {},
   modifier: Modifier = Modifier,
   isEmbedded: Boolean = false,
 ) {
@@ -161,27 +165,31 @@ fun PlayerScreen(
             contentColor = if (state.showLyrics) colors.onPrimary else colors.primary,
           ),
         modifier = Modifier.size(42.dp),
+        shape = RoundedCornerShape(topStart = 21.dp, bottomStart = 21.dp, topEnd = 4.dp, bottomEnd = 4.dp),
       ) {
         Icon(
           imageVector = Icons.Filled.Mic,
           contentDescription = "Show lyrics",
+          modifier = Modifier.padding(start = 4.dp),
         )
       }
 
-      Spacer(modifier = Modifier.size(8.dp))
+      Spacer(modifier = Modifier.size(4.dp))
 
-      IconButton(
+      FilledIconButton(
         onClick = { showQueueSheet = true },
         colors =
-          IconButtonDefaults.iconButtonColors(
+          IconButtonDefaults.filledIconButtonColors(
             containerColor = colors.onPrimary.copy(alpha = 0.8f),
             contentColor = colors.onPrimaryContainer,
           ),
         modifier = Modifier.size(42.dp),
+        shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 21.dp, bottomEnd = 21.dp),
       ) {
         Icon(
           imageVector = Icons.AutoMirrored.Filled.QueueMusic,
           contentDescription = "Show queue",
+          modifier = Modifier.padding(end = 4.dp),
         )
       }
     }
@@ -218,7 +226,20 @@ fun PlayerScreen(
             modifier =
               Modifier
                 .fillMaxSize()
-                .clip(SquircleShape),
+                .clip(SquircleShape)
+                .clickable(
+                  enabled = !state.currentAlbumId.isNullOrBlank(),
+                  onClick = {
+                    state.currentAlbumId?.let { id ->
+                      onNavigateToAlbum(
+                        Screen.AlbumDetail(
+                          id,
+                          state.currentAlbumName ?: "Unknown Album"
+                        )
+                      )
+                    }
+                  },
+                ),
             color = colors.surfaceVariant,
             tonalElevation = 8.dp,
             shadowElevation = 12.dp,
@@ -299,6 +320,15 @@ fun PlayerScreen(
           color = colors.onPrimaryContainer.copy(alpha = 0.7f),
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
+          modifier =
+            Modifier.clickable(
+              enabled = !state.currentArtistId.isNullOrBlank(),
+              onClick = {
+                state.currentArtistId?.let { id ->
+                  onNavigateToArtist(Screen.ArtistDetail(id, state.artist))
+                }
+              },
+            ),
         )
       }
 
@@ -652,79 +682,86 @@ private fun SecondaryControls(
   colors: androidx.compose.material3.ColorScheme,
   modifier: Modifier = Modifier,
 ) {
-  Row(
+  Box(
     modifier = modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.SpaceEvenly,
-    verticalAlignment = Alignment.CenterVertically,
+    contentAlignment = Alignment.Center
   ) {
-    // Shuffle button
-    IconButton(
-      onClick = onShuffleClick,
-      modifier = Modifier.size(48.dp),
+    Row(
+      modifier = Modifier
+        .background(
+          color = colors.onPrimary.copy(alpha = 0.2f),
+          shape = RoundedCornerShape(28.dp)
+        )
+        .padding(4.dp),
+      horizontalArrangement = Arrangement.Center,
+      verticalAlignment = Alignment.CenterVertically,
     ) {
-      Icon(
-        imageVector = Icons.Filled.Shuffle,
-        contentDescription = if (isShuffled) "Shuffle on" else "Shuffle off",
-        tint = if (isShuffled) colors.primary else colors.onPrimaryContainer.copy(alpha = 0.5f),
-        modifier = Modifier.size(24.dp),
-      )
-    }
+      // Shuffle button
+      FilledIconButton(
+        onClick = onShuffleClick,
+        modifier = Modifier.size(48.dp),
+        shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+          containerColor = if (isShuffled) colors.primary else colors.onPrimary.copy(alpha = 0.8f),
+          contentColor = if (isShuffled) colors.onPrimary else colors.onPrimaryContainer,
+        )
+      ) {
+        Icon(
+          imageVector = Icons.Filled.Shuffle,
+          contentDescription = if (isShuffled) "Shuffle on" else "Shuffle off",
+          modifier = Modifier.padding(start = 4.dp).size(24.dp),
+        )
+      }
 
-    // Repeat button
-    IconButton(
-      onClick = onRepeatClick,
-      modifier = Modifier.size(48.dp),
-    ) {
-      val (icon, contentDesc, tint) =
-        when (repeatMode) {
-          RepeatMode.ONE -> {
-            Triple(
-              Icons.Filled.RepeatOne,
-              "Repeat one",
-              colors.primary,
-            )
+      Spacer(modifier = Modifier.width(4.dp))
+
+      // Repeat button
+      FilledIconButton(
+        onClick = onRepeatClick,
+        modifier = Modifier.size(48.dp),
+        shape = RoundedCornerShape(4.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+          containerColor = if (repeatMode != RepeatMode.NONE) colors.primary else colors.onPrimary.copy(alpha = 0.8f),
+          contentColor = if (repeatMode != RepeatMode.NONE) colors.onPrimary else colors.onPrimaryContainer,
+        )
+      ) {
+        val (icon, contentDesc) =
+          when (repeatMode) {
+            RepeatMode.ONE -> Icons.Filled.RepeatOne to "Repeat one"
+            RepeatMode.ALL -> Icons.Filled.Repeat to "Repeat all"
+            RepeatMode.NONE -> Icons.Filled.Repeat to "Repeat off"
           }
+        Icon(
+          imageVector = icon,
+          contentDescription = contentDesc,
+          modifier = Modifier.size(24.dp),
+        )
+      }
 
-          RepeatMode.ALL -> {
-            Triple(
-              Icons.Filled.Repeat,
-              "Repeat all",
-              colors.primary,
-            )
-          }
+      Spacer(modifier = Modifier.width(4.dp))
 
-          RepeatMode.NONE -> {
-            Triple(
-              Icons.Filled.Repeat,
-              "Repeat off",
-              colors.onPrimaryContainer.copy(alpha = 0.5f),
-            )
-          }
-        }
-      Icon(
-        imageVector = icon,
-        contentDescription = contentDesc,
-        tint = tint,
-        modifier = Modifier.size(24.dp),
-      )
-    }
-
-    // Favorite button
-    IconButton(
-      onClick = onFavoriteClick,
-      enabled = !isFavoriteLoading,
-      modifier = Modifier.size(48.dp),
-    ) {
-      val iconAlpha = if (isFavoriteLoading) 0.3f else 1f
-      Icon(
-        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
-        tint = if (isFavorite) colors.secondary else colors.onPrimaryContainer.copy(alpha = 0.5f * iconAlpha),
-        modifier =
-          Modifier
-            .size(24.dp)
-            .alpha(iconAlpha),
-      )
+      // Favorite button
+      FilledIconButton(
+        onClick = onFavoriteClick,
+        enabled = !isFavoriteLoading,
+        modifier = Modifier.size(48.dp),
+        shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp),
+        colors = IconButtonDefaults.filledIconButtonColors(
+          containerColor = if (isFavorite) colors.secondary else colors.onPrimary.copy(alpha = 0.8f),
+          contentColor = if (isFavorite) colors.onSecondary else colors.onPrimaryContainer,
+        )
+      ) {
+        val iconAlpha = if (isFavoriteLoading) 0.3f else 1f
+        Icon(
+          imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+          contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+          modifier =
+            Modifier
+              .padding(end = 4.dp)
+              .size(24.dp)
+              .alpha(iconAlpha),
+        )
+      }
     }
   }
 }

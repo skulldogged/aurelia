@@ -339,6 +339,12 @@ pub struct QueueItemData {
     pub container: Option<String>,
     /// Whether this item is a favorite
     pub is_favorite: bool,
+    /// Artist ID (optional)
+    pub artist_id: Option<String>,
+    /// Album ID (optional)
+    pub album_id: Option<String>,
+    /// Album name (optional)
+    pub album_name: Option<String>,
 }
 
 /// Player state data for persistence

@@ -101,22 +101,24 @@ private fun AureliaApp() {
     }
   }
 
-  LaunchedEffect(Unit) {
-    appViewModel.checkSession()
-  }
-
   AureliaTheme(useDynamicColor = useDynamicColor) {
-    if (appState.isLoggedIn) {
-      MainScreen(
-        sessionStore = sessionStore,
-        playerController = playerController,
-        onLogout = {
-          sessionStore.clear()
-          appViewModel.checkSession()
-        },
-      )
-    } else {
-      LoginScreen(sessionStore) { appViewModel.checkSession() }
+    when {
+      appState.isLoading -> {
+        // Show nothing while checking session - themed background only
+      }
+      appState.isLoggedIn -> {
+        MainScreen(
+          sessionStore = sessionStore,
+          playerController = playerController,
+          onLogout = {
+            sessionStore.clear()
+            appViewModel.checkSession()
+          },
+        )
+      }
+      else -> {
+        LoginScreen(sessionStore) { appViewModel.checkSession() }
+      }
     }
   }
 }

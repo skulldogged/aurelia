@@ -1,6 +1,7 @@
 package com.aurelia.app.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -191,6 +192,9 @@ fun LibraryScreen(
                     albumArtUrl = song.albumArtUrl,
                     durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
                     isFavorite = song.isFavorite ?: false,
+                    albumId = song.albumId,
+                    artistId = song.artistIds?.firstOrNull(),
+                    albumName = song.album,
                   ),
                 )
               },
@@ -206,6 +210,9 @@ fun LibraryScreen(
                     albumArtUrl = song.albumArtUrl,
                     durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
                     isFavorite = song.isFavorite ?: false,
+                    albumId = song.albumId,
+                    artistId = song.artistIds?.firstOrNull(),
+                    albumName = song.album,
                   ),
                 )
               },
@@ -266,6 +273,9 @@ fun LibraryScreen(
               albumArtUrl = song.albumArtUrl,
               durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
               isFavorite = song.isFavorite ?: false,
+              albumId = song.albumId,
+              artistId = song.artistIds?.firstOrNull(),
+              albumName = song.album,
             )
           )
         }
@@ -284,6 +294,9 @@ fun LibraryScreen(
               albumArtUrl = song.albumArtUrl,
               durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
               isFavorite = song.isFavorite ?: false,
+              albumId = song.albumId,
+              artistId = song.artistIds?.firstOrNull(),
+              albumName = song.album,
             )
           )
         }
@@ -433,6 +446,11 @@ private fun EnhancedSongItem(
             color = secondaryContentColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier =
+              Modifier.clickable(
+                enabled = onGoToArtist != null,
+                onClick = { onGoToArtist?.invoke() },
+              ),
           )
         }
 

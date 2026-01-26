@@ -194,6 +194,19 @@ fun HomeScreen(
                   viewModel.playSongFromList(continueListeningSong.id, state.recentlyPlayed)
                   onOpenPlayer()
                 },
+                onGoToArtist =
+                  if (continueListeningSong.artistIds?.isNotEmpty() == true) {
+                    {
+                      onNavigateToArtist(
+                        Screen.ArtistDetail(
+                          continueListeningSong.artistIds!!.first(),
+                          continueListeningSong.artists?.firstOrNull() ?: "Unknown",
+                        ),
+                      )
+                    }
+                  } else {
+                    null
+                  },
               )
             }
           }
@@ -244,6 +257,9 @@ fun HomeScreen(
                     albumArtUrl = song.albumArtUrl,
                     durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
                     isFavorite = song.isFavorite ?: false,
+                    albumId = song.albumId,
+                    artistId = song.artistIds?.firstOrNull(),
+                    albumName = song.album,
                   ),
                 )
               },
@@ -259,6 +275,9 @@ fun HomeScreen(
                     albumArtUrl = song.albumArtUrl,
                     durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
                     isFavorite = song.isFavorite ?: false,
+                    albumId = song.albumId,
+                    artistId = song.artistIds?.firstOrNull(),
+                    albumName = song.album,
                   ),
                 )
               },
@@ -406,6 +425,7 @@ private fun ContinueListeningHero(
   @Suppress("UNUSED_PARAMETER") isCurrentSong: Boolean,
   isPlaying: Boolean,
   onClick: () -> Unit,
+  onGoToArtist: (() -> Unit)? = null,
 ) {
   val colors = MaterialTheme.colorScheme
   val wideFont = rememberGoogleSansFlexWideFont()
@@ -525,6 +545,11 @@ private fun ContinueListeningHero(
       color = colors.onSurfaceVariant,
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
+      modifier =
+        Modifier.clickable(
+          enabled = onGoToArtist != null,
+          onClick = { onGoToArtist?.invoke() },
+        ),
     )
   }
 }
@@ -672,9 +697,19 @@ private fun QuickPickCard(
           Text(
             text = song.artists?.firstOrNull() ?: "Unknown",
             style = MaterialTheme.typography.bodySmall,
-            color = if (isCurrentSong) colors.onPrimaryContainer.copy(alpha = 0.7f) else colors.onSurfaceVariant,
+            color =
+              if (isCurrentSong) {
+                colors.onPrimaryContainer.copy(alpha = 0.7f)
+              } else {
+                colors.onSurfaceVariant
+              },
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier =
+              Modifier.clickable(
+                enabled = onGoToArtist != null,
+                onClick = { onGoToArtist?.invoke() },
+              ),
           )
         }
       }

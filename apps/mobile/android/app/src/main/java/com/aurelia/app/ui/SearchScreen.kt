@@ -340,6 +340,9 @@ fun SearchScreen(
                         albumArtUrl = result.song.albumArtUrl,
                         durationMs = (result.song.duration ?: 0.0).let { (it * 1000).toLong() },
                         isFavorite = result.song.isFavorite ?: false,
+                        albumId = result.song.albumId,
+                        artistId = result.song.artistIds?.firstOrNull(),
+                        albumName = result.song.album,
                       ),
                     )
                   },
@@ -355,6 +358,9 @@ fun SearchScreen(
                         albumArtUrl = result.song.albumArtUrl,
                         durationMs = (result.song.duration ?: 0.0).let { (it * 1000).toLong() },
                         isFavorite = result.song.isFavorite ?: false,
+                        albumId = result.song.albumId,
+                        artistId = result.song.artistIds?.firstOrNull(),
+                        albumName = result.song.album,
                       ),
                     )
                   },
@@ -510,6 +516,11 @@ private fun SongSearchResult(
             color = colors.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier =
+              Modifier.clickable(
+                enabled = onGoToArtist != null,
+                onClick = { onGoToArtist?.invoke() },
+              ),
           )
         }
         Text(

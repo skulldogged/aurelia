@@ -190,6 +190,14 @@ fun MainScreen(
     val sheetHeightPx = miniPlayerHeightPx + (screenHeightPx - miniPlayerHeightPx) * dragProgress
     val sheetHeightDp = with(density) { sheetHeightPx.toDp() }
 
+    // Keep collapsed position in sync when layout changes (e.g., initial measurement)
+    LaunchedEffect(collapsedSheetY) {
+      // Only snap if player is collapsed - don't interrupt drag/expand animations
+      if (dragProgress < 0.1f) {
+        playerDragOffset.snapTo(collapsedSheetY)
+      }
+    }
+
     fun openPlayerAnimated(initialVelocity: Float = 0f) {
       scope.launch {
         playerDragOffset.animateTo(
@@ -356,6 +364,7 @@ fun MainScreen(
             onBack = { navController.popBackStack() },
             onOpenPlayer = { openPlayerAnimated() },
             onNavigateToArtist = { navController.navigate(it) },
+            hasPlayerBar = libraryState.nowPlaying != null,
           )
         }
 
@@ -366,8 +375,11 @@ fun MainScreen(
             artistName = args.artistName,
             sessionStore = sessionStore,
             playerController = playerController,
+            playlistViewModel = playlistViewModel,
             onBack = { navController.popBackStack() },
             onOpenPlayer = { openPlayerAnimated() },
+            onNavigateToAlbum = { navController.navigate(it) },
+            hasPlayerBar = libraryState.nowPlaying != null,
           )
         }
 
@@ -387,28 +399,19 @@ fun MainScreen(
       val navBackStackEntry by navController.currentBackStackEntryAsState()
       val currentDestination = navBackStackEntry?.destination
 
-      // Logic to determine if we should show the bottom bar
-      // We show it on tab screens (Home, Songs, etc.) and Settings
-      // But NOT on detail screens
-      val shouldShowBottomBar = currentDestination?.let { dest ->
-        navItems.any { item -> dest.hierarchy.any { it.hasRoute(item.screen::class) } } ||
-          dest.hierarchy.any { it.hasRoute<Screen.Settings>() }
-      } ?: true // Default to true if destination is null (startup)
-
-      if (shouldShowBottomBar) {
-        Column(
-          modifier = Modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-        ) {
-          BottomNavBar(
-            items = navItems,
-            currentDestination = currentDestination,
-            onNavigate = { navigateToTab(it) },
-            onSettingsClick = { navigateToTab(Screen.Settings) },
-            hasPlayerBar = libraryState.nowPlaying != null,
-          )
-        }
+      // Show bottom bar on all screens
+      Column(
+        modifier = Modifier
+          .align(Alignment.BottomCenter)
+          .fillMaxWidth()
+      ) {
+        BottomNavBar(
+          items = navItems,
+          currentDestination = currentDestination,
+          onNavigate = { navigateToTab(it) },
+          onSettingsClick = { navigateToTab(Screen.Settings) },
+          hasPlayerBar = libraryState.nowPlaying != null,
+        )
       }
     }
 
@@ -483,6 +486,11 @@ fun MainScreen(
                 .align(Alignment.BottomCenter)
                 .graphicsLayer { alpha = miniPlayerAlpha }
                 .zIndex(if (dragProgress < 0.5f) 1f else 0f),
+            albumId = nowPlaying.albumId,
+            artistId = nowPlaying.artistId,
+            albumName = nowPlaying.albumName,
+            onNavigateToAlbum = { navController.navigate(it) },
+            onNavigateToArtist = { navController.navigate(it) },
           )
         }
 
@@ -517,6 +525,14 @@ fun MainScreen(
             sessionStore = sessionStore,
             onBack = { closePlayer() },
             modifier = Modifier.fillMaxSize(),
+            onNavigateToAlbum = {
+              closePlayer()
+              navController.navigate(it)
+            },
+            onNavigateToArtist = {
+              closePlayer()
+              navController.navigate(it)
+            },
           )
         }
       }
@@ -670,6 +686,11 @@ fun MiniPlayerBar(
   onDrag: (Float) -> Unit,
   onDragEnd: (Float) -> Unit,
   modifier: Modifier = Modifier,
+  albumId: String? = null,
+  artistId: String? = null,
+  albumName: String? = null,
+  onNavigateToAlbum: ((Screen.AlbumDetail) -> Unit)? = null,
+  onNavigateToArtist: ((Screen.ArtistDetail) -> Unit)? = null,
 ) {
   val colors = MaterialTheme.colorScheme
 
@@ -722,6 +743,17 @@ fun MiniPlayerBar(
           style = AlbumArtStyle.Song,
           containerColor = colors.primary.copy(alpha = 0.2f),
           contentColor = colors.onPrimaryContainer,
+          modifier =
+            Modifier
+              .size(44.dp)
+              .clickable(
+                enabled = !albumId.isNullOrBlank(),
+                onClick = {
+                  albumId?.let { id ->
+                    onNavigateToAlbum?.invoke(Screen.AlbumDetail(id, albumName ?: "Unknown Album"))
+                  }
+                },
+              ),
         )
 
         Spacer(modifier = Modifier.width(12.dp))
@@ -753,6 +785,15 @@ fun MiniPlayerBar(
             color = colors.onPrimaryContainer.copy(alpha = 0.7f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier =
+              Modifier.clickable(
+                enabled = !artistId.isNullOrBlank(),
+                onClick = {
+                  artistId?.let { id ->
+                    onNavigateToArtist?.invoke(Screen.ArtistDetail(id, artist))
+                  }
+                },
+              ),
           )
         }
       }

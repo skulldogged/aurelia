@@ -71,6 +71,9 @@ class LibraryViewModel(
             isBuffering = snapshot.isBuffering,
             hasPrevious = snapshot.hasPrevious,
             hasNext = snapshot.hasNext,
+            albumId = snapshot.currentAlbumId,
+            artistId = snapshot.currentArtistId,
+            albumName = snapshot.currentAlbumName,
           ),
         currentSongId = songId,
       )
@@ -139,17 +142,13 @@ class LibraryViewModel(
     val serverUrl = sessionStore.getServerUrl() ?: return
     val token = sessionStore.getToken() ?: return
     val url = buildStreamUrl(serverUrl, token, songId, container)
-    val durationMs =
-      (
-        mutableState.value.songs
-          .firstOrNull { it.id == songId }
-          ?.duration ?: 0.0
-        ).let { (it * 1000).toLong() }
+    val song = mutableState.value.songs.firstOrNull { it.id == songId }
+    val durationMs = (song?.duration ?: 0.0).let { (it * 1000).toLong() }
 
     // Update current song ID immediately for responsive UI
     mutableState.update { it.copy(currentSongId = songId) }
 
-    playerController.play(url, songId, title, artist, albumArtUrl, durationMs)
+    playerController.play(url, songId, title, artist, albumArtUrl, durationMs, song?.albumId, song?.artistIds?.firstOrNull())
   }
 
   /**
@@ -176,6 +175,9 @@ class LibraryViewModel(
             albumArtUrl = song.albumArtUrl,
             durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
             isFavorite = song.isFavorite ?: false,
+            albumId = song.albumId,
+            artistId = song.artistIds?.firstOrNull(),
+            albumName = song.album,
           )
         }
 
@@ -201,10 +203,5 @@ class LibraryViewModel(
 
   fun skipNext() {
     playerController.skipNext()
-  }
-
-  override fun onCleared() {
-    super.onCleared()
-    playerController.release()
   }
 }
