@@ -363,14 +363,23 @@ class PlayerController(
 
   fun seekTo(positionMs: Long) {
     withController { controller ->
-      val duration = controller.duration
-      val clampedPosition =
-        if (duration == C.TIME_UNSET) {
+      val controllerDuration = controller.duration
+      val mediaId = controller.currentMediaItem?.mediaId
+      val fallbackDuration = mediaId?.let { durationByMediaId[it] } ?: 0L
+      val duration =
+        when {
+          controllerDuration == C.TIME_UNSET || controllerDuration <= 0L -> fallbackDuration
+          else -> controllerDuration
+        }
+
+      val targetPosition =
+        if (duration <= 0L) {
+          // If duration is unknown, don't clamp to 0. Just ensure it's positive.
           positionMs.coerceAtLeast(0)
         } else {
           positionMs.coerceIn(0, duration)
         }
-      controller.seekTo(clampedPosition)
+      controller.seekTo(targetPosition)
     }
   }
 
@@ -430,6 +439,10 @@ class PlayerController(
       val listener =
         object : Player.Listener {
           override fun onIsPlayingChanged(isPlaying: Boolean) {
+            onUpdate(snapshotFrom(controller))
+          }
+
+          override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             onUpdate(snapshotFrom(controller))
           }
 
@@ -584,6 +597,12 @@ class PlayerController(
               state.currentIndex.coerceIn(0, mediaItems.size - 1),
               state.positionMs.coerceAtLeast(0),
             )
+            
+            // Explicitly seek to ensure position is set even if duration is unknown initially
+            controller.seekTo(
+              state.currentIndex.coerceIn(0, mediaItems.size - 1),
+              state.positionMs.coerceAtLeast(0)
+            )
 
             controller.shuffleModeEnabled = state.shuffleEnabled
 
@@ -616,7 +635,8 @@ class PlayerController(
   private fun snapshotFrom(controller: MediaController): PlayerSnapshot {
     val controllerDuration = controller.duration
     val mediaId = controller.currentMediaItem?.mediaId
-    val extras = controller.currentMediaItem?.mediaMetadata?.extras
+    val currentItem = controller.currentMediaItem
+    val extras = currentItem?.mediaMetadata?.extras
     val fallbackDuration = mediaId?.let { durationByMediaId[it] } ?: 0L
     val duration =
       when {
@@ -635,10 +655,13 @@ class PlayerController(
         else -> RepeatMode.NONE
       }
 
+    // Prefer metadata from the current item as it's more immediate during transitions
+    val metadata = currentItem?.mediaMetadata ?: controller.mediaMetadata
+
     return PlayerSnapshot(
-      title = controller.mediaMetadata.title?.toString() ?: "",
-      artist = controller.mediaMetadata.artist?.toString() ?: "",
-      albumArtUrl = controller.mediaMetadata.artworkUri?.toString(),
+      title = metadata.title?.toString() ?: "",
+      artist = metadata.artist?.toString() ?: "",
+      albumArtUrl = metadata.artworkUri?.toString(),
       isPlaying = controller.isPlaying,
       isBuffering = controller.playbackState == Player.STATE_BUFFERING,
       positionMs = controller.currentPosition,

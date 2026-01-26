@@ -67,13 +67,18 @@ class PlayerViewModel(
                 val lrcContent = uniffiGetLyrics(serverUrl, token, itemId, artist, title)
                 val lyrics = LyricsUtils.parseLyrics(lrcContent)
 
-                if (lyrics.isValid()) {
-                    mutableState.update { it.copy(lyrics = lyrics) }
-                } else {
-                    mutableState.update { it.copy(showLyrics = false) }
+                // Ensure we are still playing the same song
+                if (songId == mutableState.value.currentSongId) {
+                    if (lyrics.isValid()) {
+                        mutableState.update { it.copy(lyrics = lyrics) }
+                    } else {
+                        mutableState.update { it.copy(showLyrics = false) }
+                    }
                 }
             } catch (e: Exception) {
-                mutableState.update { it.copy(showLyrics = false) }
+                if (songId == mutableState.value.currentSongId) {
+                    mutableState.update { it.copy(showLyrics = false) }
+                }
                 // Only handle auth errors, ignore others (e.g., lyrics not found)
                 AuthInterceptor.handlePotentialAuthError(e)
             }
