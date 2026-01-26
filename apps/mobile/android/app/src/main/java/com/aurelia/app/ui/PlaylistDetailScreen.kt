@@ -43,8 +43,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
+import com.aurelia.app.ui.theme.SquircleShape
+import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 
 @Composable
 fun PlaylistDetailScreen(
@@ -56,6 +61,7 @@ fun PlaylistDetailScreen(
 ) {
   val state by viewModel.detailState.collectAsState()
   val colors = MaterialTheme.colorScheme
+  val wideFont = rememberGoogleSansFlexWideFont()
 
   LaunchedEffect(playlistId) {
     viewModel.loadPlaylistDetail(playlistId, playlistName)
@@ -139,11 +145,12 @@ fun PlaylistDetailScreen(
               Surface(
                 modifier =
                   Modifier
-                    .size(200.dp)
-                    .clip(RoundedCornerShape(24.dp)),
-                shape = RoundedCornerShape(24.dp),
+                    .size(240.dp)
+                    .clip(SquircleShape),
+                shape = SquircleShape,
                 color = colors.primaryContainer,
                 tonalElevation = 8.dp,
+                shadowElevation = 12.dp,
               ) {
                 Box(
                   modifier = Modifier.fillMaxSize(),
@@ -152,76 +159,92 @@ fun PlaylistDetailScreen(
                   Icon(
                     imageVector = Icons.AutoMirrored.Filled.PlaylistPlay,
                     contentDescription = null,
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(80.dp),
                     tint = colors.onPrimaryContainer.copy(alpha = 0.5f),
                   )
                 }
               }
 
-              Spacer(modifier = Modifier.height(16.dp))
+              Spacer(modifier = Modifier.height(24.dp))
 
               // Playlist name
               Text(
                 text = playlistName,
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineLarge.copy(
+                  fontFamily = wideFont,
+                  fontSize = 32.sp,
+                  lineHeight = 40.sp,
+                ),
+                fontWeight = FontWeight.Black,
                 color = colors.onPrimaryContainer,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
               )
 
-              Spacer(modifier = Modifier.height(4.dp))
+              Spacer(modifier = Modifier.height(8.dp))
 
               // Song count
               Text(
                 text = "${state.songs.size} songs",
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onPrimaryContainer.copy(alpha = 0.5f),
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.onPrimaryContainer.copy(alpha = 0.6f),
               )
 
-              Spacer(modifier = Modifier.height(16.dp))
+              Spacer(modifier = Modifier.height(24.dp))
 
               // Play and shuffle buttons
               Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
               ) {
                 // Play all button
-                FilledIconButton(
+                Button(
                   onClick = {
                     if (state.songs.isNotEmpty()) {
                       viewModel.playPlaylist(0)
                       onOpenPlayer()
                     }
                   },
-                  modifier = Modifier.size(56.dp),
-                  shape = CircleShape,
-                  colors =
-                    IconButtonDefaults.filledIconButtonColors(
-                      containerColor = colors.primary,
-                      contentColor = colors.onPrimary,
-                    ),
+                  modifier = Modifier
+                    .height(56.dp)
+                    .width(160.dp),
+                  colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.primary,
+                    contentColor = colors.onPrimary,
+                  ),
+                  contentPadding = PaddingValues(horizontal = 24.dp),
                 ) {
                   Icon(
                     imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = "Play all",
-                    modifier = Modifier.size(28.dp),
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                  )
+                  Spacer(modifier = Modifier.width(8.dp))
+                  Text(
+                    text = "Play",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
                   )
                 }
 
+                Spacer(modifier = Modifier.width(12.dp))
+
                 // Shuffle button
-                FilledIconButton(
+                Button(
                   onClick = {
                     if (state.songs.isNotEmpty()) {
                       viewModel.shufflePlaylist()
                       onOpenPlayer()
                     }
                   },
-                  modifier = Modifier.size(56.dp),
-                  shape = CircleShape,
-                  colors =
-                    IconButtonDefaults.filledIconButtonColors(
-                      containerColor = colors.secondaryContainer,
-                      contentColor = colors.onSecondaryContainer,
-                    ),
+                  modifier = Modifier
+                    .height(56.dp),
+                  colors = ButtonDefaults.buttonColors(
+                    containerColor = colors.secondaryContainer,
+                    contentColor = colors.onSecondaryContainer,
+                  ),
+                  contentPadding = PaddingValues(horizontal = 20.dp),
                 ) {
                   Icon(
                     imageVector = Icons.Filled.Shuffle,
@@ -231,7 +254,7 @@ fun PlaylistDetailScreen(
                 }
               }
 
-              Spacer(modifier = Modifier.height(24.dp))
+              Spacer(modifier = Modifier.height(32.dp))
             }
           }
 

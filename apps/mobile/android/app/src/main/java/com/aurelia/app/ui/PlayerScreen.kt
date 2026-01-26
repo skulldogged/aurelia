@@ -90,6 +90,7 @@ import com.aurelia.app.player.RepeatMode
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.WavyMusicSlider
+import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberNowPlayingStyle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -217,9 +218,11 @@ fun PlayerScreen(
             modifier =
               Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(32.dp)),
+                .clip(SquircleShape),
             color = colors.surfaceVariant,
             tonalElevation = 8.dp,
+            shadowElevation = 12.dp,
+            shape = SquircleShape,
           ) {
             if (state.albumArtUrl.isNullOrBlank()) {
               Box(

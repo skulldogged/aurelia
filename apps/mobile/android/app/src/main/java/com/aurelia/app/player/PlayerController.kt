@@ -16,6 +16,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import uniffi.aurelia_core.PlayerStateData
 import uniffi.aurelia_core.QueueItemData
 import uniffi.aurelia_core.loadPlayerState
@@ -110,6 +111,9 @@ class PlayerController(
       if (index >= 0 && index < controller.mediaItemCount) {
         controller.seekToDefaultPosition(index)
         controller.playWhenReady = true
+        if (controller.playbackState == Player.STATE_IDLE) {
+          controller.prepare()
+        }
       }
     }
   }
@@ -209,6 +213,9 @@ class PlayerController(
   fun resume() {
     withController { controller ->
       controller.playWhenReady = true
+      if (controller.playbackState == Player.STATE_IDLE) {
+        controller.prepare()
+      }
     }
   }
 
@@ -344,42 +351,44 @@ class PlayerController(
     val controller = mediaController ?: return
     if (controller.mediaItemCount == 0) return
 
+    val queueItems = mutableListOf<QueueItemData>()
+    for (i in 0 until controller.mediaItemCount) {
+      val mediaItem = controller.getMediaItemAt(i)
+      queueItems.add(
+        QueueItemData(
+          id = mediaItem.mediaId,
+          title = mediaItem.mediaMetadata.title?.toString() ?: "",
+          artist = mediaItem.mediaMetadata.artist?.toString() ?: "",
+          albumArtUrl = mediaItem.mediaMetadata.artworkUri?.toString(),
+          durationMs = durationByMediaId[mediaItem.mediaId] ?: 0L,
+          container = null,
+          isFavorite = false,
+        ),
+      )
+    }
+
+    val repeatModeStr =
+      when (controller.repeatMode) {
+        Player.REPEAT_MODE_ONE -> "ONE"
+        Player.REPEAT_MODE_ALL -> "ALL"
+        else -> "OFF"
+      }
+
+    val state =
+      PlayerStateData(
+        queue = queueItems,
+        currentIndex = controller.currentMediaItemIndex,
+        positionMs = controller.currentPosition,
+        shuffleEnabled = controller.shuffleModeEnabled,
+        repeatMode = repeatModeStr,
+      )
+
+    val logPosition = controller.currentPosition
+
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        val queueItems = mutableListOf<QueueItemData>()
-        for (i in 0 until controller.mediaItemCount) {
-          val mediaItem = controller.getMediaItemAt(i)
-          queueItems.add(
-            QueueItemData(
-              id = mediaItem.mediaId,
-              title = mediaItem.mediaMetadata.title?.toString() ?: "",
-              artist = mediaItem.mediaMetadata.artist?.toString() ?: "",
-              albumArtUrl = mediaItem.mediaMetadata.artworkUri?.toString(),
-              durationMs = durationByMediaId[mediaItem.mediaId] ?: 0L,
-              container = null,
-              isFavorite = false,
-            ),
-          )
-        }
-
-        val repeatModeStr =
-          when (controller.repeatMode) {
-            Player.REPEAT_MODE_ONE -> "ONE"
-            Player.REPEAT_MODE_ALL -> "ALL"
-            else -> "OFF"
-          }
-
-        val state =
-          PlayerStateData(
-            queue = queueItems,
-            currentIndex = controller.currentMediaItemIndex,
-            positionMs = controller.currentPosition,
-            shuffleEnabled = controller.shuffleModeEnabled,
-            repeatMode = repeatModeStr,
-          )
-
         savePlayerState(appDataDir, state)
-        Log.d(TAG, "Player state saved: ${queueItems.size} items, position ${controller.currentPosition}ms")
+        Log.d(TAG, "Player state saved: ${queueItems.size} items, position ${logPosition}ms")
       } catch (e: Exception) {
         Log.e(TAG, "Failed to save player state", e)
       }
@@ -411,49 +420,50 @@ class PlayerController(
             )
           }
 
-        // Store durations in our map
-        queueItems.forEach { item ->
-          if (item.durationMs > 0L) {
-            durationByMediaId[item.id] = item.durationMs
+        withContext(Dispatchers.Main) {
+          // Store durations in our map
+          queueItems.forEach { item ->
+            if (item.durationMs > 0L) {
+              durationByMediaId[item.id] = item.durationMs
+            }
           }
-        }
 
-        withController { controller ->
-          val mediaItems =
-            queueItems.map { item ->
-              val metadataBuilder =
-                MediaMetadata
+          withController { controller ->
+            val mediaItems =
+              queueItems.map { item ->
+                val metadataBuilder =
+                  MediaMetadata
+                    .Builder()
+                    .setTitle(item.title)
+                    .setArtist(item.artist)
+                item.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
+
+                MediaItem
                   .Builder()
-                  .setTitle(item.title)
-                  .setArtist(item.artist)
-              item.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
+                  .setMediaId(item.id)
+                  .setUri(item.uri)
+                  .setMediaMetadata(metadataBuilder.build())
+                  .build()
+              }
 
-              MediaItem
-                .Builder()
-                .setMediaId(item.id)
-                .setUri(item.uri)
-                .setMediaMetadata(metadataBuilder.build())
-                .build()
-            }
+            controller.setMediaItems(
+              mediaItems,
+              state.currentIndex.coerceIn(0, mediaItems.size - 1),
+              state.positionMs.coerceAtLeast(0),
+            )
 
-          controller.setMediaItems(
-            mediaItems,
-            state.currentIndex.coerceIn(0, mediaItems.size - 1),
-            state.positionMs.coerceAtLeast(0),
-          )
+            controller.shuffleModeEnabled = state.shuffleEnabled
 
-          controller.shuffleModeEnabled = state.shuffleEnabled
+            controller.repeatMode =
+              when (state.repeatMode) {
+                "ONE" -> Player.REPEAT_MODE_ONE
+                "ALL" -> Player.REPEAT_MODE_ALL
+                else -> Player.REPEAT_MODE_OFF
+              }
 
-          controller.repeatMode =
-            when (state.repeatMode) {
-              "ONE" -> Player.REPEAT_MODE_ONE
-              "ALL" -> Player.REPEAT_MODE_ALL
-              else -> Player.REPEAT_MODE_OFF
-            }
-
-          controller.prepare()
-          // Don't auto-play on restore - just prepare
-          controller.playWhenReady = false
+            // Don't auto-play or prepare on restore - wait for user interaction
+            controller.playWhenReady = false
+          }
         }
 
         Log.d(TAG, "Player state restored: ${queueItems.size} items at position ${state.positionMs}ms")

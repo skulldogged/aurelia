@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.player.PlayerController
@@ -56,6 +57,14 @@ import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.navigation.Screen
 import uniffi.aurelia_core.Song
 import uniffi.aurelia_core.buildStreamUrl
+
+import com.aurelia.app.ui.theme.SquircleShape
+import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.ui.text.style.TextAlign
 
 @Composable
 fun AlbumDetailScreen(
@@ -75,6 +84,7 @@ fun AlbumDetailScreen(
   val state by libraryViewModel.state.collectAsState()
   val playlistState by playlistViewModel.state.collectAsState()
   val colors = MaterialTheme.colorScheme
+  val wideFont = rememberGoogleSansFlexWideFont()
 
   // Context menu state
   var selectedSong by remember { mutableStateOf<Song?>(null) }
@@ -147,11 +157,12 @@ fun AlbumDetailScreen(
           Surface(
             modifier =
               Modifier
-                .size(200.dp)
-                .clip(RoundedCornerShape(24.dp)),
-            shape = RoundedCornerShape(24.dp),
+                .size(240.dp)
+                .clip(SquircleShape),
+            shape = SquircleShape,
             color = colors.surfaceVariant,
             tonalElevation = 8.dp,
+            shadowElevation = 12.dp,
           ) {
             if (albumArtUrl.isNullOrBlank()) {
               Box(
@@ -161,7 +172,7 @@ fun AlbumDetailScreen(
                 Icon(
                   imageVector = Icons.Filled.Album,
                   contentDescription = null,
-                  modifier = Modifier.size(64.dp),
+                  modifier = Modifier.size(80.dp),
                   tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
                 )
               }
@@ -175,74 +186,134 @@ fun AlbumDetailScreen(
             }
           }
 
-          Spacer(modifier = Modifier.height(16.dp))
+          Spacer(modifier = Modifier.height(24.dp))
 
           // Album name with display font for impact
           Text(
             text = albumName,
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge.copy(
+              fontFamily = wideFont,
+              fontSize = 32.sp,
+              lineHeight = 40.sp,
+            ),
+            fontWeight = FontWeight.Black,
             color = colors.onPrimaryContainer,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
           )
 
-          Spacer(modifier = Modifier.height(4.dp))
+          Spacer(modifier = Modifier.height(8.dp))
 
           // Artist name
           Text(
             text = artistName,
-            style = MaterialTheme.typography.bodyLarge,
-            color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.onPrimaryContainer.copy(alpha = 0.8f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
           )
 
           // Song count
           Text(
-            text = "${albumSongs.size} songs",
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.onPrimaryContainer.copy(alpha = 0.5f),
+            text = "${albumSongs.size} songs • ${calculateTotalDuration(albumSongs)}",
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onPrimaryContainer.copy(alpha = 0.6f),
+            modifier = Modifier.padding(top = 4.dp),
           )
 
-          Spacer(modifier = Modifier.height(16.dp))
+          Spacer(modifier = Modifier.height(24.dp))
 
-          // Play all button
-          FilledIconButton(
-            onClick = {
-              if (albumSongs.isNotEmpty()) {
-                val serverUrl = sessionStore.getServerUrl() ?: return@FilledIconButton
-                val token = sessionStore.getToken() ?: return@FilledIconButton
+          // Play all button (M3 Expressive: Large Pill Button)
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+          ) {
+            Button(
+              onClick = {
+                if (albumSongs.isNotEmpty()) {
+                  val serverUrl = sessionStore.getServerUrl() ?: return@Button
+                  val token = sessionStore.getToken() ?: return@Button
 
-                val queueItems =
-                  albumSongs.map { song ->
-                    QueueItem(
-                      id = song.id,
-                      uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                      title = song.name,
-                      artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                      albumArtUrl = song.albumArtUrl,
-                      durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-                      isFavorite = song.isFavorite ?: false,
-                    )
-                  }
-                playerController.setQueue(queueItems, 0)
-                onOpenPlayer()
-              }
-            },
-            modifier = Modifier.size(56.dp),
-            shape = CircleShape,
-            colors =
-              IconButtonDefaults.filledIconButtonColors(
+                  val queueItems =
+                    albumSongs.map { song ->
+                      QueueItem(
+                        id = song.id,
+                        uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+                        title = song.name,
+                        artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+                        albumArtUrl = song.albumArtUrl,
+                        durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+                        isFavorite = song.isFavorite ?: false,
+                      )
+                    }
+                  playerController.setQueue(queueItems, 0)
+                  onOpenPlayer()
+                }
+              },
+              modifier = Modifier
+                .height(56.dp)
+                .width(160.dp),
+              colors = ButtonDefaults.buttonColors(
                 containerColor = colors.primary,
                 contentColor = colors.onPrimary,
               ),
-          ) {
-            Icon(
-              imageVector = Icons.Filled.PlayArrow,
-              contentDescription = "Play all",
-              modifier = Modifier.size(28.dp),
-            )
+              contentPadding = PaddingValues(horizontal = 24.dp),
+            ) {
+              Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+              )
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text = "Play",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+              )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // Shuffle Button (Secondary Action)
+            Button(
+              onClick = {
+                 if (albumSongs.isNotEmpty()) {
+                  val serverUrl = sessionStore.getServerUrl() ?: return@Button
+                  val token = sessionStore.getToken() ?: return@Button
+
+                  val queueItems =
+                    albumSongs.map { song ->
+                      QueueItem(
+                        id = song.id,
+                        uri = buildStreamUrl(serverUrl, token, song.id, song.container),
+                        title = song.name,
+                        artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
+                        albumArtUrl = song.albumArtUrl,
+                        durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
+                        isFavorite = song.isFavorite ?: false,
+                      )
+                    }.shuffled()
+                  playerController.setQueue(queueItems, 0)
+                  onOpenPlayer()
+                }
+              },
+              modifier = Modifier
+                .height(56.dp),
+              colors = ButtonDefaults.buttonColors(
+                containerColor = colors.secondaryContainer,
+                contentColor = colors.onSecondaryContainer,
+              ),
+              contentPadding = PaddingValues(horizontal = 20.dp),
+            ) {
+               Icon(
+                imageVector = Icons.Filled.Shuffle,
+                contentDescription = "Shuffle",
+                modifier = Modifier.size(24.dp),
+              )
+            }
           }
 
-          Spacer(modifier = Modifier.height(24.dp))
+          Spacer(modifier = Modifier.height(32.dp))
         }
       }
 
@@ -389,23 +460,28 @@ private fun AlbumSongItem(
   val colors = MaterialTheme.colorScheme
   val containerColor =
     if (isCurrentSong) colors.primaryContainer.copy(alpha = 0.5f) else colors.surface.copy(alpha = 0f)
+  val shape = if (isCurrentSong) RoundedCornerShape(16.dp) else RoundedCornerShape(0.dp)
 
-  Box {
+  Box(
+    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+  ) {
     Surface(
       modifier =
         Modifier
           .fillMaxWidth()
+          .clip(shape)
           .combinedClickable(
             onClick = onClick,
             onLongClick = onLongClick,
           ),
       color = containerColor,
+      shape = shape,
     ) {
       Row(
         modifier =
           Modifier
             .fillMaxWidth()
-            .padding(start = 24.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
       ) {
         // Track number or playing indicator
@@ -483,4 +559,16 @@ private fun formatDuration(durationMs: Long): String {
   val minutes = totalSeconds / 60
   val seconds = totalSeconds % 60
   return "%d:%02d".format(minutes, seconds)
+}
+
+private fun calculateTotalDuration(songs: List<Song>): String {
+  val totalSeconds = songs.sumOf { (it.duration ?: 0.0) }.toLong()
+  val hours = totalSeconds / 3600
+  val minutes = (totalSeconds % 3600) / 60
+  
+  return if (hours > 0) {
+    "${hours}h ${minutes}m"
+  } else {
+    "${minutes} min"
+  }
 }

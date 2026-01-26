@@ -106,6 +106,14 @@
 			"url": "https://github.com/jellyfin/jellyfin",
 			"branch": "master",
 			"specialNotes": "Jellyfin media server API source code"
+		},
+		{
+			"name": "graphics-shapes",
+			"type": "git",
+			"url": "https://github.com/androidx/androidx",
+			"branch": "androidx-main",
+			"searchPath": "graphics/graphics-shapes",
+			"specialNotes": "AndroidX graphics-shapes library for M3 Expressive shapes like Puffy, Cookie, Clover, etc."
 		}
 	],
 	"model": "big-pickle",

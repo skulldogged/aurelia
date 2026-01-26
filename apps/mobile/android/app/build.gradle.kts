@@ -143,12 +143,12 @@ tasks.named("preBuild") {
 }
 
 dependencies {
-  val composeBom = platform("androidx.compose:compose-bom:2024.10.00")
+  val composeBom = platform("androidx.compose:compose-bom:2026.01.00")
   implementation(composeBom)
   androidTestImplementation(composeBom)
 
   implementation("androidx.activity:activity-compose:1.12.2")
-  implementation("androidx.compose.material3:material3:1.4.0")
+  implementation("androidx.compose.material3:material3:1.5.0-alpha12")
   implementation("androidx.compose.material:material-icons-core")
   implementation("androidx.compose.material:material-icons-extended")
   implementation("androidx.compose.ui:ui")
@@ -167,6 +167,7 @@ dependencies {
   implementation("io.coil-kt:coil-compose:2.7.0")
   implementation("com.squareup.okhttp3:okhttp:5.3.2")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+  implementation("androidx.graphics:graphics-shapes:1.1.0")
 
   debugImplementation("androidx.compose.ui:ui-tooling")
 
