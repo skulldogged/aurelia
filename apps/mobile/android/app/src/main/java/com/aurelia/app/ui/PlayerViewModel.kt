@@ -31,11 +31,11 @@ class PlayerViewModel(
             val previousSongId = mutableState.value.currentSongId
             val newSongId = snapshot.currentSongId
 
-            // Update favorite cache from queue items
+            // Update favorite cache from queue songs
             val queue = playerController.getQueue()
-            queue.forEach { item ->
-                if (!favoriteCache.containsKey(item.id)) {
-                    favoriteCache[item.id] = item.isFavorite
+            queue.forEach { song ->
+                if (!favoriteCache.containsKey(song.id)) {
+                    favoriteCache[song.id] = song.isFavorite ?: false
                 }
             }
 

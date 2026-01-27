@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.PlayerSnapshot
-import com.aurelia.app.player.QueueItem
 import com.aurelia.app.storage.SessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +13,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.aurelia_core.AppException
 import uniffi.aurelia_core.Song
-import uniffi.aurelia_core.buildStreamUrl
 import uniffi.aurelia_core.fetchSongs
 import uniffi.aurelia_core.loadCachedSongs
 
@@ -267,27 +265,8 @@ class HomeViewModel(
     val startIndex = songList.indexOfFirst { it.id == songId }
     if (startIndex < 0) return
 
-    val queueItems =
-      songList.map { song ->
-        QueueItem(
-          id = song.id,
-          uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-          title = song.name,
-          artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-          albumArtUrl = song.albumArtUrl,
-          durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-          isFavorite = song.isFavorite ?: false,
-          albumId = song.albumId,
-          artistId = song.artistIds?.firstOrNull(),
-          albumName = song.album,
-          codec = song.codec,
-          bitRate = song.bitRate,
-          sampleRate = song.sampleRate,
-        )
-      }
-
     mutableState.update { it.copy(currentSongId = songId) }
-    playerController.setQueue(queueItems, startIndex)
+    playerController.setQueue(songList, serverUrl, token, startIndex)
   }
 
   /**
@@ -304,27 +283,8 @@ class HomeViewModel(
 
     if (albumSongs.isEmpty()) return
 
-    val queueItems =
-      albumSongs.map { song ->
-        QueueItem(
-          id = song.id,
-          uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-          title = song.name,
-          artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-          albumArtUrl = song.albumArtUrl,
-          durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-          isFavorite = song.isFavorite ?: false,
-          albumId = song.albumId,
-          artistId = song.artistIds?.firstOrNull(),
-          albumName = song.album,
-          codec = song.codec,
-          bitRate = song.bitRate,
-          sampleRate = song.sampleRate,
-        )
-      }
-
     mutableState.update { it.copy(currentSongId = albumSongs.first().id) }
-    playerController.setQueue(queueItems, 0)
+    playerController.setQueue(albumSongs, serverUrl, token)
   }
 
   /**
@@ -341,27 +301,8 @@ class HomeViewModel(
 
     if (albumSongs.isEmpty()) return
 
-    val queueItems =
-      albumSongs.map { song ->
-        QueueItem(
-          id = song.id,
-          uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-          title = song.name,
-          artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-          albumArtUrl = song.albumArtUrl,
-          durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-          isFavorite = song.isFavorite ?: false,
-          albumId = song.albumId,
-          artistId = song.artistIds?.firstOrNull(),
-          albumName = song.album,
-          codec = song.codec,
-          bitRate = song.bitRate,
-          sampleRate = song.sampleRate,
-        )
-      }
-
     mutableState.update { it.copy(currentSongId = albumSongs.first().id) }
-    playerController.setQueue(queueItems, 0)
+    playerController.setQueue(albumSongs, serverUrl, token)
   }
 
   fun togglePlayPause() {

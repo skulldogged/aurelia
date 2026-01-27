@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.PlayerSnapshot
-import com.aurelia.app.player.QueueItem
 import com.aurelia.app.storage.SessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +12,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.aurelia_core.AppException
-import uniffi.aurelia_core.buildStreamUrl
 import uniffi.aurelia_core.fetchSongs
 import uniffi.aurelia_core.loadCachedSongs
 
@@ -132,23 +130,15 @@ class LibraryViewModel(
     }
   }
 
-  fun play(
-    songId: String,
-    container: String?,
-    title: String,
-    artist: String?,
-    albumArtUrl: String? = null,
-  ) {
+  fun play(songId: String) {
     val serverUrl = sessionStore.getServerUrl() ?: return
     val token = sessionStore.getToken() ?: return
-    val url = buildStreamUrl(serverUrl, token, songId, container)
-    val song = mutableState.value.songs.firstOrNull { it.id == songId }
-    val durationMs = (song?.duration ?: 0.0).let { (it * 1000).toLong() }
+    val song = mutableState.value.songs.firstOrNull { it.id == songId } ?: return
 
     // Update current song ID immediately for responsive UI
     mutableState.update { it.copy(currentSongId = songId) }
 
-    playerController.play(url, songId, title, artist, albumArtUrl, durationMs, song?.albumId, song?.artistIds?.firstOrNull())
+    playerController.play(song, serverUrl, token)
   }
 
   /**
@@ -163,32 +153,10 @@ class LibraryViewModel(
     val startIndex = songs.indexOfFirst { it.id == songId }
     if (startIndex < 0) return
 
-    // Build queue items on background thread to avoid UI stutter
-    viewModelScope.launch(Dispatchers.Default) {
-      val queueItems =
-        songs.map { song ->
-          QueueItem(
-            id = song.id,
-            uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-            title = song.name,
-            artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-            albumArtUrl = song.albumArtUrl,
-            durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-            isFavorite = song.isFavorite ?: false,
-            albumId = song.albumId,
-            artistId = song.artistIds?.firstOrNull(),
-            albumName = song.album,
-            codec = song.codec,
-            bitRate = song.bitRate,
-            sampleRate = song.sampleRate,
-          )
-        }
+    // Update current song ID immediately for responsive UI
+    mutableState.update { it.copy(currentSongId = songId) }
 
-      // Update current song ID immediately for responsive UI
-      mutableState.update { it.copy(currentSongId = songId) }
-
-      playerController.setQueue(queueItems, startIndex)
-    }
+    playerController.setQueue(songs, serverUrl, token, startIndex)
   }
 
   fun togglePlayPause() {

@@ -86,8 +86,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.data.model.Lyrics
 import com.aurelia.app.player.PlayerController
-import com.aurelia.app.player.QueueItem
 import com.aurelia.app.player.RepeatMode
+import uniffi.aurelia_core.Song
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.WavyMusicSlider
@@ -947,7 +947,7 @@ private fun LyricsView(
 
 @Composable
 private fun QueueContent(
-  queue: List<QueueItem>,
+  queue: List<Song>,
   currentIndex: Int,
   onItemClick: (Int) -> Unit,
   modifier: Modifier = Modifier,
@@ -1009,7 +1009,7 @@ private fun QueueContent(
 
 @Composable
 private fun QueueItemRow(
-  item: QueueItem,
+  item: Song,
   isPlaying: Boolean,
   position: Int,
   onClick: () -> Unit,
@@ -1070,7 +1070,7 @@ private fun QueueItemRow(
 
     Column(modifier = Modifier.weight(1f)) {
       Text(
-        text = item.title,
+        text = item.name,
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Normal,
         color = if (isPlaying) colors.primary else colors.onSurface,
@@ -1078,7 +1078,7 @@ private fun QueueItemRow(
         overflow = TextOverflow.Ellipsis,
       )
       Text(
-        text = item.artist,
+        text = item.artists?.joinToString(", ") ?: "",
         style = MaterialTheme.typography.bodySmall,
         color = colors.onSurfaceVariant,
         maxLines = 1,

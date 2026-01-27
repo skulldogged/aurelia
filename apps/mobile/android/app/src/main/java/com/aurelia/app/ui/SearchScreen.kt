@@ -49,7 +49,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aurelia.app.player.PlayerController
-import com.aurelia.app.player.QueueItem
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
@@ -58,8 +57,6 @@ import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.navigation.Screen
 import uniffi.aurelia_core.Song
-import uniffi.aurelia_core.buildStreamUrl
-
 sealed class SearchResult {
   data class SongResult(
     val song: Song,
@@ -309,13 +306,7 @@ fun SearchScreen(
                 SongSearchResult(
                   song = result.song,
                   onClick = {
-                    libraryViewModel.play(
-                      result.song.id,
-                      result.song.container,
-                      result.song.name,
-                      result.song.artists?.joinToString(", "),
-                      result.song.albumArtUrl,
-                    )
+                    libraryViewModel.play(result.song.id)
                     onOpenPlayer()
                   },
                   onLongClick = {
@@ -331,44 +322,12 @@ fun SearchScreen(
                   onAddToQueue = {
                     val serverUrl = sessionStore.getServerUrl() ?: return@SongSearchResult
                     val token = sessionStore.getToken() ?: return@SongSearchResult
-                    playerController.addToQueue(
-                      QueueItem(
-                        id = result.song.id,
-                        uri = buildStreamUrl(serverUrl, token, result.song.id, result.song.container),
-                        title = result.song.name,
-                        artist = result.song.artists?.joinToString(", ") ?: "Unknown Artist",
-                        albumArtUrl = result.song.albumArtUrl,
-                        durationMs = (result.song.duration ?: 0.0).let { (it * 1000).toLong() },
-                        isFavorite = result.song.isFavorite ?: false,
-                        albumId = result.song.albumId,
-                        artistId = result.song.artistIds?.firstOrNull(),
-                        albumName = result.song.album,
-                        codec = result.song.codec,
-                        bitRate = result.song.bitRate,
-                        sampleRate = result.song.sampleRate,
-                      ),
-                    )
+                    playerController.addToQueue(result.song, serverUrl, token)
                   },
                   onPlayNext = {
                     val serverUrl = sessionStore.getServerUrl() ?: return@SongSearchResult
                     val token = sessionStore.getToken() ?: return@SongSearchResult
-                    playerController.playNext(
-                      QueueItem(
-                        id = result.song.id,
-                        uri = buildStreamUrl(serverUrl, token, result.song.id, result.song.container),
-                        title = result.song.name,
-                        artist = result.song.artists?.joinToString(", ") ?: "Unknown Artist",
-                        albumArtUrl = result.song.albumArtUrl,
-                        durationMs = (result.song.duration ?: 0.0).let { (it * 1000).toLong() },
-                        isFavorite = result.song.isFavorite ?: false,
-                        albumId = result.song.albumId,
-                        artistId = result.song.artistIds?.firstOrNull(),
-                        albumName = result.song.album,
-                        codec = result.song.codec,
-                        bitRate = result.song.bitRate,
-                        sampleRate = result.song.sampleRate,
-                      ),
-                    )
+                    playerController.playNext(result.song, serverUrl, token)
                   },
                   onAddToPlaylist = {
                     selectedSong = result.song

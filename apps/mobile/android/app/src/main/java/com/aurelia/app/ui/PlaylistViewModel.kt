@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlayerController
-import com.aurelia.app.player.QueueItem
 import com.aurelia.app.storage.SessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +13,6 @@ import kotlinx.coroutines.launch
 import uniffi.aurelia_core.AppException
 import uniffi.aurelia_core.PlaylistCreateData
 import uniffi.aurelia_core.addPlaylistItems
-import uniffi.aurelia_core.buildStreamUrl
 import uniffi.aurelia_core.createPlaylist
 import uniffi.aurelia_core.deletePlaylist
 import uniffi.aurelia_core.getPlaylistItems
@@ -188,26 +186,7 @@ class PlaylistViewModel(
 
     if (songs.isEmpty()) return
 
-    val queueItems =
-      songs.map { song ->
-        QueueItem(
-          id = song.id,
-          uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-          title = song.name,
-          artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-          albumArtUrl = song.albumArtUrl,
-          durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-          isFavorite = song.isFavorite ?: false,
-          albumId = song.albumId,
-          artistId = song.artistIds?.firstOrNull(),
-          albumName = song.album,
-          codec = song.codec,
-          bitRate = song.bitRate,
-          sampleRate = song.sampleRate,
-        )
-      }
-
-    playerController.setQueue(queueItems, startIndex)
+    playerController.setQueue(songs, serverUrl, token, startIndex)
   }
 
   fun shufflePlaylist() {
@@ -217,26 +196,7 @@ class PlaylistViewModel(
 
     if (songs.isEmpty()) return
 
-    val queueItems =
-      songs.map { song ->
-        QueueItem(
-          id = song.id,
-          uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-          title = song.name,
-          artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-          albumArtUrl = song.albumArtUrl,
-          durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-          isFavorite = song.isFavorite ?: false,
-          albumId = song.albumId,
-          artistId = song.artistIds?.firstOrNull(),
-          albumName = song.album,
-          codec = song.codec,
-          bitRate = song.bitRate,
-          sampleRate = song.sampleRate,
-        )
-      }
-
-    playerController.setQueue(queueItems, 0)
+    playerController.setQueue(songs, serverUrl, token)
   }
 
   fun clearError() {

@@ -22,27 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import uniffi.aurelia_core.PlayerStateData
-import uniffi.aurelia_core.QueueItemData
-import uniffi.aurelia_core.loadPlayerState
-import uniffi.aurelia_core.savePlayerState
-
-data class QueueItem(
-  val id: String,
-  val uri: String,
-  val title: String,
-  val artist: String,
-  val albumArtUrl: String?,
-  val durationMs: Long = 0L,
-  val isFavorite: Boolean = false,
-  val albumId: String? = null,
-  val artistId: String? = null,
-  val albumName: String? = null,
-  val codec: String? = null,
-  val bitRate: Int? = null,
-  val sampleRate: Int? = null,
-)
+import uniffi.aurelia_core.Song
+import uniffi.aurelia_core.buildStreamUrl
 
 class PlayerController(
   private val context: Context,
@@ -51,13 +32,7 @@ class PlayerController(
   private var controllerFuture: ListenableFuture<MediaController>? = null
   private var mediaController: MediaController? = null
   private var playbackEndedCallback: (() -> Unit)? = null
-  private val durationByMediaId: MutableMap<String, Long> = mutableMapOf()
-  private val artistIdByMediaId: MutableMap<String, String> = mutableMapOf()
-  private val albumIdByMediaId: MutableMap<String, String> = mutableMapOf()
-  private val albumNameByMediaId: MutableMap<String, String> = mutableMapOf()
-  private val codecByMediaId: MutableMap<String, String> = mutableMapOf()
-  private val bitRateByMediaId: MutableMap<String, Int> = mutableMapOf()
-  private val sampleRateByMediaId: MutableMap<String, Int> = mutableMapOf()
+  private val songByMediaId: MutableMap<String, Song> = mutableMapOf()
 
   // Connection state tracking
   private val _isConnected = MutableStateFlow(false)
@@ -150,83 +125,32 @@ class PlayerController(
   }
 
   fun setQueue(
-    items: List<QueueItem>,
+    songs: List<Song>,
+    serverUrl: String,
+    token: String,
     startIndex: Int = 0,
     startPositionMs: Long = 0L,
     autoPlay: Boolean = true,
   ) {
-    durationByMediaId.clear()
-    artistIdByMediaId.clear()
-    albumIdByMediaId.clear()
-    albumNameByMediaId.clear()
-    codecByMediaId.clear()
-    bitRateByMediaId.clear()
-    sampleRateByMediaId.clear()
-
-    items.forEach { item ->
-      if (item.durationMs > 0L) {
-        durationByMediaId[item.id] = item.durationMs
-      }
-      item.artistId?.let { artistIdByMediaId[item.id] = it }
-      item.albumId?.let { albumIdByMediaId[item.id] = it }
-      item.albumName?.let { albumNameByMediaId[item.id] = it }
-      item.codec?.let { codecByMediaId[item.id] = it }
-      item.bitRate?.let { bitRateByMediaId[item.id] = it }
-      item.sampleRate?.let { sampleRateByMediaId[item.id] = it }
-    }
+    songByMediaId.clear()
+    songs.forEach { song -> songByMediaId[song.id] = song }
 
     withController { controller ->
-      val mediaItems =
-        items.map { item ->
-          val extras = Bundle().apply {
-            item.albumId?.let { putString(EXTRA_ALBUM_ID, it) }
-            item.artistId?.let { putString(EXTRA_ARTIST_ID, it) }
-          }
-          val metadataBuilder =
-            MediaMetadata
-              .Builder()
-              .setTitle(item.title)
-              .setArtist(item.artist)
-              .setExtras(extras)
-          item.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
-
-          MediaItem
-            .Builder()
-            .setMediaId(item.id)
-            .setUri(item.uri)
-            .setMediaMetadata(metadataBuilder.build())
-            .build()
-        }
+      val mediaItems = songs.map { song -> buildMediaItem(song, serverUrl, token) }
       controller.setMediaItems(mediaItems, startIndex, startPositionMs)
       controller.prepare()
       controller.playWhenReady = autoPlay
     }
   }
 
-  fun getQueue(): List<QueueItem> {
+  fun getQueue(): List<Song> {
     val controller = mediaController ?: return emptyList()
-    val items = mutableListOf<QueueItem>()
+    val songs = mutableListOf<Song>()
     for (i in 0 until controller.mediaItemCount) {
       val mediaItem = controller.getMediaItemAt(i)
-      val extras = mediaItem.mediaMetadata.extras
-      items.add(
-        QueueItem(
-          id = mediaItem.mediaId,
-          uri = mediaItem.localConfiguration?.uri?.toString() ?: "",
-          title = mediaItem.mediaMetadata.title?.toString() ?: "",
-          artist = mediaItem.mediaMetadata.artist?.toString() ?: "",
-          albumArtUrl = mediaItem.mediaMetadata.artworkUri?.toString(),
-          durationMs = durationByMediaId[mediaItem.mediaId] ?: 0L,
-          albumId = albumIdByMediaId[mediaItem.mediaId] ?: extras?.getString(EXTRA_ALBUM_ID),
-          artistId = artistIdByMediaId[mediaItem.mediaId] ?: extras?.getString(EXTRA_ARTIST_ID),
-          albumName = albumNameByMediaId[mediaItem.mediaId] ?: extras?.getString(EXTRA_ALBUM_NAME),
-          codec = codecByMediaId[mediaItem.mediaId],
-          bitRate = bitRateByMediaId[mediaItem.mediaId],
-          sampleRate = sampleRateByMediaId[mediaItem.mediaId],
-        ),
-      )
+      songByMediaId[mediaItem.mediaId]?.let { songs.add(it) }
     }
-    return items
+    return songs
   }
 
   fun getCurrentQueueIndex(): Int = mediaController?.currentMediaItemIndex ?: -1
@@ -243,121 +167,25 @@ class PlayerController(
     }
   }
 
-  fun addToQueue(item: QueueItem) {
-    if (item.durationMs > 0L) {
-      durationByMediaId[item.id] = item.durationMs
-    }
-    item.artistId?.let { artistIdByMediaId[item.id] = it }
-    item.albumId?.let { albumIdByMediaId[item.id] = it }
-    item.albumName?.let { albumNameByMediaId[item.id] = it }
-    item.codec?.let { codecByMediaId[item.id] = it }
-    item.bitRate?.let { bitRateByMediaId[item.id] = it }
-    item.sampleRate?.let { sampleRateByMediaId[item.id] = it }
-
+  fun addToQueue(song: Song, serverUrl: String, token: String) {
+    songByMediaId[song.id] = song
     withController { controller ->
-      val extras = Bundle().apply {
-        item.albumId?.let { putString(EXTRA_ALBUM_ID, it) }
-        item.artistId?.let { putString(EXTRA_ARTIST_ID, it) }
-        item.albumName?.let { putString(EXTRA_ALBUM_NAME, it) }
-      }
-      val metadataBuilder =
-        MediaMetadata
-          .Builder()
-          .setTitle(item.title)
-          .setArtist(item.artist)
-          .setExtras(extras)
-      item.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
-
-      val mediaItem =
-        MediaItem
-          .Builder()
-          .setMediaId(item.id)
-          .setUri(item.uri)
-          .setMediaMetadata(metadataBuilder.build())
-          .build()
-
-      controller.addMediaItem(mediaItem)
+      controller.addMediaItem(buildMediaItem(song, serverUrl, token))
     }
   }
 
-  fun playNext(item: QueueItem) {
-    if (item.durationMs > 0L) {
-      durationByMediaId[item.id] = item.durationMs
-    }
-    item.artistId?.let { artistIdByMediaId[item.id] = it }
-    item.albumId?.let { albumIdByMediaId[item.id] = it }
-    item.albumName?.let { albumNameByMediaId[item.id] = it }
-    item.codec?.let { codecByMediaId[item.id] = it }
-    item.bitRate?.let { bitRateByMediaId[item.id] = it }
-    item.sampleRate?.let { sampleRateByMediaId[item.id] = it }
-
+  fun playNext(song: Song, serverUrl: String, token: String) {
+    songByMediaId[song.id] = song
     withController { controller ->
-      val extras = Bundle().apply {
-        item.albumId?.let { putString(EXTRA_ALBUM_ID, it) }
-        item.artistId?.let { putString(EXTRA_ARTIST_ID, it) }
-        item.albumName?.let { putString(EXTRA_ALBUM_NAME, it) }
-      }
-      val metadataBuilder =
-        MediaMetadata
-          .Builder()
-          .setTitle(item.title)
-          .setArtist(item.artist)
-          .setExtras(extras)
-      item.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
-
-      val mediaItem =
-        MediaItem
-          .Builder()
-          .setMediaId(item.id)
-          .setUri(item.uri)
-          .setMediaMetadata(metadataBuilder.build())
-          .build()
-
       val insertIndex = controller.currentMediaItemIndex + 1
-      controller.addMediaItem(insertIndex, mediaItem)
+      controller.addMediaItem(insertIndex, buildMediaItem(song, serverUrl, token))
     }
   }
 
-  fun play(
-    url: String,
-    mediaId: String,
-    title: String,
-    artist: String?,
-    albumArtUrl: String? = null,
-    durationMs: Long = 0L,
-    albumId: String? = null,
-    artistId: String? = null,
-    albumName: String? = null,
-  ) {
-    if (durationMs > 0L) {
-      durationByMediaId[mediaId] = durationMs
-    }
-    artistId?.let { artistIdByMediaId[mediaId] = it }
-    albumId?.let { albumIdByMediaId[mediaId] = it }
-    albumName?.let { albumNameByMediaId[mediaId] = it }
-
+  fun play(song: Song, serverUrl: String, token: String) {
+    songByMediaId[song.id] = song
     withController { controller ->
-      val extras = Bundle().apply {
-        albumId?.let { putString(EXTRA_ALBUM_ID, it) }
-        artistId?.let { putString(EXTRA_ARTIST_ID, it) }
-        albumName?.let { putString(EXTRA_ALBUM_NAME, it) }
-      }
-      val metadataBuilder =
-        MediaMetadata
-          .Builder()
-          .setTitle(title)
-          .setArtist(artist)
-          .setExtras(extras)
-      albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
-
-      val mediaItem =
-        MediaItem
-          .Builder()
-          .setMediaId(mediaId)
-          .setUri(url)
-          .setMediaMetadata(metadataBuilder.build())
-          .build()
-      controller.setMediaItem(mediaItem)
+      controller.setMediaItem(buildMediaItem(song, serverUrl, token))
       controller.prepare()
       controller.playWhenReady = true
     }
@@ -388,7 +216,7 @@ class PlayerController(
     withController { controller ->
       val controllerDuration = controller.duration
       val mediaId = controller.currentMediaItem?.mediaId
-      val fallbackDuration = mediaId?.let { durationByMediaId[it] } ?: 0L
+      val fallbackDuration = mediaId?.let { songByMediaId[it]?.duration?.let { d -> (d * 1000).toLong() } } ?: 0L
       val duration =
         when {
           controllerDuration == C.TIME_UNSET || controllerDuration <= 0L -> fallbackDuration
@@ -505,113 +333,6 @@ class PlayerController(
     _isConnected.value = false
   }
 
-  fun saveState(appDataDir: String) {
-    if (appDataDir.isBlank()) return
-
-    val controller = mediaController ?: return
-    if (controller.mediaItemCount == 0) return
-
-    val queueItems = mutableListOf<QueueItemData>()
-    for (i in 0 until controller.mediaItemCount) {
-      val mediaItem = controller.getMediaItemAt(i)
-      queueItems.add(
-        QueueItemData(
-          id = mediaItem.mediaId,
-          title = mediaItem.mediaMetadata.title?.toString() ?: "",
-          artist = mediaItem.mediaMetadata.artist?.toString() ?: "",
-          albumArtUrl = mediaItem.mediaMetadata.artworkUri?.toString(),
-          durationMs = durationByMediaId[mediaItem.mediaId] ?: 0L,
-          container = null,
-          isFavorite = false,
-          artistId = artistIdByMediaId[mediaItem.mediaId],
-          albumId = albumIdByMediaId[mediaItem.mediaId],
-          albumName = albumNameByMediaId[mediaItem.mediaId],
-        ),
-      )
-    }
-
-    val repeatModeStr =
-      when (controller.repeatMode) {
-        Player.REPEAT_MODE_ONE -> "ONE"
-        Player.REPEAT_MODE_ALL -> "ALL"
-        else -> "OFF"
-      }
-
-    val state =
-      PlayerStateData(
-        queue = queueItems,
-        currentIndex = controller.currentMediaItemIndex,
-        positionMs = controller.currentPosition,
-        shuffleEnabled = controller.shuffleModeEnabled,
-        repeatMode = repeatModeStr,
-      )
-
-    val logPosition = controller.currentPosition
-
-    CoroutineScope(Dispatchers.IO).launch {
-      try {
-        savePlayerState(appDataDir, state)
-        Log.d(TAG, "Player state saved: ${queueItems.size} items, position ${logPosition}ms")
-      } catch (e: Exception) {
-        Log.e(TAG, "Failed to save player state", e)
-      }
-    }
-  }
-
-  fun restoreState(
-    appDataDir: String,
-    buildStreamUrl: (String, String?) -> String,
-  ) {
-    if (appDataDir.isBlank()) return
-
-    CoroutineScope(Dispatchers.IO).launch {
-      try {
-        val state = loadPlayerState(appDataDir) ?: return@launch
-
-        if (state.queue.isEmpty()) return@launch
-
-        val queueItems =
-          state.queue.map { item ->
-            QueueItem(
-              id = item.id,
-              uri = buildStreamUrl(item.id, item.container),
-              title = item.title,
-              artist = item.artist,
-              albumArtUrl = item.albumArtUrl,
-              durationMs = item.durationMs,
-              isFavorite = item.isFavorite,
-              artistId = item.artistId,
-              albumId = item.albumId,
-              albumName = item.albumName,
-            )
-          }
-
-        withContext(Dispatchers.Main) {
-          setQueue(
-            items = queueItems,
-            startIndex = state.currentIndex.coerceIn(0, queueItems.size - 1),
-            startPositionMs = state.positionMs.coerceAtLeast(0),
-            autoPlay = false,
-          )
-
-          withController { controller ->
-            controller.shuffleModeEnabled = state.shuffleEnabled
-            controller.repeatMode =
-              when (state.repeatMode) {
-                "ONE" -> Player.REPEAT_MODE_ONE
-                "ALL" -> Player.REPEAT_MODE_ALL
-                else -> Player.REPEAT_MODE_OFF
-              }
-          }
-        }
-
-        Log.d(TAG, "Player state restored: ${queueItems.size} items at position ${state.positionMs}ms")
-      } catch (e: Exception) {
-        Log.e(TAG, "Failed to restore player state", e)
-      }
-    }
-  }
-
   companion object {
     private const val TAG = "PlayerController"
     private const val EXTRA_ALBUM_ID = "album_id"
@@ -619,21 +340,40 @@ class PlayerController(
     private const val EXTRA_ALBUM_NAME = "album_name"
   }
 
+  private fun buildMediaItem(song: Song, serverUrl: String, token: String): MediaItem {
+    val uri = buildStreamUrl(serverUrl, token, song.id, song.container)
+    val artist = song.artists?.joinToString(", ") ?: ""
+    val extras = Bundle().apply {
+      song.albumId?.let { putString(EXTRA_ALBUM_ID, it) }
+      song.artistIds?.firstOrNull()?.let { putString(EXTRA_ARTIST_ID, it) }
+      song.album?.let { putString(EXTRA_ALBUM_NAME, it) }
+    }
+    val metadataBuilder =
+      MediaMetadata
+        .Builder()
+        .setTitle(song.name)
+        .setArtist(artist)
+        .setExtras(extras)
+    song.albumArtUrl?.let { metadataBuilder.setArtworkUri(it.toUri()) }
+
+    return MediaItem
+      .Builder()
+      .setMediaId(song.id)
+      .setUri(uri)
+      .setMediaMetadata(metadataBuilder.build())
+      .build()
+  }
+
   private fun snapshotFrom(controller: MediaController): PlayerSnapshot {
     val controllerDuration = controller.duration
     val mediaId = controller.currentMediaItem?.mediaId
-    val currentItem = controller.currentMediaItem
-    val extras = currentItem?.mediaMetadata?.extras
-    val fallbackDuration = mediaId?.let { durationByMediaId[it] } ?: 0L
+    val song = mediaId?.let { songByMediaId[it] }
+    val fallbackDurationMs = song?.duration?.let { (it * 1000).toLong() } ?: 0L
     val duration =
       when {
-        controllerDuration == C.TIME_UNSET || controllerDuration <= 0L -> fallbackDuration
+        controllerDuration == C.TIME_UNSET || controllerDuration <= 0L -> fallbackDurationMs
         else -> controllerDuration
       }
-
-    val currentArtistId = mediaId?.let { artistIdByMediaId[it] } ?: extras?.getString(EXTRA_ARTIST_ID)
-    val currentAlbumId = mediaId?.let { albumIdByMediaId[it] } ?: extras?.getString(EXTRA_ALBUM_ID)
-    val currentAlbumName = mediaId?.let { albumNameByMediaId[it] } ?: extras?.getString(EXTRA_ALBUM_NAME)
 
     val repeatMode =
       when (controller.repeatMode) {
@@ -643,11 +383,8 @@ class PlayerController(
       }
 
     // Prefer metadata from the current item as it's more immediate during transitions
+    val currentItem = controller.currentMediaItem
     val metadata = currentItem?.mediaMetadata ?: controller.mediaMetadata
-
-    val currentCodec = mediaId?.let { codecByMediaId[it] }
-    val currentBitRate = mediaId?.let { bitRateByMediaId[it] }
-    val currentSampleRate = mediaId?.let { sampleRateByMediaId[it] }
 
     return PlayerSnapshot(
       title = metadata.title?.toString() ?: "",
@@ -662,14 +399,14 @@ class PlayerController(
       isShuffled = controller.shuffleModeEnabled,
       repeatMode = repeatMode,
       currentSongId = mediaId,
-      currentAlbumId = currentAlbumId,
-      currentArtistId = currentArtistId,
-      currentAlbumName = currentAlbumName,
+      currentAlbumId = song?.albumId,
+      currentArtistId = song?.artistIds?.firstOrNull(),
+      currentAlbumName = song?.album,
       playbackSpeed = controller.playbackParameters.speed,
       updateTimeMs = SystemClock.elapsedRealtime(),
-      codec = currentCodec,
-      bitRate = currentBitRate,
-      sampleRate = currentSampleRate,
+      codec = song?.codec,
+      bitRate = song?.bitRate,
+      sampleRate = song?.sampleRate,
     )
   }
 

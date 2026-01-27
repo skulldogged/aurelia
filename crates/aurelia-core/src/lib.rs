@@ -282,31 +282,5 @@ pub fn get_playlist_items(
     })
 }
 
-// Player state persistence
-
-#[uniffi::export]
-pub fn save_player_state(
-    app_data_dir: String,
-    state: models::PlayerStateData,
-) -> Result<(), error::AppError> {
-    if app_data_dir.is_empty() {
-        return Ok(());
-    }
-    let app_dir = std::path::PathBuf::from(app_data_dir);
-    cache::save_player_state(app_dir, &state)
-        .map_err(|err| error::AppError::Database(err.to_string()))
-}
-
-#[uniffi::export]
-pub fn load_player_state(
-    app_data_dir: String,
-) -> Result<Option<models::PlayerStateData>, error::AppError> {
-    if app_data_dir.is_empty() {
-        return Ok(None);
-    }
-    let app_dir = std::path::PathBuf::from(app_data_dir);
-    cache::load_player_state(app_dir)
-        .map_err(|err| error::AppError::Database(err.to_string()))
-}
 
 uniffi::setup_scaffolding!();

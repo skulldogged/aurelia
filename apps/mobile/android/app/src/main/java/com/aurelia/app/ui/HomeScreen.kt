@@ -66,7 +66,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.aurelia.app.player.PlayerController
-import com.aurelia.app.player.QueueItem
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.components.PlaylistPickerDialog
@@ -79,8 +78,6 @@ import com.aurelia.app.ui.theme.rememberContextualStyle
 import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
 import com.aurelia.app.ui.theme.rememberPressScale
 import uniffi.aurelia_core.Song
-import uniffi.aurelia_core.buildStreamUrl
-
 @Composable
 fun HomeScreen(
   viewModel: HomeViewModel,
@@ -248,44 +245,12 @@ fun HomeScreen(
               onAddToQueue = {
                 val serverUrl = sessionStore.getServerUrl() ?: return@QuickPickCard
                 val token = sessionStore.getToken() ?: return@QuickPickCard
-                playerController.addToQueue(
-                  QueueItem(
-                    id = song.id,
-                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                    title = song.name,
-                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                    albumArtUrl = song.albumArtUrl,
-                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-                    isFavorite = song.isFavorite ?: false,
-                    albumId = song.albumId,
-                    artistId = song.artistIds?.firstOrNull(),
-                    albumName = song.album,
-                    codec = song.codec,
-                    bitRate = song.bitRate,
-                    sampleRate = song.sampleRate,
-                  ),
-                )
+                playerController.addToQueue(song, serverUrl, token)
               },
               onPlayNext = {
                 val serverUrl = sessionStore.getServerUrl() ?: return@QuickPickCard
                 val token = sessionStore.getToken() ?: return@QuickPickCard
-                playerController.playNext(
-                  QueueItem(
-                    id = song.id,
-                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                    title = song.name,
-                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                    albumArtUrl = song.albumArtUrl,
-                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-                    isFavorite = song.isFavorite ?: false,
-                    albumId = song.albumId,
-                    artistId = song.artistIds?.firstOrNull(),
-                    albumName = song.album,
-                    codec = song.codec,
-                    bitRate = song.bitRate,
-                    sampleRate = song.sampleRate,
-                  ),
-                )
+                playerController.playNext(song, serverUrl, token)
               },
               onAddToPlaylist = {
                 selectedSong = song

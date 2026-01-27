@@ -1,8 +1,8 @@
 package com.aurelia.app.ui
 
 import com.aurelia.app.data.model.Lyrics
-import com.aurelia.app.player.QueueItem
 import com.aurelia.app.player.RepeatMode
+import uniffi.aurelia_core.Song
 
 data class PlayerState(
   val title: String = "",
@@ -12,7 +12,7 @@ data class PlayerState(
   val isBuffering: Boolean = false,
   val positionMs: Long = 0L,
   val durationMs: Long = 0L,
-  val queue: List<QueueItem> = emptyList(),
+  val queue: List<Song> = emptyList(),
   val currentQueueIndex: Int = -1,
   val lyrics: Lyrics? = null,
   val showLyrics: Boolean = false,

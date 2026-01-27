@@ -43,7 +43,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aurelia.app.player.PlayerController
-import com.aurelia.app.player.QueueItem
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
@@ -52,8 +51,6 @@ import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.navigation.Screen
 import uniffi.aurelia_core.Song
-import uniffi.aurelia_core.buildStreamUrl
-
 @Composable
 fun LibraryScreen(
   sessionStore: SessionStore,
@@ -183,44 +180,12 @@ fun LibraryScreen(
               onAddToQueue = {
                 val serverUrl = sessionStore.getServerUrl() ?: return@EnhancedSongItem
                 val token = sessionStore.getToken() ?: return@EnhancedSongItem
-                playerController.addToQueue(
-                  QueueItem(
-                    id = song.id,
-                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                    title = song.name,
-                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                    albumArtUrl = song.albumArtUrl,
-                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-                    isFavorite = song.isFavorite ?: false,
-                    albumId = song.albumId,
-                    artistId = song.artistIds?.firstOrNull(),
-                    albumName = song.album,
-                    codec = song.codec,
-                    bitRate = song.bitRate,
-                    sampleRate = song.sampleRate,
-                  ),
-                )
+                playerController.addToQueue(song, serverUrl, token)
               },
               onPlayNext = {
                 val serverUrl = sessionStore.getServerUrl() ?: return@EnhancedSongItem
                 val token = sessionStore.getToken() ?: return@EnhancedSongItem
-                playerController.playNext(
-                  QueueItem(
-                    id = song.id,
-                    uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-                    title = song.name,
-                    artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-                    albumArtUrl = song.albumArtUrl,
-                    durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-                    isFavorite = song.isFavorite ?: false,
-                    albumId = song.albumId,
-                    artistId = song.artistIds?.firstOrNull(),
-                    albumName = song.album,
-                    codec = song.codec,
-                    bitRate = song.bitRate,
-                    sampleRate = song.sampleRate,
-                  ),
-                )
+                playerController.playNext(song, serverUrl, token)
               },
               onAddToPlaylist = {
                 selectedSong = song
@@ -269,48 +234,14 @@ fun LibraryScreen(
         val serverUrl = sessionStore.getServerUrl()
         val token = sessionStore.getToken()
         if (serverUrl != null && token != null) {
-          val song = selectedSong!!
-          playerController.addToQueue(
-            QueueItem(
-              id = song.id,
-              uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-              title = song.name,
-              artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-              albumArtUrl = song.albumArtUrl,
-              durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-              isFavorite = song.isFavorite ?: false,
-              albumId = song.albumId,
-              artistId = song.artistIds?.firstOrNull(),
-              albumName = song.album,
-              codec = song.codec,
-              bitRate = song.bitRate,
-              sampleRate = song.sampleRate,
-            )
-          )
+          playerController.addToQueue(selectedSong!!, serverUrl, token)
         }
       },
       onPlayNext = {
         val serverUrl = sessionStore.getServerUrl()
         val token = sessionStore.getToken()
         if (serverUrl != null && token != null) {
-          val song = selectedSong!!
-          playerController.playNext(
-            QueueItem(
-              id = song.id,
-              uri = buildStreamUrl(serverUrl, token, song.id, song.container),
-              title = song.name,
-              artist = song.artists?.joinToString(", ") ?: "Unknown Artist",
-              albumArtUrl = song.albumArtUrl,
-              durationMs = (song.duration ?: 0.0).let { (it * 1000).toLong() },
-              isFavorite = song.isFavorite ?: false,
-              albumId = song.albumId,
-              artistId = song.artistIds?.firstOrNull(),
-              albumName = song.album,
-              codec = song.codec,
-              bitRate = song.bitRate,
-              sampleRate = song.sampleRate,
-            )
-          )
+          playerController.playNext(selectedSong!!, serverUrl, token)
         }
       },
       onAddToPlaylist = {

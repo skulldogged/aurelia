@@ -46,7 +46,6 @@ pub fn init(app_data_dir: &PathBuf) -> Result<()> {
         let _ = write_txn.open_table(db::schema::FAVORITES)?;
         let _ = write_txn.open_table(db::schema::SYNC_STATE)?;
         let _ = write_txn.open_table(db::schema::PLAYLISTS)?;
-        let _ = write_txn.open_table(db::schema::PLAYER_STATE)?;
     }
     write_txn
         .commit()

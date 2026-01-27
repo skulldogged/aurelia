@@ -1,5 +1,5 @@
 use crate::database;
-use crate::models::{Album, Artist, Credentials, PlayerStateData, Song};
+use crate::models::{Album, Artist, Credentials, Song};
 use anyhow::{anyhow, Result};
 use redb::ReadableDatabase;
 use serde_json;
@@ -124,32 +124,3 @@ pub fn clear_credentials(app_data_dir: PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn save_player_state(app_data_dir: PathBuf, state: &PlayerStateData) -> Result<()> {
-    init_db(&app_data_dir)?;
-    let db = database::DB
-        .get()
-        .ok_or_else(|| anyhow!("Database not initialized"))?;
-    let write_txn = db.begin_write()?;
-    {
-        let mut table = write_txn.open_table(crate::db::schema::PLAYER_STATE)?;
-        let json = serde_json::to_vec(state)?;
-        table.insert("main", json.as_slice())?;
-    }
-    write_txn.commit()?;
-    Ok(())
-}
-
-pub fn load_player_state(app_data_dir: PathBuf) -> Result<Option<PlayerStateData>> {
-    init_db(&app_data_dir)?;
-    let db = database::DB
-        .get()
-        .ok_or_else(|| anyhow!("Database not initialized"))?;
-    let read_txn = db.begin_read()?;
-    let table = read_txn.open_table(crate::db::schema::PLAYER_STATE)?;
-    if let Some(guard) = table.get("main")? {
-        let state: PlayerStateData = serde_json::from_slice(guard.value())?;
-        Ok(Some(state))
-    } else {
-        Ok(None)
-    }
-}
