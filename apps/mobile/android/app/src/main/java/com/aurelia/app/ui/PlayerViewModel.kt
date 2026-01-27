@@ -129,6 +129,9 @@ class PlayerViewModel(
             isFavorite = isFavorite,
             playbackSpeed = snapshot.playbackSpeed,
             updateTimeMs = snapshot.updateTimeMs,
+            codec = snapshot.codec,
+            bitRate = snapshot.bitRate,
+            sampleRate = snapshot.sampleRate,
         )
 
     fun playQueueItem(index: Int) {

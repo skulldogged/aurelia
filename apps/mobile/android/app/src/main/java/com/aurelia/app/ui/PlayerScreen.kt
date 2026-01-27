@@ -330,6 +330,16 @@ fun PlayerScreen(
               },
             ),
         )
+        state.formatInfo?.let { info ->
+          Spacer(modifier = Modifier.height(4.dp))
+          Text(
+            text = info,
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.onPrimaryContainer.copy(alpha = 0.5f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+          )
+        }
       }
 
       Spacer(modifier = Modifier.height(24.dp))

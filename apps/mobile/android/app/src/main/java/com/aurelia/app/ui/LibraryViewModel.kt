@@ -178,6 +178,9 @@ class LibraryViewModel(
             albumId = song.albumId,
             artistId = song.artistIds?.firstOrNull(),
             albumName = song.album,
+            codec = song.codec,
+            bitRate = song.bitRate,
+            sampleRate = song.sampleRate,
           )
         }
 

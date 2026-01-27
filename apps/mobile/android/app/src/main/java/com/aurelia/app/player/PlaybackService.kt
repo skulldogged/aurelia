@@ -12,8 +12,12 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.MediaStyleNotificationHelper
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import com.aurelia.app.MainActivity
 import com.aurelia.app.R
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 
 class PlaybackService : MediaSessionService() {
   private var mediaSession: MediaSession? = null
@@ -25,7 +29,33 @@ class PlaybackService : MediaSessionService() {
     ensureNotificationChannel()
 
     val player = ExoPlayer.Builder(this).build()
-    mediaSession = MediaSession.Builder(this, player).build()
+    mediaSession =
+      MediaSession
+        .Builder(this, player)
+        .setCallback(
+          object : MediaSession.Callback {
+            override fun onConnect(
+              session: MediaSession,
+              controller: MediaSession.ControllerInfo,
+            ): MediaSession.ConnectionResult {
+              // Grant all player commands to allow seeking in any player state
+              return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
+                .setAvailableSessionCommands(MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS)
+                .build()
+            }
+
+            override fun onCustomCommand(
+              session: MediaSession,
+              controller: MediaSession.ControllerInfo,
+              customCommand: SessionCommand,
+              args: android.os.Bundle,
+            ): ListenableFuture<SessionResult> {
+              return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
+            }
+          },
+        )
+        .build()
   }
 
   override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession

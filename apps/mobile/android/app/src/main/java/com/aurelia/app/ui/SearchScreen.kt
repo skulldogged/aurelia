@@ -343,6 +343,9 @@ fun SearchScreen(
                         albumId = result.song.albumId,
                         artistId = result.song.artistIds?.firstOrNull(),
                         albumName = result.song.album,
+                        codec = result.song.codec,
+                        bitRate = result.song.bitRate,
+                        sampleRate = result.song.sampleRate,
                       ),
                     )
                   },
@@ -361,6 +364,9 @@ fun SearchScreen(
                         albumId = result.song.albumId,
                         artistId = result.song.artistIds?.firstOrNull(),
                         albumName = result.song.album,
+                        codec = result.song.codec,
+                        bitRate = result.song.bitRate,
+                        sampleRate = result.song.sampleRate,
                       ),
                     )
                   },

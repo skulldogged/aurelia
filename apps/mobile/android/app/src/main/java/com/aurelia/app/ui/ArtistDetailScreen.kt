@@ -220,6 +220,9 @@ fun ArtistDetailScreen(
                       albumId = song.albumId,
                       artistId = song.artistIds?.firstOrNull(),
                       albumName = song.album,
+                      codec = song.codec,
+                      bitRate = song.bitRate,
+                      sampleRate = song.sampleRate,
                     )
                   }
                   playerController.setQueue(queueItems, 0)
@@ -270,6 +273,9 @@ fun ArtistDetailScreen(
                       albumId = song.albumId,
                       artistId = song.artistIds?.firstOrNull(),
                       albumName = song.album,
+                      codec = song.codec,
+                      bitRate = song.bitRate,
+                      sampleRate = song.sampleRate,
                     )
                   }.shuffled()
                   playerController.setQueue(queueItems, 0)
@@ -327,6 +333,9 @@ fun ArtistDetailScreen(
                 albumId = s.albumId,
                 artistId = s.artistIds?.firstOrNull(),
                 albumName = s.album,
+                codec = s.codec,
+                bitRate = s.bitRate,
+                sampleRate = s.sampleRate,
               )
             }
             playerController.setQueue(queueItems, index)
@@ -357,6 +366,9 @@ fun ArtistDetailScreen(
                 albumId = song.albumId,
                 artistId = song.artistIds?.firstOrNull(),
                 albumName = song.album,
+                codec = song.codec,
+                bitRate = song.bitRate,
+                sampleRate = song.sampleRate,
               ),
             )
           },
@@ -375,6 +387,9 @@ fun ArtistDetailScreen(
                 albumId = song.albumId,
                 artistId = song.artistIds?.firstOrNull(),
                 albumName = song.album,
+                codec = song.codec,
+                bitRate = song.bitRate,
+                sampleRate = song.sampleRate,
               ),
             )
           },
