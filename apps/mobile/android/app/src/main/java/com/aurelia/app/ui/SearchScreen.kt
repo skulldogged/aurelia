@@ -55,6 +55,7 @@ import com.aurelia.app.ui.components.AlbumArtStyle
 import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
+import com.aurelia.app.ui.components.rememberContextMenuState
 import com.aurelia.app.ui.navigation.Screen
 import uniffi.aurelia_core.Song
 sealed class SearchResult {
@@ -88,7 +89,7 @@ fun SearchScreen(
 ) {
   val libraryViewModel: LibraryViewModel =
     viewModel(
-      factory = LibraryViewModelFactory(sessionStore, playerController),
+      factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
     )
   val state by libraryViewModel.state.collectAsState()
   val playlistState by playlistViewModel.state.collectAsState()
@@ -98,10 +99,7 @@ fun SearchScreen(
 
   var searchQuery by remember { mutableStateOf("") }
 
-  // Context menu state
-  var selectedSong by remember { mutableStateOf<Song?>(null) }
-  var showContextMenu by remember { mutableStateOf(false) }
-  var showPlaylistPicker by remember { mutableStateOf(false) }
+  val contextMenu = rememberContextMenuState()
 
   LaunchedEffect(Unit) {
     libraryViewModel.loadLibrary()
@@ -111,7 +109,7 @@ fun SearchScreen(
   // Search results
   val results =
     remember(searchQuery, state.songs) {
-      if (searchQuery.length < 2) {
+      if (searchQuery.length < UiConstants.MIN_SEARCH_LENGTH) {
         emptyList()
       } else {
         val query = searchQuery.lowercase()
@@ -121,7 +119,7 @@ fun SearchScreen(
               song.name.lowercase().contains(query) ||
                 song.artists?.any { it.lowercase().contains(query) } == true ||
                 song.album?.lowercase()?.contains(query) == true
-            }.take(20)
+            }.take(UiConstants.SEARCH_RESULTS_LIMIT)
             .map { SearchResult.SongResult(it) }
 
         // Get unique albums matching query
@@ -133,7 +131,7 @@ fun SearchScreen(
                 Triple(id, song.album ?: "", song.albumArtUrl)
               }
             }.distinctBy { it.first }
-            .take(5)
+            .take(UiConstants.SEARCH_ALBUMS_LIMIT)
             .map { (id, name, artUrl) -> SearchResult.Album(id, name, "", artUrl) }
 
         // Get unique artists matching query
@@ -158,7 +156,7 @@ fun SearchScreen(
                 songCount = entries.size,
               )
             }
-            .take(5)
+            .take(UiConstants.SEARCH_ARTISTS_LIMIT)
 
         artistResults + albumResults + songResults
       }
@@ -265,7 +263,7 @@ fun SearchScreen(
         }
       }
 
-      results.isEmpty() && searchQuery.length >= 2 -> {
+      results.isEmpty() && searchQuery.length >= UiConstants.MIN_SEARCH_LENGTH -> {
         Box(
           modifier =
             Modifier
@@ -309,16 +307,10 @@ fun SearchScreen(
                     libraryViewModel.play(result.song.id)
                     onOpenPlayer()
                   },
-                  onLongClick = {
-                    selectedSong = result.song
-                    showContextMenu = true
-                  },
-                  onMoreClick = {
-                    selectedSong = result.song
-                    showContextMenu = true
-                  },
-                  showContextMenu = showContextMenu && selectedSong?.id == result.song.id,
-                  onDismissMenu = { showContextMenu = false },
+                  onLongClick = { contextMenu.openContextMenu(result.song) },
+                  onMoreClick = { contextMenu.openContextMenu(result.song) },
+                  showContextMenu = contextMenu.showContextMenu && contextMenu.selectedSong?.id == result.song.id,
+                  onDismissMenu = { contextMenu.dismissContextMenu() },
                   onAddToQueue = {
                     val serverUrl = sessionStore.getServerUrl() ?: return@SongSearchResult
                     val token = sessionStore.getToken() ?: return@SongSearchResult
@@ -329,10 +321,7 @@ fun SearchScreen(
                     val token = sessionStore.getToken() ?: return@SongSearchResult
                     playerController.playNext(result.song, serverUrl, token)
                   },
-                  onAddToPlaylist = {
-                    selectedSong = result.song
-                    showPlaylistPicker = true
-                  },
+                  onAddToPlaylist = { contextMenu.openPlaylistPicker(result.song) },
                   onGoToAlbum = if (onNavigateToAlbum != null && result.song.albumId != null) {
                     {
                       onNavigateToAlbum(
@@ -395,27 +384,22 @@ fun SearchScreen(
   }
 
   // Playlist picker dialog
-  if (showPlaylistPicker && selectedSong != null) {
+  if (contextMenu.showPlaylistPicker && contextMenu.selectedSong != null) {
     PlaylistPickerDialog(
       playlists = playlistState.playlists,
       isLoading = playlistState.isLoading,
-      onDismiss = {
-        showPlaylistPicker = false
-        selectedSong = null
-      },
+      onDismiss = { contextMenu.dismissPlaylistPicker() },
       onSelectPlaylist = { playlist ->
-        selectedSong?.let { song ->
+        contextMenu.selectedSong?.let { song ->
           playlistViewModel.addSongsToPlaylist(playlist.id, listOf(song.id))
         }
-        showPlaylistPicker = false
-        selectedSong = null
+        contextMenu.dismissPlaylistPicker()
       },
       onCreatePlaylist = { name ->
-        selectedSong?.let { song ->
+        contextMenu.selectedSong?.let { song ->
           playlistViewModel.createPlaylist(name, listOf(song.id))
         }
-        showPlaylistPicker = false
-        selectedSong = null
+        contextMenu.dismissPlaylistPicker()
       },
     )
   }

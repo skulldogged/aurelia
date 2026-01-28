@@ -54,7 +54,7 @@ fun ArtistsScreen(
   hasPlayerBar: Boolean = false,
 ) {
   val libraryViewModel: LibraryViewModel = viewModel(
-    factory = LibraryViewModelFactory(sessionStore, playerController),
+    factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
   )
   val state by libraryViewModel.state.collectAsState()
   val colors = MaterialTheme.colorScheme

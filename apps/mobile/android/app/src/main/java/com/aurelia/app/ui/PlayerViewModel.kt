@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.aurelia_core.getLyrics as uniffiGetLyrics
+import uniffi.aurelia_core.markItemPlayed as uniffiMarkItemPlayed
 import uniffi.aurelia_core.toggleFavorite as uniffiToggleFavorite
 
 class PlayerViewModel(
@@ -44,9 +45,28 @@ class PlayerViewModel(
                 current.fromSnapshot(snapshot, isFavorite)
             }
 
+            // Mark the previous song as played when transitioning to a new song
+            if (previousSongId != null && newSongId != null && newSongId != previousSongId) {
+                markSongAsPlayed(previousSongId)
+            }
+
             if (newSongId != null && newSongId.isNotBlank() && newSongId != lastFetchedSongId) {
                 lastFetchedSongId = newSongId
                 fetchLyrics(newSongId, snapshot.artist, snapshot.title)
+            }
+        }
+    }
+
+    private fun markSongAsPlayed(songId: String) {
+        val serverUrl = sessionStore.getServerUrl() ?: return
+        val token = sessionStore.getToken() ?: return
+        val userId = sessionStore.getUserId() ?: return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                uniffiMarkItemPlayed(serverUrl, token, userId, songId)
+            } catch (e: Exception) {
+                android.util.Log.e("PlayerViewModel", "Failed to mark song as played: $songId", e)
             }
         }
     }
@@ -188,7 +208,7 @@ class PlayerViewModel(
                 }
             } catch (e: Exception) {
                 if (!AuthInterceptor.handlePotentialAuthError(e)) {
-                    e.printStackTrace()
+                    android.util.Log.e("PlayerViewModel", "Failed to toggle favorite", e)
                     mutableState.update { it.copy(isFavoriteLoading = false) }
                 }
             }

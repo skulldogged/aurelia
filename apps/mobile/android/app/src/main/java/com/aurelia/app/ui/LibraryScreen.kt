@@ -49,6 +49,7 @@ import com.aurelia.app.ui.components.AlbumArtStyle
 import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
+import com.aurelia.app.ui.components.rememberContextMenuState
 import com.aurelia.app.ui.navigation.Screen
 import uniffi.aurelia_core.Song
 @Composable
@@ -63,17 +64,14 @@ fun LibraryScreen(
 ) {
   val viewModel: LibraryViewModel =
     viewModel(
-      factory = LibraryViewModelFactory(sessionStore, playerController),
+      factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
     )
   val state by viewModel.state.collectAsState()
   val playlistState by playlistViewModel.state.collectAsState()
   val colors = MaterialTheme.colorScheme
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
 
-  // Context menu state
-  var selectedSong by remember { mutableStateOf<Song?>(null) }
-  var showContextMenu by remember { mutableStateOf(false) }
-  var showPlaylistPicker by remember { mutableStateOf(false) }
+  val contextMenu = rememberContextMenuState()
 
   LaunchedEffect(Unit) {
     viewModel.loadLibrary()
@@ -169,14 +167,8 @@ fun LibraryScreen(
                 viewModel.playFromList(song.id)
                 onOpenPlayer()
               },
-              onLongClick = {
-                selectedSong = song
-                showContextMenu = true
-              },
-              onMoreClick = {
-                selectedSong = song
-                showContextMenu = true
-              },
+              onLongClick = { contextMenu.openContextMenu(song) },
+              onMoreClick = { contextMenu.openContextMenu(song) },
               onAddToQueue = {
                 val serverUrl = sessionStore.getServerUrl() ?: return@EnhancedSongItem
                 val token = sessionStore.getToken() ?: return@EnhancedSongItem
@@ -187,10 +179,7 @@ fun LibraryScreen(
                 val token = sessionStore.getToken() ?: return@EnhancedSongItem
                 playerController.playNext(song, serverUrl, token)
               },
-              onAddToPlaylist = {
-                selectedSong = song
-                showPlaylistPicker = true
-              },
+              onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
               onGoToAlbum =
                 if (onNavigateToAlbum != null && song.albumId != null) {
                   {
@@ -225,44 +214,44 @@ fun LibraryScreen(
   }
 
   // Context menu
-  if (showContextMenu && selectedSong != null) {
+  if (contextMenu.showContextMenu && contextMenu.selectedSong != null) {
     SongContextMenu(
-      song = selectedSong!!,
+      song = contextMenu.selectedSong!!,
       expanded = true,
-      onDismiss = { showContextMenu = false },
+      onDismiss = { contextMenu.dismissContextMenu() },
       onAddToQueue = {
         val serverUrl = sessionStore.getServerUrl()
         val token = sessionStore.getToken()
         if (serverUrl != null && token != null) {
-          playerController.addToQueue(selectedSong!!, serverUrl, token)
+          playerController.addToQueue(contextMenu.selectedSong!!, serverUrl, token)
         }
       },
       onPlayNext = {
         val serverUrl = sessionStore.getServerUrl()
         val token = sessionStore.getToken()
         if (serverUrl != null && token != null) {
-          playerController.playNext(selectedSong!!, serverUrl, token)
+          playerController.playNext(contextMenu.selectedSong!!, serverUrl, token)
         }
       },
       onAddToPlaylist = {
-        showPlaylistPicker = true
+        contextMenu.showPlaylistPicker = true
       },
-      onGoToAlbum = if (selectedSong?.albumId != null && onNavigateToAlbum != null) {
+      onGoToAlbum = if (contextMenu.selectedSong?.albumId != null && onNavigateToAlbum != null) {
         {
           onNavigateToAlbum(
             Screen.AlbumDetail(
-              albumId = selectedSong!!.albumId!!,
-              albumName = selectedSong!!.album ?: "Unknown Album",
+              albumId = contextMenu.selectedSong!!.albumId!!,
+              albumName = contextMenu.selectedSong!!.album ?: "Unknown Album",
             )
           )
         }
       } else null,
-      onGoToArtist = if (selectedSong?.artistIds?.isNotEmpty() == true && onNavigateToArtist != null) {
+      onGoToArtist = if (contextMenu.selectedSong?.artistIds?.isNotEmpty() == true && onNavigateToArtist != null) {
         {
           onNavigateToArtist(
             Screen.ArtistDetail(
-              artistId = selectedSong!!.artistIds!!.first(),
-              artistName = selectedSong!!.artists?.firstOrNull() ?: "Unknown Artist",
+              artistId = contextMenu.selectedSong!!.artistIds!!.first(),
+              artistName = contextMenu.selectedSong!!.artists?.firstOrNull() ?: "Unknown Artist",
             )
           )
         }
@@ -271,27 +260,22 @@ fun LibraryScreen(
   }
 
   // Playlist picker dialog
-  if (showPlaylistPicker && selectedSong != null) {
+  if (contextMenu.showPlaylistPicker && contextMenu.selectedSong != null) {
     PlaylistPickerDialog(
       playlists = playlistState.playlists,
       isLoading = playlistState.isLoading,
-      onDismiss = {
-        showPlaylistPicker = false
-        selectedSong = null
-      },
+      onDismiss = { contextMenu.dismissPlaylistPicker() },
       onSelectPlaylist = { playlist ->
-        selectedSong?.let { song ->
+        contextMenu.selectedSong?.let { song ->
           playlistViewModel.addSongsToPlaylist(playlist.id, listOf(song.id))
         }
-        showPlaylistPicker = false
-        selectedSong = null
+        contextMenu.dismissPlaylistPicker()
       },
       onCreatePlaylist = { name ->
-        selectedSong?.let { song ->
+        contextMenu.selectedSong?.let { song ->
           playlistViewModel.createPlaylist(name, listOf(song.id))
         }
-        showPlaylistPicker = false
-        selectedSong = null
+        contextMenu.dismissPlaylistPicker()
       },
     )
   }

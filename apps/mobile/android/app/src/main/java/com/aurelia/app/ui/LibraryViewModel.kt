@@ -1,11 +1,13 @@
 package com.aurelia.app.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlayerController
-import com.aurelia.app.player.PlayerSnapshot
 import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.utils.buildSongIdCache
+import com.aurelia.app.utils.validateSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,98 +27,45 @@ class LibraryViewModel(
   // Cache for song ID lookup - built once when songs load
   private var songIdByTitleArtist: Map<Pair<String, String>, String> = emptyMap()
 
-  // Track last snapshot to avoid redundant updates
-  private var lastTitle: String = ""
-  private var lastArtist: String = ""
-  private var lastIsPlaying: Boolean = false
+  private val nowPlayingMapper = NowPlayingMapper()
 
   init {
     playerController.observe { snapshot ->
-      handlePlayerUpdate(snapshot)
-    }
-  }
-
-  private fun handlePlayerUpdate(snapshot: PlayerSnapshot) {
-    // Only update if something meaningful changed
-    val titleChanged = snapshot.title != lastTitle
-    val artistChanged = snapshot.artist != lastArtist
-    val playingChanged = snapshot.isPlaying != lastIsPlaying
-
-    if (!titleChanged && !artistChanged && !playingChanged) {
-      return
-    }
-
-    lastTitle = snapshot.title
-    lastArtist = snapshot.artist
-    lastIsPlaying = snapshot.isPlaying
-
-    if (snapshot.title.isBlank()) {
-      mutableState.update { it.copy(nowPlaying = null, currentSongId = null) }
-      return
-    }
-
-    // Look up song ID from cache
-    val songId = songIdByTitleArtist[Pair(snapshot.title, snapshot.artist)]
-
-    mutableState.update {
-      it.copy(
-        nowPlaying =
-          NowPlayingState(
-            title = snapshot.title,
-            artist = snapshot.artist,
-            albumArtUrl = snapshot.albumArtUrl,
-            isPlaying = snapshot.isPlaying,
-            isBuffering = snapshot.isBuffering,
-            hasPrevious = snapshot.hasPrevious,
-            hasNext = snapshot.hasNext,
-            albumId = snapshot.currentAlbumId,
-            artistId = snapshot.currentArtistId,
-            albumName = snapshot.currentAlbumName,
-          ),
-        currentSongId = songId,
+      if (!nowPlayingMapper.shouldUpdate(snapshot)) return@observe
+      val (nowPlaying, songId) = nowPlayingMapper.mapToNowPlaying(
+        snapshot, songIdByTitleArtist, includeNavigation = true,
       )
+      mutableState.update { it.copy(nowPlaying = nowPlaying, currentSongId = songId) }
     }
-  }
-
-  private fun buildSongIdCache(songs: List<uniffi.aurelia_core.Song>) {
-    songIdByTitleArtist =
-      songs.associate { song ->
-        val artist = song.artists?.joinToString(", ") ?: ""
-        Pair(song.name, artist) to song.id
-      }
   }
 
   fun loadLibrary() {
-    val serverUrl = sessionStore.getServerUrl()
-    val userId = sessionStore.getUserId()
-    val token = sessionStore.getToken()
-    val appDataDir = sessionStore.getAppDataDir()
-
-    if (serverUrl.isNullOrBlank() || userId.isNullOrBlank() || token.isNullOrBlank()) {
+    val session = validateSession(sessionStore)
+    if (session == null) {
       mutableState.update { it.copy(error = "Missing session data") }
       return
     }
 
     mutableState.update { it.copy(isLoading = true, error = null) }
 
-    if (!appDataDir.isNullOrBlank()) {
+    if (!session.appDataDir.isNullOrBlank()) {
       viewModelScope.launch(Dispatchers.IO) {
         try {
-          val cachedSongs = loadCachedSongs(appDataDir)
+          val cachedSongs = loadCachedSongs(session.appDataDir)
           if (cachedSongs.isNotEmpty()) {
-            buildSongIdCache(cachedSongs)
+            songIdByTitleArtist = buildSongIdCache(cachedSongs)
             mutableState.update { it.copy(songs = cachedSongs, isLoading = false) }
           }
-        } catch (_: Exception) {
-          // Ignore cache errors and fall back to network fetch.
+        } catch (e: Exception) {
+          Log.w("LibraryViewModel", "Failed to load cached songs", e)
         }
       }
     }
 
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        val songs = fetchSongs(serverUrl, token, userId, appDataDir ?: "")
-        buildSongIdCache(songs)
+        val songs = fetchSongs(session.serverUrl, session.token, session.userId, session.appDataDir ?: "")
+        songIdByTitleArtist = buildSongIdCache(songs)
         mutableState.update { it.copy(isLoading = false, songs = songs) }
       } catch (error: AppException) {
         if (!AuthInterceptor.handlePotentialAuthError(error.message)) {

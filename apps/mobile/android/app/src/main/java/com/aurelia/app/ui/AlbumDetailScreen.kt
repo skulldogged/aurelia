@@ -58,8 +58,10 @@ import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
+import com.aurelia.app.ui.components.rememberContextMenuState
 import com.aurelia.app.ui.navigation.Screen
 import com.aurelia.app.ui.theme.SquircleShape
+import com.aurelia.app.utils.formatDuration
 import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
 import uniffi.aurelia_core.Song
 
@@ -77,17 +79,14 @@ fun AlbumDetailScreen(
 ) {
   val libraryViewModel: LibraryViewModel =
     viewModel(
-      factory = LibraryViewModelFactory(sessionStore, playerController),
+      factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
     )
   val state by libraryViewModel.state.collectAsState()
   val playlistState by playlistViewModel.state.collectAsState()
   val colors = MaterialTheme.colorScheme
   val wideFont = rememberGoogleSansFlexWideFont()
 
-  // Context menu state
-  var selectedSong by remember { mutableStateOf<Song?>(null) }
-  var showContextMenu by remember { mutableStateOf(false) }
-  var showPlaylistPicker by remember { mutableStateOf(false) }
+  val contextMenu = rememberContextMenuState()
 
   // Calculate bottom padding for miniplayer
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
@@ -327,16 +326,10 @@ fun AlbumDetailScreen(
             playerController.setQueue(albumSongs, serverUrl, token, index)
             onOpenPlayer()
           },
-          onLongClick = {
-            selectedSong = song
-            showContextMenu = true
-          },
-          onMoreClick = {
-            selectedSong = song
-            showContextMenu = true
-          },
-          showContextMenu = showContextMenu && selectedSong?.id == song.id,
-          onDismissMenu = { showContextMenu = false },
+          onLongClick = { contextMenu.openContextMenu(song) },
+          onMoreClick = { contextMenu.openContextMenu(song) },
+          showContextMenu = contextMenu.showContextMenu && contextMenu.selectedSong?.id == song.id,
+          onDismissMenu = { contextMenu.dismissContextMenu() },
           onAddToQueue = {
             val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
             val token = sessionStore.getToken() ?: return@AlbumSongItem
@@ -347,10 +340,7 @@ fun AlbumDetailScreen(
             val token = sessionStore.getToken() ?: return@AlbumSongItem
             playerController.playNext(song, serverUrl, token)
           },
-          onAddToPlaylist = {
-            selectedSong = song
-            showPlaylistPicker = true
-          },
+          onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
           onGoToArtist =
             if (onNavigateToArtist != null && song.artistIds?.isNotEmpty() == true) {
               {
@@ -370,27 +360,22 @@ fun AlbumDetailScreen(
   }
 
   // Playlist picker dialog
-  if (showPlaylistPicker && selectedSong != null) {
+  if (contextMenu.showPlaylistPicker && contextMenu.selectedSong != null) {
     PlaylistPickerDialog(
       playlists = playlistState.playlists,
       isLoading = playlistState.isLoading,
-      onDismiss = {
-        showPlaylistPicker = false
-        selectedSong = null
-      },
+      onDismiss = { contextMenu.dismissPlaylistPicker() },
       onSelectPlaylist = { playlist ->
-        selectedSong?.let { song ->
+        contextMenu.selectedSong?.let { song ->
           playlistViewModel.addSongsToPlaylist(playlist.id, listOf(song.id))
         }
-        showPlaylistPicker = false
-        selectedSong = null
+        contextMenu.dismissPlaylistPicker()
       },
       onCreatePlaylist = { name ->
-        selectedSong?.let { song ->
+        contextMenu.selectedSong?.let { song ->
           playlistViewModel.createPlaylist(name, listOf(song.id))
         }
-        showPlaylistPicker = false
-        selectedSong = null
+        contextMenu.dismissPlaylistPicker()
       },
     )
   }
@@ -509,13 +494,6 @@ private fun AlbumSongItem(
       }
     }
   }
-}
-
-private fun formatDuration(durationMs: Long): String {
-  val totalSeconds = durationMs / 1000
-  val minutes = totalSeconds / 60
-  val seconds = totalSeconds % 60
-  return "%d:%02d".format(minutes, seconds)
 }
 
 private fun calculateTotalDuration(songs: List<Song>): String {

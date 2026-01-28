@@ -48,6 +48,7 @@ import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
+import com.aurelia.app.utils.formatDuration
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 
@@ -360,9 +361,3 @@ private fun PlaylistSongItem(
   }
 }
 
-private fun formatDuration(durationMs: Long): String {
-  val totalSeconds = durationMs / 1000
-  val minutes = totalSeconds / 60
-  val seconds = totalSeconds % 60
-  return "%d:%02d".format(minutes, seconds)
-}

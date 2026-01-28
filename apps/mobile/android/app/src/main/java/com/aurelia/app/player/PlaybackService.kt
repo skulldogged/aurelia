@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationCompat
+import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -28,7 +30,30 @@ class PlaybackService : MediaSessionService() {
     notificationManager = getSystemService(NotificationManager::class.java)
     ensureNotificationChannel()
 
-    val player = ExoPlayer.Builder(this).build()
+    val exoPlayer = ExoPlayer.Builder(this).build()
+
+    // Wrap in ForwardingPlayer that always reports seek as available.
+    // ExoPlayer removes COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM for non-seekable streams
+    // (e.g. transcoded ALAC via /universal), but we handle seeking by rebuilding
+    // the stream URL with startTimeTicks in PlayerController.
+    @OptIn(UnstableApi::class)
+    val player = object : ForwardingPlayer(exoPlayer) {
+      override fun getAvailableCommands(): Player.Commands {
+        return super.getAvailableCommands().buildUpon()
+          .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+          .add(Player.COMMAND_SEEK_TO_MEDIA_ITEM)
+          .build()
+      }
+
+      override fun isCommandAvailable(command: Int): Boolean {
+        if (command == Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM ||
+            command == Player.COMMAND_SEEK_TO_MEDIA_ITEM) {
+          return true
+        }
+        return super.isCommandAvailable(command)
+      }
+    }
+
     mediaSession =
       MediaSession
         .Builder(this, player)
@@ -38,9 +63,8 @@ class PlaybackService : MediaSessionService() {
               session: MediaSession,
               controller: MediaSession.ControllerInfo,
             ): MediaSession.ConnectionResult {
-              // Grant all player commands to allow seeking in any player state
               return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
-                .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
+                .setAvailablePlayerCommands(Player.Commands.Builder().addAllCommands().build())
                 .setAvailableSessionCommands(MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS)
                 .build()
             }

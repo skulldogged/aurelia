@@ -102,6 +102,19 @@ pub fn build_stream_url(
     client.get_audio_stream_url(&item_id, container.as_deref())
 }
 
+/// Build a stream URL optimized for mobile playback.
+/// Uses HLS transcoding for non-seekable containers so that Media3/ExoPlayer can seek natively.
+#[uniffi::export]
+pub fn build_mobile_stream_url(
+    server_url: String,
+    token: String,
+    item_id: String,
+    container: Option<String>,
+) -> String {
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.get_mobile_audio_stream_url(&item_id, container.as_deref())
+}
+
 #[uniffi::export]
 pub fn save_credentials(
     app_data_dir: String,
@@ -282,5 +295,20 @@ pub fn get_playlist_items(
     })
 }
 
+
+#[uniffi::export]
+pub fn mark_item_played(
+    server_url: String,
+    token: String,
+    user_id: String,
+    item_id: String,
+) -> Result<(), error::AppError> {
+    let runtime = tokio::runtime::Runtime::new()
+        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    runtime.block_on(async {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.mark_item_played(&user_id, &item_id).await
+    })
+}
 
 uniffi::setup_scaffolding!();

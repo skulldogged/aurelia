@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.utils.validateSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,11 +30,8 @@ class PlaylistViewModel(
   val detailState: StateFlow<PlaylistDetailState> = mutableDetailState
 
   fun loadPlaylists() {
-    val serverUrl = sessionStore.getServerUrl()
-    val userId = sessionStore.getUserId()
-    val token = sessionStore.getToken()
-
-    if (serverUrl.isNullOrBlank() || userId.isNullOrBlank() || token.isNullOrBlank()) {
+    val session = validateSession(sessionStore)
+    if (session == null) {
       mutableState.update { it.copy(error = "Missing session data", isLoading = false) }
       return
     }
@@ -42,7 +40,7 @@ class PlaylistViewModel(
 
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        val playlists = getPlaylists(serverUrl, token, userId)
+        val playlists = getPlaylists(session.serverUrl, session.token, session.userId)
         mutableState.update { it.copy(isLoading = false, playlists = playlists) }
       } catch (error: AppException) {
         if (!AuthInterceptor.handlePotentialAuthError(error.message)) {
@@ -60,13 +58,7 @@ class PlaylistViewModel(
     name: String,
     songIds: List<String>? = null,
   ) {
-    val serverUrl = sessionStore.getServerUrl()
-    val userId = sessionStore.getUserId()
-    val token = sessionStore.getToken()
-
-    if (serverUrl.isNullOrBlank() || userId.isNullOrBlank() || token.isNullOrBlank()) {
-      return
-    }
+    val session = validateSession(sessionStore) ?: return
 
     mutableState.update { it.copy(isCreating = true) }
 
@@ -76,10 +68,10 @@ class PlaylistViewModel(
           PlaylistCreateData(
             name = name,
             ids = songIds,
-            userId = userId,
+            userId = session.userId,
             isPublic = false,
           )
-        val newPlaylist = createPlaylist(serverUrl, token, data)
+        val newPlaylist = createPlaylist(session.serverUrl, session.token, data)
         mutableState.update { current ->
           current.copy(
             isCreating = false,
@@ -93,18 +85,13 @@ class PlaylistViewModel(
   }
 
   fun deletePlaylist(playlistId: String) {
-    val serverUrl = sessionStore.getServerUrl()
-    val token = sessionStore.getToken()
-
-    if (serverUrl.isNullOrBlank() || token.isNullOrBlank()) {
-      return
-    }
+    val session = validateSession(sessionStore) ?: return
 
     mutableState.update { it.copy(isDeleting = true) }
 
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        deletePlaylist(serverUrl, token, playlistId)
+        deletePlaylist(session.serverUrl, session.token, playlistId)
         mutableState.update { current ->
           current.copy(
             isDeleting = false,
@@ -121,10 +108,8 @@ class PlaylistViewModel(
     playlistId: String,
     playlistName: String,
   ) {
-    val serverUrl = sessionStore.getServerUrl()
-    val token = sessionStore.getToken()
-
-    if (serverUrl.isNullOrBlank() || token.isNullOrBlank()) {
+    val session = validateSession(sessionStore)
+    if (session == null) {
       mutableDetailState.update { it.copy(error = "Missing session data", isLoading = false) }
       return
     }
@@ -133,7 +118,7 @@ class PlaylistViewModel(
 
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        val songs = getPlaylistItems(serverUrl, token, playlistId)
+        val songs = getPlaylistItems(session.serverUrl, session.token, playlistId)
         // Find the playlist from the main state if available
         val playlist = mutableState.value.playlists.find { it.id == playlistId }
         mutableDetailState.update {
@@ -159,22 +144,18 @@ class PlaylistViewModel(
     playlistId: String,
     songIds: List<String>,
   ) {
-    val serverUrl = sessionStore.getServerUrl()
-    val token = sessionStore.getToken()
-
-    if (serverUrl.isNullOrBlank() || token.isNullOrBlank()) {
-      return
-    }
+    val session = validateSession(sessionStore) ?: return
 
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        addPlaylistItems(serverUrl, token, playlistId, songIds)
+        addPlaylistItems(session.serverUrl, session.token, playlistId, songIds)
         // Reload playlist detail to reflect changes
         loadPlaylistDetail(playlistId, "")
         // Also reload playlists to update child count
         loadPlaylists()
-      } catch (_: Exception) {
-        // Silent fail for now
+      } catch (error: Exception) {
+        android.util.Log.e("PlaylistViewModel", "Failed to add songs to playlist", error)
+        mutableState.update { it.copy(error = "Failed to add songs to playlist") }
       }
     }
   }

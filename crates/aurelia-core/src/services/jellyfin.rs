@@ -1118,22 +1118,56 @@ impl JellyfinClient {
         Ok(())
     }
 
-    /// Get audio stream URL
+    /// Get audio stream URL for desktop (raw HTTP streaming with byte-range or startTimeTicks seeking).
+    ///
+    /// For seekable containers, returns a direct static stream.
+    /// For non-seekable containers (ALAC, etc.), returns a transcoded AAC stream.
+    /// The desktop player handles seeking via startTimeTicks on the raw stream.
     pub fn get_audio_stream_url(&self, item_id: &str, container: Option<&str>) -> String {
-        match utils::supports_seeking(container) {
-            true => format!(
+        let token = self.token.as_deref().unwrap_or("");
+        if utils::supports_seeking(container) {
+            format!(
                 "{}?api_key={}&static=true",
                 utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream", item_id)),
-                self.token.as_deref().unwrap_or("")
-            ),
-            false => format!(
+                token
+            )
+        } else {
+            format!(
                 "{}?api_key={}",
                 utils::build_jellyfin_url(
                     &self.server_url,
                     &format!("/Audio/{}/stream.aac", item_id)
                 ),
-                self.token.as_deref().unwrap_or("")
-            ),
+                token
+            )
+        }
+    }
+
+    /// Get audio stream URL for mobile (ExoPlayer/Media3).
+    ///
+    /// For seekable containers, returns a direct static stream.
+    /// For non-seekable containers (ALAC, etc.), uses the `/universal` endpoint which
+    /// transcodes to AAC. Uses `transcodingProtocol=http` so ExoPlayer receives a
+    /// progressive stream it can parse directly (not HLS which requires a special MediaSource).
+    pub fn get_mobile_audio_stream_url(&self, item_id: &str, container: Option<&str>) -> String {
+        let token = self.token.as_deref().unwrap_or("");
+        if utils::supports_seeking(container) {
+            format!(
+                "{}?api_key={}&static=true",
+                utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream", item_id)),
+                token
+            )
+        } else {
+            format!(
+                "{}?api_key={}\
+                 &container=mp3,aac,m4a|aac,flac,ogg\
+                 &transcodingContainer=aac\
+                 &transcodingProtocol=http\
+                 &audioCodec=aac\
+                 &maxStreamingBitrate=999999999",
+                utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/universal", item_id)),
+                token
+            )
         }
     }
 

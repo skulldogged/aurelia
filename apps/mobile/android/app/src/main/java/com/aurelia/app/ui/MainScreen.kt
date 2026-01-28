@@ -122,22 +122,23 @@ fun MainScreen(
   val navController = rememberNavController()
 
   // HomeViewModel hoisted here to survive tab switches
-  val homeViewModelFactory = remember { HomeViewModelFactory(sessionStore, playerController) }
-  val homeViewModel: HomeViewModel = viewModel(factory = homeViewModelFactory)
+  val homeViewModel: HomeViewModel = viewModel(
+    factory = remember { viewModelFactory { HomeViewModel(sessionStore, playerController) } },
+  )
 
   // SettingsViewModel hoisted here to survive tab switches
-  val settingsViewModelFactory = remember { SettingsViewModelFactory(sessionStore) }
-  val settingsViewModel: SettingsViewModel = viewModel(factory = settingsViewModelFactory)
+  val settingsViewModel: SettingsViewModel = viewModel(
+    factory = remember { viewModelFactory { SettingsViewModel(sessionStore) } },
+  )
 
   // PlaylistViewModel hoisted here to survive tab switches
-  val playlistViewModelFactory =
-    remember { PlaylistViewModelFactory(sessionStore, playerController) }
-  val playlistViewModel: PlaylistViewModel = viewModel(factory = playlistViewModelFactory)
+  val playlistViewModel: PlaylistViewModel = viewModel(
+    factory = remember { viewModelFactory { PlaylistViewModel(sessionStore, playerController) } },
+  )
 
-  val libraryViewModel: LibraryViewModel =
-    viewModel(
-      factory = LibraryViewModelFactory(sessionStore, playerController),
-    )
+  val libraryViewModel: LibraryViewModel = viewModel(
+    factory = remember { viewModelFactory { LibraryViewModel(sessionStore, playerController) } },
+  )
   val libraryState by libraryViewModel.state.collectAsState()
   val scope = rememberCoroutineScope()
 
@@ -762,8 +763,6 @@ fun MiniPlayerBar(
           modifier = Modifier.weight(1f),
           verticalArrangement = Arrangement.Center,
         ) {
-          // Dynamic font weight - slightly bolder when playing
-          val titleFontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Medium
           Text(
             text = title,
             style =
@@ -771,7 +770,7 @@ fun MiniPlayerBar(
                 fontSize = 15.sp,
                 letterSpacing = (-0.2).sp,
               ),
-            fontWeight = titleFontWeight,
+            fontWeight = FontWeight.Medium,
             color = colors.onPrimaryContainer,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

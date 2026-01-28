@@ -92,6 +92,7 @@ import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.WavyMusicSlider
 import com.aurelia.app.ui.navigation.Screen
+import com.aurelia.app.utils.formatTime
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberNowPlayingStyle
 import kotlinx.coroutines.delay
@@ -113,7 +114,7 @@ fun PlayerScreen(
 ) {
   val viewModel: PlayerViewModel =
     viewModel(
-      factory = PlayerViewModelFactory(playerController, sessionStore),
+      factory = viewModelFactory { PlayerViewModel(playerController, sessionStore) },
     )
   val state by viewModel.state.collectAsState()
   val currentPositionMs = rememberCurrentPosition(state)
@@ -774,14 +775,6 @@ private fun SecondaryControls(
       }
     }
   }
-}
-
-@Composable
-private fun formatTime(timeMs: Long): String {
-  val totalSeconds = timeMs.coerceAtLeast(0L) / 1000
-  val minutes = totalSeconds / 60
-  val seconds = totalSeconds % 60
-  return "%d:%02d".format(minutes, seconds)
 }
 
 @Composable

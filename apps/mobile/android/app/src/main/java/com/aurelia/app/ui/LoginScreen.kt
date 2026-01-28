@@ -49,7 +49,7 @@ fun LoginScreen(
 ) {
   val viewModel: LoginViewModel =
     viewModel(
-      factory = LoginViewModelFactory(sessionStore),
+      factory = viewModelFactory { LoginViewModel(sessionStore) },
     )
   val state by viewModel.state.collectAsState()
 

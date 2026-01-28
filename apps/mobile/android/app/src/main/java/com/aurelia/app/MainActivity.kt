@@ -19,7 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.AppViewModel
-import com.aurelia.app.ui.AppViewModelFactory
+import com.aurelia.app.ui.viewModelFactory
 import com.aurelia.app.ui.LoginScreen
 import com.aurelia.app.ui.MainScreen
 import com.aurelia.app.ui.SharedPlayerControllerViewModel
@@ -61,7 +61,7 @@ private fun AureliaApp() {
 
   val appViewModel: AppViewModel =
     viewModel(
-      factory = AppViewModelFactory(sessionStore),
+      factory = viewModelFactory { AppViewModel(sessionStore) },
     )
   val appState by appViewModel.state.collectAsState()
 

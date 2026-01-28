@@ -745,6 +745,8 @@ internal object IntegrityCheckingUniffiLib {
 
   external fun uniffi_aurelia_core_checksum_func_authenticate(): Short
 
+  external fun uniffi_aurelia_core_checksum_func_build_mobile_stream_url(): Short
+
   external fun uniffi_aurelia_core_checksum_func_build_stream_url(): Short
 
   external fun uniffi_aurelia_core_checksum_func_cache_songs(): Short
@@ -770,6 +772,8 @@ internal object IntegrityCheckingUniffiLib {
   external fun uniffi_aurelia_core_checksum_func_load_cached_songs(): Short
 
   external fun uniffi_aurelia_core_checksum_func_load_credentials(): Short
+
+  external fun uniffi_aurelia_core_checksum_func_mark_item_played(): Short
 
   external fun uniffi_aurelia_core_checksum_func_ping(): Short
 
@@ -803,6 +807,14 @@ internal object UniffiLib {
     `serverUrl`: RustBuffer.ByValue,
     `username`: RustBuffer.ByValue,
     `password`: RustBuffer.ByValue,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): RustBuffer.ByValue
+
+  external fun uniffi_aurelia_core_fn_func_build_mobile_stream_url(
+    `serverUrl`: RustBuffer.ByValue,
+    `token`: RustBuffer.ByValue,
+    `itemId`: RustBuffer.ByValue,
+    `container`: RustBuffer.ByValue,
     uniffi_out_err: UniffiRustCallStatus,
   ): RustBuffer.ByValue
 
@@ -889,6 +901,14 @@ internal object UniffiLib {
     `appDataDir`: RustBuffer.ByValue,
     uniffi_out_err: UniffiRustCallStatus,
   ): RustBuffer.ByValue
+
+  external fun uniffi_aurelia_core_fn_func_mark_item_played(
+    `serverUrl`: RustBuffer.ByValue,
+    `token`: RustBuffer.ByValue,
+    `userId`: RustBuffer.ByValue,
+    `itemId`: RustBuffer.ByValue,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): Unit
 
   external fun uniffi_aurelia_core_fn_func_ping(uniffi_out_err: UniffiRustCallStatus): RustBuffer.ByValue
 
@@ -1149,6 +1169,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
   if (lib.uniffi_aurelia_core_checksum_func_authenticate() != 32712.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
+  if (lib.uniffi_aurelia_core_checksum_func_build_mobile_stream_url() != 27250.toShort()) {
+    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+  }
   if (lib.uniffi_aurelia_core_checksum_func_build_stream_url() != 58828.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
@@ -1186,6 +1209,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
   if (lib.uniffi_aurelia_core_checksum_func_load_credentials() != 1313.toShort()) {
+    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+  }
+  if (lib.uniffi_aurelia_core_checksum_func_mark_item_played() != 54417.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
   if (lib.uniffi_aurelia_core_checksum_func_ping() != 25925.toShort()) {
@@ -3037,6 +3063,28 @@ fun `authenticate`(
     },
   )
 
+/**
+ * Build a stream URL optimized for mobile playback.
+ * Uses HLS transcoding for non-seekable containers so that Media3/ExoPlayer can seek natively.
+ */
+fun `buildMobileStreamUrl`(
+  `serverUrl`: kotlin.String,
+  `token`: kotlin.String,
+  `itemId`: kotlin.String,
+  `container`: kotlin.String?,
+): kotlin.String =
+  FfiConverterString.lift(
+    uniffiRustCall { _status ->
+      UniffiLib.uniffi_aurelia_core_fn_func_build_mobile_stream_url(
+        FfiConverterString.lower(`serverUrl`),
+        FfiConverterString.lower(`token`),
+        FfiConverterString.lower(`itemId`),
+        FfiConverterOptionalString.lower(`container`),
+        _status,
+      )
+    },
+  )
+
 fun `buildStreamUrl`(
   `serverUrl`: kotlin.String,
   `token`: kotlin.String,
@@ -3206,6 +3254,22 @@ fun `loadCredentials`(`appDataDir`: kotlin.String): Credentials? =
       UniffiLib.uniffi_aurelia_core_fn_func_load_credentials(FfiConverterString.lower(`appDataDir`), _status)
     },
   )
+
+@Throws(AppException::class)
+fun `markItemPlayed`(
+  `serverUrl`: kotlin.String,
+  `token`: kotlin.String,
+  `userId`: kotlin.String,
+  `itemId`: kotlin.String,
+) = uniffiRustCallWithError(AppException) { _status ->
+  UniffiLib.uniffi_aurelia_core_fn_func_mark_item_played(
+    FfiConverterString.lower(`serverUrl`),
+    FfiConverterString.lower(`token`),
+    FfiConverterString.lower(`userId`),
+    FfiConverterString.lower(`itemId`),
+    _status,
+  )
+}
 
 fun `ping`(): kotlin.String =
   FfiConverterString.lift(

@@ -70,6 +70,7 @@ import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
+import com.aurelia.app.ui.components.rememberContextMenuState
 import com.aurelia.app.ui.navigation.Screen
 import com.aurelia.app.ui.theme.AsymmetricSoftShape
 import com.aurelia.app.ui.theme.PuffyShape
@@ -94,10 +95,7 @@ fun HomeScreen(
   val colors = MaterialTheme.colorScheme
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
 
-  // Context menu state
-  var selectedSong by remember { mutableStateOf<Song?>(null) }
-  var showContextMenu by remember { mutableStateOf(false) }
-  var showPlaylistPicker by remember { mutableStateOf(false) }
+  val contextMenu = rememberContextMenuState()
 
   LaunchedEffect(Unit) {
     viewModel.loadHomeData()
@@ -136,7 +134,7 @@ fun HomeScreen(
         remember(state.mostPlayed, state.recentlyPlayed) {
           (state.mostPlayed + state.recentlyPlayed)
             .distinctBy { it.id }
-            .take(6)
+            .take(UiConstants.QUICK_PICKS_LIMIT)
         }
 
       // Get the most recently played song for the hero section
@@ -236,12 +234,9 @@ fun HomeScreen(
                 viewModel.playSongFromList(song.id, quickPicks)
                 onOpenPlayer()
               },
-              onLongClick = {
-                selectedSong = song
-                showContextMenu = true
-              },
-              showContextMenu = showContextMenu && selectedSong?.id == song.id,
-              onDismissMenu = { showContextMenu = false },
+              onLongClick = { contextMenu.openContextMenu(song) },
+              showContextMenu = contextMenu.showContextMenu && contextMenu.selectedSong?.id == song.id,
+              onDismissMenu = { contextMenu.dismissContextMenu() },
               onAddToQueue = {
                 val serverUrl = sessionStore.getServerUrl() ?: return@QuickPickCard
                 val token = sessionStore.getToken() ?: return@QuickPickCard
@@ -252,10 +247,7 @@ fun HomeScreen(
                 val token = sessionStore.getToken() ?: return@QuickPickCard
                 playerController.playNext(song, serverUrl, token)
               },
-              onAddToPlaylist = {
-                selectedSong = song
-                showPlaylistPicker = true
-              },
+              onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
               onGoToAlbum = if (song.albumId != null) {
                 {
                   onNavigateToAlbum(
@@ -360,27 +352,22 @@ fun HomeScreen(
   }
 
   // Playlist picker dialog
-  if (showPlaylistPicker && selectedSong != null) {
+  if (contextMenu.showPlaylistPicker && contextMenu.selectedSong != null) {
     PlaylistPickerDialog(
       playlists = playlistState.playlists,
       isLoading = playlistState.isLoading,
-      onDismiss = {
-        showPlaylistPicker = false
-        selectedSong = null
-      },
+      onDismiss = { contextMenu.dismissPlaylistPicker() },
       onSelectPlaylist = { playlist ->
-        selectedSong?.let { song ->
+        contextMenu.selectedSong?.let { song ->
           playlistViewModel.addSongsToPlaylist(playlist.id, listOf(song.id))
         }
-        showPlaylistPicker = false
-        selectedSong = null
+        contextMenu.dismissPlaylistPicker()
       },
       onCreatePlaylist = { name ->
-        selectedSong?.let { song ->
+        contextMenu.selectedSong?.let { song ->
           playlistViewModel.createPlaylist(name, listOf(song.id))
         }
-        showPlaylistPicker = false
-        selectedSong = null
+        contextMenu.dismissPlaylistPicker()
       },
     )
   }
