@@ -6,7 +6,6 @@
 
   import type { Credentials, Song } from '@/lib/api/bindings'
 
-  import { commands } from '@/lib/api/bindings'
   import MainLayout from '@/components/layout/MainLayout.vue'
   import Equalizer from '@/components/player/Equalizer.vue'
   import FullscreenPlayer from '@/components/player/FullscreenPlayer.vue'
@@ -36,9 +35,9 @@
   import { useSystemTray } from '@/composables/useSystemTray'
   import { useTopBar } from '@/composables/useTopBar'
   import { useVisualizerData } from '@/composables/useVisualizerData'
+  import { commands } from '@/lib/api/bindings'
   import { setAuthLogout } from '@/lib/auth-interceptor'
   import { getPlatform, Platform } from '@/lib/platform'
-
   import Login from '@/pages/login.vue'
   import { useHomeStore } from '@/stores'
   import { useLibraryStore } from '@/stores/library'
@@ -183,6 +182,7 @@
 
   const isSyncing = ref(false)
   const isClearing = ref(false)
+  const lastSyncTime = ref<null | string>(null)
   const swipeProgress = ref<null | {
     deltaY:    number
     direction: 'down' | 'left' | 'right' | 'up' | null
@@ -195,7 +195,6 @@
     playerStore.setVolume(playerStore.volume)
   })
 
-
   const loadLibraryAndHomeData = async (): Promise<void> => {
     await libraryStore.loadLibrary()
     if (!libraryStore.isLoaded)
@@ -203,9 +202,17 @@
     await homeStore.refreshHomeData()
   }
 
+  const fetchSyncState = async (): Promise<void> => {
+    const result = await commands.getSyncState()
+    if (result.status === 'ok' && result.data.lastSyncTime)
+      lastSyncTime.value = result.data.lastSyncTime
+  }
+
   watch(authStatus, async newStatus => {
-    if (newStatus === 'loggedIn' && credentials.value)
+    if (newStatus === 'loggedIn' && credentials.value) {
       await loadLibraryAndHomeData()
+      await fetchSyncState()
+    }
   })
 
   watch(authStatus, newStatus => {
@@ -249,6 +256,7 @@
     isSyncing.value = true
     await libraryStore.syncLibrary(credentials.value)
     await homeStore.refreshHomeData()
+    await fetchSyncState()
     isSyncing.value = false
   }
 
@@ -339,6 +347,7 @@
           :current-song='currentSong'
           :is-clearing='isClearing'
           :is-syncing='isSyncing'
+          :last-sync-time='lastSyncTime'
         />
       </RouterView>
 

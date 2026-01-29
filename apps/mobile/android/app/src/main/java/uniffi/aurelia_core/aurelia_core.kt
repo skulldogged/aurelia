@@ -759,7 +759,15 @@ internal object IntegrityCheckingUniffiLib {
 
   external fun uniffi_aurelia_core_checksum_func_delete_playlist(): Short
 
+  external fun uniffi_aurelia_core_checksum_func_fetch_album(): Short
+
+  external fun uniffi_aurelia_core_checksum_func_fetch_artist(): Short
+
   external fun uniffi_aurelia_core_checksum_func_fetch_songs(): Short
+
+  external fun uniffi_aurelia_core_checksum_func_get_cached_album(): Short
+
+  external fun uniffi_aurelia_core_checksum_func_get_cached_artist(): Short
 
   external fun uniffi_aurelia_core_checksum_func_get_library_sync_state(): Short
 
@@ -768,6 +776,8 @@ internal object IntegrityCheckingUniffiLib {
   external fun uniffi_aurelia_core_checksum_func_get_playlist_items(): Short
 
   external fun uniffi_aurelia_core_checksum_func_get_playlists(): Short
+
+  external fun uniffi_aurelia_core_checksum_func_get_sync_state(): Short
 
   external fun uniffi_aurelia_core_checksum_func_load_cached_songs(): Short
 
@@ -782,6 +792,8 @@ internal object IntegrityCheckingUniffiLib {
   external fun uniffi_aurelia_core_checksum_func_save_credentials(): Short
 
   external fun uniffi_aurelia_core_checksum_func_set_library_sync_state(): Short
+
+  external fun uniffi_aurelia_core_checksum_func_sync_songs_only(): Short
 
   external fun uniffi_aurelia_core_checksum_func_toggle_favorite(): Short
 
@@ -856,11 +868,41 @@ internal object UniffiLib {
     uniffi_out_err: UniffiRustCallStatus,
   ): Unit
 
+  external fun uniffi_aurelia_core_fn_func_fetch_album(
+    `serverUrl`: RustBuffer.ByValue,
+    `token`: RustBuffer.ByValue,
+    `userId`: RustBuffer.ByValue,
+    `albumId`: RustBuffer.ByValue,
+    `appDataDir`: RustBuffer.ByValue,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): RustBuffer.ByValue
+
+  external fun uniffi_aurelia_core_fn_func_fetch_artist(
+    `serverUrl`: RustBuffer.ByValue,
+    `token`: RustBuffer.ByValue,
+    `userId`: RustBuffer.ByValue,
+    `artistId`: RustBuffer.ByValue,
+    `appDataDir`: RustBuffer.ByValue,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): RustBuffer.ByValue
+
   external fun uniffi_aurelia_core_fn_func_fetch_songs(
     `serverUrl`: RustBuffer.ByValue,
     `token`: RustBuffer.ByValue,
     `userId`: RustBuffer.ByValue,
     `appDataDir`: RustBuffer.ByValue,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): RustBuffer.ByValue
+
+  external fun uniffi_aurelia_core_fn_func_get_cached_album(
+    `appDataDir`: RustBuffer.ByValue,
+    `albumId`: RustBuffer.ByValue,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): RustBuffer.ByValue
+
+  external fun uniffi_aurelia_core_fn_func_get_cached_artist(
+    `appDataDir`: RustBuffer.ByValue,
+    `artistId`: RustBuffer.ByValue,
     uniffi_out_err: UniffiRustCallStatus,
   ): RustBuffer.ByValue
 
@@ -889,6 +931,11 @@ internal object UniffiLib {
     `serverUrl`: RustBuffer.ByValue,
     `token`: RustBuffer.ByValue,
     `userId`: RustBuffer.ByValue,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): RustBuffer.ByValue
+
+  external fun uniffi_aurelia_core_fn_func_get_sync_state(
+    `appDataDir`: RustBuffer.ByValue,
     uniffi_out_err: UniffiRustCallStatus,
   ): RustBuffer.ByValue
 
@@ -931,6 +978,14 @@ internal object UniffiLib {
     `stateJson`: RustBuffer.ByValue,
     uniffi_out_err: UniffiRustCallStatus,
   ): Unit
+
+  external fun uniffi_aurelia_core_fn_func_sync_songs_only(
+    `serverUrl`: RustBuffer.ByValue,
+    `token`: RustBuffer.ByValue,
+    `userId`: RustBuffer.ByValue,
+    `appDataDir`: RustBuffer.ByValue,
+    uniffi_out_err: UniffiRustCallStatus,
+  ): Byte
 
   external fun uniffi_aurelia_core_fn_func_toggle_favorite(
     `serverUrl`: RustBuffer.ByValue,
@@ -1190,7 +1245,19 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
   if (lib.uniffi_aurelia_core_checksum_func_delete_playlist() != 1214.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
+  if (lib.uniffi_aurelia_core_checksum_func_fetch_album() != 49278.toShort()) {
+    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+  }
+  if (lib.uniffi_aurelia_core_checksum_func_fetch_artist() != 28478.toShort()) {
+    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+  }
   if (lib.uniffi_aurelia_core_checksum_func_fetch_songs() != 32746.toShort()) {
+    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+  }
+  if (lib.uniffi_aurelia_core_checksum_func_get_cached_album() != 1296.toShort()) {
+    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+  }
+  if (lib.uniffi_aurelia_core_checksum_func_get_cached_artist() != 36059.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
   if (lib.uniffi_aurelia_core_checksum_func_get_library_sync_state() != 52280.toShort()) {
@@ -1203,6 +1270,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
   if (lib.uniffi_aurelia_core_checksum_func_get_playlists() != 58832.toShort()) {
+    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+  }
+  if (lib.uniffi_aurelia_core_checksum_func_get_sync_state() != 52332.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
   if (lib.uniffi_aurelia_core_checksum_func_load_cached_songs() != 48653.toShort()) {
@@ -1224,6 +1294,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
   if (lib.uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285.toShort()) {
+    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+  }
+  if (lib.uniffi_aurelia_core_checksum_func_sync_songs_only() != 31503.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
   if (lib.uniffi_aurelia_core_checksum_func_toggle_favorite() != 2722.toShort()) {
@@ -1347,6 +1420,26 @@ public object FfiConverterUShort : FfiConverter<UShort, Short> {
     buf: ByteBuffer,
   ) {
     buf.putShort(value.toShort())
+  }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterUInt : FfiConverter<UInt, Int> {
+  override fun lift(value: Int): UInt = value.toUInt()
+
+  override fun read(buf: ByteBuffer): UInt = lift(buf.getInt())
+
+  override fun lower(value: UInt): Int = value.toInt()
+
+  override fun allocationSize(value: UInt) = 4UL
+
+  override fun write(
+    value: UInt,
+    buf: ByteBuffer,
+  ) {
+    buf.putInt(value.toInt())
   }
 }
 
@@ -1487,6 +1580,207 @@ public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
     val byteBuf = toUtf8(value)
     buf.putInt(byteBuf.limit())
     buf.put(byteBuf)
+  }
+}
+
+/**
+ * Consolidated album type with all information
+ */
+data class Album(
+  /**
+   * Album ID from Jellyfin
+   */
+  var `id`: kotlin.String?,
+  /**
+   * Album name
+   */
+  var `name`: kotlin.String,
+  /**
+   * Primary artist name
+   */
+  var `artist`: kotlin.String,
+  /**
+   * Primary artist ID
+   */
+  var `artistId`: kotlin.String?,
+  /**
+   * URL to album artwork
+   */
+  var `albumArtUrl`: kotlin.String?,
+  /**
+   * Number of songs in album
+   */
+  var `songCount`: kotlin.Long,
+  /**
+   * Optional list of songs in this album (only populated when needed)
+   */
+  var `songs`: List<Song>?,
+  /**
+   * Image tags
+   */
+  var `imageTags`: Map<kotlin.String, kotlin.String>?,
+  /**
+   * External provider IDs (`MusicBrainz`, etc.)
+   */
+  var `providerIds`: Map<kotlin.String, kotlin.String>?,
+  /**
+   * Date created (when added to server)
+   */
+  var `dateCreated`: kotlin.String?,
+  /**
+   * Date last modified on server
+   */
+  var `dateModified`: kotlin.String?,
+) {
+  companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeAlbum : FfiConverterRustBuffer<Album> {
+  override fun read(buf: ByteBuffer): Album =
+    Album(
+      FfiConverterOptionalString.read(buf),
+      FfiConverterString.read(buf),
+      FfiConverterString.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterLong.read(buf),
+      FfiConverterOptionalSequenceTypeSong.read(buf),
+      FfiConverterOptionalMapStringString.read(buf),
+      FfiConverterOptionalMapStringString.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalString.read(buf),
+    )
+
+  override fun allocationSize(value: Album) =
+    (
+      FfiConverterOptionalString.allocationSize(value.`id`) +
+        FfiConverterString.allocationSize(value.`name`) +
+        FfiConverterString.allocationSize(value.`artist`) +
+        FfiConverterOptionalString.allocationSize(value.`artistId`) +
+        FfiConverterOptionalString.allocationSize(value.`albumArtUrl`) +
+        FfiConverterLong.allocationSize(value.`songCount`) +
+        FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`) +
+        FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
+        FfiConverterOptionalMapStringString.allocationSize(value.`providerIds`) +
+        FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
+        FfiConverterOptionalString.allocationSize(value.`dateModified`)
+    )
+
+  override fun write(
+    value: Album,
+    buf: ByteBuffer,
+  ) {
+    FfiConverterOptionalString.write(value.`id`, buf)
+    FfiConverterString.write(value.`name`, buf)
+    FfiConverterString.write(value.`artist`, buf)
+    FfiConverterOptionalString.write(value.`artistId`, buf)
+    FfiConverterOptionalString.write(value.`albumArtUrl`, buf)
+    FfiConverterLong.write(value.`songCount`, buf)
+    FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
+    FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+    FfiConverterOptionalMapStringString.write(value.`providerIds`, buf)
+    FfiConverterOptionalString.write(value.`dateCreated`, buf)
+    FfiConverterOptionalString.write(value.`dateModified`, buf)
+  }
+}
+
+/**
+ * Consolidated artist type with all information
+ */
+data class Artist(
+  /**
+   * Artist name
+   */
+  var `name`: kotlin.String,
+  /**
+   * Artist ID
+   */
+  var `id`: kotlin.String,
+  /**
+   * Image tags (metadata about available images)
+   */
+  var `imageTags`: Map<kotlin.String, kotlin.String>?,
+  /**
+   * URL to artist image
+   */
+  var `imageUrl`: kotlin.String?,
+  /**
+   * Artist biography/description
+   */
+  var `overview`: kotlin.String?,
+  /**
+   * External provider IDs (`MusicBrainz`, etc.)
+   */
+  var `providerIds`: Map<kotlin.String, kotlin.String>?,
+  /**
+   * Community rating
+   */
+  var `communityRating`: kotlin.Double?,
+  /**
+   * Number of songs by this artist
+   */
+  var `songCount`: kotlin.Long?,
+  /**
+   * Date last modified on server
+   */
+  var `dateModified`: kotlin.String?,
+  /**
+   * Optional list of songs by this artist (only populated when needed)
+   */
+  var `songs`: List<Song>?,
+) {
+  companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeArtist : FfiConverterRustBuffer<Artist> {
+  override fun read(buf: ByteBuffer): Artist =
+    Artist(
+      FfiConverterString.read(buf),
+      FfiConverterString.read(buf),
+      FfiConverterOptionalMapStringString.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalMapStringString.read(buf),
+      FfiConverterOptionalDouble.read(buf),
+      FfiConverterOptionalLong.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalSequenceTypeSong.read(buf),
+    )
+
+  override fun allocationSize(value: Artist) =
+    (
+      FfiConverterString.allocationSize(value.`name`) +
+        FfiConverterString.allocationSize(value.`id`) +
+        FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
+        FfiConverterOptionalString.allocationSize(value.`imageUrl`) +
+        FfiConverterOptionalString.allocationSize(value.`overview`) +
+        FfiConverterOptionalMapStringString.allocationSize(value.`providerIds`) +
+        FfiConverterOptionalDouble.allocationSize(value.`communityRating`) +
+        FfiConverterOptionalLong.allocationSize(value.`songCount`) +
+        FfiConverterOptionalString.allocationSize(value.`dateModified`) +
+        FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`)
+    )
+
+  override fun write(
+    value: Artist,
+    buf: ByteBuffer,
+  ) {
+    FfiConverterString.write(value.`name`, buf)
+    FfiConverterString.write(value.`id`, buf)
+    FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+    FfiConverterOptionalString.write(value.`imageUrl`, buf)
+    FfiConverterOptionalString.write(value.`overview`, buf)
+    FfiConverterOptionalMapStringString.write(value.`providerIds`, buf)
+    FfiConverterOptionalDouble.write(value.`communityRating`, buf)
+    FfiConverterOptionalLong.write(value.`songCount`, buf)
+    FfiConverterOptionalString.write(value.`dateModified`, buf)
+    FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
   }
 }
 
@@ -2011,6 +2305,10 @@ data class Song(
    */
   var `dateCreated`: kotlin.String?,
   /**
+   * Date last modified on server
+   */
+  var `dateModified`: kotlin.String?,
+  /**
    * Album artists (different from track artists)
    */
   var `albumArtists`: List<NameIdPair>?,
@@ -2054,6 +2352,7 @@ public object FfiConverterTypeSong : FfiConverterRustBuffer<Song> {
       FfiConverterOptionalString.read(buf),
       FfiConverterOptionalString.read(buf),
       FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalString.read(buf),
       FfiConverterOptionalSequenceTypeNameIdPair.read(buf),
       FfiConverterOptionalString.read(buf),
       FfiConverterOptionalMapStringString.read(buf),
@@ -2083,6 +2382,7 @@ public object FfiConverterTypeSong : FfiConverterRustBuffer<Song> {
         FfiConverterOptionalString.allocationSize(value.`premiereDate`) +
         FfiConverterOptionalString.allocationSize(value.`datePlayed`) +
         FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
+        FfiConverterOptionalString.allocationSize(value.`dateModified`) +
         FfiConverterOptionalSequenceTypeNameIdPair.allocationSize(value.`albumArtists`) +
         FfiConverterOptionalString.allocationSize(value.`lyrics`) +
         FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`)
@@ -2114,9 +2414,116 @@ public object FfiConverterTypeSong : FfiConverterRustBuffer<Song> {
     FfiConverterOptionalString.write(value.`premiereDate`, buf)
     FfiConverterOptionalString.write(value.`datePlayed`, buf)
     FfiConverterOptionalString.write(value.`dateCreated`, buf)
+    FfiConverterOptionalString.write(value.`dateModified`, buf)
     FfiConverterOptionalSequenceTypeNameIdPair.write(value.`albumArtists`, buf)
     FfiConverterOptionalString.write(value.`lyrics`, buf)
     FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+  }
+}
+
+/**
+ * Progress update during sync (for UI feedback)
+ */
+data class SyncProgress(
+  /**
+   * Current stage of sync (e.g., "Fetching songs", "Saving to database")
+   */
+  var `stage`: kotlin.String,
+  /**
+   * Current item being processed
+   */
+  var `current`: kotlin.UInt,
+  /**
+   * Total items to process
+   */
+  var `total`: kotlin.UInt,
+  /**
+   * Whether sync is complete
+   */
+  var `isComplete`: kotlin.Boolean,
+) {
+  companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSyncProgress : FfiConverterRustBuffer<SyncProgress> {
+  override fun read(buf: ByteBuffer): SyncProgress =
+    SyncProgress(
+      FfiConverterString.read(buf),
+      FfiConverterUInt.read(buf),
+      FfiConverterUInt.read(buf),
+      FfiConverterBoolean.read(buf),
+    )
+
+  override fun allocationSize(value: SyncProgress) =
+    (
+      FfiConverterString.allocationSize(value.`stage`) +
+        FfiConverterUInt.allocationSize(value.`current`) +
+        FfiConverterUInt.allocationSize(value.`total`) +
+        FfiConverterBoolean.allocationSize(value.`isComplete`)
+    )
+
+  override fun write(
+    value: SyncProgress,
+    buf: ByteBuffer,
+  ) {
+    FfiConverterString.write(value.`stage`, buf)
+    FfiConverterUInt.write(value.`current`, buf)
+    FfiConverterUInt.write(value.`total`, buf)
+    FfiConverterBoolean.write(value.`isComplete`, buf)
+  }
+}
+
+/**
+ * Sync state persisted to track library sync history
+ */
+data class SyncState(
+  var `lastSyncTime`: kotlin.String,
+  var `lastFullSyncTime`: kotlin.String?,
+  var `lastSyncVersion`: kotlin.String?,
+  var `songCount`: kotlin.UInt,
+  var `artistCount`: kotlin.UInt,
+  var `albumCount`: kotlin.UInt,
+) {
+  companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSyncState : FfiConverterRustBuffer<SyncState> {
+  override fun read(buf: ByteBuffer): SyncState =
+    SyncState(
+      FfiConverterString.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterOptionalString.read(buf),
+      FfiConverterUInt.read(buf),
+      FfiConverterUInt.read(buf),
+      FfiConverterUInt.read(buf),
+    )
+
+  override fun allocationSize(value: SyncState) =
+    (
+      FfiConverterString.allocationSize(value.`lastSyncTime`) +
+        FfiConverterOptionalString.allocationSize(value.`lastFullSyncTime`) +
+        FfiConverterOptionalString.allocationSize(value.`lastSyncVersion`) +
+        FfiConverterUInt.allocationSize(value.`songCount`) +
+        FfiConverterUInt.allocationSize(value.`artistCount`) +
+        FfiConverterUInt.allocationSize(value.`albumCount`)
+    )
+
+  override fun write(
+    value: SyncState,
+    buf: ByteBuffer,
+  ) {
+    FfiConverterString.write(value.`lastSyncTime`, buf)
+    FfiConverterOptionalString.write(value.`lastFullSyncTime`, buf)
+    FfiConverterOptionalString.write(value.`lastSyncVersion`, buf)
+    FfiConverterUInt.write(value.`songCount`, buf)
+    FfiConverterUInt.write(value.`artistCount`, buf)
+    FfiConverterUInt.write(value.`albumCount`, buf)
   }
 }
 
@@ -2608,6 +3015,70 @@ public object FfiConverterOptionalString : FfiConverterRustBuffer<kotlin.String?
     } else {
       buf.put(1)
       FfiConverterString.write(value, buf)
+    }
+  }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeAlbum : FfiConverterRustBuffer<Album?> {
+  override fun read(buf: ByteBuffer): Album? {
+    if (buf.get().toInt() == 0) {
+      return null
+    }
+    return FfiConverterTypeAlbum.read(buf)
+  }
+
+  override fun allocationSize(value: Album?): ULong {
+    if (value == null) {
+      return 1UL
+    } else {
+      return 1UL + FfiConverterTypeAlbum.allocationSize(value)
+    }
+  }
+
+  override fun write(
+    value: Album?,
+    buf: ByteBuffer,
+  ) {
+    if (value == null) {
+      buf.put(0)
+    } else {
+      buf.put(1)
+      FfiConverterTypeAlbum.write(value, buf)
+    }
+  }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeArtist : FfiConverterRustBuffer<Artist?> {
+  override fun read(buf: ByteBuffer): Artist? {
+    if (buf.get().toInt() == 0) {
+      return null
+    }
+    return FfiConverterTypeArtist.read(buf)
+  }
+
+  override fun allocationSize(value: Artist?): ULong {
+    if (value == null) {
+      return 1UL
+    } else {
+      return 1UL + FfiConverterTypeArtist.allocationSize(value)
+    }
+  }
+
+  override fun write(
+    value: Artist?,
+    buf: ByteBuffer,
+  ) {
+    if (value == null) {
+      buf.put(0)
+    } else {
+      buf.put(1)
+      FfiConverterTypeArtist.write(value, buf)
     }
   }
 }
@@ -3158,6 +3629,54 @@ fun `deletePlaylist`(
   )
 }
 
+/**
+ * Fetch a single album from server and cache it
+ */
+@Throws(AppException::class)
+fun `fetchAlbum`(
+  `serverUrl`: kotlin.String,
+  `token`: kotlin.String,
+  `userId`: kotlin.String,
+  `albumId`: kotlin.String,
+  `appDataDir`: kotlin.String,
+): Album =
+  FfiConverterTypeAlbum.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+      UniffiLib.uniffi_aurelia_core_fn_func_fetch_album(
+        FfiConverterString.lower(`serverUrl`),
+        FfiConverterString.lower(`token`),
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`albumId`),
+        FfiConverterString.lower(`appDataDir`),
+        _status,
+      )
+    },
+  )
+
+/**
+ * Fetch a single artist from server and cache it
+ */
+@Throws(AppException::class)
+fun `fetchArtist`(
+  `serverUrl`: kotlin.String,
+  `token`: kotlin.String,
+  `userId`: kotlin.String,
+  `artistId`: kotlin.String,
+  `appDataDir`: kotlin.String,
+): Artist =
+  FfiConverterTypeArtist.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+      UniffiLib.uniffi_aurelia_core_fn_func_fetch_artist(
+        FfiConverterString.lower(`serverUrl`),
+        FfiConverterString.lower(`token`),
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`artistId`),
+        FfiConverterString.lower(`appDataDir`),
+        _status,
+      )
+    },
+  )
+
 @Throws(AppException::class)
 fun `fetchSongs`(
   `serverUrl`: kotlin.String,
@@ -3172,6 +3691,42 @@ fun `fetchSongs`(
         FfiConverterString.lower(`token`),
         FfiConverterString.lower(`userId`),
         FfiConverterString.lower(`appDataDir`),
+        _status,
+      )
+    },
+  )
+
+/**
+ * Get a cached album from local database
+ */
+@Throws(AppException::class)
+fun `getCachedAlbum`(
+  `appDataDir`: kotlin.String,
+  `albumId`: kotlin.String,
+): Album? =
+  FfiConverterOptionalTypeAlbum.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+      UniffiLib.uniffi_aurelia_core_fn_func_get_cached_album(
+        FfiConverterString.lower(`appDataDir`),
+        FfiConverterString.lower(`albumId`),
+        _status,
+      )
+    },
+  )
+
+/**
+ * Get a cached artist from local database
+ */
+@Throws(AppException::class)
+fun `getCachedArtist`(
+  `appDataDir`: kotlin.String,
+  `artistId`: kotlin.String,
+): Artist? =
+  FfiConverterOptionalTypeArtist.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+      UniffiLib.uniffi_aurelia_core_fn_func_get_cached_artist(
+        FfiConverterString.lower(`appDataDir`),
+        FfiConverterString.lower(`artistId`),
         _status,
       )
     },
@@ -3236,6 +3791,17 @@ fun `getPlaylists`(
         FfiConverterString.lower(`userId`),
         _status,
       )
+    },
+  )
+
+/**
+ * Get sync state as a typed struct (better for UI binding)
+ */
+@Throws(AppException::class)
+fun `getSyncState`(`appDataDir`: kotlin.String): SyncState =
+  FfiConverterTypeSyncState.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+      UniffiLib.uniffi_aurelia_core_fn_func_get_sync_state(FfiConverterString.lower(`appDataDir`), _status)
     },
   )
 
@@ -3317,6 +3883,28 @@ fun `setLibrarySyncState`(
     _status,
   )
 }
+
+/**
+ * Sync only songs (fast startup). Artists/albums are fetched on-demand.
+ */
+@Throws(AppException::class)
+fun `syncSongsOnly`(
+  `serverUrl`: kotlin.String,
+  `token`: kotlin.String,
+  `userId`: kotlin.String,
+  `appDataDir`: kotlin.String,
+): kotlin.Boolean =
+  FfiConverterBoolean.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+      UniffiLib.uniffi_aurelia_core_fn_func_sync_songs_only(
+        FfiConverterString.lower(`serverUrl`),
+        FfiConverterString.lower(`token`),
+        FfiConverterString.lower(`userId`),
+        FfiConverterString.lower(`appDataDir`),
+        _status,
+      )
+    },
+  )
 
 @Throws(AppException::class)
 fun `toggleFavorite`(

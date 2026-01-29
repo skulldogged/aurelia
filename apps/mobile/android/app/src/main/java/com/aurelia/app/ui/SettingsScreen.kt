@@ -201,10 +201,15 @@ fun SettingsScreen(
 
         // Library section
         SettingsSection(title = "Library") {
+          val lastSyncedText = when {
+            settingsState.isSyncing -> "Syncing..."
+            settingsState.lastSyncTime != null -> "Last synced ${SettingsViewModel.formatRelativeTime(settingsState.lastSyncTime)}"
+            else -> "Never synced"
+          }
           SettingsActionItem(
             icon = Icons.Filled.Sync,
             title = "Sync library",
-            subtitle = if (settingsState.isSyncing) "Syncing..." else "Refresh songs from server",
+            subtitle = lastSyncedText,
             isLoading = settingsState.isSyncing,
             onClick = { if (!settingsState.isSyncing) settingsViewModel.syncLibrary() },
           )
@@ -219,6 +224,68 @@ fun SettingsScreen(
             isLoading = settingsState.isClearing,
             onClick = { if (!settingsState.isClearing) showClearCacheDialog = true },
           )
+        }
+
+        // Auto-sync section
+        SettingsSection(title = "Background Sync") {
+          val context = androidx.compose.ui.platform.LocalContext.current
+          SettingsToggleItem(
+            icon = Icons.Filled.Sync,
+            title = "Auto-sync",
+            subtitle = "Sync library automatically on WiFi",
+            checked = settingsState.autoSyncEnabled,
+            onCheckedChange = { settingsViewModel.setAutoSyncEnabled(context, it) },
+          )
+          if (settingsState.autoSyncEnabled) {
+            HorizontalDivider(
+              modifier = Modifier.padding(start = 56.dp),
+              color = colors.outline.copy(alpha = 0.2f),
+            )
+            val intervalText = when (settingsState.syncIntervalHours) {
+              6L -> "Every 6 hours"
+              12L -> "Every 12 hours"
+              24L -> "Daily"
+              168L -> "Weekly"
+              else -> "Every ${settingsState.syncIntervalHours}h"
+            }
+            var showIntervalPicker by remember { mutableStateOf(false) }
+            SettingsActionItem(
+              icon = Icons.Filled.Storage,
+              title = "Sync frequency",
+              subtitle = intervalText,
+              onClick = { showIntervalPicker = true },
+            )
+            if (showIntervalPicker) {
+              AlertDialog(
+                onDismissRequest = { showIntervalPicker = false },
+                title = { Text("Sync frequency") },
+                text = {
+                  Column {
+                    listOf(6L to "Every 6 hours", 12L to "Every 12 hours", 24L to "Daily", 168L to "Weekly").forEach { (hours, label) ->
+                      TextButton(
+                        onClick = {
+                          settingsViewModel.setSyncInterval(context, hours)
+                          showIntervalPicker = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                      ) {
+                        Text(
+                          text = label,
+                          style = MaterialTheme.typography.bodyLarge,
+                          color = if (settingsState.syncIntervalHours == hours) colors.primary else colors.onSurface,
+                        )
+                      }
+                    }
+                  }
+                },
+                confirmButton = {
+                  TextButton(onClick = { showIntervalPicker = false }) {
+                    Text("Cancel")
+                  }
+                },
+              )
+            }
+          }
         }
 
         // Server section

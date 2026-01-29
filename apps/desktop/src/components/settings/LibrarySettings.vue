@@ -1,6 +1,8 @@
 <script setup lang="ts">
+  import { computed } from 'vue'
   import {
     AlertTriangle,
+    Clock,
     RefreshCw,
     Trash2,
   } from 'lucide-vue-next'
@@ -12,10 +14,30 @@
     (e: 'clear-cache'): void
   }>()
 
-  defineProps<{
+  const props = defineProps<{
     isClearing: boolean
     isSyncing:  boolean
+    lastSyncTime?: string | null
   }>()
+
+  // Compute relative time string from ISO timestamp
+  const lastSyncedDisplay = computed(() => {
+    if (!props.lastSyncTime) return null
+    
+    const syncDate = new Date(props.lastSyncTime)
+    const now = new Date()
+    const diffMs = now.getTime() - syncDate.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+    
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+    if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+    
+    return syncDate.toLocaleDateString()
+  })
 </script>
 
 <template>
@@ -37,19 +59,25 @@
             <h3 class='text-lg font-medium mb-2'>
               Sync Music Library
             </h3>
-            <p class='text-sm text-muted-foreground mb-6'>
+            <p class='text-sm text-muted-foreground mb-4'>
               Update your local music library with the latest data from Jellyfin server.
               This will add new songs and update existing metadata without removing your current data.
             </p>
-            <Button
-              @click='$emit("sync-library")'
-              :disabled='isSyncing'
-              class='px-6'
-              variant='default'
-            >
-              <RefreshCw :class="{'animate-spin': isSyncing}" class='size-4 mr-2' />
-              {{ isSyncing ? 'Syncing...' : 'Sync Library' }}
-            </Button>
+            <div class='flex items-center gap-4'>
+              <Button
+                @click='$emit("sync-library")'
+                :disabled='isSyncing'
+                class='px-6'
+                variant='default'
+              >
+                <RefreshCw :class="{'animate-spin': isSyncing}" class='size-4 mr-2' />
+                {{ isSyncing ? 'Syncing...' : 'Sync Library' }}
+              </Button>
+              <span v-if='lastSyncedDisplay' class='text-sm text-muted-foreground flex items-center gap-1.5'>
+                <Clock class='size-3.5' />
+                Last synced {{ lastSyncedDisplay }}
+              </span>
+            </div>
           </div>
         </div>
       </div>

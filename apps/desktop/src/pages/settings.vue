@@ -28,9 +28,10 @@
   }
 
   defineProps<{
-    credentials: Credentials | null
-    isClearing:  boolean
-    isSyncing:   boolean
+    credentials:   Credentials | null
+    isClearing:    boolean
+    isSyncing:     boolean
+    lastSyncTime?: null | string
   }>()
 
   defineEmits<{
@@ -244,11 +245,10 @@
             </div>
             <LibrarySettings
               @clear-cache='$emit("clear-cache")'
-              @logout='$emit("logout")'
               @sync-library='$emit("sync-library")'
-              :credentials='credentials'
               :is-clearing='isClearing'
               :is-syncing='isSyncing'
+              :last-sync-time='lastSyncTime'
             />
           </section>
 

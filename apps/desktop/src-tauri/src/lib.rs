@@ -82,6 +82,7 @@ pub fn run() {
             handlers::music::get_song_share_urls,
             handlers::music::get_album_share_urls,
             handlers::music::get_artist_share_urls,
+            handlers::music::get_sync_state,
             handlers::lyrics::get_lyrics,
             handlers::images::get_image,
             handlers::images::clear_image_cache,
@@ -171,6 +172,7 @@ pub fn run() {
             handlers::music::get_song_share_urls,
             handlers::music::get_album_share_urls,
             handlers::music::get_artist_share_urls,
+            handlers::music::get_sync_state,
             handlers::lyrics::get_lyrics,
             handlers::images::get_image,
             handlers::images::clear_image_cache,
@@ -252,6 +254,7 @@ pub fn run() {
             handlers::music::get_song_share_urls,
             handlers::music::get_album_share_urls,
             handlers::music::get_artist_share_urls,
+            handlers::music::get_sync_state,
             handlers::lyrics::get_lyrics,
             handlers::images::get_image,
             handlers::images::clear_image_cache,
@@ -325,7 +328,10 @@ pub fn run() {
             builder.mount_events(app);
 
             info!("Initializing database...");
-            let app_data_dir = handle.path().app_data_dir().expect("failed to get app data dir");
+            let app_data_dir = handle
+                .path()
+                .app_data_dir()
+                .expect("failed to get app data dir");
             if let Err(e) = database::init(&app_data_dir) {
                 error!("Failed to initialize database: {}", e);
             }

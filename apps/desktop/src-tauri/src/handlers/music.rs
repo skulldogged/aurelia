@@ -154,11 +154,47 @@ pub async fn get_album(
     album_id: String,
     include_songs: Option<bool>,
 ) -> Result<Album, String> {
-    let albums = app_state.albums.lock().unwrap().clone();
-    let mut album = albums
-        .into_iter()
-        .find(|album| album.id.as_ref() == Some(&album_id))
-        .ok_or_else(|| format!("Album with ID '{}' not found", album_id))?;
+    // Try app state first (fast path)
+    let cached_in_state = {
+        let albums = app_state.albums.lock().unwrap();
+        albums
+            .iter()
+            .find(|a| a.id.as_ref() == Some(&album_id))
+            .cloned()
+    };
+
+    let mut album = if let Some(album) = cached_in_state {
+        album
+    } else {
+        // Try database cache
+        if let Ok(Some(album)) = database::albums::get_by_id(&album_id) {
+            // Update app state with cached album
+            app_state.albums.lock().unwrap().push(album.clone());
+            album
+        } else {
+            // Fetch from server and cache
+            info!("Lazy-loading album {} from server", album_id);
+            let (server_url, token, user_id) = match super::auth::get_credentials_cached(&app).await
+            {
+                Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
+                _ => return Err("No saved credentials found".to_string()),
+            };
+
+            let client = JellyfinClient::with_auth(server_url, token);
+            let fetched_album = client
+                .get_album_details(&user_id, &album_id)
+                .await
+                .map_err(|e| format!("Failed to fetch album: {}", e))?;
+
+            // Cache in database
+            database::albums::cache(&fetched_album).map_err(|e| e.to_string())?;
+
+            // Update app state
+            app_state.albums.lock().unwrap().push(fetched_album.clone());
+
+            fetched_album
+        }
+    };
 
     if include_songs.unwrap_or(false) {
         // Use server-side filtering via AlbumIds query parameter
@@ -187,11 +223,48 @@ pub async fn get_artist(
     artist_id: String,
     include_songs: Option<bool>,
 ) -> Result<Artist, String> {
-    let artists = app_state.artists.lock().unwrap().clone();
-    let mut artist = artists
-        .into_iter()
-        .find(|artist| artist.id == artist_id)
-        .ok_or_else(|| format!("Artist with ID '{}' not found", artist_id))?;
+    // Try app state first (fast path)
+    let cached_in_state = {
+        let artists = app_state.artists.lock().unwrap();
+        artists.iter().find(|a| a.id == artist_id).cloned()
+    };
+
+    let mut artist = if let Some(artist) = cached_in_state {
+        artist
+    } else {
+        // Try database cache
+        if let Ok(Some(artist)) = database::artists::get_by_id(&artist_id) {
+            // Update app state with cached artist
+            app_state.artists.lock().unwrap().push(artist.clone());
+            artist
+        } else {
+            // Fetch from server and cache
+            info!("Lazy-loading artist {} from server", artist_id);
+            let (server_url, token, user_id) = match super::auth::get_credentials_cached(&app).await
+            {
+                Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
+                _ => return Err("No saved credentials found".to_string()),
+            };
+
+            let client = JellyfinClient::with_auth(server_url, token);
+            let fetched_artist = client
+                .get_artist_details(&user_id, &artist_id)
+                .await
+                .map_err(|e| format!("Failed to fetch artist: {}", e))?;
+
+            // Cache in database
+            database::artists::cache(&fetched_artist).map_err(|e| e.to_string())?;
+
+            // Update app state
+            app_state
+                .artists
+                .lock()
+                .unwrap()
+                .push(fetched_artist.clone());
+
+            fetched_artist
+        }
+    };
 
     if include_songs.unwrap_or(false) {
         // Use server-side filtering via AlbumArtistIds query parameter
@@ -409,7 +482,8 @@ pub async fn toggle_favorite_status(
     Ok(is_favorite)
 }
 
-/// Sync music library - update existing data without clearing cache
+/// Sync music library - only syncs songs for fast startup
+/// Artists/albums are fetched on-demand when viewing detail pages
 #[tauri::command]
 #[specta::specta]
 pub async fn sync_library(
@@ -418,7 +492,7 @@ pub async fn sync_library(
     server_url: String,
     token: String,
 ) -> Result<(), String> {
-    info!("Starting library sync...");
+    info!("Starting library sync (songs only)...");
 
     // Get user_id from saved credentials
     let user_id = match super::auth::get_credentials_cached(&app).await {
@@ -428,31 +502,49 @@ pub async fn sync_library(
 
     let client = JellyfinClient::with_auth(server_url.clone(), token.clone());
 
-    // Fetch in parallel
-    let songs_fut = client.get_music_library(&user_id);
-    let album_artists_fut = client.get_album_artists();
-    let albums_fut = client.get_albums(&user_id);
+    // Only fetch songs - artists/albums are lazy-loaded on demand
+    let songs = client
+        .get_music_library(&user_id)
+        .await
+        .map_err(|e| e.to_string())?;
 
-    let (songs_res, album_artists_res, albums_res) =
-        tokio::join!(songs_fut, album_artists_fut, albums_fut);
+    // Use incremental sync for songs only
+    info!("Syncing {} songs", songs.len());
+    let was_full_sync = database::sync_songs_only(&songs).map_err(|e| e.to_string())?;
 
-    let songs = songs_res.map_err(|e| e.to_string())?;
-    let artists = album_artists_res.map_err(|e| e.to_string())?;
-    let albums = albums_res.map_err(|e| e.to_string())?;
+    if was_full_sync {
+        info!("Performed full songs sync");
+    } else {
+        info!("Performed incremental songs sync");
+    }
 
-    // Update database
-    info!(
-        "Syncing {} songs, {} artists, and {} albums to database",
-        songs.len(),
-        artists.len(),
-        albums.len()
-    );
-    database::sync_all(&songs, &artists, &albums).map_err(|e| e.to_string())?;
-
-    // Update app state
+    // Update app state with songs
+    // Note: artists/albums in app state will be populated lazily when needed
+    let song_count = songs.len() as u32;
     *app_state.songs.lock().unwrap() = songs;
-    *app_state.artists.lock().unwrap() = artists;
-    *app_state.albums.lock().unwrap() = albums;
+
+    // Save sync state with timestamp
+    let sync_state = aurelia_core::domain::SyncState {
+        last_sync_time: chrono::Utc::now().to_rfc3339(),
+        last_full_sync_time: if was_full_sync {
+            Some(chrono::Utc::now().to_rfc3339())
+        } else {
+            None
+        },
+        last_sync_version: None,
+        song_count,
+        artist_count: 0,
+        album_count: 0,
+    };
+
+    let state_json = serde_json::to_string(&sync_state).map_err(|e| e.to_string())?;
+    use tauri::Manager;
+    let app_data_path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e: tauri::Error| e.to_string())?;
+    let sync_state_path = app_data_path.join("sync_state.json");
+    std::fs::write(&sync_state_path, state_json).map_err(|e| e.to_string())?;
 
     info!("Library sync completed successfully.");
     Ok(())
@@ -737,4 +829,50 @@ pub async fn get_artist_share_urls(
 ) -> Result<std::collections::HashMap<String, String>, String> {
     let artist = get_artist(app, app_state, artist_id, None).await?;
     aurelia_core::services::MusicBrainzService::get_artist_share_urls(&artist).await
+}
+
+/// Sync state for UI display
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStateInfo {
+    pub last_sync_time: Option<String>,
+    pub song_count: u32,
+    pub artist_count: u32,
+    pub album_count: u32,
+}
+
+/// Get the current sync state for UI display
+#[tauri::command]
+#[specta::specta]
+pub async fn get_sync_state(app: tauri::AppHandle) -> Result<SyncStateInfo, String> {
+    use tauri::Manager;
+
+    // Get app data path from tauri
+    let app_data_path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+
+    let sync_state_path = app_data_path.join("sync_state.json");
+
+    if sync_state_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&sync_state_path) {
+            if let Ok(parsed) = serde_json::from_str::<aurelia_core::domain::SyncState>(&content) {
+                return Ok(SyncStateInfo {
+                    last_sync_time: Some(parsed.last_sync_time),
+                    song_count: parsed.song_count,
+                    artist_count: parsed.artist_count,
+                    album_count: parsed.album_count,
+                });
+            }
+        }
+    }
+
+    let state = aurelia_core::domain::SyncState::default();
+    Ok(SyncStateInfo {
+        last_sync_time: None,
+        song_count: state.song_count,
+        artist_count: state.artist_count,
+        album_count: state.album_count,
+    })
 }

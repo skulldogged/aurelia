@@ -101,7 +101,7 @@ impl JellyfinClient {
     pub async fn get_album_artists(&self) -> AppResult<Vec<Artist>> {
         let artists_url = utils::build_jellyfin_url(
             &self.server_url,
-            "/Artists/AlbumArtists?Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating",
+            "/Artists/AlbumArtists?Recursive=true&Fields=ImageTags,Overview,ProviderIds,CommunityRating,DateLastModified",
         );
 
         let response = self
@@ -142,7 +142,7 @@ impl JellyfinClient {
         let albums_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items?userId={user_id}&IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,Artists,ProviderIds,DateCreated",
+                "/Items?userId={user_id}&IncludeItemTypes=MusicAlbum&Recursive=true&Fields=ImageTags,Overview,ProductionYear,CommunityRating,Artists,ProviderIds,DateCreated,DateLastModified",
             ),
         );
 
@@ -213,6 +213,10 @@ impl JellyfinClient {
             .as_str()
             .map(std::string::ToString::to_string);
 
+        let date_modified = item["DateLastModified"]
+            .as_str()
+            .map(std::string::ToString::to_string);
+
         crate::models::Album {
             id,
             name,
@@ -224,6 +228,7 @@ impl JellyfinClient {
             image_tags,
             provider_ids,
             date_created,
+            date_modified,
         }
     }
 
@@ -282,7 +287,7 @@ impl JellyfinClient {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Fields=Genres,DateCreated,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams"
+                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Fields=Genres,DateCreated,DateLastModified,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams"
             ),
         );
 
@@ -309,7 +314,7 @@ impl JellyfinClient {
         let library_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=20&Fields=Genres,DateCreated,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams"
+                "/Items?userId={user_id}&IncludeItemTypes=Audio&Recursive=true&Filters=IsPlayed&SortBy=DatePlayed&SortOrder=Descending&Limit=20&Fields=Genres,DateCreated,DateLastModified,MediaSources,ParentId,People,Tags,Path,RunTimeTicks,ImageTags,AlbumId,Artists,Album,ProductionYear,UserData,IndexNumber,PremiereDate,AlbumArtists,MediaStreams"
             ),
         );
 
@@ -528,6 +533,10 @@ impl JellyfinClient {
                 })
             });
 
+        let date_modified = item["DateLastModified"]
+            .as_str()
+            .map(std::string::ToString::to_string);
+
         let song = Song {
             id,
             name,
@@ -551,6 +560,7 @@ impl JellyfinClient {
             premiere_date,
             date_played,
             date_created,
+            date_modified,
             album_artists,
             lyrics: None,
             image_tags,
@@ -885,7 +895,7 @@ impl JellyfinClient {
         let artist_url = utils::build_jellyfin_url(
             &self.server_url,
             &format!(
-                "/Items/{artist_id}?userId={user_id}&Fields=ImageTags,Overview,ProviderIds,CommunityRating"
+                "/Items/{artist_id}?userId={user_id}&Fields=ImageTags,Overview,ProviderIds,CommunityRating,DateLastModified"
             ),
         );
 
@@ -905,6 +915,37 @@ impl JellyfinClient {
 
         let response_json: serde_json::Value = response.json().await?;
         self.parse_single_artist(&response_json)
+    }
+
+    /// Get album details
+    pub async fn get_album_details(
+        &self,
+        user_id: &str,
+        album_id: &str,
+    ) -> AppResult<crate::models::Album> {
+        let album_url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!(
+                "/Items/{album_id}?userId={user_id}&Fields=ImageTags,Overview,ProductionYear,CommunityRating,Artists,ProviderIds,DateCreated,DateLastModified"
+            ),
+        );
+
+        let response = self
+            .client
+            .get(&album_url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Err(AppError::Network(format!(
+                "Failed to fetch album details: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let response_json: serde_json::Value = response.json().await?;
+        Ok(self.parse_single_album(&response_json))
     }
 
     /// Get all artists
@@ -1047,6 +1088,10 @@ impl JellyfinClient {
         let community_rating = item["CommunityRating"].as_f64();
         let song_count = item["SongCount"].as_i64();
 
+        let date_modified = item["DateLastModified"]
+            .as_str()
+            .map(std::string::ToString::to_string);
+
         let artist = Artist {
             name,
             id,
@@ -1056,6 +1101,7 @@ impl JellyfinClient {
             provider_ids,
             community_rating,
             song_count,
+            date_modified,
             songs: None,
         };
 
@@ -1165,7 +1211,10 @@ impl JellyfinClient {
                  &transcodingProtocol=http\
                  &audioCodec=aac\
                  &maxStreamingBitrate=999999999",
-                utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/universal", item_id)),
+                utils::build_jellyfin_url(
+                    &self.server_url,
+                    &format!("/Audio/{}/universal", item_id)
+                ),
                 token
             )
         }

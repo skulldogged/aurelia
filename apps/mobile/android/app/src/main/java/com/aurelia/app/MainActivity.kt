@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +25,7 @@ import com.aurelia.app.ui.LoginScreen
 import com.aurelia.app.ui.MainScreen
 import com.aurelia.app.ui.SharedPlayerControllerViewModel
 import com.aurelia.app.ui.theme.AureliaTheme
+import com.aurelia.app.sync.SyncWorker
 
 class MainActivity : ComponentActivity() {
   private val notificationPermissionLauncher =
@@ -85,10 +87,15 @@ private fun AureliaApp() {
         // Show nothing while checking session - themed background only
       }
       appState.isLoggedIn -> {
+        // Schedule background sync when user is logged in
+        LaunchedEffect(Unit) {
+          SyncWorker.schedule(context)
+        }
         MainScreen(
           sessionStore = sessionStore,
           playerController = playerController,
           onLogout = {
+            SyncWorker.cancel(context)
             sessionStore.clear()
             appViewModel.checkSession()
           },

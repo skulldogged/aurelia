@@ -13,6 +13,12 @@ use tracing::{debug, info};
 pub static DB: OnceCell<Database> = OnceCell::new();
 
 pub fn init(app_data_dir: &PathBuf) -> Result<()> {
+    // If database is already initialized, just return Ok
+    if DB.get().is_some() {
+        debug!("Database already initialized, skipping");
+        return Ok(());
+    }
+
     info!("Database path: {:?}", app_data_dir);
 
     let db_path = app_data_dir.join("aurelia.redb");
@@ -46,8 +52,8 @@ pub fn init(app_data_dir: &PathBuf) -> Result<()> {
     }
     write_txn.commit()?;
 
-    DB.set(db)
-        .map_err(|_| anyhow!("Database already initialized"))?;
+    // Use set() but ignore if already set (race condition handling)
+    let _ = DB.set(db);
 
     info!("Database initialized successfully");
     Ok(())

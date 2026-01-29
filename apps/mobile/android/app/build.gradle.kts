@@ -168,6 +168,7 @@ dependencies {
   implementation("com.squareup.okhttp3:okhttp:5.3.2")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
   implementation("androidx.graphics:graphics-shapes:1.1.0")
+  implementation("androidx.work:work-runtime-ktx:2.10.1")
 
   debugImplementation("androidx.compose.ui:ui-tooling")
 

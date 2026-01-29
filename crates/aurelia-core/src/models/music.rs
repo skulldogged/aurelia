@@ -100,6 +100,9 @@ pub struct Song {
     /// Date created (when added to server)
     #[serde(rename = "dateCreated")]
     pub date_created: Option<String>,
+    /// Date last modified on server
+    #[serde(rename = "dateLastModified")]
+    pub date_modified: Option<String>,
     /// Album artists (different from track artists)
     #[serde(rename = "albumArtists")]
     pub album_artists: Option<Vec<NameIdPair>>,
@@ -119,7 +122,7 @@ impl Hash for Song {
 }
 
 /// Consolidated artist type with all information
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct Artist {
@@ -139,6 +142,9 @@ pub struct Artist {
     pub community_rating: Option<f64>,
     /// Number of songs by this artist
     pub song_count: Option<i64>,
+    /// Date last modified on server
+    #[serde(rename = "dateLastModified")]
+    pub date_modified: Option<String>,
     /// Optional list of songs by this artist (only populated when needed)
     pub songs: Option<Vec<Song>>,
 }
@@ -152,7 +158,7 @@ impl Hash for Artist {
 }
 
 /// Consolidated album type with all information
-#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+#[derive(Serialize, Deserialize, Debug, Clone, Type, uniffi::Record)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct Album {
@@ -177,6 +183,9 @@ pub struct Album {
     pub provider_ids: Option<HashMap<String, String>>,
     /// Date created (when added to server)
     pub date_created: Option<String>,
+    /// Date last modified on server
+    #[serde(rename = "dateLastModified")]
+    pub date_modified: Option<String>,
 }
 
 impl PartialEq for Album {
@@ -319,4 +328,3 @@ pub struct PlaylistUpdateData {
     /// Whether playlist is favorited
     pub is_favorite: Option<bool>,
 }
-
