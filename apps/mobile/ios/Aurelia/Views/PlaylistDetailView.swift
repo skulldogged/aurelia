@@ -1,0 +1,75 @@
+import SwiftUI
+import AureliaCore
+
+struct PlaylistDetailView: View {
+    let playlistId: String
+    let playlistName: String
+
+    @Environment(AudioPlayerController.self) private var playerController
+    @State private var viewModel = PlaylistViewModel()
+
+    var body: some View {
+        Group {
+            if viewModel.detailIsLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = viewModel.detailError {
+                ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else if viewModel.detailSongs.isEmpty {
+                ContentUnavailableView("Empty Playlist", systemImage: "music.note.list", description: Text("This playlist has no songs"))
+            } else {
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Playlist header
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 64))
+                            .frame(width: 160, height: 160)
+                            .background(.quaternary)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                        Text(playlistName)
+                            .font(.title2.bold())
+                        Text("\(viewModel.detailSongs.count) songs")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        // Play / Shuffle
+                        HStack(spacing: 16) {
+                            Button {
+                                viewModel.playPlaylist(playerController: playerController)
+                            } label: {
+                                Label("Play", systemImage: "play.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+
+                            Button {
+                                viewModel.shufflePlaylist(playerController: playerController)
+                            } label: {
+                                Label("Shuffle", systemImage: "shuffle")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                        .padding(.horizontal)
+
+                        // Songs
+                        LazyVStack(spacing: 0) {
+                            ForEach(Array(viewModel.detailSongs.enumerated()), id: \.element.id) { index, song in
+                                SongRow(song: song, isPlaying: song.id == playerController.snapshot.currentSongId) {
+                                    viewModel.playPlaylist(startIndex: index, playerController: playerController)
+                                }
+                                Divider()
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                    .padding(.vertical)
+                }
+            }
+        }
+        .navigationTitle(playlistName)
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { viewModel.loadPlaylistDetail(playlistId: playlistId) }
+    }
+}

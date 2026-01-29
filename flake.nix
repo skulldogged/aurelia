@@ -23,6 +23,7 @@
 
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = ["rust-src"];
+          targets = ["aarch64-apple-ios" "aarch64-apple-ios-sim"];
         };
       in {
         devShells.default = pkgs.mkShell rec {
@@ -57,6 +58,7 @@
           __NV_DISABLE_EXPLICIT_SYNC = 1;
           shellHook = ''
             export XDG_DATA_DIRS="$GSETTINGS_SCHEMAS_PATH"
+            ${lib.optionalString pkgs.stdenv.isDarwin "unset SDKROOT"}
           '';
         };
       }

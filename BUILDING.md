@@ -282,6 +282,71 @@ Example workflow structure:
 5. Run `bun run tauri build`
 6. Upload artifacts
 
+## iOS App
+
+### Prerequisites
+
+- macOS with Xcode 26+ (for iOS 26 SDK and Liquid Glass support)
+- Rust iOS targets:
+  ```bash
+  rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+  ```
+
+### Build Steps
+
+1. **Build the Rust core and generate Swift UniFFI bindings:**
+   ```bash
+   cd apps/mobile/ios
+   ./build-rust.sh          # debug build
+   ./build-rust.sh --release  # release build
+   ```
+   This compiles `aurelia-core` for iOS device and simulator targets, generates Swift bindings, and packages everything into an XCFramework.
+
+2. **Open the Xcode project:**
+   ```bash
+   open apps/mobile/ios/Aurelia.xcodeproj
+   ```
+   > Note: You need to create the Xcode project first via Xcode (File > New > Project > iOS App), then add
+   > the existing Swift source files from `Aurelia/` and the `AureliaCore` local Swift package.
+
+3. **Xcode project setup (first time):**
+   - Set deployment target to **iOS 26**
+   - Add the `AureliaCore` local Swift package (File > Add Package Dependencies > Add Local)
+   - Add `Info.plist` key: `UIBackgroundModes` = `audio` (already in `Info.plist`)
+   - Set bundle identifier to `com.aurelia.app`
+
+4. **Build and run** from Xcode (Cmd+R)
+
+### Architecture
+
+The iOS app mirrors the Android app architecture:
+- **SwiftUI** views with **@Observable** view models (MVVM)
+- **AVPlayer** for audio playback with lock screen / Control Center integration
+- **Shared Rust core** (`aurelia-core`) via UniFFI-generated Swift bindings
+- All Jellyfin API calls go through the Rust core; the iOS app handles UI + media playback
+
+### Project Structure
+
+```
+apps/mobile/ios/
+├── build-rust.sh              # Builds Rust + generates Swift bindings
+├── AureliaCore/               # Swift package wrapping Rust FFI
+│   ├── Package.swift
+│   ├── uniffi.toml
+│   ├── Sources/               # Generated: aurelia_core.swift + FFI headers
+│   └── AureliaCoreFFI.xcframework/  # Generated XCFramework
+├── Aurelia/
+│   ├── AureliaApp.swift       # App entry point
+│   ├── Info.plist             # Background audio capability
+│   ├── Assets.xcassets/
+│   ├── Models/                # App-level data models
+│   ├── ViewModels/            # @Observable view models
+│   ├── Views/                 # SwiftUI screens
+│   ├── Components/            # Reusable UI components
+│   ├── Player/                # AVPlayer + Now Playing integration
+│   └── Services/              # Session store, auth, utilities
+```
+
 ## Additional Resources
 
 - [Tauri v2 Documentation](https://tauri.app/v2/)
