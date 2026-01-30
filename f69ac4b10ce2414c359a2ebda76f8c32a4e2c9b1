@@ -1,0 +1,49 @@
+apps/desktop/src/main.ts
+  40377746b676b701 11-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "f69ac4b10ce2414c359a2ebda76f8c32a4e2c9b1",
+  "prompts": {
+    "40377746b676b701": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eeb15086ffeAba0vxk1xGg2Ya",
+        "model": "opencode/gpt-5-nano"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 3,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "566f27c4d529a5bd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eeb1d4d9ffeQVBeNsmGu4gaKx",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 3,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "b46eec7c7dd93956": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eeb31725ffe1BzZNSolRHPja1",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 6,
+      "total_deletions": 17,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    }
+  }
+}
