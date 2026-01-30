@@ -1,0 +1,39 @@
+{
+  "name": "@aurelia/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts"
+    },
+    "./api": {
+      "import": "./src/lib/api/index.ts"
+    },
+    "./types": {
+      "import": "./src/lib/api/types.ts"
+    }
+  },
+  "dependencies": {
+    "@vueuse/core": "^14.1.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.26",
+    "vue-router": "^4.6.4",
+    "reka-ui": "^2.7.0",
+    "lucide-vue-next": "^0.562.0",
+    "fuse.js": "^7.1.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.4.0",
+    "uuid": "^13.0.0",
+    "sortablejs-vue3": "^1.3.0",
+    "overlayscrollbars": "^2.13.0",
+    "overlayscrollbars-vue": "^0.5.9",
+    "@tanstack/vue-virtual": "^3.13.18",
+    "culori": "^4.0.2",
+    "simple-icons": "^16.5.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
+  }
+}

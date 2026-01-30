@@ -14,39 +14,31 @@ pub fn ping() -> String {
 }
 
 #[uniffi::export]
-pub fn authenticate(
+pub async fn authenticate(
     server_url: String,
     username: String,
     password: String,
 ) -> Result<models::LoginResponse, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::new(server_url);
-        client.authenticate(&username, &password).await
-    })
+    let client = services::JellyfinClient::new(server_url);
+    client.authenticate(&username, &password).await
 }
 
 #[uniffi::export]
-pub fn fetch_songs(
+pub async fn fetch_songs(
     server_url: String,
     token: String,
     user_id: String,
     app_data_dir: String,
 ) -> Result<Vec<models::Song>, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        let songs = client.get_music_library(&user_id).await?;
-        if !app_data_dir.is_empty() {
-            let app_dir = std::path::PathBuf::from(app_data_dir);
-            if let Err(err) = cache::sync_library(app_dir, &songs, &[], &[]) {
-                tracing::warn!("Failed to cache songs: {err}");
-            }
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    let songs = client.get_music_library(&user_id).await?;
+    if !app_data_dir.is_empty() {
+        let app_dir = std::path::PathBuf::from(app_data_dir);
+        if let Err(err) = cache::sync_library(app_dir, &songs, &[], &[]) {
+            tracing::warn!("Failed to cache songs: {err}");
         }
-        Ok(songs)
-    })
+    }
+    Ok(songs)
 }
 
 #[uniffi::export]
@@ -174,243 +166,188 @@ pub fn clear_cache(app_data_dir: String) -> Result<(), error::AppError> {
 }
 
 #[uniffi::export]
-pub fn get_lyrics(
+pub async fn get_lyrics(
     _server_url: String, // Kept for API compatibility, though currently unused for LRCLIB
     _token: String,
     _item_id: String,
     artist: String,
     title: String,
 ) -> String {
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    runtime.block_on(async {
-        let client = services::LrcLibClient::new();
-        match client.search_lyrics(&artist, &title).await {
-            Ok(results) => services::LrcLibClient::get_best_lyrics(&results).unwrap_or_default(),
-            Err(_) => String::new(),
-        }
-    })
+    let client = services::LrcLibClient::new();
+    match client.search_lyrics(&artist, &title).await {
+        Ok(results) => services::LrcLibClient::get_best_lyrics(&results).unwrap_or_default(),
+        Err(_) => String::new(),
+    }
 }
 
 #[uniffi::export]
-pub fn toggle_favorite(
+pub async fn toggle_favorite(
     server_url: String,
     token: String,
     user_id: String,
     item_id: String,
     is_favorite: bool,
 ) -> Result<bool, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        let new_state = !is_favorite;
-        client
-            .toggle_favorite(&user_id, &item_id, new_state)
-            .await?;
-        Ok(new_state)
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    let new_state = !is_favorite;
+    client
+        .toggle_favorite(&user_id, &item_id, new_state)
+        .await?;
+    Ok(new_state)
 }
 
 // Playlist operations
 
 #[uniffi::export]
-pub fn get_playlists(
+pub async fn get_playlists(
     server_url: String,
     token: String,
     user_id: String,
 ) -> Result<Vec<models::Playlist>, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.get_playlists(&user_id).await
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.get_playlists(&user_id).await
 }
 
 #[uniffi::export]
-pub fn create_playlist(
+pub async fn create_playlist(
     server_url: String,
     token: String,
     data: models::PlaylistCreateData,
 ) -> Result<models::Playlist, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.create_playlist(&data).await
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.create_playlist(&data).await
 }
 
 #[uniffi::export]
-pub fn update_playlist(
+pub async fn update_playlist(
     server_url: String,
     token: String,
     playlist_id: String,
     updates: models::PlaylistUpdateData,
 ) -> Result<models::Playlist, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.update_playlist(&playlist_id, &updates).await
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.update_playlist(&playlist_id, &updates).await
 }
 
 #[uniffi::export]
-pub fn delete_playlist(
+pub async fn delete_playlist(
     server_url: String,
     token: String,
     playlist_id: String,
 ) -> Result<(), error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.delete_playlist(&playlist_id).await
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.delete_playlist(&playlist_id).await
 }
 
 #[uniffi::export]
-pub fn add_playlist_items(
+pub async fn add_playlist_items(
     server_url: String,
     token: String,
     playlist_id: String,
     item_ids: Vec<String>,
 ) -> Result<(), error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.add_playlist_items(&playlist_id, &item_ids).await
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.add_playlist_items(&playlist_id, &item_ids).await
 }
 
 #[uniffi::export]
-pub fn remove_playlist_items(
+pub async fn remove_playlist_items(
     server_url: String,
     token: String,
     playlist_id: String,
     item_ids: Vec<String>,
 ) -> Result<(), error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.remove_playlist_items(&playlist_id, &item_ids).await
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.remove_playlist_items(&playlist_id, &item_ids).await
 }
 
 #[uniffi::export]
-pub fn get_playlist_items(
+pub async fn get_playlist_items(
     server_url: String,
     token: String,
     playlist_id: String,
 ) -> Result<Vec<models::Song>, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.get_playlist_items(&playlist_id).await
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.get_playlist_items(&playlist_id).await
 }
 
 #[uniffi::export]
-pub fn mark_item_played(
+pub async fn mark_item_played(
     server_url: String,
     token: String,
     user_id: String,
     item_id: String,
 ) -> Result<(), error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
-    runtime.block_on(async {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.mark_item_played(&user_id, &item_id).await
-    })
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.mark_item_played(&user_id, &item_id).await
 }
 
 // Lazy-load functions for hybrid sync
 
 /// Sync only songs (fast startup). Artists/albums are fetched on-demand.
 #[uniffi::export]
-pub fn sync_songs_only(
+pub async fn sync_songs_only(
     server_url: String,
     token: String,
     user_id: String,
     app_data_dir: String,
 ) -> Result<bool, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    // Initialize database
+    let app_data_path = std::path::PathBuf::from(&app_data_dir);
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-    runtime.block_on(async {
-        // Initialize database
-        let app_data_path = std::path::PathBuf::from(&app_data_dir);
-        db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+    // Fetch songs only
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    let songs = client.get_music_library(&user_id).await?;
 
-        // Fetch songs only
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        let songs = client.get_music_library(&user_id).await?;
-
-        // Use incremental sync
-        db::sync_songs_only(&songs).map_err(|e| error::AppError::Database(e.to_string()))
-    })
+    // Use incremental sync
+    db::sync_songs_only(&songs).map_err(|e| error::AppError::Database(e.to_string()))
 }
 
 /// Fetch a single artist from server and cache it
 #[uniffi::export]
-pub fn fetch_artist(
+pub async fn fetch_artist(
     server_url: String,
     token: String,
     user_id: String,
     artist_id: String,
     app_data_dir: String,
 ) -> Result<models::Artist, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    // Initialize database
+    let app_data_path = std::path::PathBuf::from(&app_data_dir);
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-    runtime.block_on(async {
-        // Initialize database
-        let app_data_path = std::path::PathBuf::from(&app_data_dir);
-        db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+    // Fetch from server
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    let artist = client.get_artist_details(&user_id, &artist_id).await?;
 
-        // Fetch from server
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        let artist = client.get_artist_details(&user_id, &artist_id).await?;
+    // Cache in database
+    db::artists::cache(&artist).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-        // Cache in database
-        db::artists::cache(&artist).map_err(|e| error::AppError::Database(e.to_string()))?;
-
-        Ok(artist)
-    })
+    Ok(artist)
 }
 
 /// Fetch a single album from server and cache it
 #[uniffi::export]
-pub fn fetch_album(
+pub async fn fetch_album(
     server_url: String,
     token: String,
     user_id: String,
     album_id: String,
     app_data_dir: String,
 ) -> Result<models::Album, error::AppError> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| error::AppError::UniFfi(error.to_string()))?;
+    // Initialize database
+    let app_data_path = std::path::PathBuf::from(&app_data_dir);
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-    runtime.block_on(async {
-        // Initialize database
-        let app_data_path = std::path::PathBuf::from(&app_data_dir);
-        db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+    // Fetch from server
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    let album = client.get_album_details(&user_id, &album_id).await?;
 
-        // Fetch from server
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        let album = client.get_album_details(&user_id, &album_id).await?;
+    // Cache in database
+    db::albums::cache(&album).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-        // Cache in database
-        db::albums::cache(&album).map_err(|e| error::AppError::Database(e.to_string()))?;
-
-        Ok(album)
-    })
+    Ok(album)
 }
 
 /// Get a cached artist from local database
@@ -435,6 +372,165 @@ pub fn get_cached_album(
     db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
     db::albums::get_by_id(&album_id).map_err(|e| error::AppError::Database(e.to_string()))
+}
+
+/// Get a cached song from local database
+#[uniffi::export]
+pub fn get_cached_song(
+    app_data_dir: String,
+    song_id: String,
+) -> Result<Option<models::Song>, error::AppError> {
+    let app_data_path = std::path::PathBuf::from(&app_data_dir);
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+
+    db::songs::get_by_id(&song_id).map_err(|e| error::AppError::Database(e.to_string()))
+}
+
+#[uniffi::export]
+pub async fn get_recently_played(
+    server_url: String,
+    token: String,
+    user_id: String,
+) -> Result<Vec<models::Song>, error::AppError> {
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.get_recently_played(&user_id).await
+}
+
+#[uniffi::export]
+pub async fn get_instant_mix(
+    server_url: String,
+    token: String,
+    item_id: String,
+) -> Result<Vec<models::Song>, error::AppError> {
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.get_instant_mix(&item_id).await
+}
+
+#[uniffi::export]
+pub async fn get_song_share_urls(
+    song: models::Song,
+) -> Result<std::collections::HashMap<String, String>, error::AppError> {
+    services::MusicBrainzService::get_song_share_urls(&song)
+        .await
+        .map_err(|e| error::AppError::UniFfi(e))
+}
+
+#[uniffi::export]
+pub async fn get_related_artists(
+    app_data_dir: String,
+    artist_id: String,
+) -> Result<Vec<models::Artist>, error::AppError> {
+    let app_data_path = std::path::PathBuf::from(&app_data_dir);
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+
+    let all_artists = db::artists::get_all().map_err(|e| error::AppError::Database(e.to_string()))?;
+    let all_songs = db::songs::get_all().map_err(|e| error::AppError::Database(e.to_string()))?;
+
+    let current_artist = all_artists
+        .iter()
+        .find(|a| a.id == artist_id)
+        .ok_or_else(|| error::AppError::UniFfi("Artist not found".to_string()))?;
+
+    const COLLABORATION_SCORE: i32 = 10;
+    const SHARED_GENRE_SCORE: i32 = 5;
+    const SHARED_ALBUM_SCORE: i32 = 2;
+
+    let current_artist_songs: Vec<&models::Song> = all_songs
+        .iter()
+        .filter(|s| {
+            s.artists
+                .as_ref()
+                .is_some_and(|a| a.contains(&current_artist.name))
+        })
+        .collect();
+
+    let current_artist_genres: std::collections::HashSet<&String> = current_artist_songs
+        .iter()
+        .flat_map(|s| {
+            s.genres
+                .as_ref()
+                .map_or_else(Vec::new, |g| g.iter().collect())
+        })
+        .collect();
+
+    let current_artist_albums: std::collections::HashSet<&String> = current_artist_songs
+        .iter()
+        .filter_map(|s| s.album.as_ref())
+        .collect();
+
+    let mut artist_scores: std::collections::HashMap<String, i32> =
+        std::collections::HashMap::new();
+
+    for other_artist in &all_artists {
+        if other_artist.id == current_artist.id {
+            continue;
+        }
+
+        let mut score = 0;
+        let other_artist_songs: Vec<&models::Song> = all_songs
+            .iter()
+            .filter(|s| {
+                s.artists
+                    .as_ref()
+                    .is_some_and(|a| a.contains(&other_artist.name))
+            })
+            .collect();
+
+        if other_artist_songs.is_empty() {
+            continue;
+        }
+
+        let collaborations = current_artist_songs
+            .iter()
+            .filter(|s| {
+                s.artists
+                    .as_ref()
+                    .is_some_and(|a| a.contains(&other_artist.name))
+            })
+            .count();
+        score += collaborations as i32 * COLLABORATION_SCORE;
+
+        let other_artist_genres: std::collections::HashSet<&String> = other_artist_songs
+            .iter()
+            .flat_map(|s| {
+                s.genres
+                    .as_ref()
+                    .map_or_else(Vec::new, |g| g.iter().collect())
+            })
+            .collect();
+
+        for genre in &other_artist_genres {
+            if current_artist_genres.contains(genre) {
+                score += SHARED_GENRE_SCORE;
+            }
+        }
+
+        let other_artist_albums: std::collections::HashSet<&String> = other_artist_songs
+            .iter()
+            .filter_map(|s| s.album.as_ref())
+            .collect();
+
+        for album in &other_artist_albums {
+            if current_artist_albums.contains(album) && collaborations == 0 {
+                score += SHARED_ALBUM_SCORE;
+            }
+        }
+
+        if score > 0 {
+            artist_scores.insert(other_artist.id.clone(), score);
+        }
+    }
+
+    let mut sorted_artists: Vec<_> = artist_scores.into_iter().collect();
+    sorted_artists.sort_by(|a, b| b.1.cmp(&a.1));
+
+    let result: Vec<models::Artist> = sorted_artists
+        .iter()
+        .take(6)
+        .filter_map(|(artist_id, _)| all_artists.iter().find(|a| a.id == *artist_id).cloned())
+        .collect();
+
+    Ok(result)
 }
 
 uniffi::setup_scaffolding!();

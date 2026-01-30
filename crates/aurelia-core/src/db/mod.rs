@@ -229,6 +229,24 @@ pub mod songs {
         get_all_items(&table)
     }
 
+    pub fn get_by_id(song_id: &str) -> Result<Option<Song>> {
+        let db = crate::db::get()?;
+        let read_txn = db
+            .begin_read()
+            .map_err(|e| anyhow!("Failed to begin read transaction: {}", e))?;
+        let table = read_txn
+            .open_table(SONGS_TABLE)
+            .map_err(|e| anyhow!("Failed to open songs table: {}", e))?;
+
+        if let Some(bytes) = table.get(song_id)? {
+            let song: Song = postcard::from_bytes(bytes.value())
+                .map_err(|e| anyhow!("Failed to decode song: {}", e))?;
+            Ok(Some(song))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn update_favorite_status(song_id: &str, is_favorite: bool) -> Result<()> {
         let db = crate::db::get()?;
         let repo = crate::db::repositories::SongRepository::new(db);
