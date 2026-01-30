@@ -1,0 +1,23 @@
+crates/aurelia-core/src/services/jellyfin.rs
+  ba3f298a83207f7e 14-27,41,46,51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "674b48c1da97dfbf91ad7f3b60e49d0ad8666945",
+  "prompts": {
+    "ba3f298a83207f7e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef1038dcffeWm0v8kJ5suLskJ",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 44,
+      "total_deletions": 31,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}
