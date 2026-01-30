@@ -61,7 +61,7 @@ android {
   }
 
   buildToolsVersion = "36.0.0"
-  ndkVersion = "29.0.13846066 rc3"
+  ndkVersion = "29.0.14206865"
 }
 
 android.sourceSets["main"]
@@ -82,6 +82,9 @@ tasks.register<JavaExec>("formatUniffiBindings") {
 }
 
 tasks.register<Exec>("generateUniffiBindings") {
+  val libName = if (org.gradle.internal.os.OperatingSystem.current().isWindows) "aurelia_core.dll"
+    else if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) "libaurelia_core.dylib"
+    else "libaurelia_core.so"
   workingDir = file("$rootDir/../../..")
   commandLine(
     "cargo",
@@ -91,7 +94,7 @@ tasks.register<Exec>("generateUniffiBindings") {
     "--",
     "generate",
     "--library",
-    "target/debug/aurelia_core.dll",
+    "target/debug/$libName",
     "--language",
     "kotlin",
     "--config",
