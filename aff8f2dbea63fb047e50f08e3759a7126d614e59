@@ -1,0 +1,25 @@
+apps/desktop/src/composables/index.ts
+  5dd8ebaf12612018 1-3
+apps/desktop/src/App.vue
+  5dd8ebaf12612018 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "aff8f2dbea63fb047e50f08e3759a7126d614e59",
+  "prompts": {
+    "5dd8ebaf12612018": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef05bae4ffeCQiINgg0V7BzOH",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 3,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
