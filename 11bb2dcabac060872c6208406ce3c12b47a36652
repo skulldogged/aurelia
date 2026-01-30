@@ -1,0 +1,36 @@
+crates/aurelia-core/src/lib.rs
+  ecd51738eeffc8e4 168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "11bb2dcabac060872c6208406ce3c12b47a36652",
+  "prompts": {
+    "187d372fff5ccd3f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef1a3dccffemo7vpiYzQLRUHc",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 578,
+      "total_deletions": 0,
+      "accepted_lines": 578,
+      "overriden_lines": 0
+    },
+    "ecd51738eeffc8e4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef10f31fffeBmsvn9MkFqvZh4",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
