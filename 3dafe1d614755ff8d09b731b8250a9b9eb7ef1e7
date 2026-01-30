@@ -1,0 +1,31 @@
+docs/generated-bindings.md
+  0a9b80ed9d842712 1-151
+scripts/generate-bindings.ps1
+  0a9b80ed9d842712 1-9
+package.json
+  0a9b80ed9d842712 1-16
+scripts/generate-bindings.sh
+  0a9b80ed9d842712 1-14
+.github/workflows/bindings-check.yml
+  0a9b80ed9d842712 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "3dafe1d614755ff8d09b731b8250a9b9eb7ef1e7",
+  "prompts": {
+    "0a9b80ed9d842712": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eeae189effelsIH5IFSh98ScQ",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 215,
+      "total_deletions": 0,
+      "accepted_lines": 215,
+      "overriden_lines": 0
+    }
+  }
+}
