@@ -542,6 +542,17 @@ export const commands = {
       else return { error: e  as any, status: 'error' }
     }
   },
+  /**
+ * Get the current sync state for UI display
+ */
+  getSyncState: async (): Promise<Result<SyncStateInfo, string>> => {
+    try {
+      return { data: await TAURI_INVOKE('get_sync_state'), status: 'ok' }
+    } catch (e) {
+      if (e instanceof Error) throw e
+      else return { error: e  as any, status: 'error' }
+    }
+  },
   hideMainWindow: async (): Promise<void> => {
     await TAURI_INVOKE('hide_main_window')
   },
@@ -749,7 +760,8 @@ export const commands = {
     await TAURI_INVOKE('show_main_window')
   },
   /**
- * Sync music library - update existing data without clearing cache
+ * Sync music library - only syncs songs for fast startup
+ * Artists/albums are fetched on-demand when viewing detail pages
  */
   syncLibrary: async (serverUrl: string, token: string): Promise<Result<null, string>> => {
     try {
@@ -796,43 +808,47 @@ export type Album = {
 /**
  * URL to album artwork
  */
-  albumArtUrl: null | string;
+  albumArtUrl:      null | string;
   /**
  * Primary artist name
  */
-  artist:      string;
+  artist:           string;
   /**
  * Primary artist ID
  */
-  artistId:    null | string;
+  artistId:         null | string;
   /**
  * Date created (when added to server)
  */
-  dateCreated: null | string
+  dateCreated:      null | string;
+  /**
+ * Date last modified on server
+ */
+  dateLastModified: null | string
   /**
  * Album ID from Jellyfin
  */
-  id:          null | string;
+  id:               null | string;
   /**
  * Image tags
  */
-  imageTags:   null | Partial<{ [key in string]: string }>;
+  imageTags:        null | Partial<{ [key in string]: string }>;
   /**
  * Album name
  */
-  name:        string;
+  name:             string;
   /**
  * External provider IDs (`MusicBrainz`, etc.)
  */
-  providerIds: null | Partial<{ [key in string]: string }>;
+  providerIds:      null | Partial<{ [key in string]: string }>;
   /**
  * Number of songs in album
  */
-  songCount:   bigint;
+  songCount:        bigint;
   /**
  * Optional list of songs in this album (only populated when needed)
  */
-  songs:       null | Song[]; }
+  songs:            null | Song[]; }
 /**
  * Consolidated artist type with all information
  */
@@ -840,39 +856,43 @@ export type Artist = {
 /**
  * Community rating
  */
-  communityRating: null | number;
+  communityRating:  null | number;
+  /**
+ * Date last modified on server
+ */
+  dateLastModified: null | string;
   /**
  * Artist ID
  */
-  id:              string;
+  id:               string;
   /**
  * Image tags (metadata about available images)
  */
-  imageTags:       null | Partial<{ [key in string]: string }>;
+  imageTags:        null | Partial<{ [key in string]: string }>;
   /**
  * URL to artist image
  */
-  imageUrl:        null | string;
+  imageUrl:         null | string;
   /**
  * Artist name
  */
-  name:            string;
+  name:             string;
   /**
  * Artist biography/description
  */
-  overview:        null | string;
+  overview:         null | string;
   /**
  * External provider IDs (`MusicBrainz`, etc.)
  */
-  providerIds:     null | Partial<{ [key in string]: string }>;
+  providerIds:      null | Partial<{ [key in string]: string }>;
   /**
  * Number of songs by this artist
  */
-  songCount:       bigint | null;
+  songCount:        bigint | null;
   /**
  * Optional list of songs by this artist (only populated when needed)
  */
-  songs:           null | Song[] }
+  songs:            null | Song[] }
 /**
  * User credentials for Jellyfin authentication
  */
@@ -1069,103 +1089,111 @@ export type Song = {
 /**
  * Album name
  */
-  album:        null | string;
+  album:            null | string;
   /**
  * Album artists (different from track artists)
  */
-  albumArtists: NameIdPair[] | null;
+  albumArtists:     NameIdPair[] | null;
   /**
  * URL to album artwork
  */
-  albumArtUrl:  null | string;
+  albumArtUrl:      null | string;
   /**
  * Album ID
  */
-  albumId:      null | string;
+  albumId:          null | string;
   /**
  * List of artist IDs corresponding to artists
  */
-  artistIds:    null | string[];
+  artistIds:        null | string[];
   /**
  * List of artist names
  */
-  artists:      null | string[];
+  artists:          null | string[];
   /**
  * Audio bitrate
  */
-  bitRate:      null | number;
+  bitRate:          null | number;
   /**
  * Audio codec
  */
-  codec:        null | string;
+  codec:            null | string;
   /**
  * Audio container/format
  */
-  container:    null | string;
+  container:        null | string;
   /**
  * Date created (when added to server)
  */
-  dateCreated:  null | string;
+  dateCreated:      null | string;
+  /**
+ * Date last modified on server
+ */
+  dateLastModified: null | string;
   /**
  * Last played date
  */
-  datePlayed:   null | string;
+  datePlayed:       null | string;
   /**
  * Duration in seconds
  */
-  duration:     null | number;
+  duration:         null | number;
   /**
  * Music genres
  */
-  genres:       null | string[];
+  genres:           null | string[];
   /**
  * Unique identifier
  */
-  id:           string;
+  id:               string;
   /**
  * Image tags
  */
-  imageTags:    null | Partial<{ [key in string]: string }>
+  imageTags:        null | Partial<{ [key in string]: string }>
   /**
  * Whether this item is marked as favorite
  */
-  isFavorite:   boolean | null;
+  isFavorite:       boolean | null;
   /**
  * Type of item (usually "Audio")
  */
-  itemType:     string;
+  itemType:         string;
   /**
  * Song lyrics
  */
-  lyrics:       null | string;
+  lyrics:           null | string;
   /**
  * Song title
  */
-  name:         string;
+  name:             string;
   /**
  * File path
  */
-  path:         null | string;
+  path:             null | string;
   /**
  * Number of times played
  */
-  playCount:    null | number;
+  playCount:        null | number;
   /**
  * Premiere/release date
  */
-  premiereDate: null | string;
+  premiereDate:     null | string;
   /**
  * Audio sample rate
  */
-  sampleRate:   null | number;
+  sampleRate:       null | number;
   /**
  * Track number in album
  */
-  trackNumber:  null | number;
+  trackNumber:      null | number;
   /**
  * Release year
  */
-  year:         null | number; }
+  year:             null | number; }
+/**
+ * Sync state for UI display
+ */
+export type SyncStateInfo = { albumCount: number; artistCount: number; lastSyncTime: null | string; songCount: number; }
 
 /** tauri-specta globals **/
 

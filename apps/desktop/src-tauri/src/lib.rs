@@ -8,7 +8,7 @@ pub mod system_tray;
 
 pub use anyhow::Result;
 
-use aurelia_core::{database, listenbrainz_core, state};
+use aurelia_core::{db, listenbrainz_core, state};
 #[cfg(debug_assertions)]
 use specta_typescript::{BigIntExportBehavior, Typescript};
 #[cfg(debug_assertions)]
@@ -332,7 +332,7 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .expect("failed to get app data dir");
-            if let Err(e) = database::init(&app_data_dir) {
+            if let Err(e) = db::init(&app_data_dir) {
                 error!("Failed to initialize database: {}", e);
             }
             info!("Database initialized.");
@@ -347,9 +347,9 @@ pub fn run() {
                 info!("Starting background library load...");
                 let handle = handle_for_async;
                 tauri::async_runtime::spawn_blocking(move || {
-                    let songs_res = database::songs::get_all();
-                    let artists_res = database::artists::get_all();
-                    let albums_res = database::albums::get_all();
+                    let songs_res = db::songs::get_all();
+                    let artists_res = db::artists::get_all();
+                    let albums_res = db::albums::get_all();
 
                     match (songs_res, artists_res, albums_res) {
                         (Ok(s), Ok(ar), Ok(al)) => {

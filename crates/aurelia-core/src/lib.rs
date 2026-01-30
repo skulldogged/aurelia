@@ -1,5 +1,4 @@
 pub mod cache;
-pub mod database;
 pub mod db;
 pub mod domain;
 pub mod error;
@@ -347,14 +346,14 @@ pub fn sync_songs_only(
     runtime.block_on(async {
         // Initialize database
         let app_data_path = std::path::PathBuf::from(&app_data_dir);
-        database::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+        db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
         // Fetch songs only
         let client = services::JellyfinClient::with_auth(server_url, token);
         let songs = client.get_music_library(&user_id).await?;
 
         // Use incremental sync
-        database::sync_songs_only(&songs).map_err(|e| error::AppError::Database(e.to_string()))
+        db::sync_songs_only(&songs).map_err(|e| error::AppError::Database(e.to_string()))
     })
 }
 
@@ -373,14 +372,14 @@ pub fn fetch_artist(
     runtime.block_on(async {
         // Initialize database
         let app_data_path = std::path::PathBuf::from(&app_data_dir);
-        database::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+        db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
         // Fetch from server
         let client = services::JellyfinClient::with_auth(server_url, token);
         let artist = client.get_artist_details(&user_id, &artist_id).await?;
 
         // Cache in database
-        database::artists::cache(&artist).map_err(|e| error::AppError::Database(e.to_string()))?;
+        db::artists::cache(&artist).map_err(|e| error::AppError::Database(e.to_string()))?;
 
         Ok(artist)
     })
@@ -401,14 +400,14 @@ pub fn fetch_album(
     runtime.block_on(async {
         // Initialize database
         let app_data_path = std::path::PathBuf::from(&app_data_dir);
-        database::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+        db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
         // Fetch from server
         let client = services::JellyfinClient::with_auth(server_url, token);
         let album = client.get_album_details(&user_id, &album_id).await?;
 
         // Cache in database
-        database::albums::cache(&album).map_err(|e| error::AppError::Database(e.to_string()))?;
+        db::albums::cache(&album).map_err(|e| error::AppError::Database(e.to_string()))?;
 
         Ok(album)
     })
@@ -421,9 +420,9 @@ pub fn get_cached_artist(
     artist_id: String,
 ) -> Result<Option<models::Artist>, error::AppError> {
     let app_data_path = std::path::PathBuf::from(&app_data_dir);
-    database::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-    database::artists::get_by_id(&artist_id).map_err(|e| error::AppError::Database(e.to_string()))
+    db::artists::get_by_id(&artist_id).map_err(|e| error::AppError::Database(e.to_string()))
 }
 
 /// Get a cached album from local database
@@ -433,9 +432,9 @@ pub fn get_cached_album(
     album_id: String,
 ) -> Result<Option<models::Album>, error::AppError> {
     let app_data_path = std::path::PathBuf::from(&app_data_dir);
-    database::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-    database::albums::get_by_id(&album_id).map_err(|e| error::AppError::Database(e.to_string()))
+    db::albums::get_by_id(&album_id).map_err(|e| error::AppError::Database(e.to_string()))
 }
 
 uniffi::setup_scaffolding!();

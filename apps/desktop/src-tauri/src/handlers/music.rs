@@ -1,6 +1,6 @@
 //! Music-related command handlers
 
-use aurelia_core::database;
+use aurelia_core::db;
 use aurelia_core::models::library::{HomeViewData, LibraryData};
 use aurelia_core::models::{
     Album, Artist, Song,
@@ -18,9 +18,98 @@ use tracing::{error, info, warn};
 pub async fn get_library(app_state: State<'_, AppState>) -> Result<LibraryData, String> {
     info!("get_library command called");
     let songs = app_state.songs.lock().unwrap().clone();
-    let artists = app_state.artists.lock().unwrap().clone();
-    let albums = app_state.albums.lock().unwrap().clone();
-    info!("get_library: got data from state");
+    info!("get_library: got {} songs from state", songs.len());
+
+    // Derive albums from songs (hybrid lazy-load approach)
+    let mut album_map: std::collections::HashMap<String, Vec<Song>> =
+        std::collections::HashMap::new();
+    for song in &songs {
+        if let Some(album_id) = &song.album_id {
+            album_map
+                .entry(album_id.clone())
+                .or_default()
+                .push(song.clone());
+        }
+    }
+
+    let albums: Vec<Album> = album_map
+        .iter()
+        .filter_map(|(album_id, album_songs)| {
+            let first_song = album_songs
+                .iter()
+                .max_by_key(|s| s.date_created.as_deref().unwrap_or(""))?;
+            Some(Album {
+                id: Some(album_id.clone()),
+                name: first_song
+                    .album
+                    .clone()
+                    .unwrap_or_else(|| "Unknown Album".to_string()),
+                artist: first_song
+                    .artists
+                    .as_ref()
+                    .and_then(|a| a.first())
+                    .cloned()
+                    .unwrap_or_else(|| "Unknown Artist".to_string()),
+                artist_id: first_song
+                    .artist_ids
+                    .as_ref()
+                    .and_then(|ids| ids.first())
+                    .cloned(),
+                album_art_url: first_song.album_art_url.clone(),
+                song_count: album_songs.len() as i64,
+                songs: None, // Don't include songs in library response to reduce payload size
+                image_tags: None,
+                provider_ids: None,
+                date_created: first_song.date_created.clone(),
+                date_modified: None,
+            })
+        })
+        .collect();
+
+    // Derive artists from songs
+    let mut artist_map: std::collections::HashMap<String, (String, Option<String>)> =
+        std::collections::HashMap::new();
+    for song in &songs {
+        if let Some(artist_ids) = &song.artist_ids {
+            let artist_names = song.artists.as_ref();
+            for (i, artist_id) in artist_ids.iter().enumerate() {
+                if !artist_map.contains_key(artist_id) {
+                    let name = artist_names
+                        .and_then(|names| names.get(i))
+                        .cloned()
+                        .unwrap_or_else(|| "Unknown Artist".to_string());
+                    let image_url = if i == 0 {
+                        song.album_art_url.clone()
+                    } else {
+                        None
+                    };
+                    artist_map.insert(artist_id.clone(), (name, image_url));
+                }
+            }
+        }
+    }
+
+    let artists: Vec<Artist> = artist_map
+        .into_iter()
+        .map(|(id, (name, image_url))| Artist {
+            id: id.clone(),
+            name,
+            image_url,
+            image_tags: None,
+            overview: None,
+            provider_ids: None,
+            community_rating: None,
+            song_count: None,
+            date_modified: None,
+            songs: None,
+        })
+        .collect();
+
+    info!(
+        "get_library: derived {} albums and {} artists from songs",
+        albums.len(),
+        artists.len()
+    );
 
     Ok(LibraryData {
         songs,
@@ -36,24 +125,19 @@ pub async fn get_home_view_data(
     app_state: State<'_, AppState>,
 ) -> Result<HomeViewData, String> {
     info!("get_home_view_data command called");
-    let all_albums = app_state.albums.lock().unwrap().clone();
     let all_songs = app_state.songs.lock().unwrap().clone();
-    info!(
-        "get_home_view_data: working with {} albums and {} songs",
-        all_albums.len(),
-        all_songs.len()
-    );
+    info!("get_home_view_data: working with {} songs", all_songs.len());
 
-    // If albums are empty, library hasn't been loaded yet
-    if all_albums.is_empty() {
-        warn!("get_home_view_data: albums list is empty, library may not be loaded yet");
+    // If songs are empty, library hasn't been loaded yet
+    if all_songs.is_empty() {
+        warn!("get_home_view_data: songs list is empty, library may not be loaded yet");
         return Err(
             "Library not loaded yet. Please wait for library to load before requesting home data."
                 .to_string(),
         );
     }
 
-    // Create album-to-songs mapping
+    // Derive albums from songs (like Android does) - group by album_id
     let mut album_map: std::collections::HashMap<String, Vec<Song>> =
         std::collections::HashMap::new();
     for song in &all_songs {
@@ -65,7 +149,48 @@ pub async fn get_home_view_data(
         }
     }
 
-    let mut recently_added = all_albums.clone();
+    // Build Album objects from song data
+    let derived_albums: Vec<Album> = album_map
+        .iter()
+        .filter_map(|(album_id, songs)| {
+            let first_song = songs
+                .iter()
+                .max_by_key(|s| s.date_created.as_deref().unwrap_or(""))?;
+            Some(Album {
+                id: Some(album_id.clone()),
+                name: first_song
+                    .album
+                    .clone()
+                    .unwrap_or_else(|| "Unknown Album".to_string()),
+                artist: first_song
+                    .artists
+                    .as_ref()
+                    .and_then(|a| a.first())
+                    .cloned()
+                    .unwrap_or_else(|| "Unknown Artist".to_string()),
+                artist_id: first_song
+                    .artist_ids
+                    .as_ref()
+                    .and_then(|ids| ids.first())
+                    .cloned(),
+                album_art_url: first_song.album_art_url.clone(),
+                song_count: songs.len() as i64,
+                songs: Some(songs.clone()),
+                image_tags: None,
+                provider_ids: None,
+                date_created: first_song.date_created.clone(),
+                date_modified: None,
+            })
+        })
+        .collect();
+
+    info!(
+        "get_home_view_data: derived {} albums from songs",
+        derived_albums.len()
+    );
+
+    // Recently added - sort by date_created
+    let mut recently_added = derived_albums.clone();
     recently_added.sort_by(|a, b| {
         let date_a = a
             .date_created
@@ -86,32 +211,11 @@ pub async fn get_home_view_data(
         date_b.cmp(&date_a)
     });
 
-    let mut random_albums = all_albums.clone();
+    let mut random_albums = derived_albums.clone();
     random_albums.shuffle(&mut rand::rng());
 
-    let mut featured_albums = all_albums.clone();
+    let mut featured_albums = derived_albums;
     featured_albums.shuffle(&mut rand::rng());
-
-    // Populate songs for featured albums
-    for album in &mut featured_albums {
-        if let Some(album_id) = &album.id {
-            album.songs = album_map.get(album_id).cloned();
-        }
-    }
-
-    // Populate songs for recently added albums
-    for album in &mut recently_added {
-        if let Some(album_id) = &album.id {
-            album.songs = album_map.get(album_id).cloned();
-        }
-    }
-
-    // Populate songs for random albums
-    for album in &mut random_albums {
-        if let Some(album_id) = &album.id {
-            album.songs = album_map.get(album_id).cloned();
-        }
-    }
 
     let (server_url, token, user_id) = match super::auth::get_credentials_cached(&app).await {
         Ok(Some(creds)) => (creds.server_url, creds.token, creds.user_id),
@@ -167,7 +271,7 @@ pub async fn get_album(
         album
     } else {
         // Try database cache
-        if let Ok(Some(album)) = database::albums::get_by_id(&album_id) {
+        if let Ok(Some(album)) = db::albums::get_by_id(&album_id) {
             // Update app state with cached album
             app_state.albums.lock().unwrap().push(album.clone());
             album
@@ -187,7 +291,7 @@ pub async fn get_album(
                 .map_err(|e| format!("Failed to fetch album: {}", e))?;
 
             // Cache in database
-            database::albums::cache(&fetched_album).map_err(|e| e.to_string())?;
+            db::albums::cache(&fetched_album).map_err(|e| e.to_string())?;
 
             // Update app state
             app_state.albums.lock().unwrap().push(fetched_album.clone());
@@ -233,7 +337,7 @@ pub async fn get_artist(
         artist
     } else {
         // Try database cache
-        if let Ok(Some(artist)) = database::artists::get_by_id(&artist_id) {
+        if let Ok(Some(artist)) = db::artists::get_by_id(&artist_id) {
             // Update app state with cached artist
             app_state.artists.lock().unwrap().push(artist.clone());
             artist
@@ -253,7 +357,7 @@ pub async fn get_artist(
                 .map_err(|e| format!("Failed to fetch artist: {}", e))?;
 
             // Cache in database
-            database::artists::cache(&fetched_artist).map_err(|e| e.to_string())?;
+            db::artists::cache(&fetched_artist).map_err(|e| e.to_string())?;
 
             // Update app state
             app_state
@@ -470,7 +574,7 @@ pub async fn toggle_favorite_status(
         .map_err(|e| e.to_string())?;
 
     // Update the database
-    database::songs::update_favorite_status(&item_id, is_favorite)
+    db::songs::update_favorite_status(&item_id, is_favorite)
         .map_err(|e| format!("Failed to update database: {}", e))?;
 
     // Update the in-memory state
@@ -510,7 +614,7 @@ pub async fn sync_library(
 
     // Use incremental sync for songs only
     info!("Syncing {} songs", songs.len());
-    let was_full_sync = database::sync_songs_only(&songs).map_err(|e| e.to_string())?;
+    let was_full_sync = db::sync_songs_only(&songs).map_err(|e| e.to_string())?;
 
     if was_full_sync {
         info!("Performed full songs sync");
@@ -562,9 +666,9 @@ pub async fn clear_cache(
     info!("Clearing all caches...");
 
     // Clear database
-    database::songs::clear().map_err(|e| e.to_string())?;
-    database::artists::clear().map_err(|e| e.to_string())?;
-    database::albums::clear().map_err(|e| e.to_string())?;
+    db::songs::clear().map_err(|e| e.to_string())?;
+    db::artists::clear().map_err(|e| e.to_string())?;
+    db::albums::clear().map_err(|e| e.to_string())?;
 
     // Clear app state
     *app_state.songs.lock().unwrap() = vec![];

@@ -41,29 +41,15 @@ export const useLibraryStore = defineStore('library', () => {
       if (result.status === 'ok') {
         const { albums, artists, songs } = result.data
 
-        // Check for suspicious data: if we have songs but no albums, the backend might still be loading
-        const hasSongs = songs.length > 0
-        const hasAlbums = albums.length > 0
-        const dataIncomplete = hasSongs && !hasAlbums
-
-        if (dataIncomplete) {
-          const attemptNumber = attempt + 1
-          if (attemptNumber >= maxRetries) {
-            logger.error(
-              `Library data appears incomplete after ${maxRetries} retries (${songs.length} songs but 0 albums). ` +
-              'This may indicate a database issue. Please try syncing your library.',
-            )
-            error.value = 'Library data incomplete. Please sync your library from settings.'
-            isLoading.value = false
-            return
-          }
-
+        // Hybrid lazy-load: songs are synced, but albums/artists may be empty
+        // (they're fetched on-demand when user visits detail pages)
+        if (songs.length === 0 && attempt < maxRetries - 1) {
+          // If we have no songs at all, database might still be initializing
           logger.warn(
-            `Library data incomplete (attempt ${attemptNumber}/${maxRetries}): ` +
-            `${songs.length} songs, ${albums.length} albums. Retrying in ${retryDelay}ms...`,
+            `No songs loaded (attempt ${attempt + 1}/${maxRetries}). Retrying in ${retryDelay}ms...`,
           )
           await new Promise(resolve => setTimeout(resolve, retryDelay))
-          retryDelay = Math.min(retryDelay * 2, 1000) // Cap at 1 second
+          retryDelay = Math.min(retryDelay * 2, 1000)
           continue
         }
 
