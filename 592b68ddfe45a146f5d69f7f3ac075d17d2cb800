@@ -1,0 +1,25 @@
+crates/aurelia-core/src/api/mod.rs
+  365c0e120d9f793f 1-8
+crates/aurelia-core/src/lib.rs
+  365c0e120d9f793f 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "592b68ddfe45a146f5d69f7f3ac075d17d2cb800",
+  "prompts": {
+    "365c0e120d9f793f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eeb9b812ffeO2EAE9R4ts1Mkd",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 0,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
