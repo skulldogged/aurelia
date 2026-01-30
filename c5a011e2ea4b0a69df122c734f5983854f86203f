@@ -1,0 +1,25 @@
+apps/desktop/src/composables/useKeyboardShortcuts.ts
+  20a9fa8372471901 1-22
+apps/desktop/src/App.vue
+  20a9fa8372471901 46,81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "c5a011e2ea4b0a69df122c734f5983854f86203f",
+  "prompts": {
+    "20a9fa8372471901": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef0caa79ffeLRpuql1uEEh95h",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 8,
+      "accepted_lines": 24,
+      "overriden_lines": 0
+    }
+  }
+}
