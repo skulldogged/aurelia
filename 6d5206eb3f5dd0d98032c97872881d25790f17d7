@@ -1,0 +1,25 @@
+crates/uniffi-bindgen/src/http_client_generator.rs
+  3276a56148bab9f9 1-342
+crates/uniffi-bindgen/src/main.rs
+  3276a56148bab9f9 4,22-31,42-46,49-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "6d5206eb3f5dd0d98032c97872881d25790f17d7",
+  "prompts": {
+    "3276a56148bab9f9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eeb7bb44ffexDDOw6TtXCWsXH",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 363,
+      "total_deletions": 0,
+      "accepted_lines": 363,
+      "overriden_lines": 0
+    }
+  }
+}
