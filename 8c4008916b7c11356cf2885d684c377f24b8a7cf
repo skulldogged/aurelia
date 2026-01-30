@@ -1,0 +1,39 @@
+apps/shared/src/lib/api/types.ts
+  187d372fff5ccd3f 319-320,327,329,356-358,361
+apps/shared/src/index.ts
+  187d372fff5ccd3f 54-55
+apps/shared/src/components/player/MusicPlayer.vue
+  187d372fff5ccd3f 107
+apps/shared/src/audio/rust-audio-player.ts
+  187d372fff5ccd3f 11,194,203,299
+apps/shared/src/components/shared/LyricsView.vue
+  187d372fff5ccd3f 84
+apps/shared/src/lib/api/tauriClient.ts
+  187d372fff5ccd3f 82-83,90,119-121
+apps/shared/src/composables/useLibrary.ts
+  187d372fff5ccd3f 44
+apps/shared/src/stores/library.ts
+  187d372fff5ccd3f 131
+apps/shared/src/composables/useLastFm.ts
+  187d372fff5ccd3f 97,166,169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "8c4008916b7c11356cf2885d684c377f24b8a7cf",
+  "prompts": {
+    "187d372fff5ccd3f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef1a3dccffemo7vpiYzQLRUHc",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 27,
+      "total_deletions": 17,
+      "accepted_lines": 27,
+      "overriden_lines": 0
+    }
+  }
+}
