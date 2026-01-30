@@ -69,7 +69,7 @@
     loadSong,
     nextSong,
     resumeContext,
-    rustAudioPlayer,
+    audioPlayer,
     seek: seekPlayer,
   } = useAudioEngine(props)
 
@@ -316,7 +316,7 @@
       await resumeContext()
 
       if (playerStore.isPlaying) {
-        await rustAudioPlayer.pause()
+        await audioPlayer.pause()
         playerStore.pause()
       } else {
         // If audio hasn't been loaded yet (restored session) or stream died, reload it
@@ -324,14 +324,14 @@
           // Reinitialize audio output stream if it died (e.g., headphones disconnected)
           if (playerStore.needsReload) {
             logger.info('Reinitializing audio stream before reload')
-            await rustAudioPlayer.reinit()
+            await audioPlayer.reinitialize()
           }
           await loadSong(playerStore.currentSong)
           audioLoaded.value = true
           playerStore.setNeedsReload(false)
           playerStore.play()
         } else {
-          await rustAudioPlayer.resume()
+          await audioPlayer.play()
           playerStore.play()
         }
       }
@@ -442,8 +442,8 @@
       if (isDesktop()) {
         // Query backend for current playback state
         const [isPlaying, position] = await Promise.all([
-          rustAudioPlayer.isPlaying(),
-          rustAudioPlayer.getPosition(),
+          audioPlayer.isPlaying(),
+          audioPlayer.getPosition(),
         ])
 
         // If backend has audio loaded (position > 0 or is playing), sync state
@@ -485,7 +485,7 @@
   })
 
   onUnmounted(() => {
-    rustAudioPlayer.stop()
+    audioPlayer.stop()
 
     window.removeEventListener('resize', measureMarquee)
     window.removeEventListener('resize', updateVisibleIcons)

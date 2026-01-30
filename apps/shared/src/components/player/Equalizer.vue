@@ -4,6 +4,7 @@
   import { storeToRefs } from 'pinia'
   import { computed, onUnmounted, ref } from 'vue'
 
+  import { getAudioPlayer } from '../../audio'
   import Button from '../ui/Button.vue'
   import {
     Select,
@@ -15,22 +16,32 @@
     SelectValue,
   } from '../ui/select'
   import { Slider } from '../ui/slider'
-  import { useAudioEngine } from '../../composables/useAudioEngine'
   import { usePlayerControls } from '../../composables/usePlayerControls'
-  import { useAuthStore } from '../../stores'
 
   // Get player store
   const { playerStore } = usePlayerControls()
   const { eqBands, eqEnabled } = storeToRefs(playerStore)
-  const authStore = useAuthStore()
 
-  // Audio engine for platform-agnostic EQ control
-  const { resetEQ: resetPlayerEQ, setEQBand, setEQEnabled: setPlayerEQEnabled } = useAudioEngine({
-    serverUrl: authStore.serverUrl || '',
-    token:     authStore.token || '',
-  })
+  // Unified audio player
+  const audioPlayer = getAudioPlayer()
 
-  // EQ presets - defined here since they're simple frequency/gain combinations
+  // Unified EQ control functions
+  const resetPlayerEQ = async (): Promise<void> => {
+    await audioPlayer.resetEQ()
+    playerStore.resetEQ()
+  }
+
+  const setEQBand = async (band: number, gain: number): Promise<void> => {
+    await audioPlayer.setEQBand(band, gain)
+    playerStore.setEQBandGain(band, gain)
+  }
+
+  const setPlayerEQEnabled = async (enabled: boolean): Promise<void> => {
+    await audioPlayer.setEQEnabled(enabled)
+    playerStore.setEQEnabled(enabled)
+  }
+
+  // EQ presets from unified audio player
   const EQ_PRESETS = [
     { bands: [0, 0, 0, 0, 0], name: 'Flat' },
     { bands: [4, 2, 0, 2, 4], name: 'Bass Boost' },

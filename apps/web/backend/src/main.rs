@@ -610,10 +610,25 @@ async fn get_home_view(State(state): State<Arc<AppState>>) -> impl IntoResponse 
         Ok(Some(creds)) => {
             match aurelia_core::get_recently_played(creds.server_url, creds.token, creds.user_id).await {
                 Ok(songs) => songs,
-                Err(_) => vec![],
+                Err(e) => {
+                    let error_str = e.to_string();
+                    warn!("Failed to fetch recently played from Jellyfin: {}", error_str);
+                    // Check if it's an auth error and return 401 to trigger re-login
+                    if error_str.contains("401") || error_str.to_lowercase().contains("unauthorized") {
+                        return (StatusCode::UNAUTHORIZED, Json(ApiResponse::err("Unauthorized - Please log in again".to_string())));
+                    }
+                    vec![]
+                }
             }
         }
-        _ => vec![],
+        Ok(None) => {
+            warn!("No credentials found, cannot fetch recently played");
+            return (StatusCode::UNAUTHORIZED, Json(ApiResponse::err("Not authenticated".to_string())));
+        }
+        Err(e) => {
+            warn!("Failed to load credentials: {}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err("Failed to load credentials".to_string())));
+        }
     };
 
     // Derive albums from songs

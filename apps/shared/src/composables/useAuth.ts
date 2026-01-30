@@ -3,6 +3,7 @@ import { readonly, ref, type Ref } from 'vue'
 import type { Credentials } from '../lib/api/types'
 
 import { getApiClient } from '../index'
+import { getAuthLogout, setAuthLogout } from '../lib/auth-interceptor'
 import { logger } from '../lib/logger'
 import { withCustomState } from '../lib/result'
 import { useAuthStore } from '../stores'
@@ -120,6 +121,15 @@ const logout = (authStore: ReturnType<typeof useAuthStore>): void => {
   authStore.clearCredentials()
   authStatus.value = 'loggedOut'
   error.value = null
+  logger.info('User logged out')
+}
+
+const registerLogoutHandler = (authStore: ReturnType<typeof useAuthStore>): void => {
+  // Only register if not already registered (avoid re-registration)
+  if (!getAuthLogout()) {
+    setAuthLogout(() => logout(authStore))
+    logger.debug('Auth logout handler registered')
+  }
 }
 
 const clearError = (): void => {
@@ -139,6 +149,9 @@ export interface Auth {
 
 export const useAuth = (): Auth => {
   const authStore = useAuthStore()
+
+  // Register logout handler for interceptor use
+  registerLogoutHandler(authStore)
 
   // Initialize auth on first use
   if (authStatus.value === 'pending')

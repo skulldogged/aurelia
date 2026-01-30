@@ -1,54 +1,45 @@
+/**
+ * Audio Engine Composable
+ * 
+ * Unified audio orchestration layer using the AudioPlayer abstraction.
+ * Platform-specific logic is handled internally by the AudioPlayer implementations.
+ */
+
 import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
-import { getApiClient, isDesktop } from '../index'
+import { getAudioPlayer, type AudioPlayer, type AudioPosition } from '../audio'
+import { getApiClient } from '../index'
 import type { NowPlayingPayload, Song } from '../lib/api/types'
-import { useRustAudioPlayer } from './useRustAudioPlayer'
-import { useWebAudioPlayer } from './useWebAudioPlayer'
+import { isDesktop, isTauri } from '../lib/platform'
 import { logger } from '../lib/logger'
 import { usePlayerStore } from '../stores'
 
-interface AudioPositionEvent {
-  isFinished: boolean
-  position:   number
-}
-
-interface AudioStreamErrorEvent {
-  position: number
-  reason:   string
-}
-
-// Type for unlisten function
 type UnlistenFn = () => void
 
 interface UseAudioEngineReturn {
-  initializePlayer:        () => Promise<void>;
-  isGaplessTransition:     Ref<boolean>;
-  loadSong:                (song: null | Song) => Promise<void>;
-  nextSong:                () => void;
-  nextSongInQueue:         ComputedRef<null | Song>;
-  playManuallyChangedSong: (song: Song) => void;
-  playSongAtIndex:         (index: number) => void;
-  resetEQ:                 () => Promise<void>;
-  resumeContext:           () => Promise<void>;
-  rustAudioPlayer:         ReturnType<typeof useRustAudioPlayer>;
-  seek:                    (positionSecs: number) => Promise<void>;
-  setEQBand:               (band: number, gain: number) => Promise<void>;
-  setEQEnabled:            (enabled: boolean) => Promise<void>;
+  initializePlayer:        () => Promise<void>
+  isGaplessTransition:     Ref<boolean>
+  loadSong:                (song: null | Song) => Promise<void>
+  nextSong:                () => void
+  nextSongInQueue:         ComputedRef<null | Song>
+  playManuallyChangedSong: (song: Song) => void
+  playSongAtIndex:         (index: number) => void
+  resetEQ:                 () => Promise<void>
+  resumeContext:           () => Promise<void>
+  seek:                    (positionSecs: number) => Promise<void>
+  setEQBand:               (band: number, gain: number) => Promise<void>
+  setEQEnabled:            (enabled: boolean) => Promise<void>
+  audioPlayer:             AudioPlayer
 }
 
 export const useAudioEngine = (
   props: { serverUrl: string; token: string },
 ): UseAudioEngineReturn => {
   const playerStore = usePlayerStore()
-
-  // Audio players
-  const rustAudioPlayer = useRustAudioPlayer()
-  const webAudioPlayer = useWebAudioPlayer()
+  const audioPlayer = getAudioPlayer()
 
   // State
   const isGaplessTransition = ref(false)
-  const eventUnlisten = ref<null | UnlistenFn>(null)
-  const streamErrorUnlisten = ref<null | UnlistenFn>(null)
   const mediaEventUnlisteners = ref<UnlistenFn[]>([])
 
   const hasNext = computed(() =>
@@ -73,76 +64,16 @@ export const useAudioEngine = (
     return playerStore.playlist[nextIndex]
   })
 
-  // Subscribe to audio position events from Rust backend
-  // This replaces frontend polling with push-based events
-  const setupEventListener = async (): Promise<void> => {
-    if (!isDesktop()) return
-
-    const { listen } = await import('@tauri-apps/api/event')
-
-    // Clean up existing listener
-    if (eventUnlisten.value) {
-      eventUnlisten.value()
-      eventUnlisten.value = null
-    }
-
-    eventUnlisten.value = await listen<AudioPositionEvent>('audio:position', async event => {
-      const { isFinished, position } = event.payload
-
-      // Update current position (skip while user is seeking)
-      if (!playerStore.isSeeking) {
-        playerStore.setCurrentTime(position)
-      }
-
-      // Handle track end
-      if (isFinished && playerStore.isPlaying) {
-        await handleTrackEnded()
-      }
-    })
-
-    logger.debug('Audio position event listener registered')
-
-    // Listen for audio stream errors (device disconnected, etc.)
-    if (streamErrorUnlisten.value) {
-      streamErrorUnlisten.value()
-      streamErrorUnlisten.value = null
-    }
-
-    streamErrorUnlisten.value = await listen<AudioStreamErrorEvent>('audio:stream-error', async event => {
-      const { reason, position } = event.payload
-      logger.warn(`Audio stream error: ${reason} at position ${position}`)
-
-      // Pause playback on the UI side
-      playerStore.pause()
-
-      // Stop the backend player to clean up the dead stream
-      await rustAudioPlayer.stop()
-
-      // Store the position so we can resume from here if the user plays again
-      playerStore.setCurrentTime(position)
-
-      // Mark that we need to reload the audio when user presses play
-      playerStore.setNeedsReload(true)
-
-      logger.info('Playback paused due to audio stream error - press play to resume')
-    })
-
-    logger.debug('Audio stream error listener registered')
-  }
-
-  // Subscribe to media control events from backend (OS media keys)
+  // Setup media control event listeners (desktop only)
   const setupMediaEventListeners = async (): Promise<void> => {
-    if (!isDesktop()) return
+    if (!isTauri()) return
 
     const { listen } = await import('@tauri-apps/api/event')
 
     // Clean up existing listeners
-    for (const unlisten of mediaEventUnlisteners.value) {
-      unlisten()
-    }
+    mediaEventUnlisteners.value.forEach(unlisten => unlisten())
     mediaEventUnlisteners.value = []
 
-    // Listen for play/pause events from OS media keys
     mediaEventUnlisteners.value.push(
       await listen('media:play', () => {
         logger.debug('Media key: Play')
@@ -153,10 +84,8 @@ export const useAudioEngine = (
         playerStore.pause()
       }),
       await listen('media:next', () => {
-        logger.debug('Media key: Next - received event')
-        logger.debug(`Current index before: ${playerStore.currentIndex}, hasNext: ${hasNext.value}`)
+        logger.debug('Media key: Next')
         nextSong()
-        logger.debug(`Current index after: ${playerStore.currentIndex}, currentSong: ${playerStore.currentSong?.name}`)
       }),
       await listen('media:previous', () => {
         logger.debug('Media key: Previous')
@@ -175,7 +104,7 @@ export const useAudioEngine = (
 
   // Update OS Now Playing with current song metadata
   const updateNowPlaying = async (song: Song): Promise<void> => {
-    if (!isDesktop()) return
+    if (!isTauri()) return
 
     try {
       const payload: NowPlayingPayload = {
@@ -194,7 +123,7 @@ export const useAudioEngine = (
 
   // Update OS media control button states based on queue position
   const updateMediaButtonStates = async (): Promise<void> => {
-    if (!isDesktop()) return
+    if (!isTauri()) return
 
     try {
       const canGoNext = hasNext.value || playerStore.repeatMode === 'all'
@@ -212,51 +141,32 @@ export const useAudioEngine = (
 
   // Cleanup on unmount
   onUnmounted(() => {
-    if (isDesktop()) {
-      if (eventUnlisten.value) {
-        eventUnlisten.value()
-        eventUnlisten.value = null
-      }
-      if (streamErrorUnlisten.value) {
-        streamErrorUnlisten.value()
-        streamErrorUnlisten.value = null
-      }
-      // Cleanup media event listeners
-      for (const unlisten of mediaEventUnlisteners.value) {
-        unlisten()
-      }
-      mediaEventUnlisteners.value = []
-      // Clear Now Playing on unmount
-      getApiClient().mediaClearNowPlaying().catch(() => {})
-    } else {
-      webAudioPlayer.cleanup()
-    }
+    audioPlayer.destroy()
+    mediaEventUnlisteners.value.forEach(unlisten => unlisten())
+    mediaEventUnlisteners.value = []
   })
 
   const handleTrackEnded = async (): Promise<void> => {
     logger.debug('Track ended')
 
     if (playerStore.repeatMode === 'one') {
-      // Replay current song
       const song = playerStore.currentSong
       if (song) {
         await loadSong(song)
         playerStore.play()
       }
     } else if (playerStore.repeatMode === 'all' || hasNext.value) {
-      // Capture the next song ONCE to avoid re-evaluation (important for shuffle mode)
       const upcomingSong = nextSongInQueue.value
-      logger.debug(`[Gapless] upcomingSong: ${upcomingSong?.name} (id: ${upcomingSong?.id}), currentIndex: ${playerStore.currentIndex}`)
+      logger.debug(`[Gapless] upcomingSong: ${upcomingSong?.name}, currentIndex: ${playerStore.currentIndex}`)
+      
       if (upcomingSong) {
         if (isDesktop()) {
           isGaplessTransition.value = true
           logger.debug('[Gapless] Set isGaplessTransition = true, calling advanceGapless')
-          const success = await rustAudioPlayer.advanceGapless()
+          const success = await audioPlayer.advanceGapless()
           logger.debug(`[Gapless] advanceGapless returned: ${success}`)
+          
           if (success) {
-            logger.debug(`[Gapless] Setting currentSong to: ${upcomingSong.name}`)
-
-            // Update both song and index so prepareNextTrack gets the correct next song
             const newIndex = playerStore.playlist.findIndex(s => s.id === upcomingSong.id)
             playerStore.setCurrentSong(upcomingSong)
             if (newIndex !== -1) {
@@ -267,18 +177,15 @@ export const useAudioEngine = (
             playerStore.setDuration(upcomingSong.duration || 0)
             playerStore.play()
 
-            // Prepare next track for gapless
-            logger.debug(`[Gapless] Calling prepareNextTrack (currentIndex is now ${playerStore.currentIndex})`)
             await prepareNextTrack()
           } else {
-            // Fallback to regular next song - reset flag first so watcher loads the song
             logger.debug('[Gapless] advanceGapless failed, falling back to nextSong')
             isGaplessTransition.value = false
             nextSong()
           }
           isGaplessTransition.value = false
         } else {
-          // Web doesn't support advanceGapless yet, just nextSong
+          // Web doesn't support gapless
           nextSong()
         }
       } else if (playerStore.repeatMode === 'all') {
@@ -293,7 +200,7 @@ export const useAudioEngine = (
     if (!isDesktop()) return
 
     const next = nextSongInQueue.value
-    logger.debug(`[PrepareNext] nextSongInQueue: ${next?.name} (id: ${next?.id}), currentIndex: ${playerStore.currentIndex}`)
+    logger.debug(`[PrepareNext] nextSongInQueue: ${next?.name}, currentIndex: ${playerStore.currentIndex}`)
     if (!next) {
       logger.debug('[PrepareNext] No next song to prepare')
       return
@@ -308,8 +215,8 @@ export const useAudioEngine = (
       })
 
       if (streamResult.status === 'ok') {
-        await rustAudioPlayer.prepareNext(streamResult.data, props.token)
-        logger.debug(`[PrepareNext] Successfully prepared: ${next.name} (id: ${next.id})`)
+        await audioPlayer.prepareNext(streamResult.data, props.token)
+        logger.debug(`[PrepareNext] Successfully prepared: ${next.name}`)
       }
     } catch (error) {
       logger.error('[PrepareNext] Failed to prepare next track:', error)
@@ -325,61 +232,35 @@ export const useAudioEngine = (
 
   const playSongAtIndex = (index: number): void => {
     if (index < 0 || index >= playerStore.playlist.length) return
-
     playerStore.playSongAtIndex(index)
-    // loadSong is triggered by the watcher on currentSong.id
   }
 
   const setEQEnabled = async (enabled: boolean): Promise<void> => {
-    if (isDesktop()) {
-      await rustAudioPlayer.setEQEnabled(enabled)
-    } else {
-      webAudioPlayer.setEQEnabled(enabled)
-    }
+    await audioPlayer.setEQEnabled(enabled)
     playerStore.setEQEnabled(enabled)
   }
 
   const setEQBand = async (band: number, gain: number): Promise<void> => {
-    if (isDesktop()) {
-      await rustAudioPlayer.setEQBand(band, gain)
-    } else {
-      webAudioPlayer.setEQBandGain(band, gain)
-    }
+    await audioPlayer.setEQBand(band, gain)
     playerStore.setEQBandGain(band, gain)
   }
 
   const resetEQ = async (): Promise<void> => {
-    if (isDesktop()) {
-      await rustAudioPlayer.resetEQ()
-    } else {
-      webAudioPlayer.resetEQ()
-    }
+    await audioPlayer.resetEQ()
     playerStore.resetEQ()
   }
 
   const seek = async (positionSecs: number): Promise<void> => {
-    if (isDesktop()) {
-      await rustAudioPlayer.seek(positionSecs)
-    } else {
-      await webAudioPlayer.seek(positionSecs)
-    }
+    await audioPlayer.seek(positionSecs)
   }
 
   const resumeContext = async (): Promise<void> => {
-    if (isDesktop()) {
-      await rustAudioPlayer.reinit()
-    } else {
-      await webAudioPlayer.resumeContext()
-    }
+    await audioPlayer.reinitialize()
   }
 
   const loadSong = async (song: null | Song): Promise<void> => {
     if (!song) {
-      if (isDesktop()) {
-        await rustAudioPlayer.stop()
-      } else {
-        webAudioPlayer.stop()
-      }
+      await audioPlayer.stop()
       playerStore.setAudioReady(false)
       return
     }
@@ -390,8 +271,8 @@ export const useAudioEngine = (
 
       const streamResult = await getApiClient().getAudioStreamUrl({
         serverUrl: props.serverUrl,
-        token:     props.token,
-        itemId:    song.id,
+        token: props.token,
+        itemId: song.id,
         container: song.container,
       })
 
@@ -400,48 +281,31 @@ export const useAudioEngine = (
         throw new Error(streamResult.error)
       }
 
-      if (isDesktop()) {
-        const success = await rustAudioPlayer.play(streamResult.data, props.token, {
-          title:      song.name,
-          artist:     song.artists?.join(', ') ?? null,
-          album:      song.album ?? null,
-          artworkUrl: song.albumArtUrl ?? null,
-        })
+      const loadResult = await audioPlayer.load(streamResult.data, props.token, {
+        title: song.name,
+        artist: song.artists?.join(', ') ?? null,
+        album: song.album ?? null,
+        artworkUrl: song.albumArtUrl ?? null,
+      })
 
-        if (success) {
-          playerStore.setAudioReady(true)
-          playerStore.setDuration(song.duration || 0)
-          playerStore.setCurrentTime(0)
-          logger.info(`Now playing: ${song.name}`)
+      if (loadResult.success) {
+        playerStore.setAudioReady(true)
+        playerStore.setDuration(song.duration || loadResult.duration || 0)
+        playerStore.setCurrentTime(0)
+        logger.info(`Now playing: ${song.name}`)
 
-          // Update OS Now Playing
+        if (isDesktop()) {
           await updateNowPlaying(song)
-
-          // Update media button states based on queue position
           await updateMediaButtonStates()
-
-          // Prepare next track for gapless playback
           await prepareNextTrack()
-        } else {
-          throw new Error('Failed to play audio via Rust backend')
+        } else if (playerStore.isPlaying) {
+          await audioPlayer.play()
         }
       } else {
-        const success = await webAudioPlayer.loadAudio(streamResult.data)
-        if (success) {
-          playerStore.setAudioReady(true)
-          playerStore.setDuration(webAudioPlayer.getDuration() || song.duration || 0)
-          playerStore.setCurrentTime(0)
-          logger.info(`Now playing: ${song.name}`)
-          
-          if (playerStore.isPlaying) {
-            await webAudioPlayer.play()
-          }
-        } else {
-          throw new Error('Failed to play audio via Web Audio')
-        }
+        throw new Error('Failed to load audio')
       }
     } catch (error) {
-      logger.error(`Failed to load audio for song ${song.name} (ID: ${song.id}):`, error)
+      logger.error(`Failed to load audio for song ${song?.name}:`, error)
       playerStore.setAudioReady(false)
     } finally {
       playerStore.setBuffering(false)
@@ -454,73 +318,72 @@ export const useAudioEngine = (
 
     const execute = async (): Promise<void> => {
       await loadSong(song)
-
-      const playing = isDesktop() 
-        ? await rustAudioPlayer.isPlaying()
-        : webAudioPlayer.getIsPlaying()
-
-      if (playing) playerStore.play()
-      else playerStore.pause()
+      const playing = await audioPlayer.isPlaying()
+      playing ? playerStore.play() : playerStore.pause()
     }
     execute()
   }
 
   const initializePlayer = async (): Promise<void> => {
+    logger.info(`Initializing audio player (${isDesktop() ? 'Desktop/Rust' : 'Web'})...`)
+
+    const initialized = await audioPlayer.initialize()
+    if (!initialized) {
+      logger.error('Failed to initialize audio player')
+      return
+    }
+
+    logger.info('Audio player initialized successfully')
+
+    // Set initial volume
+    await audioPlayer.setVolume(playerStore.volume)
+
+    // Restore EQ settings
     if (isDesktop()) {
-      logger.info('Initializing Rust audio player...')
-
-      const initialized = await rustAudioPlayer.init()
-      if (initialized) {
-        logger.info('Rust audio player initialized successfully')
-
-        // Set initial volume
-        await rustAudioPlayer.setVolume(playerStore.volume)
-
-        // Restore EQ settings from store (bands first, then enabled state)
-        // Always sync bands so toggling EQ on/off is instant
-        for (let i = 0; i < playerStore.eqBands.length; i++) {
-          await rustAudioPlayer.setEQBand(i, playerStore.eqBands[i].gain)
-        }
-        await rustAudioPlayer.setEQEnabled(playerStore.eqEnabled)
-        logger.debug(`EQ restored: enabled=${playerStore.eqEnabled}, bands synced`)
-
-        // Setup event listener for position updates from Rust backend
-        await setupEventListener()
-
-        // Setup media control event listeners (OS media keys)
-        await setupMediaEventListeners()
-      } else {
-        logger.error('Failed to initialize Rust audio player')
+      for (let i = 0; i < playerStore.eqBands.length; i++) {
+        await audioPlayer.setEQBand(i, playerStore.eqBands[i].gain)
       }
-    } else {
-      logger.info('Initializing Web Audio player...')
-      const initialized = await webAudioPlayer.initializeWebAudio()
-      if (initialized) {
-        logger.info('Web Audio player initialized successfully')
-        
-        // Try to resume context (might fail if no user gesture yet, but that's fine)
-        await webAudioPlayer.resumeContext()
+    }
+    await audioPlayer.setEQEnabled(playerStore.eqEnabled)
+    logger.debug(`EQ restored: enabled=${playerStore.eqEnabled}`)
 
-        webAudioPlayer.setVolume(playerStore.volume)
-        webAudioPlayer.setEQEnabled(playerStore.eqEnabled)
-        
-        webAudioPlayer.setOnDurationChange(duration => {
-          playerStore.setDuration(duration)
-        })
-
-        // If there's a current song (restored from session), mark audio as ready for lazy loading
-        if (playerStore.currentSong) {
-          playerStore.setAudioReady(true)
-        }
-      } else {
-        logger.error('Failed to initialize Web Audio player')
+    // Setup event listeners
+    audioPlayer.onPositionUpdate((event: AudioPosition) => {
+      const { isFinished, position } = event
+      
+      if (!playerStore.isSeeking) {
+        playerStore.setCurrentTime(position)
       }
+
+      if (isFinished && playerStore.isPlaying) {
+        handleTrackEnded()
+      }
+    })
+
+    audioPlayer.onError((error: Error) => {
+      logger.warn(`Audio stream error: ${error.message}`)
+      playerStore.pause()
+      playerStore.setNeedsReload(true)
+    })
+
+    audioPlayer.onTrackEnd(() => {
+      // Track end is handled by position update with isFinished
+    })
+
+    // Setup media control listeners (desktop only)
+    if (isDesktop()) {
+      await setupMediaEventListeners()
+    }
+
+    // For web, restore session song as ready for lazy loading
+    if (!isDesktop() && playerStore.currentSong) {
+      playerStore.setAudioReady(true)
     }
   }
 
-  // Throttle volume updates to backend to prevent audio issues during slider drags
-  let volumeThrottleTimer: null | ReturnType<typeof setTimeout> = null
-  let pendingVolume: null | number = null
+  // Throttle volume updates
+  let volumeThrottleTimer: ReturnType<typeof setTimeout> | null = null
+  let pendingVolume: number | null = null
   const VOLUME_THROTTLE_MS = 50
 
   watch(() => playerStore.volume, newVolume => {
@@ -530,11 +393,7 @@ export const useAudioEngine = (
 
     volumeThrottleTimer = setTimeout(async () => {
       if (pendingVolume !== null) {
-        if (isDesktop()) {
-          await rustAudioPlayer.setVolume(pendingVolume)
-        } else {
-          webAudioPlayer.setVolume(pendingVolume)
-        }
+        await audioPlayer.setVolume(pendingVolume)
         pendingVolume = null
       }
       volumeThrottleTimer = null
@@ -543,46 +402,36 @@ export const useAudioEngine = (
 
   // Watch for play/pause from store
   watch(() => playerStore.isPlaying, async isPlaying => {
-    if (isDesktop()) {
-      const currentlyPlaying = await rustAudioPlayer.isPlaying()
-      if (isPlaying && !currentlyPlaying)
-        await rustAudioPlayer.resume()
-      else if (!isPlaying && currentlyPlaying)
-        await rustAudioPlayer.pause()
+    const currentlyPlaying = await audioPlayer.isPlaying()
+    
+    if (isPlaying && !currentlyPlaying) {
+      await audioPlayer.play()
+    } else if (!isPlaying && currentlyPlaying) {
+      await audioPlayer.pause()
+    }
 
-      // Sync playback status to OS Now Playing widget
+    // Sync playback status to OS Now Playing (desktop only)
+    if (isDesktop() && getApiClient().mediaSetPlaybackStatus) {
       getApiClient().mediaSetPlaybackStatus?.(isPlaying, playerStore.currentTime).catch(() => {})
-    } else {
-      const currentlyPlaying = webAudioPlayer.getIsPlaying()
-      if (isPlaying && !currentlyPlaying)
-        await webAudioPlayer.play()
-      else if (!isPlaying && currentlyPlaying)
-        webAudioPlayer.pause()
     }
   })
 
   // Watch for EQ enabled changes
   watch(() => playerStore.eqEnabled, async enabled => {
-    if (isDesktop()) {
-      await rustAudioPlayer.setEQEnabled(enabled)
-    } else {
-      webAudioPlayer.setEQEnabled(enabled)
-    }
+    await audioPlayer.setEQEnabled(enabled)
   })
 
   // Watch for queue position changes to update media button states
   watch([hasNext, hasPrevious, () => playerStore.repeatMode], () => {
-    // Only update if we have a current song (player is active)
     if (playerStore.currentSong) {
       updateMediaButtonStates()
     }
   })
 
-  // Watch for song changes and auto-load (handles media keys, queue clicks, etc.)
+  // Watch for song changes and auto-load
   watch(() => playerStore.currentSong?.id, async (newId, oldId) => {
     logger.debug(`Song watcher triggered: ${oldId} -> ${newId}, isGaplessTransition: ${isGaplessTransition.value}`)
     if (newId === oldId) return
-    // Skip if we're in a gapless transition (handleTrackEnded manages this)
     if (isGaplessTransition.value) {
       logger.debug('Skipping load - gapless transition in progress')
       return
@@ -595,21 +444,6 @@ export const useAudioEngine = (
     }
   })
 
-  // Periodically update current time for Web Audio (since it doesn't push events like Rust)
-  if (!isDesktop()) {
-    setInterval(() => {
-      if (playerStore.isPlaying && !playerStore.isSeeking) {
-        const currentTime = webAudioPlayer.getCurrentTime()
-        playerStore.setCurrentTime(currentTime)
-        
-        // Handle track end for web
-        if (webAudioPlayer.getIsReady() && currentTime >= webAudioPlayer.getDuration() - 0.1 && webAudioPlayer.getDuration() > 0) {
-           // Track ended logic is handled by 'ended' event listener in useWebAudioPlayer
-        }
-      }
-    }, 500)
-  }
-
   return {
     initializePlayer,
     isGaplessTransition,
@@ -620,9 +454,9 @@ export const useAudioEngine = (
     playSongAtIndex,
     resetEQ,
     resumeContext,
-    rustAudioPlayer,
     seek,
     setEQBand,
     setEQEnabled,
+    audioPlayer,
   }
 }

@@ -48,6 +48,9 @@ export { useAccentColorStore } from './stores/accentColor'
 export { useLastFmStore } from './stores/lastfm'
 export { useListenBrainzStore } from './stores/listenbrainz'
 
+// Audio
+export * from './audio'
+
 // Composables
 export { useAuth } from './composables/useAuth'
 export { useLibrary } from './composables/useLibrary'
@@ -56,7 +59,6 @@ export { usePlayerControls } from './composables/usePlayerControls'
 export { usePlayerSession } from './composables/usePlayerSession'
 export { useSongInteractions } from './composables/useSongInteractions'
 export { useTopBar } from './composables/useTopBar'
-export { useWebAudioPlayer } from './composables/useWebAudioPlayer'
 
 // Components
 export { default as MainLayout } from './components/layout/MainLayout.vue'

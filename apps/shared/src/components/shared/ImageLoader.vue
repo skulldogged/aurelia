@@ -220,6 +220,10 @@
 
   const handleError = (): void => {
     hasError.value = true
+    // Clear the image URL so the fallback slot will be shown
+    imageUrl.value = null
+    lowQualityUrl.value = null
+    logger.debug(`Image failed to load for item ${props.itemId}, showing fallback`)
   }
 
   const handleHighQualityLoad = (): void => {
@@ -253,8 +257,9 @@
     </div>
 
     <!-- Progressive loading: show low quality image first -->
-    <div v-else-if='lowQualityUrl' class='relative size-full'>
+    <div v-else-if='lowQualityUrl && !hasError' class='relative size-full'>
       <img
+        @error='handleError'
         :alt='alt'
         :src='lowQualityUrl'
         :style='{ display: highQualityLoaded ? "none" : "block", filter: "blur(1px)" }'

@@ -16,6 +16,7 @@ import {
   Toaster,
   getApiClient,
   useAuth,
+  useAudioEngine,
   useNavigation,
   usePlayerControls,
   usePlayerSession,
@@ -41,6 +42,16 @@ const navigation = useNavigation()
 const playerControls = usePlayerControls()
 const songInteractions = useSongInteractions(credentials)
 const topBar = useTopBar()
+
+// Destructure player control handlers that are needed for FullscreenPlayer
+const {
+  handleNextSong,
+  handlePreviousSong,
+  handleSeek,
+  handleTogglePlayPause,
+  handleToggleRepeat,
+  handleToggleShuffle,
+} = playerControls
 
 // Initialize player session for playback reporting
 usePlayerSession()
@@ -108,6 +119,14 @@ const handleLogout = () => {
 
 const handleQuit = () => {
   window.location.reload()
+}
+
+const handleVolumeChange = (value: number): void => {
+  playerStore.setVolume(value / 100)
+}
+
+const handleToggleMute = (): void => {
+  playerStore.toggleMute()
 }
 
 onMounted(async () => {
@@ -218,12 +237,21 @@ onMounted(async () => {
         :is-equalizer-open="playerControls.isEqualizerOpen.value"
         :is-lyrics-open="playerControls.isLyricsOpen.value"
         :is-queue-open="playerControls.isQueueOpen.value"
+        @close="playerControls.toggleFullScreenPlayer"
         @toggle-favorite="songInteractions.toggleFavorite"
         @instant-mix="songInteractions.playInstantMix"
         @toggle-queue="playerControls.toggleQueue"
         @toggle-lyrics="playerControls.toggleLyrics"
         @toggle-equalizer="playerControls.toggleEqualizer"
         @toggle-fullscreen="playerControls.toggleFullScreenPlayer"
+        @toggle-play-pause="handleTogglePlayPause"
+        @previous-song="handlePreviousSong"
+        @next-song="handleNextSong"
+        @toggle-shuffle="handleToggleShuffle"
+        @toggle-repeat="handleToggleRepeat"
+        @seek="handleSeek"
+        @volume-change="handleVolumeChange"
+        @toggle-mute="handleToggleMute"
       />
 
       <GlobalSearch :open="false" />

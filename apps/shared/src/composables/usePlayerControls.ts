@@ -36,11 +36,20 @@ const toggleFullScreenPlayer = (): void => {
 }
 
 const handleTogglePlayPause = (): void => {
-  musicPlayerRef.value?.togglePlayPause()
+  if (musicPlayerRef.value) {
+    musicPlayerRef.value.togglePlayPause()
+  } else {
+    // Fallback: toggle play state directly through store
+    // This is used when MusicPlayer component ref is not available (e.g., fullscreen player)
+    const playerStore = usePlayerStore()
+    playerStore.togglePlay()
+  }
 }
 
 const handleSeek = (value: number): void => {
-  musicPlayerRef.value?.onSeek([value])
+  if (musicPlayerRef.value) {
+    musicPlayerRef.value.onSeek([value])
+  }
 }
 
 export interface PlayerControls {
