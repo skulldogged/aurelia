@@ -1,9 +1,8 @@
-import { convertFileSrc } from '@tauri-apps/api/core'
-
 import { getApiClient } from '../index'
 import type { Result } from '../lib/api/types'
 import { logger } from '../lib/logger'
 import { LRUCache } from '../lib/lru-cache'
+import { isTauri } from '../lib/platform'
 import { err, ok } from '../lib/result'
 
 // LRU cache for asset URLs with bounded size to prevent memory leaks
@@ -51,9 +50,13 @@ const getImageUrl = async (
   }
 
   // On web, data is already a URL. On desktop, it's a file path that needs conversion.
-  const assetUrl = (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window)
-    ? convertFileSrc(result.data)
-    : result.data
+  let assetUrl: string
+  if (isTauri()) {
+    const { convertFileSrc } = await import('@tauri-apps/api/core')
+    assetUrl = convertFileSrc(result.data)
+  } else {
+    assetUrl = result.data
+  }
 
   assetUrlCache.set(cacheKey, assetUrl)
 

@@ -734,7 +734,7 @@
                   {{ relatedArtist.name }}
                 </h3>
                 <p class='text-sm text-muted-foreground truncate'>
-                  {{ relatedArtist.songCount }} {{ relatedArtist.songCount === BigInt(1) ? 'song' : 'songs' }}
+                  {{ relatedArtist.songCount }} {{ relatedArtist.songCount === 1 ? 'song' : 'songs' }}
                 </p>
               </div>
             </div>

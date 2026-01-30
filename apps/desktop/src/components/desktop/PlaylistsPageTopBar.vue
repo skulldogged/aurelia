@@ -1,9 +1,9 @@
 <script setup lang="ts">
   import { Plus } from 'lucide-vue-next'
 
-  import Button from '@/components/ui/Button.vue'
-  import DraggableArea from '@/components/ui/DraggableArea.vue'
-  import { Input } from '@/components/ui/input'
+  import Button from '@shared/components/ui/Button.vue'
+  import DraggableArea from '@shared/components/ui/DraggableArea.vue'
+  import { Input } from '@shared/components/ui/input'
 
   defineProps<{
     searchQuery: string

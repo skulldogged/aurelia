@@ -1,4 +1,3 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
 import { getApiClient, isDesktop } from '../index'
@@ -17,6 +16,9 @@ interface AudioStreamErrorEvent {
   position: number
   reason:   string
 }
+
+// Type for unlisten function
+type UnlistenFn = () => void
 
 interface UseAudioEngineReturn {
   initializePlayer:        () => Promise<void>;
@@ -76,6 +78,8 @@ export const useAudioEngine = (
   const setupEventListener = async (): Promise<void> => {
     if (!isDesktop()) return
 
+    const { listen } = await import('@tauri-apps/api/event')
+
     // Clean up existing listener
     if (eventUnlisten.value) {
       eventUnlisten.value()
@@ -129,6 +133,8 @@ export const useAudioEngine = (
   // Subscribe to media control events from backend (OS media keys)
   const setupMediaEventListeners = async (): Promise<void> => {
     if (!isDesktop()) return
+
+    const { listen } = await import('@tauri-apps/api/event')
 
     // Clean up existing listeners
     for (const unlisten of mediaEventUnlisteners.value) {

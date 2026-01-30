@@ -1,6 +1,6 @@
 <script setup lang="ts">
-  import DraggableArea from '@/components/ui/DraggableArea.vue'
-  import { Input } from '@/components/ui/input'
+  import DraggableArea from '@shared/components/ui/DraggableArea.vue'
+  import { Input } from '@shared/components/ui/input'
   import {
     Select,
     SelectContent,
@@ -9,9 +9,9 @@
     SelectLabel,
     SelectTrigger,
     SelectValue,
-  } from '@/components/ui/select'
-  import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-  import { type LayoutMode } from '@/composables/useLayoutPreference'
+  } from '@shared/components/ui/select'
+  import { Tabs, TabsList, TabsTrigger } from '@shared/components/ui/tabs'
+  import { type LayoutMode } from '@shared/composables/useLayoutPreference'
 
   defineProps<{
     searchQuery:    string

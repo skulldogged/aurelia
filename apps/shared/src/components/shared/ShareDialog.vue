@@ -1,8 +1,6 @@
 <script setup lang="ts">
   import type { SimpleIcon } from 'simple-icons'
 
-  import { writeText } from '@tauri-apps/plugin-clipboard-manager'
-  import { openUrl } from '@tauri-apps/plugin-opener'
   import { Check, ChevronDown, ChevronUp, Copy, ExternalLink, Link, Share2 } from 'lucide-vue-next'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import {
@@ -29,6 +27,7 @@
     DialogTitle,
   } from '../ui/dialog'
   import { logger } from '../../lib/logger'
+  import { isTauri } from '../../lib/platform'
 
   interface Props {
     itemId:   string
@@ -159,7 +158,12 @@
 
   const copyToClipboard = async (url: string, platform: string): Promise<void> => {
     try {
-      await writeText(url)
+      if (isTauri()) {
+        const { writeText } = await import('@tauri-apps/plugin-clipboard-manager')
+        await writeText(url)
+      } else {
+        await navigator.clipboard.writeText(url)
+      }
       copiedUrl.value = platform
       setTimeout(() => {
         copiedUrl.value = null
@@ -171,7 +175,12 @@
 
   const openInBrowser = async (url: string): Promise<void> => {
     try {
-      await openUrl(url)
+      if (isTauri()) {
+        const { openUrl } = await import('@tauri-apps/plugin-opener')
+        await openUrl(url)
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer')
+      }
     } catch (error) {
       logger.error('Failed to open URL:', error)
     }

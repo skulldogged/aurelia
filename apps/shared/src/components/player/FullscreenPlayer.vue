@@ -19,7 +19,7 @@
     VolumeX,
   } from 'lucide-vue-next'
   import { storeToRefs } from 'pinia'
-  import { computed, onUnmounted, ref, watch } from 'vue'
+  import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
   import { PropType } from 'vue'
 
   import { Song } from '../../lib/api/types'
@@ -28,9 +28,11 @@
   import FullscreenQueue from './FullscreenQueue.vue'
   import ImageLoader from '../shared/ImageLoader.vue'
   import LyricsView from '../shared/LyricsView.vue'
-  import WindowControls from '../shared/WindowControls.vue'
   import Button from '../ui/Button.vue'
   import { Slider } from '../ui/slider'
+
+  // Lazy load WindowControls - only imported on desktop when actually rendered
+  const WindowControls = defineAsyncComponent(() => import('../shared/WindowControls.vue'))
   import { useImageLoader } from '../../composables/useImageLoader'
   import { useSwipe } from '../../composables/useSwipe'
   import { logger } from '../../lib/logger'
@@ -90,6 +92,7 @@
   const emit = defineEmits<{
     (e: 'close'): void
     (e: 'next-song'): void
+    (e: 'play-song', song: Song, playlist?: Song[], startIndex?: number): void
     (e: 'previous-song'): void
     (e: 'remove-song', song: Song): void
     (e: 'seek', value: number): void

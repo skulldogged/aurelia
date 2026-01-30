@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import DraggableArea from '@/components/ui/DraggableArea.vue'
+  import DraggableArea from '@shared/components/ui/DraggableArea.vue'
 
   defineProps<{
     activeTabLabel: string

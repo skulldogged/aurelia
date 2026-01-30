@@ -245,6 +245,24 @@ export interface NowPlayingPayload {
   coverUrl: string | null
 }
 
+// Discord Rich Presence
+export interface RpcButton {
+  label: string
+  url: string
+}
+
+export interface RpcActivity {
+  buttons: RpcButton[] | null
+  details: string | null
+  end_timestamp: number | null
+  large_image: string | null
+  large_text: string | null
+  small_image: string | null
+  small_text: string | null
+  start_timestamp: number | null
+  state: string | null
+}
+
 // Main API Client Interface
 export interface ApiClient {
   // Auth
@@ -350,6 +368,19 @@ export interface ApiClient {
   quitApplication?(): Promise<Result<void>>
   setMinimizeToTray?(minimizeToTray: boolean): Promise<Result<void>>
   setCloseToTray?(closeToTray: boolean): Promise<Result<void>>
+
+  // Discord Rich Presence (Desktop only)
+  discordRpcIsRunning?(): Promise<Result<boolean>>
+  discordRpcStart?(appId: string): Promise<Result<void>>
+  discordRpcStop?(): Promise<Result<void>>
+  discordRpcSetActivity?(activity: RpcActivity): Promise<Result<void>>
+  discordRpcClearActivity?(): Promise<Result<void>>
+
+  // Media Controls (Desktop only - system media integration)
+  mediaClearNowPlaying?(): Promise<Result<void>>
+  mediaSetPlaybackStatus?(isPlaying: boolean, positionSecs: number | null): Promise<Result<void>>
+  mediaUpdateNowPlaying?(payload: NowPlayingPayload): Promise<Result<void>>
+  mediaSetButtonEnabled?(button: string, enabled: boolean): Promise<Result<void>>
 }
 
 // WebSocket Events Interface

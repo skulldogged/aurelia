@@ -1,6 +1,4 @@
 <script setup lang="ts">
-  import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-  import { openUrl } from '@tauri-apps/plugin-opener'
   import { ExternalLink, XCircle } from 'lucide-vue-next'
   import { computed, onBeforeUnmount, ref } from 'vue'
 
@@ -12,7 +10,11 @@
   import { useLastFm } from '../../composables/useLastFm'
   import { useListenBrainz } from '../../composables/useListenBrainz'
   import { logger } from '../../lib/logger'
+  import { isTauri } from '../../lib/platform'
   import { useLastFmStore, useListenBrainzStore } from '../../stores'
+
+  // Type for unlisten function
+  type UnlistenFn = () => void
 
   const lastfmStore = useLastFmStore()
   const listenbrainzStore = useListenBrainzStore()
@@ -36,6 +38,16 @@
   const isListenBrainzAuthenticated = computed(() => listenbrainzStore.isAuthenticated())
   const listenbrainzUsername = computed(() => listenbrainzStore.credentials?.username ?? 'Unknown')
 
+  // Helper to open URL cross-platform
+  const openUrlCrossPlatform = async (url: string): Promise<void> => {
+    if (isTauri()) {
+      const { openUrl } = await import('@tauri-apps/plugin-opener')
+      await openUrl(url)
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+  }
+
   // Last.fm handlers
   const handleLastFmAuthenticate = async (): Promise<void> => {
     if (!apiKey.value || !apiSecret.value) {
@@ -43,10 +55,17 @@
       return
     }
 
+    // Last.fm OAuth callback only works on desktop (requires local server)
+    if (!isTauri()) {
+      lastfmError.value = 'Last.fm authentication is only available in the desktop app'
+      return
+    }
+
     lastfmError.value = null
     isWaitingForCallback.value = true
 
     try {
+      const { listen } = await import('@tauri-apps/api/event')
       unlisten = await listen<string>('lastfm://token-received', async event => {
         logger.info('Received token from callback event')
         isWaitingForCallback.value = false
@@ -79,7 +98,7 @@
 
       const callbackUrl = encodeURIComponent('http://127.0.0.1:3000')
       const url = `https://www.last.fm/api/auth/?api_key=${apiKey.value}&cb=${callbackUrl}`
-      await openUrl(url)
+      await openUrlCrossPlatform(url)
 
       setTimeout(() => {
         if (isWaitingForCallback.value) {
@@ -147,7 +166,7 @@
   }
 
   const openTokenPage = async (): Promise<void> => {
-    await openUrl('https://listenbrainz.org/settings/')
+    await openUrlCrossPlatform('https://listenbrainz.org/settings/')
   }
 
   onBeforeUnmount(() => {

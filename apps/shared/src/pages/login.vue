@@ -3,6 +3,7 @@
   import { onMounted, ref } from 'vue'
 
   import { getApiClient } from '../index'
+  import type { Credentials, LoginResponse } from '../lib/api/types'
   import Button from '../components/ui/Button.vue'
   import { Input } from '../components/ui/input'
   import Label from '../components/ui/Label.vue'
@@ -50,7 +51,7 @@
           error.value = ''
           loading.value = true
         },
-        onSuccess: async loginData => {
+        onSuccess: async (loginData: LoginResponse) => {
           await withCustomState(
             () => apiClient.saveCredentials(
               form.value.serverUrl,
@@ -87,7 +88,7 @@
         onError: error => {
           logger.error('Failed to get saved credentials:', error)
         },
-        onSuccess: savedCredentials => {
+        onSuccess: (savedCredentials: Credentials | null) => {
           if (savedCredentials) {
             form.value.serverUrl = savedCredentials.serverUrl
             form.value.username = savedCredentials.username

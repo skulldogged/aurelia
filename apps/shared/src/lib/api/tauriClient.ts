@@ -3,134 +3,247 @@
 
 import type {
   ApiClient,
+  Artist,
   AudioStreamParams,
   Credentials,
-  EQBand,
   EQPreset,
+  HomeViewData,
   ImageParams,
   LastFmCredentials,
+  LibraryData,
   ListenBrainzCredentials,
   ListenBrainzListen,
+  NowPlayingPayload,
+  Playlist,
   PlaylistCreateData,
   PlaylistUpdateData,
   Result,
+  RpcActivity,
   ShareUrlType,
+  Song,
+  SyncStateInfo,
 } from './types'
 
-// Import Tauri commands (will be provided by the desktop app)
-// This import path is set up by the desktop app that uses this client
-declare const TAURI_COMMANDS: {
+// The commands object from bindings.ts - passed in at runtime
+// This interface matches the actual tauri-specta generated bindings
+interface TauriCommands {
+  // Auth
   getSavedCredentials(): Promise<Result<Credentials | null, string>>
-  authenticate(serverUrl: string, username: string, password: string): Promise<Result<Credentials, string>>
-  logout(): Promise<Result<void, string>>
-  getLibrary(): Promise<Result<any, string>>
-  syncLibrary(): Promise<Result<void, string>>
-  getSyncState(): Promise<Result<any, string>>
-  getSong(songId: string): Promise<Result<any, string>>
-  getPlaylists(): Promise<Result<any[], string>>
-  getPlaylistItems(playlistId: string): Promise<Result<any[], string>>
-  createPlaylist(data: PlaylistCreateData): Promise<Result<any, string>>
-  updatePlaylist(playlistId: string, updates: PlaylistUpdateData): Promise<Result<any, string>>
-  deletePlaylist(playlistId: string): Promise<Result<void, string>>
-  addPlaylistItems(playlistId: string, itemIds: string[]): Promise<Result<void, string>>
-  removePlaylistItems(playlistId: string, itemIds: string[]): Promise<Result<void, string>>
-  getHomeViewData(): Promise<Result<any, string>>
-  getRecentlyPlayed(serverUrl: string, token: string, userId: string): Promise<Result<any[], string>>
-  getAudioStreamUrl(serverUrl: string, token: string, itemId: string, container: null | string): Promise<Result<string, string>>
+  loginToJellyfin(serverUrl: string, username: string, password: string): Promise<Result<{ token: string; userId: string }, string>>
+  saveCredentials(serverUrl: string, username: string, token: string, userId: string): Promise<Result<null, string>>
+  clearSavedCredentials(): Promise<Result<null, string>>
+
+  // Library
+  getLibrary(): Promise<Result<LibraryData, string>>
+  syncLibrary(serverUrl: string, token: string): Promise<Result<null, string>>
+  getSyncState(): Promise<Result<SyncStateInfo, string>>
+  getSong(songId: string): Promise<Result<Song, string>>
+  getArtist(artistId: string, includeSongs: boolean | null): Promise<Result<Artist, string>>
+  getAlbum(albumId: string, includeSongs: boolean | null): Promise<Result<unknown, string>>
+
+  // Playlists
+  getPlaylists(): Promise<Result<Playlist[], string>>
+  getPlaylistItems(playlistId: string): Promise<Result<Song[], string>>
+  createPlaylist(data: PlaylistCreateData): Promise<Result<Playlist, string>>
+  updatePlaylist(playlistId: string, updates: PlaylistUpdateData): Promise<Result<Playlist, string>>
+  deletePlaylist(playlistId: string): Promise<Result<null, string>>
+  addPlaylistItems(playlistId: string, itemIds: string[]): Promise<Result<null, string>>
+  removePlaylistItems(playlistId: string, itemIds: string[]): Promise<Result<null, string>>
+
+  // Home
+  getHomeViewData(): Promise<Result<HomeViewData, string>>
+  getRecentlyPlayed(serverUrl: string, token: string, userId: string): Promise<Result<Song[], string>>
+
+  // Audio
+  getAudioStreamUrl(serverUrl: string, token: string, itemId: string, container: string | null): Promise<Result<string, string>>
   getSavedVolume(): Promise<Result<number | null, string>>
-  saveVolume(volume: number): Promise<Result<void, string>>
-  getImage(itemId: string, imageType: string, serverUrl: string, token: string, width: null | number, quality: null | number): Promise<Result<string | null, string>>
-  clearCache(serverUrl: string, token: string): Promise<Result<void, string>>
-  clearImageFromCache(itemId: string, imageType: string): Promise<Result<void, string>>
+  saveVolume(volume: number): Promise<Result<null, string>>
+
+  // Images
+  getImage(itemId: string, imageType: string, serverUrl: string, token: string, width: number | null, quality: number | null): Promise<Result<string | null, string>>
+  clearCache(serverUrl: string, token: string): Promise<Result<null, string>>
+  clearImageFromCache(itemId: string, imageType: string): Promise<Result<null, string>>
   getImageCacheStats(): Promise<Result<string, string>>
-  getLyrics(id: string, artist: string, title: string, path: null | string): Promise<Result<string, string>>
-  toggleFavoriteStatus(itemId: string, isFavorite: boolean): Promise<Result<boolean, string>>
-  getInstantMix(itemId: string): Promise<Result<any[], string>>
-  getRelatedArtists(artistId: string): Promise<Result<any[], string>>
-  getSongShareUrls(songId: string): Promise<Result<Partial<Record<ShareUrlType, string>>, string>>
-  lastfmSetCredentials(credentials: LastFmCredentials): Promise<Result<void, string>>
-  lastfmClearCredentials(): Promise<Result<void, string>>
+
+  // Lyrics
+  getLyrics(id: string, artist: string, title: string, path: string | null): Promise<Result<string, string>>
+
+  // Favorites
+  toggleFavoriteStatus(serverUrl: string, token: string, userId: string, itemId: string, isFavorite: boolean): Promise<Result<boolean, string>>
+
+  // Instant Mix
+  getInstantMix(itemId: string): Promise<Result<Song[], string>>
+
+  // Related Artists
+  getRelatedArtists(artistId: string): Promise<Result<Artist[], string>>
+
+  // Share URLs
+  getSongShareUrls(songId: string): Promise<Result<Partial<Record<string, string>>, string>>
+
+  // Last.fm
+  lastfmSetCredentials(credentials: LastFmCredentials): Promise<Result<null, string>>
+  lastfmClearCredentials(): Promise<Result<null, string>>
   lastfmIsAuthenticated(): Promise<Result<boolean, string>>
   lastfmAuthenticate(): Promise<Result<LastFmCredentials, string>>
-  lastfmScrobble(artist: string, track: string, album: null | string, timestamp: number): Promise<Result<void, string>>
-  lastfmUpdateNowPlaying(artist: string, track: string, album: null | string): Promise<Result<void, string>>
-  listenbrainzSetCredentials(credentials: ListenBrainzCredentials): Promise<Result<void, string>>
-  listenbrainzClearCredentials(): Promise<Result<void, string>>
+  lastfmScrobble(artist: string, track: string, album: string | null, timestamp: number): Promise<Result<null, string>>
+  lastfmUpdateNowPlaying(artist: string, track: string, album: string | null): Promise<Result<null, string>>
+
+  // ListenBrainz
+  listenbrainzSetCredentials(credentials: ListenBrainzCredentials): Promise<Result<null, string>>
+  listenbrainzClearCredentials(): Promise<Result<null, string>>
   listenbrainzIsAuthenticated(): Promise<Result<boolean, string>>
   listenbrainzValidateToken(userToken: string): Promise<Result<ListenBrainzCredentials, string>>
-  listenbrainzSubmitListen(listen: ListenBrainzListen, timestamp: number): Promise<Result<void, string>>
-  listenbrainzPlayingNow(artist: string, track: string, album: null | string): Promise<Result<void, string>>
-  saveCredentials(serverUrl: string, username: string, token: string, userId: string): Promise<Result<void, string>>
+  listenbrainzSubmitListen(listen: ListenBrainzListen, timestamp: number): Promise<Result<null, string>>
+  listenbrainzPlayingNow(artist: string, track: string, album: string | null): Promise<Result<null, string>>
+
   // Audio (Rust player)
-  audioInit(): Promise<Result<void, string>>
-  audioPlay(streamUrl: string): Promise<Result<void, string>>
-  audioPause(): Promise<Result<void, string>>
-  audioResume(): Promise<Result<void, string>>
-  audioStop(): Promise<Result<void, string>>
+  audioInit(): Promise<Result<null, string>>
+  audioPlay(url: string, token: string): Promise<Result<null, string>>
+  audioPause(): Promise<Result<null, string>>
+  audioResume(): Promise<Result<null, string>>
+  audioStop(): Promise<Result<null, string>>
   audioGetPosition(): Promise<Result<number, string>>
-  audioSeek(position: number): Promise<Result<void, string>>
+  audioSeek(positionSecs: number): Promise<Result<null, string>>
   audioGetVolume(): Promise<Result<number, string>>
-  audioSetVolume(volume: number): Promise<Result<void, string>>
-  audioSetEqBand(band: number, gain: number): Promise<Result<void, string>>
+  audioSetVolume(volume: number): Promise<Result<null, string>>
+  audioSetEqBand(band: number, gainDb: number): Promise<Result<null, string>>
   audioGetEqBand(band: number): Promise<Result<number, string>>
   audioGetAllEqBands(): Promise<Result<number[], string>>
-  audioSetEqEnabled(enabled: boolean): Promise<Result<void, string>>
+  audioSetEqEnabled(enabled: boolean): Promise<Result<null, string>>
   audioIsEqEnabled(): Promise<Result<boolean, string>>
-  audioSetEqPreset(preset: EQPreset): Promise<Result<void, string>>
-  audioGetEqPreset(): Promise<Result<EQPreset, string>>
+  audioSetEqPreset?(preset: EQPreset): Promise<Result<null, string>>
+  audioGetEqPreset?(): Promise<Result<EQPreset, string>>
   audioIsAnalyzerEnabled(): Promise<Result<boolean, string>>
-  audioSetAnalyzerEnabled(enabled: boolean): Promise<Result<void, string>>
-  audioPrepareNext(streamUrl: string): Promise<Result<void, string>>
-  audioAdvanceGapless(): Promise<Result<void, string>>
+  audioSetAnalyzerEnabled(enabled: boolean): Promise<Result<null, string>>
+  audioPrepareNext(url: string, token: string): Promise<Result<null, string>>
+  audioAdvanceGapless(): Promise<Result<null, string>>
+
   // Session
-  reportPlaybackStart(itemId: string, position?: number): Promise<Result<void, string>>
-  reportPlaybackProgress(itemId: string, position: number, isPaused: boolean): Promise<Result<void, string>>
-  reportPlaybackStop(itemId: string, position: number): Promise<Result<void, string>>
-  markItemPlayed(itemId: string): Promise<Result<void, string>>
+  registerClientCapabilities(serverUrl: string, token: string, deviceId: string): Promise<Result<null, string>>
+  reportPlaybackStart(serverUrl: string, token: string, itemId: string, positionTicks: number | null): Promise<Result<null, string>>
+  reportPlaybackProgress(serverUrl: string, token: string, itemId: string, positionTicks: number | null, eventName: string | null, isPaused: boolean | null): Promise<Result<null, string>>
+  reportPlaybackStop(serverUrl: string, token: string, itemId: string, positionTicks: number | null): Promise<Result<null, string>>
+  markItemPlayed(serverUrl: string, token: string, userId: string, itemId: string): Promise<Result<null, string>>
+
   // System Tray / Window Management
-  showMainWindow(): Promise<Result<void, string>>
-  hideMainWindow(): Promise<Result<void, string>>
-  quitApplication(): Promise<Result<void, string>>
-  setMinimizeToTray(minimizeToTray: boolean): Promise<Result<void, string>>
-  setCloseToTray(closeToTray: boolean): Promise<Result<void, string>>
+  showMainWindow(): Promise<void>
+  hideMainWindow(): Promise<void>
+  quitApplication(): Promise<void>
+  setMinimizeToTray(minimizeToTray: boolean): Promise<void>
+  setCloseToTray(closeToTray: boolean): Promise<void>
+
+  // Discord Rich Presence
+  discordRpcIsRunning(): Promise<Result<boolean, string>>
+  discordRpcStart(appId: string): Promise<Result<null, string>>
+  discordRpcStop(): Promise<Result<null, string>>
+  discordRpcSetActivity(activity: RpcActivity): Promise<Result<null, string>>
+  discordRpcClearActivity(): Promise<Result<null, string>>
+
+  // Media Controls
+  mediaClearNowPlaying(): Promise<Result<null, string>>
+  mediaSetPlaybackStatus(isPlaying: boolean, positionSecs: number | null): Promise<Result<null, string>>
+  mediaUpdateNowPlaying(payload: NowPlayingPayload): Promise<Result<null, string>>
+  mediaSetButtonEnabled(button: string, enabled: boolean): Promise<Result<null, string>>
+}
+
+// Helper to convert null results to void
+const nullToVoid = <E>(result: Result<null, E>): Result<void, E> => {
+  if (result.status === 'ok') {
+    return { status: 'ok', data: undefined }
+  }
+  return result
+}
+
+// Helper to wrap void-returning functions as Result
+const wrapVoid = async (fn: () => Promise<void>): Promise<Result<void, string>> => {
+  try {
+    await fn()
+    return { status: 'ok', data: undefined }
+  } catch (e) {
+    return { status: 'error', error: e instanceof Error ? e.message : String(e) }
+  }
 }
 
 // Tauri API Client factory function
-export function createTauriClient(commands: typeof TAURI_COMMANDS): ApiClient {
+export function createTauriClient(commands: TauriCommands): ApiClient {
+  // Store for credentials - populated after login
+  let cachedCredentials: Credentials | null = null
+
+  const getCredentials = (): Credentials | null => cachedCredentials
+
+  const requireCredentials = (): Credentials => {
+    if (!cachedCredentials) {
+      throw new Error('Not authenticated')
+    }
+    return cachedCredentials
+  }
+
   return {
     // Auth
-    getSavedCredentials: () => commands.getSavedCredentials(),
-    authenticate: (serverUrl, username, password) =>
-      commands.authenticate(serverUrl, username, password),
-    logout: () => commands.logout(),
-    saveCredentials: (serverUrl, username, token, userId) =>
-      commands.saveCredentials(serverUrl, username, token, userId),
+    getSavedCredentials: async () => {
+      const result = await commands.getSavedCredentials()
+      if (result.status === 'ok' && result.data) {
+        cachedCredentials = result.data
+      }
+      return result
+    },
+
+    authenticate: async (serverUrl, username, password) => {
+      const result = await commands.loginToJellyfin(serverUrl, username, password)
+      if (result.status === 'ok') {
+        cachedCredentials = {
+          serverUrl,
+          username,
+          token: result.data.token,
+          userId: result.data.userId,
+        }
+        return { status: 'ok', data: cachedCredentials }
+      }
+      return result
+    },
+
+    logout: async () => {
+      const result = await commands.clearSavedCredentials()
+      cachedCredentials = null
+      return nullToVoid(result)
+    },
+
+    saveCredentials: async (serverUrl, username, token, userId) => {
+      const result = await commands.saveCredentials(serverUrl, username, token, userId)
+      if (result.status === 'ok') {
+        cachedCredentials = { serverUrl, username, token, userId }
+      }
+      return nullToVoid(result)
+    },
 
     // Library
     getLibrary: () => commands.getLibrary(),
-    syncLibrary: () => commands.syncLibrary(),
+    syncLibrary: async () => {
+      const creds = requireCredentials()
+      return nullToVoid(await commands.syncLibrary(creds.serverUrl, creds.token))
+    },
     getSyncState: () => commands.getSyncState(),
     getSong: (songId) => commands.getSong(songId),
+    getArtist: (artistId) => commands.getArtist(artistId, true),
 
     // Playlists
     getPlaylists: () => commands.getPlaylists(),
     getPlaylistItems: (playlistId) => commands.getPlaylistItems(playlistId),
     createPlaylist: (data) => commands.createPlaylist(data),
     updatePlaylist: (playlistId, updates) => commands.updatePlaylist(playlistId, updates),
-    deletePlaylist: (playlistId) => commands.deletePlaylist(playlistId),
-    addPlaylistItems: (playlistId, itemIds) => commands.addPlaylistItems(playlistId, itemIds),
-    removePlaylistItems: (playlistId, itemIds) => commands.removePlaylistItems(playlistId, itemIds),
+    deletePlaylist: async (playlistId) => nullToVoid(await commands.deletePlaylist(playlistId)),
+    addPlaylistItems: async (playlistId, itemIds) => nullToVoid(await commands.addPlaylistItems(playlistId, itemIds)),
+    removePlaylistItems: async (playlistId, itemIds) => nullToVoid(await commands.removePlaylistItems(playlistId, itemIds)),
 
     // Home
     getHomeViewData: () => commands.getHomeViewData(),
-    getRecentlyPlayed: (serverUrl, token, userId) =>
-      commands.getRecentlyPlayed(serverUrl, token, userId),
+    getRecentlyPlayed: (serverUrl, token, userId) => commands.getRecentlyPlayed(serverUrl, token, userId),
 
     // Audio
     getAudioStreamUrl: (params) =>
       commands.getAudioStreamUrl(params.serverUrl, params.token, params.itemId, params.container ?? null),
     getSavedVolume: () => commands.getSavedVolume(),
-    saveVolume: (volume) => commands.saveVolume(volume),
+    saveVolume: async (volume) => nullToVoid(await commands.saveVolume(volume)),
 
     // Images
     getImage: (params) =>
@@ -142,16 +255,18 @@ export function createTauriClient(commands: typeof TAURI_COMMANDS): ApiClient {
         params.width ?? null,
         params.quality ?? null,
       ),
-    clearCache: (serverUrl, token) => commands.clearCache(serverUrl, token),
-    clearImageFromCache: (itemId, imageType) => commands.clearImageFromCache(itemId, imageType),
+    clearCache: async (serverUrl, token) => nullToVoid(await commands.clearCache(serverUrl, token)),
+    clearImageFromCache: async (itemId, imageType) => nullToVoid(await commands.clearImageFromCache(itemId, imageType)),
     getImageCacheStats: () => commands.getImageCacheStats(),
 
     // Lyrics
     getLyrics: (id, artist, title, path) => commands.getLyrics(id, artist, title, path ?? null),
 
     // Favorites
-    toggleFavoriteStatus: (itemId, isFavorite) =>
-      commands.toggleFavoriteStatus(itemId, isFavorite),
+    toggleFavoriteStatus: async (itemId, isFavorite) => {
+      const creds = requireCredentials()
+      return commands.toggleFavoriteStatus(creds.serverUrl, creds.token, creds.userId, itemId, isFavorite)
+    },
 
     // Instant Mix
     getInstantMix: (itemId) => commands.getInstantMix(itemId),
@@ -163,62 +278,101 @@ export function createTauriClient(commands: typeof TAURI_COMMANDS): ApiClient {
     getSongShareUrls: (songId) => commands.getSongShareUrls(songId),
 
     // Last.fm
-    lastfmSetCredentials: (credentials) => commands.lastfmSetCredentials(credentials),
-    lastfmClearCredentials: () => commands.lastfmClearCredentials(),
+    lastfmSetCredentials: async (credentials) => nullToVoid(await commands.lastfmSetCredentials(credentials)),
+    lastfmClearCredentials: async () => nullToVoid(await commands.lastfmClearCredentials()),
     lastfmIsAuthenticated: () => commands.lastfmIsAuthenticated(),
     lastfmAuthenticate: () => commands.lastfmAuthenticate(),
-    lastfmScrobble: (artist, track, album, timestamp) =>
-      commands.lastfmScrobble(artist, track, album ?? null, timestamp ?? Date.now()),
-    lastfmUpdateNowPlaying: (artist, track, album) =>
-      commands.lastfmUpdateNowPlaying(artist, track, album ?? null),
+    lastfmScrobble: async (artist, track, album, timestamp) =>
+      nullToVoid(await commands.lastfmScrobble(artist, track, album ?? null, timestamp ?? Date.now())),
+    lastfmUpdateNowPlaying: async (artist, track, album) =>
+      nullToVoid(await commands.lastfmUpdateNowPlaying(artist, track, album ?? null)),
 
     // ListenBrainz
-    listenbrainzSetCredentials: (credentials) => commands.listenbrainzSetCredentials(credentials),
-    listenbrainzClearCredentials: () => commands.listenbrainzClearCredentials(),
+    listenbrainzSetCredentials: async (credentials) => nullToVoid(await commands.listenbrainzSetCredentials(credentials)),
+    listenbrainzClearCredentials: async () => nullToVoid(await commands.listenbrainzClearCredentials()),
     listenbrainzIsAuthenticated: () => commands.listenbrainzIsAuthenticated(),
     listenbrainzValidateToken: (userToken) => commands.listenbrainzValidateToken(userToken),
-    listenbrainzSubmitListen: (listen, timestamp) =>
-      commands.listenbrainzSubmitListen(listen, timestamp),
-    listenbrainzPlayingNow: (artist, track, album) =>
-      commands.listenbrainzPlayingNow(artist, track, album ?? null),
+    listenbrainzSubmitListen: async (listen, timestamp) =>
+      nullToVoid(await commands.listenbrainzSubmitListen(listen, timestamp)),
+    listenbrainzPlayingNow: async (artist, track, album) =>
+      nullToVoid(await commands.listenbrainzPlayingNow(artist, track, album ?? null)),
 
     // Audio (Rust player - desktop only)
-    audioInit: () => commands.audioInit(),
-    audioPlay: (streamUrl) => commands.audioPlay(streamUrl),
-    audioPause: () => commands.audioPause(),
-    audioResume: () => commands.audioResume(),
-    audioStop: () => commands.audioStop(),
+    audioInit: async () => nullToVoid(await commands.audioInit()),
+    audioPlay: async (streamUrl) => {
+      const creds = getCredentials()
+      return nullToVoid(await commands.audioPlay(streamUrl, creds?.token ?? ''))
+    },
+    audioPause: async () => nullToVoid(await commands.audioPause()),
+    audioResume: async () => nullToVoid(await commands.audioResume()),
+    audioStop: async () => nullToVoid(await commands.audioStop()),
     audioGetPosition: () => commands.audioGetPosition(),
-    audioSeek: (position) => commands.audioSeek(position),
+    audioSeek: async (position) => nullToVoid(await commands.audioSeek(position)),
     audioGetVolume: () => commands.audioGetVolume(),
-    audioSetVolume: (volume) => commands.audioSetVolume(volume),
-    audioSetEqBand: (band, gain) => commands.audioSetEqBand(band, gain),
+    audioSetVolume: async (volume) => nullToVoid(await commands.audioSetVolume(volume)),
+    audioSetEqBand: async (band, gain) => nullToVoid(await commands.audioSetEqBand(band, gain)),
     audioGetEqBand: (band) => commands.audioGetEqBand(band),
     audioGetAllEqBands: () => commands.audioGetAllEqBands(),
-    audioSetEqEnabled: (enabled) => commands.audioSetEqEnabled(enabled),
+    audioSetEqEnabled: async (enabled) => nullToVoid(await commands.audioSetEqEnabled(enabled)),
     audioIsEqEnabled: () => commands.audioIsEqEnabled(),
-    audioSetEqPreset: (preset) => commands.audioSetEqPreset(preset),
-    audioGetEqPreset: () => commands.audioGetEqPreset(),
+    audioSetEqPreset: commands.audioSetEqPreset
+      ? async (preset) => nullToVoid(await commands.audioSetEqPreset!(preset))
+      : undefined,
+    audioGetEqPreset: commands.audioGetEqPreset
+      ? () => commands.audioGetEqPreset!()
+      : undefined,
     audioIsAnalyzerEnabled: () => commands.audioIsAnalyzerEnabled(),
-    audioSetAnalyzerEnabled: (enabled) => commands.audioSetAnalyzerEnabled(enabled),
-    audioPrepareNext: (streamUrl) => commands.audioPrepareNext(streamUrl),
-    audioAdvanceGapless: () => commands.audioAdvanceGapless(),
+    audioSetAnalyzerEnabled: async (enabled) => nullToVoid(await commands.audioSetAnalyzerEnabled(enabled)),
+    audioPrepareNext: async (streamUrl) => {
+      const creds = getCredentials()
+      return nullToVoid(await commands.audioPrepareNext(streamUrl, creds?.token ?? ''))
+    },
+    audioAdvanceGapless: async () => nullToVoid(await commands.audioAdvanceGapless()),
 
     // Session
-    reportPlaybackStart: (itemId, position) =>
-      commands.reportPlaybackStart(itemId, position),
-    reportPlaybackProgress: (itemId, position, isPaused) =>
-      commands.reportPlaybackProgress(itemId, position, isPaused),
-    reportPlaybackStop: (itemId, position) =>
-      commands.reportPlaybackStop(itemId, position),
-    markItemPlayed: (itemId) => commands.markItemPlayed(itemId),
+    registerClientCapabilities: async (serverUrl, token, deviceId) =>
+      nullToVoid(await commands.registerClientCapabilities(serverUrl, token, deviceId)),
+    reportPlaybackStart: async (itemId, position) => {
+      const creds = requireCredentials()
+      const positionTicks = position ? Math.round(position * 10_000_000) : null
+      return nullToVoid(await commands.reportPlaybackStart(creds.serverUrl, creds.token, itemId, positionTicks))
+    },
+    reportPlaybackProgress: async (itemId, position, isPaused) => {
+      const creds = requireCredentials()
+      const positionTicks = Math.round(position * 10_000_000)
+      return nullToVoid(await commands.reportPlaybackProgress(creds.serverUrl, creds.token, itemId, positionTicks, null, isPaused))
+    },
+    reportPlaybackStop: async (itemId, position) => {
+      const creds = requireCredentials()
+      const positionTicks = Math.round(position * 10_000_000)
+      return nullToVoid(await commands.reportPlaybackStop(creds.serverUrl, creds.token, itemId, positionTicks))
+    },
+    markItemPlayed: async (itemId) => {
+      const creds = requireCredentials()
+      return nullToVoid(await commands.markItemPlayed(creds.serverUrl, creds.token, creds.userId, itemId))
+    },
 
     // System Tray / Window Management
-    showMainWindow: () => commands.showMainWindow(),
-    hideMainWindow: () => commands.hideMainWindow(),
-    quitApplication: () => commands.quitApplication(),
-    setMinimizeToTray: (minimizeToTray) => commands.setMinimizeToTray(minimizeToTray),
-    setCloseToTray: (closeToTray) => commands.setCloseToTray(closeToTray),
+    showMainWindow: () => wrapVoid(() => commands.showMainWindow()),
+    hideMainWindow: () => wrapVoid(() => commands.hideMainWindow()),
+    quitApplication: () => wrapVoid(() => commands.quitApplication()),
+    setMinimizeToTray: (minimizeToTray) => wrapVoid(() => commands.setMinimizeToTray(minimizeToTray)),
+    setCloseToTray: (closeToTray) => wrapVoid(() => commands.setCloseToTray(closeToTray)),
+
+    // Discord Rich Presence
+    discordRpcIsRunning: () => commands.discordRpcIsRunning(),
+    discordRpcStart: async (appId) => nullToVoid(await commands.discordRpcStart(appId)),
+    discordRpcStop: async () => nullToVoid(await commands.discordRpcStop()),
+    discordRpcSetActivity: async (activity) => nullToVoid(await commands.discordRpcSetActivity(activity)),
+    discordRpcClearActivity: async () => nullToVoid(await commands.discordRpcClearActivity()),
+
+    // Media Controls
+    mediaClearNowPlaying: async () => nullToVoid(await commands.mediaClearNowPlaying()),
+    mediaSetPlaybackStatus: async (isPlaying, positionSecs) =>
+      nullToVoid(await commands.mediaSetPlaybackStatus(isPlaying, positionSecs)),
+    mediaUpdateNowPlaying: async (payload) => nullToVoid(await commands.mediaUpdateNowPlaying(payload)),
+    mediaSetButtonEnabled: async (button, enabled) =>
+      nullToVoid(await commands.mediaSetButtonEnabled(button, enabled)),
   }
 }
 

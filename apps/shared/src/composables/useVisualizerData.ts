@@ -4,10 +4,9 @@
  * Provides real-time spectrum and waveform data.
  * - Desktop: Uses Tauri events from Rust FFT analysis
  */
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { onUnmounted, ref, type Ref, watch } from 'vue'
 
-import { getApiClient } from '../index'
+import { getApiClient, isDesktop } from '../index'
 import { logger } from '../lib/logger'
 
 interface SpectrumEvent {
@@ -55,7 +54,7 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
   let smoothedTimeDomain = new Float32Array(FFT_SIZE)
 
   // Event listener cleanup (desktop)
-  let eventUnlisten: null | UnlistenFn = null
+  let eventUnlisten: (() => void) | null = null
 
   /**
    * Apply temporal smoothing to spectrum data.
@@ -101,12 +100,15 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
    * Desktop: Setup event listener for spectrum data from Rust.
    */
   const setupEventListener = async (): Promise<void> => {
+    if (!isDesktop()) return
+
     // Clean up existing listener
     if (eventUnlisten) {
       eventUnlisten()
       eventUnlisten = null
     }
 
+    const { listen } = await import('@tauri-apps/api/event')
     eventUnlisten = await listen<SpectrumEvent>('audio:spectrum', event => {
       const { frequencyData: freqData, timeDomainData: timeData } = event.payload
 

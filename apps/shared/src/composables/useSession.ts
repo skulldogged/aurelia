@@ -1,10 +1,9 @@
-import { getVersion } from '@tauri-apps/api/app'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { v4 as uuidv4 } from 'uuid'
 import { readonly, ref, type Ref } from 'vue'
 
 import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
+import { isTauri } from '../lib/platform'
 import { useAuthStore } from '../stores'
 
 interface SessionState {
@@ -30,8 +29,10 @@ const initializeSession = async (): Promise<void> => {
     let label = 'web'
     let version = '0.0.0'
 
-    // Check if running in Tauri
-    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    // Check if running in Tauri - use dynamic import
+    if (isTauri()) {
+      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+      const { getVersion } = await import('@tauri-apps/api/app')
       const webview = getCurrentWebviewWindow()
       label = webview.label
       version = await getVersion()

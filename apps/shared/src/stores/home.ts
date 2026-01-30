@@ -69,21 +69,28 @@ export const useHomeStore = defineStore('home', () => {
       const apiClient = getApiClient()
       const result = await apiClient.getHomeViewData()
 
-      if (result.status === 'ok') {
-        const data = result.data
+if (result.status === 'ok') {
+        // Normalize data - support both camelCase (web) and snake_case (desktop) property names
+        const raw = result.data as Record<string, unknown>
+        const data = {
+          recentlyPlayed: (raw.recentlyPlayed ?? raw.recently_played ?? []) as Song[],
+          recentlyAdded: (raw.recentlyAdded ?? raw.recently_added ?? []) as Album[],
+          randomAlbums: (raw.randomAlbums ?? raw.random_albums ?? []) as Album[],
+          featuredAlbums: (raw.featuredAlbums ?? raw.featured_albums ?? []) as Album[],
+        }
 
         // Store full data but only expose progressive amounts
-        recentlyPlayed.value = data.recently_played || []
-        recentlyAdded.value = data.recently_added || []
-        randomAlbums.value = data.random_albums || []
-        featuredAlbums.value = data.featured_albums || []
+        recentlyPlayed.value = data.recentlyPlayed
+        recentlyAdded.value = data.recentlyAdded
+        randomAlbums.value = data.randomAlbums
+        featuredAlbums.value = data.featuredAlbums
 
-        // Track if we have more data for progressive loading
+// Track if we have more data for progressive loading
         hasMoreData.value = {
           featuredAlbums: false, // Featured albums are typically limited already
-          randomAlbums:   (data.random_albums?.length || 0) > getStageLimit('randomAlbums', stage),
-          recentlyAdded:  (data.recently_added?.length || 0) > getStageLimit('recentlyAdded', stage),
-          recentlyPlayed: (data.recently_played?.length || 0) > getStageLimit('recentlyPlayed', stage),
+          randomAlbums:   (data.randomAlbums?.length || 0) > getStageLimit('randomAlbums', stage),
+          recentlyAdded:  (data.recentlyAdded?.length || 0) > getStageLimit('recentlyAdded', stage),
+          recentlyPlayed: (data.recentlyPlayed?.length || 0) > getStageLimit('recentlyPlayed', stage),
         }
 
         loadingStage.value = stage

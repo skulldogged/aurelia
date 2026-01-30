@@ -71,7 +71,7 @@
       </svg>
     </button>
     <button
-      @click='appWindow.toggleMaximize()'
+      @click='appWindow?.toggleMaximize()'
       class='flex aspect-square h-6 w-6 cursor-default items-center justify-center rounded-full bg-sidebar p-0 text-foreground hover:bg-muted/80 active:bg-muted/60'
     >
       <svg
@@ -154,7 +154,7 @@
       </svg>
     </button>
     <button
-      @click='appWindow.toggleMaximize()'
+      @click='appWindow?.toggleMaximize()'
       class='
         cursor-default rounded-none bg-transparent text-foreground
         hover:bg-black/5 active:bg-black/3

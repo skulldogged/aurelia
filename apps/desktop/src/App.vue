@@ -1,20 +1,21 @@
 <script setup lang='ts'>
-  import { onBackButtonPress } from '@tauri-apps/api/app'
   import { useColorMode, useMagicKeys } from '@vueuse/core'
   import { storeToRefs } from 'pinia'
   import { computed, onMounted, ref, watch } from 'vue'
 
-  import type { Credentials, Song } from '@/lib/api/bindings'
+  import type { Credentials } from '@/lib/api/bindings'
+  import type { Song } from '@shared/lib/api/types'
 
-  import MainLayout from '@/components/layout/MainLayout.vue'
-  import Equalizer from '@/components/player/Equalizer.vue'
-  import FullscreenPlayer from '@/components/player/FullscreenPlayer.vue'
-  import LyricsSidebar from '@/components/player/LyricsSidebar.vue'
-  import MusicPlayer from '@/components/player/MusicPlayer.vue'
-  import Queue from '@/components/player/Queue.vue'
-  import GlobalSearch from '@/components/shared/GlobalSearch.vue'
-  import WindowControls from '@/components/shared/WindowControls.vue'
-  import Button from '@/components/ui/Button.vue'
+  // Import from shared package
+  import MainLayout from '@shared/components/layout/MainLayout.vue'
+  import Equalizer from '@shared/components/player/Equalizer.vue'
+  import FullscreenPlayer from '@shared/components/player/FullscreenPlayer.vue'
+  import LyricsSidebar from '@shared/components/player/LyricsSidebar.vue'
+  import MusicPlayer from '@shared/components/player/MusicPlayer.vue'
+  import Queue from '@shared/components/player/Queue.vue'
+  import GlobalSearch from '@shared/components/shared/GlobalSearch.vue'
+  import WindowControls from '@shared/components/shared/WindowControls.vue'
+  import Button from '@shared/components/ui/Button.vue'
   import {
     Dialog,
     DialogContent,
@@ -22,29 +23,30 @@
     DialogFooter,
     DialogHeader,
     DialogTitle,
-  } from '@/components/ui/dialog'
-  import { Toaster } from '@/components/ui/sonner'
-  import { useAuth } from '@/composables/useAuth'
-  import { useDiscordPresence } from '@/composables/useDiscordPresence'
-  import { useLastFm } from '@/composables/useLastFm'
-  import { useListenBrainz } from '@/composables/useListenBrainz'
-  import { useNavigation } from '@/composables/useNavigation'
-  import { usePlayerControls } from '@/composables/usePlayerControls'
-  import { usePlayerSession } from '@/composables/usePlayerSession'
-  import { useSongInteractions } from '@/composables/useSongInteractions'
-  import { useSystemTray } from '@/composables/useSystemTray'
-  import { useTopBar } from '@/composables/useTopBar'
-  import { useVisualizerData } from '@/composables/useVisualizerData'
+  } from '@shared/components/ui/dialog'
+  import { Toaster } from '@shared/components/ui/sonner'
+  import { useAuth } from '@shared/composables/useAuth'
+  import { useDiscordPresence } from '@shared/composables/useDiscordPresence'
+  import { useLastFm } from '@shared/composables/useLastFm'
+  import { useListenBrainz } from '@shared/composables/useListenBrainz'
+  import { useNavigation } from '@shared/composables/useNavigation'
+  import { usePlayerControls } from '@shared/composables/usePlayerControls'
+  import { usePlayerSession } from '@shared/composables/usePlayerSession'
+  import { useSongInteractions } from '@shared/composables/useSongInteractions'
+  import { useSystemTray } from '@shared/composables/useSystemTray'
+  import { useTopBar } from '@shared/composables/useTopBar'
+  import { useVisualizerData } from '@shared/composables/useVisualizerData'
+  import { getApiClient, isDesktop } from '@shared'
+  import { setAuthLogout } from '@shared/lib/auth-interceptor'
+  import Login from '@shared/pages/login.vue'
+  import { useHomeStore, useLibraryStore } from '@shared/stores'
+
+  // Desktop-specific imports
   import { commands } from '@/lib/api/bindings'
-  import { setAuthLogout } from '@/lib/auth-interceptor'
-  import { getPlatform, Platform } from '@/lib/platform'
-  import Login from '@/pages/login.vue'
-  import { useHomeStore } from '@/stores'
-  import { useLibraryStore } from '@/stores/library'
 
   useColorMode()
 
-  const { authStatus, clearError: clearAuthError, credentials, error: authError, login, logout } = useAuth()
+  const { authStatus: authStatusRef, clearError: clearAuthError, credentials: credentialsRef, error: authErrorRef, login, logout } = useAuth()
   setAuthLogout(logout)
   const libraryStore = useLibraryStore()
   const homeStore = useHomeStore()
@@ -53,10 +55,18 @@
   useLastFm()
   useListenBrainz()
 
-  const { topBarContent } = useTopBar()
+  // Unwrap readonly refs for template use
+  const authStatus = computed(() => authStatusRef.value)
+  const credentials = computed(() => credentialsRef.value)
+  const authError = computed(() => authErrorRef.value)
+
+  const { topBarContent: topBarContentRef } = useTopBar()
+  const topBarContent = computed(() => topBarContentRef.value)
 
   // Visualizer data from Rust backend FFT analysis
-  const { frequencyData, setEnabled: setAnalyzerEnabled, timeDomainData } = useVisualizerData()
+  const { frequencyData: frequencyDataRef, setEnabled: setAnalyzerEnabled, timeDomainData: timeDomainDataRef } = useVisualizerData()
+  const frequencyData = computed(() => frequencyDataRef.value)
+  const timeDomainData = computed(() => timeDomainDataRef.value)
 
   const isSearchOpen = ref(false)
   const showExitDialog = ref(false)
@@ -68,15 +78,20 @@
   })
 
   const {
-    canGoBack,
-    canGoForward,
-    currentView,
+    canGoBack: canGoBackRef,
+    canGoForward: canGoForwardRef,
+    currentView: currentViewRef,
     handleNavigation,
     navigateBack,
     navigateForward,
     navigateToAlbum,
     navigateToArtist,
   } = useNavigation()
+
+  // Unwrap navigation refs for template
+  const canGoBack = computed(() => canGoBackRef.value)
+  const canGoForward = computed(() => canGoForwardRef.value)
+  const currentView = computed(() => currentViewRef.value)
 
   const {
     handleNextSong,
@@ -85,10 +100,10 @@
     handleTogglePlayPause,
     handleToggleRepeat,
     handleToggleShuffle,
-    isEqualizerOpen,
-    isFullScreenPlayerOpen,
-    isLyricsOpen,
-    isQueueOpen,
+    isEqualizerOpen: isEqualizerOpenRef,
+    isFullScreenPlayerOpen: isFullScreenPlayerOpenRef,
+    isLyricsOpen: isLyricsOpenRef,
+    isQueueOpen: isQueueOpenRef,
     musicPlayerRef,
     playerStore,
     toggleEqualizer,
@@ -96,6 +111,12 @@
     toggleLyrics,
     toggleQueue,
   } = usePlayerControls()
+
+  // Unwrap player control refs for template
+  const isEqualizerOpen = computed(() => isEqualizerOpenRef.value)
+  const isFullScreenPlayerOpen = computed(() => isFullScreenPlayerOpenRef.value)
+  const isLyricsOpen = computed(() => isLyricsOpenRef.value)
+  const isQueueOpen = computed(() => isQueueOpenRef.value)
 
   // State for fullscreen player panels
   const isFsQueueOpen = ref(false)
@@ -141,18 +162,17 @@
     removeSongFromPlaylist,
     toggleFavorite,
     updatePlaylist,
-  } = useSongInteractions(credentials)
+  } = useSongInteractions(credentialsRef)
 
-  const {
-    currentSong,
-    currentTime,
-    duration,
-    isPlaying,
-    isShuffled,
-    playlist,
-    progress,
-    repeatMode,
-  } = storeToRefs(playerStore)
+  // Access player state directly via computed refs (avoids Pinia 3 cross-package storeToRefs type issues)
+  const currentSong = computed(() => playerStore.currentSong)
+  const currentTime = computed(() => playerStore.currentTime)
+  const duration = computed(() => playerStore.duration)
+  const isPlaying = computed(() => playerStore.isPlaying)
+  const isShuffled = computed(() => playerStore.isShuffled)
+  const playlist = computed(() => playerStore.playlist)
+  const progress = computed(() => playerStore.progress)
+  const repeatMode = computed(() => playerStore.repeatMode)
 
   const hasNext = computed(() =>
     playlist.value.length > 1
@@ -203,7 +223,7 @@
   }
 
   const fetchSyncState = async (): Promise<void> => {
-    const result = await commands.getSyncState()
+    const result = await getApiClient().getSyncState()
     if (result.status === 'ok' && result.data.lastSyncTime)
       lastSyncTime.value = result.data.lastSyncTime
   }
@@ -233,8 +253,10 @@
     playerStore.setCurrentIndex(-1)
   }
 
-  const handleToggleFavorite = async (song: Song): Promise<void> => {
-    await toggleFavorite(song)
+  const handleToggleFavorite = (song: Song | null): void => {
+    if (song) {
+      toggleFavorite(song)
+    }
   }
 
   const handleVolumeChange = (newVolume: number): void => {
@@ -276,7 +298,7 @@
   const confirmExit = async (): Promise<void> => {
     showExitDialog.value = false
     // Exit the app
-    await commands.quitApplication()
+    await getApiClient().quitApplication?.()
   }
 
   const cancelExit = (): void => {
@@ -435,8 +457,7 @@
     <GlobalSearch v-model:open='isSearchOpen' />
 
     <WindowControls
-      v-if='!isFullScreenPlayerOpen && getPlatform() !== Platform.MacOS'
-
+      v-if='!isFullScreenPlayerOpen && isDesktop()'
       class='fixed top-0 right-0 z-100'
     />
 

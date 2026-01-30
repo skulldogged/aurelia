@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "vue-sonner/dist/styles.css";
 
 @source "../../../../shared/src";
 @source "../../../shared/src";

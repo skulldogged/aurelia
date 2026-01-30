@@ -1,9 +1,9 @@
 <script setup lang="ts">
-  import type { LayoutMode } from '@/composables/useLayoutPreference'
+  import type { LayoutMode } from '@shared/composables/useLayoutPreference'
 
-  import DraggableArea from '@/components/ui/DraggableArea.vue'
-  import { Input } from '@/components/ui/input'
-  import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+  import DraggableArea from '@shared/components/ui/DraggableArea.vue'
+  import { Input } from '@shared/components/ui/input'
+  import { Tabs, TabsList, TabsTrigger } from '@shared/components/ui/tabs'
 
   defineProps<{
     searchQuery: string

@@ -605,6 +605,17 @@ async fn get_home_view(State(state): State<Arc<AppState>>) -> impl IntoResponse 
         })));
     }
 
+    // Fetch recently played from Jellyfin if credentials exist
+    let recently_played = match aurelia_core::load_credentials(state.app_data_dir.to_string_lossy().to_string()) {
+        Ok(Some(creds)) => {
+            match aurelia_core::get_recently_played(creds.server_url, creds.token, creds.user_id).await {
+                Ok(songs) => songs,
+                Err(_) => vec![],
+            }
+        }
+        _ => vec![],
+    };
+
     // Derive albums from songs
     let mut album_map: std::collections::HashMap<String, Vec<Song>> = std::collections::HashMap::new();
     for song in &songs {
@@ -663,9 +674,6 @@ async fn get_home_view(State(state): State<Arc<AppState>>) -> impl IntoResponse 
 
     let mut featured_albums = derived_albums;
     featured_albums.shuffle(&mut rng);
-
-    // Recently played - for now return empty or we'd need to call Jellyfin
-    let recently_played = vec![];
 
     let data = HomeViewData {
         recently_played,

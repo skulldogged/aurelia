@@ -4,11 +4,9 @@
  * Provides a clean interface to the native Rust audio player
  * with streaming, EQ, and gapless playback support.
  */
-import { invoke } from '@tauri-apps/api/core'
-
 import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
-import { isDesktop } from '../lib/platform'
+import { isDesktop, isTauri } from '../lib/platform'
 
 export interface PlayMetadata {
   album?:      null | string
@@ -62,7 +60,8 @@ export const useRustAudioPlayer = (): RustAudioPlayer => {
     try {
       // Use invoke directly since bindings don't have the updated signature yet
       // Only on desktop/Tauri
-      if (typeof window !== 'undefined' && '__TAURI__' in window) {
+      if (isTauri()) {
+        const { invoke } = await import('@tauri-apps/api/core')
         await invoke('audio_play', {
           url,
           token,
@@ -300,7 +299,8 @@ export const useRustAudioPlayer = (): RustAudioPlayer => {
     try {
       // audioReinit not in generated bindings yet, use invoke directly
       // Only on desktop/Tauri
-      if (typeof window !== 'undefined' && '__TAURI__' in window) {
+      if (isTauri()) {
+        const { invoke } = await import('@tauri-apps/api/core')
         await invoke('audio_reinit')
         logger.info('Rust audio player reinitialized')
         return true

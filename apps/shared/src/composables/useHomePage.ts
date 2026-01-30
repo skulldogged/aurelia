@@ -6,7 +6,7 @@ import { useDebouncedComputed } from './useDebouncedComputed'
 import { useSongInteractions } from './useSongInteractions'
 import { logger } from '../lib/logger'
 import { sortSongsByTrackOrder } from '../lib/transforms'
-import { useAuthStore, useHomeStore } from '../stores'
+import { useAuthStore, useHomeStore, useLibraryStore } from '../stores'
 
 export interface HomePageComposableReturn {
   featuredAlbum:            ComputedRef<Album | null>
@@ -41,6 +41,7 @@ export const useHomePage = (emit: {
 }): HomePageComposableReturn => {
   const authStore = useAuthStore()
   const homeStore = useHomeStore()
+  const libraryStore = useLibraryStore()
 
   const credentials = computed(() => ({
     serverUrl: authStore.serverUrl,
@@ -122,24 +123,28 @@ export const useHomePage = (emit: {
     return result
   })
 
-  // Optimized most played computation with caching
+  // Most played songs from entire library, sorted by play count
   const mostPlayedCache = shallowRef<Song[]>([])
+  const lastLibrarySongCount = shallowRef(0)
 
   const mostPlayed = computed(() => {
-    const recentlyPlayedSongs = recentlyPlayed.value
-    if (recentlyPlayedSongs.length === 0) return []
+    const allSongs = libraryStore.allSongs
+    if (allSongs.length === 0) return []
 
-    // Simple cache invalidation - only recompute if recentlyPlayed changed
+    // Simple cache invalidation - only recompute if library changed
     if (mostPlayedCache.value.length > 0 &&
-        recentlyPlayedSongs.length === mostPlayedCache.value.length) {
+        allSongs.length === lastLibrarySongCount.value) {
       return mostPlayedCache.value
     }
 
-    const result = [...recentlyPlayedSongs]
+    // Filter songs that have been played at least once, then sort by play count
+    const result = [...allSongs]
+      .filter(song => (song.playCount ?? 0) > 0)
       .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
       .slice(0, 10)
 
     mostPlayedCache.value = result
+    lastLibrarySongCount.value = allSongs.length
     return result
   })
 

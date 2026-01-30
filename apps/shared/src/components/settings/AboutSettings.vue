@@ -1,7 +1,4 @@
 <script setup lang="ts">
-  import { getVersion } from '@tauri-apps/api/app'
-  import { openUrl } from '@tauri-apps/plugin-opener'
-  import { version as osVersion, type } from '@tauri-apps/plugin-os'
   import {
     ExternalLink,
     Github,
@@ -10,16 +7,27 @@
   import { onMounted, ref } from 'vue'
 
   import Button from '../ui/Button.vue'
+  import { isTauri } from '../../lib/platform'
 
   const appVersion = ref<string>('Loading...')
   const platformInfo = ref<string>('Loading...')
 
   onMounted(async () => {
     try {
-      appVersion.value = await getVersion()
-      const osType = type()
-      const osVer = osVersion()
-      platformInfo.value = `${osType} ${osVer}`
+      if (isTauri()) {
+        const { getVersion } = await import('@tauri-apps/api/app')
+        const { version: osVersion, type } = await import('@tauri-apps/plugin-os')
+        appVersion.value = await getVersion()
+        const osType = type()
+        const osVer = osVersion()
+        platformInfo.value = `${osType} ${osVer}`
+      } else {
+        appVersion.value = 'Web'
+        platformInfo.value = navigator.userAgent.includes('Windows') ? 'Windows'
+          : navigator.userAgent.includes('Mac') ? 'macOS'
+          : navigator.userAgent.includes('Linux') ? 'Linux'
+          : 'Browser'
+      }
     } catch {
       appVersion.value = 'Unknown'
       platformInfo.value = 'Unknown'
@@ -27,7 +35,12 @@
   })
 
   const openLink = async (url: string): Promise<void> => {
-    await openUrl(url)
+    if (isTauri()) {
+      const { openUrl } = await import('@tauri-apps/plugin-opener')
+      await openUrl(url)
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
   }
 
   const techStack = [

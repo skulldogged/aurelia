@@ -17,15 +17,17 @@
   import { Slider } from '../ui/slider'
   import { useAudioEngine } from '../../composables/useAudioEngine'
   import { usePlayerControls } from '../../composables/usePlayerControls'
+  import { useAuthStore } from '../../stores'
 
   // Get player store
   const { playerStore } = usePlayerControls()
   const { eqBands, eqEnabled } = storeToRefs(playerStore)
+  const authStore = useAuthStore()
 
   // Audio engine for platform-agnostic EQ control
   const { resetEQ: resetPlayerEQ, setEQBand, setEQEnabled: setPlayerEQEnabled } = useAudioEngine({
-    serverUrl: playerStore.serverUrl || '',
-    token:     playerStore.token || '',
+    serverUrl: authStore.serverUrl || '',
+    token:     authStore.token || '',
   })
 
   // EQ presets - defined here since they're simple frequency/gain combinations

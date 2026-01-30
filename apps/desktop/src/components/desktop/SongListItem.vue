@@ -2,15 +2,15 @@
   import { Heart, Pause, Play, Share2, Shuffle } from 'lucide-vue-next'
   import { computed, markRaw } from 'vue'
 
-  import type { Song } from '@/lib/api/bindings'
+  import type { Song } from '@shared/lib/api/types'
 
-  import AddToPlaylistMenu from '@/components/shared/AddToPlaylistMenu.vue'
-  import ImageLoader from '@/components/shared/ImageLoader.vue'
-  import ImagePlaceholder from '@/components/shared/ImagePlaceholder.vue'
-  import Button from '@/components/ui/Button.vue'
-  import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu'
-  import { formatDuration } from '@/lib/utils'
-  import { usePlayerStore } from '@/stores/player'
+  import AddToPlaylistMenu from '@shared/components/shared/AddToPlaylistMenu.vue'
+  import ImageLoader from '@shared/components/shared/ImageLoader.vue'
+  import ImagePlaceholder from '@shared/components/shared/ImagePlaceholder.vue'
+  import Button from '@shared/components/ui/Button.vue'
+  import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@shared/components/ui/context-menu'
+  import { formatDuration } from '@shared/lib/utils'
+  import { usePlayerStore } from '@shared/stores/player'
 
   interface Props {
     index:      number

@@ -1,5 +1,3 @@
-import { platform } from '@tauri-apps/plugin-os'
-
 export enum Platform {
   Dragonfly = 'dragonfly',
   FreeBSD   = 'freebsd',
@@ -15,7 +13,7 @@ export enum Platform {
 /**
  * Check if the current environment is Tauri
  */
-const isTauri = (): boolean => (
+export const isTauri = (): boolean => (
   typeof window !== 'undefined' && 
   (
     '__TAURI_INTERNALS__' in window || 
@@ -23,11 +21,20 @@ const isTauri = (): boolean => (
   )
 )
 
+// Cache for platform value to avoid repeated async calls
+let cachedPlatform: Platform | null = null
+
 /**
 * Get the current platform
 * @returns The platform name ('linux', 'windows', 'macos', etc.)
 */
 export const getPlatform = (): Platform => {
+  // Return cached value if available
+  if (cachedPlatform !== null) {
+    return cachedPlatform
+  }
+
+  // Web fallback - detect from user agent
   if (!isTauri()) {
     if (typeof navigator !== 'undefined') {
       const ua = navigator.userAgent.toLowerCase()
@@ -38,22 +45,37 @@ export const getPlatform = (): Platform => {
     return Platform.Unknown
   }
 
+  // On Tauri, return unknown initially - use initializePlatform to set correctly
+  return Platform.Unknown
+}
+
+/**
+ * Initialize platform detection for Tauri apps.
+ * Call this once during app startup on desktop.
+ */
+export const initializePlatform = async (): Promise<Platform> => {
+  if (!isTauri()) {
+    cachedPlatform = getPlatform()
+    return cachedPlatform
+  }
+
   try {
-    return (
-      ({
-        dragonfly: Platform.Dragonfly,
-        freebsd:   Platform.FreeBSD,
-        linux:     Platform.Linux,
-        macos:     Platform.MacOS,
-        netbsd:    Platform.NetBSD,
-        openbsd:   Platform.OpenBSD,
-        solaris:   Platform.Solaris,
-        windows:   Platform.Windows,
-      } as Record<string, Platform>)[platform()]
-      ?? Platform.Unknown
-    )
+    const { platform } = await import('@tauri-apps/plugin-os')
+    const platformMap: Record<string, Platform> = {
+      dragonfly: Platform.Dragonfly,
+      freebsd:   Platform.FreeBSD,
+      linux:     Platform.Linux,
+      macos:     Platform.MacOS,
+      netbsd:    Platform.NetBSD,
+      openbsd:   Platform.OpenBSD,
+      solaris:   Platform.Solaris,
+      windows:   Platform.Windows,
+    }
+    cachedPlatform = platformMap[platform()] ?? Platform.Unknown
+    return cachedPlatform
   } catch (e) {
-    return Platform.Unknown
+    cachedPlatform = Platform.Unknown
+    return cachedPlatform
   }
 }
 

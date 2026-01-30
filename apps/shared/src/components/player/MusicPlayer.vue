@@ -56,7 +56,7 @@
       startY:    number
     }]
     'toggle-equalizer':  []
-    'toggle-favorite':   [song: Song]
+    'toggle-favorite':   [song: Song | null]
     'toggle-fullscreen': []
     'toggle-lyrics':     []
     'toggle-queue':      []
