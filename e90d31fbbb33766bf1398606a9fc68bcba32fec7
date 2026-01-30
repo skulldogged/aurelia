@@ -1,0 +1,25 @@
+apps/desktop/src/composables/useExitHandler.ts
+  299c8fe4fe7416ba 1-36
+apps/desktop/src/App.vue
+  299c8fe4fe7416ba 46,83-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "e90d31fbbb33766bf1398606a9fc68bcba32fec7",
+  "prompts": {
+    "299c8fe4fe7416ba": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef0b3ddeffeLEqRf81rt51SLa",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 124,
+      "total_deletions": 91,
+      "accepted_lines": 98,
+      "overriden_lines": 0
+    }
+  }
+}
