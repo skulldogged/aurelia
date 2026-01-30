@@ -1,0 +1,45 @@
+apps/shared/src/lib/platform.ts
+  187d372fff5ccd3f 87-92
+apps/shared/src/lib/logger.ts
+  187d372fff5ccd3f 17-20
+apps/shared/src/index.ts
+  187d372fff5ccd3f 5-26
+apps/shared/src/pages/artists/[id].vue
+  187d372fff5ccd3f 87
+apps/shared/src/composables/useDiscordPresence.ts
+  187d372fff5ccd3f 24,92-97,99,109,130-133,136,139-140,145,153-158,173,224-226,229-234,236-239,251-252,254,257-260,264-266,268-269,271,273-276,278-290,293,295-296,299,303-304
+apps/shared/src/lib/api/httpClient.ts
+  187d372fff5ccd3f 1-135,138,154,165-167,181-182,184,188,192,196,202,206,210,214,218,221-224,227,231,235,239-240,243,247,251,256,259-261,263-278,280-290,292-297,300-318,320-329,331-337,341-358,360-364,366-376,379-380,384-385,389-390,394,399-400,403-410,412,416,420,424,428-433,437,442,446,450,454,458-459,462,466-469,471-472,475-476,479-480,483-485,487-489,492-493,496-497,500-501,504-505,508-510,513-514,517-532,534-536,538-539,541-543,547-552,554-555
+apps/shared/src/components/settings/IntegrationsSettings.vue
+  187d372fff5ccd3f 90-97
+apps/shared/src/lib/api/client.ts
+  187d372fff5ccd3f 1-244
+apps/shared/src/components/shared/ShareDialog.vue
+  187d372fff5ccd3f 130-131,134-135,141-142,148
+apps/shared/src/composables/useAudioEngine.ts
+  187d372fff5ccd3f 109-111,120,131-133,139-140
+apps/shared/src/lib/api/index.ts
+  187d372fff5ccd3f 1-2,4-22
+apps/shared/src/composables/useListenBrainz.ts
+  187d372fff5ccd3f 66-67,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "9087d5dcd9e39cb1972054d572ebe2eb6ba76296",
+  "prompts": {
+    "187d372fff5ccd3f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef1a3dccffemo7vpiYzQLRUHc",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 1010,
+      "total_deletions": 578,
+      "accepted_lines": 772,
+      "overriden_lines": 0
+    }
+  }
+}
