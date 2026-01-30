@@ -1,0 +1,25 @@
+apps/shared/src/stores/auth.ts
+  720fcdcbac34322c 4
+apps/shared/src/composables/useAuth.ts
+  720fcdcbac34322c 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "5cd996ffc48adaf8ff170af2c993b947f2e5c608",
+  "prompts": {
+    "720fcdcbac34322c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eeb05e3fffeCpgxRdNcjD35Cx",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 10,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
