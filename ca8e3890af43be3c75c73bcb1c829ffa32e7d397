@@ -1,0 +1,42 @@
+crates/aurelia-core/src/models/library.rs
+  df0e4aaff0de76b6 6-7,10-11,15-16,18-19
+crates/aurelia-core/src/listenbrainz_core.rs
+  df0e4aaff0de76b6 11-12,19-20
+crates/aurelia-core/src/error/mod.rs
+  5530a023840f21fa 12-15
+crates/aurelia-core/src/models/mod.rs
+  df0e4aaff0de76b6 11,14-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "ca8e3890af43be3c75c73bcb1c829ffa32e7d397",
+  "prompts": {
+    "5530a023840f21fa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eebfed63fferGyYLayBYghRhR",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 59,
+      "total_deletions": 48,
+      "accepted_lines": 20,
+      "overriden_lines": 0
+    },
+    "df0e4aaff0de76b6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eebb7695ffel9GQ1X8g3Or8G2",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 14,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    }
+  }
+}
