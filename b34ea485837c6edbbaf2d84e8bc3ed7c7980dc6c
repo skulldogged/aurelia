@@ -1,0 +1,79 @@
+apps/shared/src/pages/index.vue
+  187d372fff5ccd3f 5
+apps/shared/src/components/player/FullscreenPlayer.vue
+  187d372fff5ccd3f 25
+apps/shared/src/stores/playlists.ts
+  187d372fff5ccd3f 6
+apps/shared/src/composables/useLastFm.ts
+  187d372fff5ccd3f 4
+apps/shared/src/stores/home.ts
+  187d372fff5ccd3f 5
+apps/shared/src/composables/useMemoizedSort.ts
+  187d372fff5ccd3f 5
+apps/shared/src/composables/useNavigation.ts
+  187d372fff5ccd3f 4
+apps/shared/src/stores/lastfm.ts
+  187d372fff5ccd3f 4
+apps/shared/src/stores/player.ts
+  187d372fff5ccd3f 4
+apps/shared/src/composables/useImageLoader.ts
+  187d372fff5ccd3f 2
+apps/shared/src/stores/auth.ts
+  187d372fff5ccd3f 4
+apps/shared/src/lib/api/httpClient.ts
+  187d372fff5ccd3f 12-16,59-63
+apps/shared/src/composables/useDiscordPresence.ts
+  187d372fff5ccd3f 3
+apps/shared/src/components/player/MusicPlayer.vue
+  187d372fff5ccd3f 25
+apps/shared/src/composables/useMemoizedSearch.ts
+  187d372fff5ccd3f 6
+apps/shared/src/composables/useLibrary.ts
+  187d372fff5ccd3f 4
+apps/shared/src/components/player/QueueItem.vue
+  187d372fff5ccd3f 5
+apps/shared/src/composables/useAudioEngine.ts
+  187d372fff5ccd3f 12
+apps/shared/src/audio/rust-audio-player.ts
+  187d372fff5ccd3f 9
+apps/shared/src/composables/useListenBrainz.ts
+  187d372fff5ccd3f 4
+apps/shared/src/stores/index.ts
+  187d372fff5ccd3f 1
+apps/shared/src/lib/api/client.ts
+  187d372fff5ccd3f 8,12,29
+apps/shared/src/components/player/Queue.vue
+  187d372fff5ccd3f 6
+apps/shared/src/stores/library.ts
+  187d372fff5ccd3f 6
+apps/shared/src/pages/login.vue
+  187d372fff5ccd3f 6
+apps/shared/src/composables/useAuth.ts
+  187d372fff5ccd3f 4
+apps/shared/src/stores/listenbrainz.ts
+  187d372fff5ccd3f 4
+apps/shared/src/audio/audio-player.ts
+  187d372fff5ccd3f 8
+apps/shared/src/composables/useSongInteractions.ts
+  187d372fff5ccd3f 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "b34ea485837c6edbbaf2d84e8bc3ed7c7980dc6c",
+  "prompts": {
+    "187d372fff5ccd3f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef1a3dccffemo7vpiYzQLRUHc",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 35,
+      "accepted_lines": 40,
+      "overriden_lines": 0
+    }
+  }
+}
