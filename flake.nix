@@ -62,6 +62,7 @@
 
           buildInputs = with pkgs;
             lib.optionals stdenv.isLinux [
+              alsa-lib
               at-spi2-atk
               atkmm
               bitwarden-cli

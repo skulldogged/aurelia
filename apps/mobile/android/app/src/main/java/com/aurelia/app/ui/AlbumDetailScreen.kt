@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -96,13 +97,43 @@ fun AlbumDetailScreen(
     playlistViewModel.loadPlaylists()
   }
 
-  // Filter songs for this album
+  // Filter songs for this album and sort by disc then track
   val albumSongs =
     remember(state.songs, albumId) {
       state.songs
         .filter { it.albumId == albumId }
-        .sortedBy { it.trackNumber ?: Int.MAX_VALUE }
+        .sortedWith(compareBy(
+          { it.discNumber ?: 1 },  // Sort by disc number first
+          { it.trackNumber ?: Int.MAX_VALUE }  // Then by track number
+        ))
     }
+
+  // Check if album has multiple discs
+  val hasMultipleDiscs = albumSongs.map { it.discNumber ?: 1 }.distinct().size > 1
+
+  // Build list items with disc headers
+  val listItems = remember(albumSongs, hasMultipleDiscs) {
+    if (!hasMultipleDiscs) {
+      // No disc headers needed
+      albumSongs.map { ListItem.SongItem(it) }
+    } else {
+      // Insert disc headers
+      val items = mutableListOf<ListItem>()
+      var currentDisc: Int? = null
+      var songIndex = 0
+
+      for (song in albumSongs) {
+        val songDisc = song.discNumber ?: 1
+        if (songDisc != currentDisc) {
+          items.add(ListItem.DiscHeader(songDisc))
+          currentDisc = songDisc
+        }
+        items.add(ListItem.SongItem(song, songIndex))
+        songIndex++
+      }
+      items
+    }
+  }
 
   val albumArtUrl = albumSongs.firstOrNull()?.albumArtUrl
   val artistName = albumSongs.firstOrNull()?.artists?.joinToString(", ") ?: "Unknown Artist"
@@ -305,56 +336,79 @@ fun AlbumDetailScreen(
         }
       }
 
-      // Song list
-      itemsIndexed(
-        items = albumSongs,
-        key = { _, song -> song.id },
-      ) { index, song ->
-        val isCurrentSong = song.id == state.currentSongId
-        val isPlaying = state.nowPlaying?.isPlaying == true && isCurrentSong
+      // Song list with disc headers
+      items(
+        listItems,
+        key = { item ->
+          when (item) {
+            is ListItem.DiscHeader -> "disc-${item.discNumber}"
+            is ListItem.SongItem -> item.song.id
+          }
+        },
+      ) { item ->
+        when (item) {
+          is ListItem.DiscHeader -> {
+            // Disc header
+            Text(
+              text = "Disc ${item.discNumber}",
+              style = MaterialTheme.typography.titleSmall,
+              fontWeight = FontWeight.SemiBold,
+              color = colors.onSurfaceVariant,
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+          }
+          is ListItem.SongItem -> {
+            val song = item.song
+            val index = if (item.index >= 0) item.index else albumSongs.indexOf(song)
+            val isCurrentSong = song.id == state.currentSongId
+            val isPlaying = state.nowPlaying?.isPlaying == true && isCurrentSong
 
-        AlbumSongItem(
-          song = song,
-          trackNumber = song.trackNumber ?: (index + 1),
-          duration = song.duration?.let { formatDuration((it * 1000).toLong()) },
-          isPlaying = isPlaying,
-          isCurrentSong = isCurrentSong,
-          onClick = {
-            val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
-            val token = sessionStore.getToken() ?: return@AlbumSongItem
+            AlbumSongItem(
+              song = song,
+              trackNumber = song.trackNumber ?: (index + 1),
+              duration = song.duration?.let { formatDuration((it * 1000).toLong()) },
+              isPlaying = isPlaying,
+              isCurrentSong = isCurrentSong,
+              onClick = {
+                val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
+                val token = sessionStore.getToken() ?: return@AlbumSongItem
 
-            playerController.setQueue(albumSongs, serverUrl, token, index)
-            onOpenPlayer()
-          },
-          onLongClick = { contextMenu.openContextMenu(song) },
-          onMoreClick = { contextMenu.openContextMenu(song) },
-          showContextMenu = contextMenu.showContextMenu && contextMenu.selectedSong?.id == song.id,
-          onDismissMenu = { contextMenu.dismissContextMenu() },
-          onAddToQueue = {
-            val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
-            val token = sessionStore.getToken() ?: return@AlbumSongItem
-            playerController.addToQueue(song, serverUrl, token)
-          },
-          onPlayNext = {
-            val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
-            val token = sessionStore.getToken() ?: return@AlbumSongItem
-            playerController.playNext(song, serverUrl, token)
-          },
-          onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
-          onGoToArtist =
-            if (onNavigateToArtist != null && song.artistIds?.isNotEmpty() == true) {
-              {
-                onNavigateToArtist(
-                  Screen.ArtistDetail(
-                    artistId = song.artistIds!!.first(),
-                    artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
-                  ),
-                )
-              }
-            } else {
-              null
-            },
-        )
+                playerController.setQueue(albumSongs, serverUrl, token, index)
+                onOpenPlayer()
+              },
+              onLongClick = { contextMenu.openContextMenu(song) },
+              onMoreClick = { contextMenu.openContextMenu(song) },
+              showContextMenu = contextMenu.showContextMenu && contextMenu.selectedSong?.id == song.id,
+              onDismissMenu = { contextMenu.dismissContextMenu() },
+              onAddToQueue = {
+                val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
+                val token = sessionStore.getToken() ?: return@AlbumSongItem
+                playerController.addToQueue(song, serverUrl, token)
+              },
+              onPlayNext = {
+                val serverUrl = sessionStore.getServerUrl() ?: return@AlbumSongItem
+                val token = sessionStore.getToken() ?: return@AlbumSongItem
+                playerController.playNext(song, serverUrl, token)
+              },
+              onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
+              onGoToArtist =
+                if (onNavigateToArtist != null && song.artistIds?.isNotEmpty() == true) {
+                  {
+                    onNavigateToArtist(
+                      Screen.ArtistDetail(
+                        artistId = song.artistIds!!.first(),
+                        artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
+                      ),
+                    )
+                  }
+                } else {
+                  null
+                },
+            )
+          }
+        }
       }
     }
   }

@@ -1135,6 +1135,10 @@ export type Song = {
  */
   datePlayed:       null | string;
   /**
+ * Disc number in album
+ */
+  discNumber:       null | number;
+  /**
  * Duration in seconds
  */
   duration:         null | number;

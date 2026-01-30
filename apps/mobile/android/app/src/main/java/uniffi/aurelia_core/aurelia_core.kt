@@ -2269,6 +2269,10 @@ data class Song(
    */
   var `isFavorite`: kotlin.Boolean?,
   /**
+   * Disc number in album
+   */
+  var `discNumber`: kotlin.Int?,
+  /**
    * Track number in album
    */
   var `trackNumber`: kotlin.Int?,
@@ -2344,6 +2348,7 @@ public object FfiConverterTypeSong : FfiConverterRustBuffer<Song> {
       FfiConverterOptionalInt.read(buf),
       FfiConverterOptionalBoolean.read(buf),
       FfiConverterOptionalInt.read(buf),
+      FfiConverterOptionalInt.read(buf),
       FfiConverterOptionalString.read(buf),
       FfiConverterOptionalInt.read(buf),
       FfiConverterOptionalInt.read(buf),
@@ -2373,6 +2378,7 @@ public object FfiConverterTypeSong : FfiConverterRustBuffer<Song> {
         FfiConverterOptionalInt.allocationSize(value.`year`) +
         FfiConverterOptionalInt.allocationSize(value.`playCount`) +
         FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`) +
+        FfiConverterOptionalInt.allocationSize(value.`discNumber`) +
         FfiConverterOptionalInt.allocationSize(value.`trackNumber`) +
         FfiConverterOptionalString.allocationSize(value.`container`) +
         FfiConverterOptionalInt.allocationSize(value.`bitRate`) +
@@ -2405,6 +2411,7 @@ public object FfiConverterTypeSong : FfiConverterRustBuffer<Song> {
     FfiConverterOptionalInt.write(value.`year`, buf)
     FfiConverterOptionalInt.write(value.`playCount`, buf)
     FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
+    FfiConverterOptionalInt.write(value.`discNumber`, buf)
     FfiConverterOptionalInt.write(value.`trackNumber`, buf)
     FfiConverterOptionalString.write(value.`container`, buf)
     FfiConverterOptionalInt.write(value.`bitRate`, buf)

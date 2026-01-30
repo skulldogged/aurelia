@@ -79,7 +79,15 @@ export const sortSongsByDuration = (songs: Song[]): Song[] =>
   [...songs].sort((a, b) => getSongDuration(a) - getSongDuration(b))
 
 export const sortSongsByTrackOrder = (songs: Song[]): Song[] =>
-  [...songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
+  [...songs].sort((a, b) => {
+    // Sort by disc number first, then by track number
+    const discA = a.discNumber ?? 1
+    const discB = b.discNumber ?? 1
+    if (discA !== discB) {
+      return discA - discB
+    }
+    return (a.trackNumber ?? 0) - (b.trackNumber ?? 0)
+  })
 
 export const sortAlbumsByName = (albums: Album[]): Album[] =>
   [...albums].sort((a, b) => (a.name || '').localeCompare(b.name || ''))

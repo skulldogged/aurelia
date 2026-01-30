@@ -59,7 +59,15 @@
 
   const albumSongs = computed(() =>
     album.value
-      ? [...album.value.songs || []].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0))
+      ? [...album.value.songs || []].sort((a, b) => {
+          // Sort by disc number first, then by track number
+          const discA = a.discNumber ?? 1
+          const discB = b.discNumber ?? 1
+          if (discA !== discB) {
+            return discA - discB
+          }
+          return (a.trackNumber ?? 0) - (b.trackNumber ?? 0)
+        })
       : [],
   )
 

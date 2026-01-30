@@ -31,11 +31,6 @@ struct AlbumDetailView: View {
                             Text(album?.artist ?? songs.first?.artists?.first ?? "")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-//                            if let year = album?.year {
-//                                Text(String(year))
-//                                    .font(.caption)
-//                                    .foregroundStyle(.tertiary)
-//                            }
                         }
 
                         // Play / Shuffle buttons
@@ -58,17 +53,34 @@ struct AlbumDetailView: View {
                         }
                         .padding(.horizontal)
 
-                        // Song list
+                        // Song list with disc grouping
                         LazyVStack(spacing: 0) {
-                            ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                                SongRow(
-                                    song: song,
-                                    isPlaying: song.id == playerController.snapshot.currentSongId,
-                                    showTrackNumber: true
-                                ) {
-                                    playSongs(startIndex: index)
+                            let groupedSongs = groupSongsByDisc(songs)
+                            ForEach(groupedSongs) { group in
+                                if group.showDiscHeader {
+                                    // Disc header
+                                    HStack {
+                                        Text("Disc \(group.discNumber)")
+                                            .font(.headline)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 8)
+                                    .background(Color(.systemGray6))
                                 }
-                                Divider()
+
+                                ForEach(Array(group.songs.enumerated()), id: \.element.id) { index, song in
+                                    let globalIndex = songs.firstIndex(where: { $0.id == song.id }) ?? 0
+                                    SongRow(
+                                        song: song,
+                                        isPlaying: song.id == playerController.snapshot.currentSongId,
+                                        showTrackNumber: true
+                                    ) {
+                                        playSongs(startIndex: globalIndex)
+                                    }
+                                    Divider()
+                                }
                             }
                         }
                         .padding(.horizontal)
@@ -80,6 +92,53 @@ struct AlbumDetailView: View {
         .navigationTitle(albumName)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadAlbum() }
+    }
+
+    /// Groups songs by disc number
+    private func groupSongsByDisc(_ songs: [Song]) -> [DiscGroup] {
+        let sorted = songs.sorted {
+            let discA = $0.discNumber ?? 1
+            let discB = $1.discNumber ?? 1
+            if discA != discB {
+                return discA < discB
+            }
+            return ($0.trackNumber ?? 0) < ($1.trackNumber ?? 0)
+        }
+
+        // Check if album has multiple discs
+        let uniqueDiscs = Set(sorted.map { $0.discNumber ?? 1 })
+        let hasMultipleDiscs = uniqueDiscs.count > 1
+
+        var groups: [DiscGroup] = []
+        var currentDisc: Int = 0
+        var currentSongs: [Song] = []
+
+        for song in sorted {
+            let songDisc = song.discNumber ?? 1
+            if songDisc != currentDisc {
+                if !currentSongs.isEmpty {
+                    groups.append(DiscGroup(
+                        discNumber: currentDisc,
+                        songs: currentSongs,
+                        showDiscHeader: hasMultipleDiscs
+                    ))
+                }
+                currentDisc = songDisc
+                currentSongs = []
+            }
+            currentSongs.append(song)
+        }
+
+        // Don't forget the last group
+        if !currentSongs.isEmpty {
+            groups.append(DiscGroup(
+                discNumber: currentDisc,
+                songs: currentSongs,
+                showDiscHeader: hasMultipleDiscs
+            ))
+        }
+
+        return groups
     }
 
     private func loadAlbum() {
@@ -113,7 +172,15 @@ struct AlbumDetailView: View {
                 )
                 await MainActor.run {
                     self.album = fetched
-                    self.songs = (fetched.songs ?? []).sorted { ($0.trackNumber ?? 0) < ($1.trackNumber ?? 0) }
+                    // Sort by disc then track
+                    self.songs = (fetched.songs ?? []).sorted {
+                        let discA = $0.discNumber ?? 1
+                        let discB = $1.discNumber ?? 1
+                        if discA != discB {
+                            return discA < discB
+                        }
+                        return ($0.trackNumber ?? 0) < ($1.trackNumber ?? 0)
+                    }
                     self.isLoading = false
                 }
             } catch {
@@ -142,4 +209,12 @@ struct AlbumDetailView: View {
               !songs.isEmpty else { return }
         playerController.setQueue(songs.shuffled(), serverUrl: serverUrl, token: token)
     }
+}
+
+/// Represents a group of songs on a specific disc
+struct DiscGroup: Identifiable {
+    let id = UUID()
+    let discNumber: Int
+    let songs: [Song]
+    let showDiscHeader: Bool
 }

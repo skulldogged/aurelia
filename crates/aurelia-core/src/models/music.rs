@@ -76,6 +76,9 @@ pub struct Song {
     /// Whether this item is marked as favorite
     #[serde(rename = "isFavorite")]
     pub is_favorite: Option<bool>,
+    /// Disc number in album
+    #[serde(rename = "discNumber")]
+    pub disc_number: Option<i32>,
     /// Track number in album
     #[serde(rename = "trackNumber")]
     pub track_number: Option<i32>,

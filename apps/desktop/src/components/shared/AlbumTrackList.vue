@@ -61,9 +61,46 @@
     return 8
   }
 
+  // Check if album has multiple discs
+  const hasMultipleDiscs = computed(() => {
+    const discs = new Set(props.songs.map(s => s.discNumber ?? 1))
+    return discs.size > 1
+  })
+
+  // Build list with disc headers inserted (only for multi-disc albums)
+  const itemsWithDiscs = computed(() => {
+    const items: Array<{ type: 'disc-header'; disc: number } | { type: 'song'; song: Song; index: number }> = []
+
+    // For single-disc albums, just return songs without headers
+    if (!hasMultipleDiscs.value) {
+      for (let i = 0; i < props.songs.length; i++) {
+        items.push({ type: 'song', song: props.songs[i], index: i })
+      }
+      return items
+    }
+
+    // For multi-disc albums, insert disc headers
+    let currentDisc: number | null = null
+
+    for (let i = 0; i < props.songs.length; i++) {
+      const song = props.songs[i]
+      const songDisc = song.discNumber ?? 1
+
+      // Add disc header when disc changes
+      if (songDisc !== currentDisc) {
+        items.push({ type: 'disc-header', disc: songDisc })
+        currentDisc = songDisc
+      }
+
+      items.push({ type: 'song', song, index: i })
+    }
+
+    return items
+  })
+
   const rowVirtualizer = useVirtualizer(
     computed(() => ({
-      count:            props.songs.length,
+      count:            itemsWithDiscs.value.length,
       enabled:          true,
       estimateSize:     () => estimateSize,
       getScrollElement: () => scrollElement.value,
@@ -71,18 +108,22 @@
     })),
   )
 
-  watch(() => props.songs.length, () => {
+  watch(() => itemsWithDiscs.value.length, () => {
     rowVirtualizer.value.measure()
   })
 
   const virtualItems = computed(() => rowVirtualizer.value.getVirtualItems())
   const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
 
-  const virtualSongs = computed(() =>
-    virtualItems.value.map(item => ({
-      song:       props.songs[item.index],
-      virtualRow: item,
-    })),
+  const virtualItemsWithDiscs = computed(() =>
+    virtualItems.value.map(item => {
+      const data = itemsWithDiscs.value[item.index]
+      if (data.type === 'disc-header') {
+        return { item: data, virtualRow: item, type: 'disc-header' as const }
+      } else {
+        return { item: data.song, virtualRow: item, type: 'song' as const, index: data.index }
+      }
+    }),
   )
 
   const useInternalScroll = computed(() => !injectedScrollElement.value)
@@ -114,7 +155,7 @@
         </div>
       </div>
 
-      <!-- Virtualized track list -->
+      <!-- Virtualized track list with disc grouping -->
       <div
         v-else
         :style="{
@@ -123,25 +164,38 @@
           position: 'relative'
         }"
       >
-        <div
-          v-for='{ song, virtualRow } in virtualSongs'
-          :key='song.id'
-          :style='{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            transform: `translateY(${virtualRow.start}px)`
-          }'
-        >
+        <template v-for='{ item, virtualRow, type } in virtualItemsWithDiscs' :key='item.id || item.disc'>
+          <div
+            v-if="type === 'disc-header'"
+            :style='{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${virtualRow.start}px)`
+            }'
+            class="px-3 py-2 text-sm font-semibold text-muted-foreground"
+          >
+            Disc {{ item.disc }}
+          </div>
+          <div
+            v-else
+            :style='{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${virtualRow.start}px)`
+            }'
+          >
           <ContextMenu>
             <ContextMenuTrigger>
               <div
-                @click="$emit('play-song', song)"
+                @click="$emit('play-song', item)"
                 :class="[
                   'group flex items-center gap-4 px-3 py-2.5 rounded-lg cursor-pointer',
                   'transition-all duration-150',
-                  playerStore.currentSong?.id === song.id
+                  playerStore.currentSong?.id === item.id
                     ? 'bg-accent/10 ring-1 ring-accent/20'
                     : 'hover:bg-white/5'
                 ]"
@@ -151,18 +205,18 @@
                   <span
                     :class="[
                       'tabular-nums font-medium transition-all duration-150',
-                      playerStore.currentSong?.id === song.id
+                      playerStore.currentSong?.id === item.id
                         ? 'text-accent'
                         : 'text-muted-foreground group-hover:opacity-0'
                     ]"
                   >
-                    {{ song.trackNumber ?? virtualRow.index + 1 }}
+                    {{ item.trackNumber ?? virtualRow.index + 1 }}
                   </span>
                   <Button
-                    @click.stop="$emit('play-song', song)"
+                    @click.stop="$emit('play-song', item)"
                     :class="[
                       'absolute size-8 transition-all duration-150',
-                      playerStore.currentSong?.id === song.id && playerStore.isPlaying
+                      playerStore.currentSong?.id === item.id && playerStore.isPlaying
                         ? 'opacity-100'
                         : 'opacity-0 group-hover:opacity-100'
                     ]"
@@ -170,7 +224,7 @@
                     variant='ghost'
                   >
                     <Pause
-                      v-if='playerStore.currentSong?.id === song.id && playerStore.isPlaying'
+                      v-if='playerStore.currentSong?.id === item.id && playerStore.isPlaying'
                       class='size-4 text-accent'
                     />
                     <Play
@@ -185,49 +239,49 @@
                   <h3
                     :class="[
                       'font-medium truncate transition-colors duration-150',
-                      playerStore.currentSong?.id === song.id
+                      playerStore.currentSong?.id === item.id
                         ? 'text-accent'
                         : 'text-foreground group-hover:text-accent'
                     ]"
                   >
-                    {{ song.name }}
+                    {{ item.name }}
                   </h3>
-                  <p v-if='showArtist && song.artists?.length' class='text-sm text-muted-foreground truncate mt-0.5'>
+                  <p v-if='showArtist && item.artists?.length' class='text-sm text-muted-foreground truncate mt-0.5'>
                     <template
-                      v-if='song.artists && song.artistIds &&
-                        song.artists.length === song.artistIds.length'
+                      v-if='item.artists && item.artistIds &&
+                        item.artists.length === item.artistIds.length'
                     >
                       <template
-                        v-for='(artist, artistIndex) in song.artists'
-                        :key='song.artistIds[artistIndex]'
+                        v-for='(artist, artistIndex) in item.artists'
+                        :key='item.artistIds[artistIndex]'
                       >
                         <RouterLink
                           @click.stop
-                          :to='`/artists/${song.artistIds[artistIndex]}`'
+                          :to='`/artists/${item.artistIds[artistIndex]}`'
                           class='hover:underline hover:text-accent'
                         >
                           {{ artist }}
                         </RouterLink>
-                        <span v-if='artistIndex < song.artists.length - 1'>, </span>
+                        <span v-if='artistIndex < item.artists.length - 1'>, </span>
                       </template>
                     </template>
                     <template v-else>
-                      {{ song.artists?.join(', ') || 'Unknown Artist' }}
+                      {{ item.artists?.join(', ') || 'Unknown Artist' }}
                     </template>
                   </p>
                 </div>
 
                 <!-- Duration -->
                 <div class='w-14 text-right text-sm text-muted-foreground tabular-nums shrink-0'>
-                  {{ formatDuration(song.duration) }}
+                  {{ formatDuration(item.duration) }}
                 </div>
 
                 <!-- Favorite Button -->
                 <Button
-                  @click.stop="$emit('toggle-favorite', song)"
+                  @click.stop="$emit('toggle-favorite', item)"
                   :class="[
                     'shrink-0 transition-all duration-150',
-                    song.isFavorite
+                    item.isFavorite
                       ? 'text-accent'
                       : 'text-muted-foreground opacity-0 group-hover:opacity-100'
                   ]"
@@ -237,29 +291,30 @@
                   <Heart
                     :class="[
                       'size-4 transition-transform duration-150',
-                      song.isFavorite ? 'fill-current scale-110' : 'hover:scale-110'
+                      item.isFavorite ? 'fill-current scale-110' : 'hover:scale-110'
                     ]"
                   />
                 </Button>
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>
-              <ContextMenuItem @click="$emit('play-song', song)">
+              <ContextMenuItem @click="$emit('play-song', item)">
                 <Play class='size-4 mr-2' />
                 Play
               </ContextMenuItem>
-              <ContextMenuItem @click="$emit('play-instant-mix', song)">
+              <ContextMenuItem @click="$emit('play-instant-mix', item)">
                 <Shuffle class='size-4 mr-2' />
                 Instant Mix
               </ContextMenuItem>
-              <AddToPlaylistMenu :songs='[song]' type='context' />
-              <ContextMenuItem @click='openShareDialog(song)'>
+              <AddToPlaylistMenu :songs='[item]' type='context' />
+              <ContextMenuItem @click='openShareDialog(item)'>
                 <Share2 class='size-4 mr-2' />
                 Share
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
-        </div>
+          </div>
+        </template>
       </div>
     </div>
   </div>
