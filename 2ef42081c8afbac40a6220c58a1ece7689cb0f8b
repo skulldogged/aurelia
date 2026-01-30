@@ -1,0 +1,25 @@
+apps/desktop/src/App.vue
+  3a2244aa1dfed0ed 45,61-70
+apps/desktop/src/composables/useAppInitialization.ts
+  3a2244aa1dfed0ed 3,55-57,63-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "2ef42081c8afbac40a6220c58a1ece7689cb0f8b",
+  "prompts": {
+    "3a2244aa1dfed0ed": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3ef0f3c5effehKzvoa2CZg5Gkp",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 21,
+      "total_deletions": 57,
+      "accepted_lines": 19,
+      "overriden_lines": 0
+    }
+  }
+}
