@@ -1,0 +1,27 @@
+scripts/dev-web.ps1
+  3cb23205d2f28a7a 1-194
+package.json
+  3cb23205d2f28a7a 8-16
+scripts/dev-web.sh
+  3cb23205d2f28a7a 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "1f21cf902d2373fd2d217a693f8592a1f4ed5cf2",
+  "prompts": {
+    "3cb23205d2f28a7a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eece7db4ffeN22Z3B37qGQkwW",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 370,
+      "total_deletions": 1,
+      "accepted_lines": 370,
+      "overriden_lines": 0
+    }
+  }
+}
