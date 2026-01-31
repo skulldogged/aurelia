@@ -2,8 +2,9 @@
   import { AlertTriangle, Loader2 } from 'lucide-vue-next'
   import { computed, nextTick, ref, watch } from 'vue'
 
-  import { getApiClient } from '../../index'
   import type { Song } from '../../lib/api/types'
+
+  import { getApiClient } from '../../index'
   import { logger } from '../../lib/logger'
   import { withCustomState } from '../../lib/result'
 

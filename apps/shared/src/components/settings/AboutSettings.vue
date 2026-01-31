@@ -6,8 +6,8 @@
   } from 'lucide-vue-next'
   import { onMounted, ref } from 'vue'
 
-  import Button from '../ui/Button.vue'
   import { isTauri } from '../../lib/platform'
+  import Button from '../ui/Button.vue'
 
   const appVersion = ref<string>('Loading...')
   const platformInfo = ref<string>('Loading...')
@@ -16,7 +16,7 @@
     try {
       if (isTauri()) {
         const { getVersion } = await import('@tauri-apps/api/app')
-        const { version: osVersion, type } = await import('@tauri-apps/plugin-os')
+        const { type, version: osVersion } = await import('@tauri-apps/plugin-os')
         appVersion.value = await getVersion()
         const osType = type()
         const osVer = osVersion()
@@ -25,8 +25,8 @@
         appVersion.value = 'Web'
         platformInfo.value = navigator.userAgent.includes('Windows') ? 'Windows'
           : navigator.userAgent.includes('Mac') ? 'macOS'
-          : navigator.userAgent.includes('Linux') ? 'Linux'
-          : 'Browser'
+            : navigator.userAgent.includes('Linux') ? 'Linux'
+              : 'Browser'
       }
     } catch {
       appVersion.value = 'Unknown'

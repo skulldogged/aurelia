@@ -121,7 +121,7 @@ export const useDiscordPresence = (): {
   }
 
   const stopThread = async (): Promise<void> => {
-      const clearResult = await getApiClient().discordRpcClearActivity()
+    const clearResult = await getApiClient().discordRpcClearActivity()
     if (clearResult.status === 'error') {
       logger.debug('Failed to clear Discord activity on shutdown', clearResult.error)
     }
@@ -152,7 +152,7 @@ export const useDiscordPresence = (): {
       if (!await ensureThread())
         return
 
-    const clearResult = await getApiClient().discordRpcClearActivity()
+      const clearResult = await getApiClient().discordRpcClearActivity()
       if (clearResult.status === 'error') {
         logger.error('Failed to clear Discord activity', clearResult.error)
         hasStartedThread = false

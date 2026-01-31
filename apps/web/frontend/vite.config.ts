@@ -7,22 +7,22 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000,
-    outDir: 'dist',
+    outDir:                'dist',
   },
   clearScreen: false,
-  css: {
+  css:         {
     transformer: 'lightningcss',
   },
 
   plugins: [
     VueRouter({
+      exclude:      ['**/node_modules/**', '**/components/**'],
       routesFolder: [
         {
-          src: '../../shared/src/pages',
           path: '',
-        }
+          src:  '../../shared/src/pages',
+        },
       ],
-      exclude: ['**/node_modules/**', '**/components/**'],
     }),
     vue(),
     tailwindcss(),
@@ -30,23 +30,23 @@ export default defineConfig({
 
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@':       path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, '../../shared/src'),
     },
   },
   server: {
-    host: true,
-    port: 5173,
-    strictPort: true,
+    host:  true,
+    port:  5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
         changeOrigin: true,
+        target:       'http://localhost:3000',
       },
       '/ws': {
         target: 'http://localhost:3000',
-        ws: true,
+        ws:     true,
       },
     },
+    strictPort: true,
   },
 })

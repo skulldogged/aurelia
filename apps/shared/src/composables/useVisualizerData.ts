@@ -10,19 +10,19 @@ import { getApiClient, isDesktop } from '../index'
 import { logger } from '../lib/logger'
 
 interface SpectrumEvent {
-  frequencyData:   number[]
-  timeDomainData:  number[]
+  frequencyData:  number[]
+  timeDomainData: number[]
 }
 
 interface UseVisualizerDataReturn {
   /** Raw frequency data from FFT (0-255 per bin, 128 bins) */
-  frequencyData:   Ref<Uint8Array>
+  frequencyData:  Ref<Uint8Array>
   /** Whether visualizer is currently enabled */
-  isEnabled:       Ref<boolean>
+  isEnabled:      Ref<boolean>
   /** Set visualizer enabled state (controls whether backend emits data) */
-  setEnabled:      (enabled: boolean) => Promise<void>
+  setEnabled:     (enabled: boolean) => Promise<void>
   /** Raw time domain waveform data (0-255, 256 samples) */
-  timeDomainData:  Ref<Uint8Array>
+  timeDomainData: Ref<Uint8Array>
 }
 
 /** FFT size used by the Rust analyzer */
@@ -39,9 +39,8 @@ const SMOOTHING = {
   /** How quickly values rise to new peaks (0-1, higher = faster) */
   attack: 0.8,
   /** How quickly values fall from peaks (0-1, higher = faster) */
-  decay: 0.15,
+  decay:  0.15,
 }
-
 
 export const useVisualizerData = (): UseVisualizerDataReturn => {
   // Reactive data buffers - pre-allocate for performance

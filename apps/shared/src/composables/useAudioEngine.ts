@@ -1,22 +1,24 @@
 /**
  * Audio Engine Composable
- * 
+ *
  * Unified audio orchestration layer using the AudioPlayer abstraction.
  * Platform-specific logic is handled internally by the AudioPlayer implementations.
  */
 
 import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
-import { getAudioPlayer, type AudioPlayer, type AudioPosition } from '../audio'
-import { getApiClient } from '../index'
 import type { NowPlayingPayload, Song } from '../lib/api/types'
-import { isDesktop, isTauri } from '../lib/platform'
+
+import { type AudioPlayer, type AudioPosition, getAudioPlayer } from '../audio'
+import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
+import { isDesktop, isTauri } from '../lib/platform'
 import { usePlayerStore } from '../stores'
 
 type UnlistenFn = () => void
 
 interface UseAudioEngineReturn {
+  audioPlayer:             AudioPlayer
   initializePlayer:        () => Promise<void>
   isGaplessTransition:     Ref<boolean>
   loadSong:                (song: null | Song) => Promise<void>
@@ -29,7 +31,6 @@ interface UseAudioEngineReturn {
   seek:                    (positionSecs: number) => Promise<void>
   setEQBand:               (band: number, gain: number) => Promise<void>
   setEQEnabled:            (enabled: boolean) => Promise<void>
-  audioPlayer:             AudioPlayer
 }
 
 export const useAudioEngine = (
@@ -158,14 +159,14 @@ export const useAudioEngine = (
     } else if (playerStore.repeatMode === 'all' || hasNext.value) {
       const upcomingSong = nextSongInQueue.value
       logger.debug(`[Gapless] upcomingSong: ${upcomingSong?.name}, currentIndex: ${playerStore.currentIndex}`)
-      
+
       if (upcomingSong) {
         if (isDesktop()) {
           isGaplessTransition.value = true
           logger.debug('[Gapless] Set isGaplessTransition = true, calling advanceGapless')
           const success = await audioPlayer.advanceGapless()
           logger.debug(`[Gapless] advanceGapless returned: ${success}`)
-          
+
           if (success) {
             const newIndex = playerStore.playlist.findIndex(s => s.id === upcomingSong.id)
             playerStore.setCurrentSong(upcomingSong)
@@ -208,10 +209,10 @@ export const useAudioEngine = (
 
     try {
       const streamResult = await getApiClient().getAudioStreamUrl({
-        serverUrl: props.serverUrl,
-        token: props.token,
-        itemId: next.id,
         container: next.container,
+        itemId:    next.id,
+        serverUrl: props.serverUrl,
+        token:     props.token,
       })
 
       if (streamResult.status === 'ok') {
@@ -269,12 +270,12 @@ export const useAudioEngine = (
       playerStore.setAudioReady(false)
       playerStore.setBuffering(true)
 
-      const streamResult = await getApiClient().getAudioStreamUrl({
-        serverUrl: props.serverUrl,
-        token: props.token,
-        itemId: song.id,
-        container: song.container,
-      })
+      const streamResult = await getApiClient().getAudioStreamUrl(
+        song.id,
+        props.serverUrl,
+        props.token,
+        song.container ?? undefined,
+      )
 
       if (streamResult.status === 'error') {
         logger.error('Failed to get audio stream URL:', streamResult.error)
@@ -282,10 +283,10 @@ export const useAudioEngine = (
       }
 
       const loadResult = await audioPlayer.load(streamResult.data, props.token, {
-        title: song.name,
-        artist: song.artists?.join(', ') ?? null,
-        album: song.album ?? null,
+        album:      song.album ?? null,
+        artist:     song.artists?.join(', ') ?? null,
         artworkUrl: song.albumArtUrl ?? null,
+        title:      song.name,
       })
 
       if (loadResult.success) {
@@ -319,7 +320,11 @@ export const useAudioEngine = (
     const execute = async (): Promise<void> => {
       await loadSong(song)
       const playing = await audioPlayer.isPlaying()
-      playing ? playerStore.play() : playerStore.pause()
+      if (playing) {
+        playerStore.play()
+      } else {
+        playerStore.pause()
+      }
     }
     execute()
   }
@@ -350,7 +355,7 @@ export const useAudioEngine = (
     // Setup event listeners
     audioPlayer.onPositionUpdate((event: AudioPosition) => {
       const { isFinished, position } = event
-      
+
       if (!playerStore.isSeeking) {
         playerStore.setCurrentTime(position)
       }
@@ -368,6 +373,7 @@ export const useAudioEngine = (
 
     audioPlayer.onTrackEnd(() => {
       // Track end is handled by position update with isFinished
+      // This callback is intentionally empty - the handler is registered for API completeness
     })
 
     // Setup media control listeners (desktop only)
@@ -382,8 +388,8 @@ export const useAudioEngine = (
   }
 
   // Throttle volume updates
-  let volumeThrottleTimer: ReturnType<typeof setTimeout> | null = null
-  let pendingVolume: number | null = null
+  let volumeThrottleTimer: null | ReturnType<typeof setTimeout> = null
+  let pendingVolume: null | number = null
   const VOLUME_THROTTLE_MS = 50
 
   watch(() => playerStore.volume, newVolume => {
@@ -403,7 +409,7 @@ export const useAudioEngine = (
   // Watch for play/pause from store
   watch(() => playerStore.isPlaying, async isPlaying => {
     const currentlyPlaying = await audioPlayer.isPlaying()
-    
+
     if (isPlaying && !currentlyPlaying) {
       await audioPlayer.play()
     } else if (!isPlaying && currentlyPlaying) {
@@ -436,7 +442,7 @@ export const useAudioEngine = (
       logger.debug('Skipping load - gapless transition in progress')
       return
     }
-    
+
     const song = playerStore.currentSong
     if (song) {
       logger.debug(`Song changed to: ${song.name}, loading...`)
@@ -445,6 +451,7 @@ export const useAudioEngine = (
   })
 
   return {
+    audioPlayer,
     initializePlayer,
     isGaplessTransition,
     loadSong,
@@ -457,6 +464,5 @@ export const useAudioEngine = (
     seek,
     setEQBand,
     setEQEnabled,
-    audioPlayer,
   }
 }

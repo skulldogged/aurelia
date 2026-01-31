@@ -4,8 +4,7 @@
   import { computed, ref } from 'vue'
 
   import { Song } from '../../lib/api/types'
-  import ImageLoader from './ImageLoader.vue'
-  import ImagePlaceholder from './ImagePlaceholder.vue'
+  import { useAuthStore, useLibraryStore } from '../../stores'
   import Button from '../ui/Button.vue'
   import {
     DialogClose,
@@ -15,7 +14,8 @@
     DialogTitle,
   } from '../ui/dialog'
   import { Input } from '../ui/input'
-  import { useAuthStore, useLibraryStore } from '../../stores'
+  import ImageLoader from './ImageLoader.vue'
+  import ImagePlaceholder from './ImagePlaceholder.vue'
 
   const isPortrait = false
 

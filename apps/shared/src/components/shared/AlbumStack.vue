@@ -3,9 +3,9 @@
   import { computed } from 'vue'
 
   import { Album } from '../../lib/api/types'
+  import Button from '../ui/Button.vue'
   import ImageLoader from './ImageLoader.vue'
   import ImagePlaceholder from './ImagePlaceholder.vue'
-  import Button from '../ui/Button.vue'
 
   interface Props {
     album:           Album

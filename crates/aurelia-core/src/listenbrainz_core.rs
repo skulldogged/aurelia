@@ -8,12 +8,16 @@ use tracing::{debug, error, info};
 const LISTENBRAINZ_API_URL: &str = "https://api.listenbrainz.org/1";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct ListenBrainzCredentials {
     pub user_token: String,
     pub username: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct ListenBrainzListen {
     pub artist: String,
     pub track: String,

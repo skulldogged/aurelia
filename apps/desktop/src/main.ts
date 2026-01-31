@@ -1,19 +1,18 @@
-import { createPinia } from 'pinia'
-import { createApp } from 'vue'
+// Import shared package and set up API client
+import { createTauriClient, setApiClient } from '@shared/lib/api'
+import { useAccentColorStore, usePlaylistStore, useThemeStore } from '@shared/stores'
 import 'vue-sonner/style.css'
+import { createPinia } from 'pinia'
+
+import '@/assets/main.css'
+import { createApp } from 'vue'
 
 import App from '@/App.vue'
-import '@/assets/main.css'
 import { commands } from '@/lib/api/bindings'
 import router from '@/router'
 
-// Import shared package and set up API client
-import { setApiClient } from '@shared'
-import { createTauriClient } from '@shared/lib/api'
-import { useAccentColorStore, usePlaylistStore, useThemeStore } from '@shared/stores'
-
 // Create and set the Tauri API client
-const tauriClient = createTauriClient(commands as any)
+const tauriClient = createTauriClient(commands as unknown)
 setApiClient(tauriClient, 'desktop')
 
 const app = createApp(App)

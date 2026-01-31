@@ -3,8 +3,7 @@ import { defineStore } from 'pinia'
 import { computed, watch } from 'vue'
 
 import { COLOR_SCHEMES } from '../lib/colorSchemes'
-import { logger } from '../lib/logger'
-
+import { _logger } from '../lib/logger'
 
 export const useThemeStore = defineStore('theme', () => {
   // Determine default theme based on system preference if no saved preference exists
@@ -32,7 +31,6 @@ export const useThemeStore = defineStore('theme', () => {
     // Light themes explicitly have 'light' in name, everything else is dark
     return !name.includes('light')
   })
-
 
   const setColorScheme = (schemeName: string): void => {
     selectedSchemeName.value = schemeName
@@ -72,7 +70,6 @@ export const useThemeStore = defineStore('theme', () => {
     },
     { deep: true, immediate: true },
   )
-
 
   return {
     colorSchemes,

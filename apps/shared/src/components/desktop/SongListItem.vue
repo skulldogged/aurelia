@@ -4,13 +4,13 @@
 
   import type { Song } from '../../lib/api/types'
 
+  import { formatDuration } from '../../lib/utils'
+  import { usePlayerStore } from '../../stores/player'
   import AddToPlaylistMenu from '../shared/AddToPlaylistMenu.vue'
   import ImageLoader from '../shared/ImageLoader.vue'
   import ImagePlaceholder from '../shared/ImagePlaceholder.vue'
   import Button from '../ui/Button.vue'
   import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '../ui/context-menu'
-  import { formatDuration } from '../../lib/utils'
-  import { usePlayerStore } from '../../stores/player'
 
   interface Props {
     index:      number

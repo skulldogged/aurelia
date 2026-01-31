@@ -11,5 +11,6 @@ pub mod music;
 
 pub use auth::*;
 pub use jellyfin::*;
+pub use library::*;
 pub use lrclib::*;
 pub use music::*;

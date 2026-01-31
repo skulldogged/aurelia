@@ -3,9 +3,9 @@
 
   import type { Album } from '../../lib/api/types'
 
+  import Button from '../ui/Button.vue'
   import ImageLoader from './ImageLoader.vue'
   import ImagePlaceholder from './ImagePlaceholder.vue'
-  import Button from '../ui/Button.vue'
 
   interface NameIdPair {
     id:   null | string
@@ -41,7 +41,7 @@
     class='album-card cursor-pointer group'
   >
     <!-- Album art with overlay -->
-    <div class='album-card-image relative' :class='compact ? "mb-2" : "mb-3"'>
+    <div :class='compact ? "mb-2" : "mb-3"' class='album-card-image relative'>
       <ImageLoader
         :alt='`${album.name} album art`'
         :item-id='album.id || album.name'
@@ -64,12 +64,12 @@
       >
         <Button
           @click.stop='$emit("play", album)'
-          size='icon'
           class='
             bg-accent/90 hover:bg-accent text-accent-foreground
             shadow-lg hover:shadow-xl hover:scale-105
             transition-all duration-200
           '
+          size='icon'
         >
           <Play class='size-5 fill-current' />
         </Button>
@@ -114,7 +114,11 @@
           </template>
         </p>
       </div>
-      <div v-if='showSongCount' :class='compact ? "text-[10px]" : "text-xs"' class='flex items-center gap-1 text-muted-foreground shrink-0 mt-0.5'>
+      <div
+        v-if='showSongCount'
+        :class='compact ? "text-[10px]" : "text-xs"'
+        class='flex items-center gap-1 text-muted-foreground shrink-0 mt-0.5'
+      >
         <span class='leading-none'>{{ album.songs?.length || 0 }}</span>
         <Disc :class='compact ? "size-2.5" : "size-3"' />
       </div>

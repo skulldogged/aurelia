@@ -22,13 +22,13 @@ export default defineConfig(async () => ({
   plugins: [
     // VueRouter must be before vue()
     VueRouter({
+      exclude:      ['**/node_modules/**', '**/components/**'],
       routesFolder: [
         {
-          src: '../shared/src/pages',
           path: '',
-        }
+          src:  '../shared/src/pages',
+        },
       ],
-      exclude: ['**/node_modules/**', '**/components/**'],
     }),
     vue(),
     tailwindcss(),
@@ -36,7 +36,7 @@ export default defineConfig(async () => ({
 
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@':       path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, '../shared/src'),
     },
   },

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["apps/desktop/src-tauri", "apps/web/backend", "crates/aurelia-core", "crates/uniffi-bindgen"]
+members = ["apps/desktop/src-tauri", "apps/web/backend", "crates/aurelia-core", "crates/aurelia-api", "crates/aurelia-api-macros", "crates/uniffi-bindgen"]
 
 [profile.dev]
 opt-level = 2

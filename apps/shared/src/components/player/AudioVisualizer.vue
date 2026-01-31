@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+  import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
   interface VisualizerProps {
     /** Amplitude boost multiplier (1.0 = normal, 2.0 = double height) */
@@ -76,7 +76,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
     }
   }
 
-const drawBars = (
+  const drawBars = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
@@ -99,7 +99,7 @@ const drawBars = (
     }
   }
 
-const drawCircular = (
+  const drawCircular = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
@@ -158,7 +158,7 @@ const drawCircular = (
     ctx.stroke()
   }
 
-const drawWave = (
+  const drawWave = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,

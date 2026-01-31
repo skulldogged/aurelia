@@ -1,6 +1,6 @@
 import { readonly, ref, type Ref } from 'vue'
 
-import type { Credentials } from '../lib/api/types'
+import type { Credentials } from '../generated'
 
 import { getApiClient } from '../index'
 import { getAuthLogout, setAuthLogout } from '../lib/auth-interceptor'
@@ -17,7 +17,35 @@ export interface AuthError {
 
 export type AuthErrorType = 'auth' | 'config' | 'network' | 'unknown'
 
-export type AuthStatus = 'error' | 'loggedIn' | 'loggedOut' | 'pending'
+export type AuthStatus = 'error' | 'initializing' | 'loggedIn' | 'loggedOut' | 'pending' | 'verifying'
+
+const STORAGE_KEY = 'aurelia-auth-credentials'
+
+/// Load credentials from localStorage synchronously on module init
+const loadCredentialsFromStorage = (): Credentials | null => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      return JSON.parse(stored) as Credentials
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return null
+}
+
+/// Save credentials to localStorage
+const saveCredentialsToStorage = (creds: Credentials | null): void => {
+  try {
+    if (creds) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(creds))
+    } else {
+      localStorage.removeItem(STORAGE_KEY)
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 /// Categorize error messages from backend into structured error types
 const categorizeAuthError = (errorMessage: string): AuthError => {
@@ -65,12 +93,48 @@ const categorizeAuthError = (errorMessage: string): AuthError => {
   }
 }
 
-const authStatus = ref<AuthStatus>('pending')
-const credentials = ref<Credentials | null>(null)
+// Synchronously load credentials from localStorage on module init
+const storedCreds = loadCredentialsFromStorage()
+const authStatus = ref<AuthStatus>(storedCreds ? 'verifying' : 'initializing')
+const credentials = ref<Credentials | null>(storedCreds)
 const error = ref<AuthError | null>(null)
+
+const verifyStoredCredentials = async (authStore: ReturnType<typeof useAuthStore>): Promise<void> => {
+  logger.debug('Verifying stored credentials...')
+
+  await withCustomState<Credentials | null, string>(
+    () => getApiClient().getSavedCredentials(),
+    {
+      onError: errorString => {
+        logger.error('Failed to verify credentials:', errorString)
+        // If verification fails, logout
+        logout(authStore)
+      },
+      onSuccess: savedCredentials => {
+        logger.debug('Verified credentials:', savedCredentials)
+
+        if (savedCredentials && savedCredentials.token) {
+          // Credentials still valid, sync with backend state
+          credentials.value = savedCredentials
+          authStore.setCredentials(savedCredentials)
+          authStatus.value = 'loggedIn'
+          // Sync localStorage in case backend has different creds
+          saveCredentialsToStorage(savedCredentials)
+          logger.info('Credentials verified successfully')
+        } else {
+          // Backend has no credentials, logout
+          logger.debug('Backend has no credentials, logging out')
+          logout(authStore)
+        }
+      },
+    },
+  )
+}
 
 const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promise<void> => {
   logger.debug('Checking for saved credentials...')
+  // Immediately set to pending to indicate we're actively checking
+  authStatus.value = 'pending'
 
   await withCustomState<Credentials | null, string>(
     () => getApiClient().getSavedCredentials(),
@@ -79,9 +143,6 @@ const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promi
         logger.error('Failed to load saved credentials:', errorString)
         error.value = categorizeAuthError(errorString)
         authStatus.value = 'error'
-      },
-      onStart: () => {
-        authStatus.value = 'pending'
       },
       onSuccess: savedCredentials => {
         logger.debug('Got saved credentials:', savedCredentials)
@@ -92,6 +153,8 @@ const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promi
           authStore.setCredentials(savedCredentials)
           authStatus.value = 'loggedIn'
           error.value = null
+          // Sync to localStorage for fast load on next visit
+          saveCredentialsToStorage(savedCredentials)
           logger.info('Authentication successful - credentials loaded from disk')
           logger.debug('Auth store populated:', {
             hasToken:  !!authStore.token,
@@ -114,6 +177,9 @@ const login = (authStore: ReturnType<typeof useAuthStore>, loginCredentials: Cre
   authStore.setCredentials(loginCredentials)
   authStatus.value = 'loggedIn'
   error.value = null
+  // Save to localStorage for fast load on next visit
+  saveCredentialsToStorage(loginCredentials)
+  logger.info('User logged in - credentials saved to localStorage')
 }
 
 const logout = (authStore: ReturnType<typeof useAuthStore>): void => {
@@ -121,7 +187,9 @@ const logout = (authStore: ReturnType<typeof useAuthStore>): void => {
   authStore.clearCredentials()
   authStatus.value = 'loggedOut'
   error.value = null
-  logger.info('User logged out')
+  // Clear from localStorage
+  saveCredentialsToStorage(null)
+  logger.info('User logged out - credentials cleared from localStorage')
 }
 
 const registerLogoutHandler = (authStore: ReturnType<typeof useAuthStore>): void => {
@@ -154,8 +222,16 @@ export const useAuth = (): Auth => {
   registerLogoutHandler(authStore)
 
   // Initialize auth on first use
-  if (authStatus.value === 'pending')
+  if (authStatus.value === 'initializing') {
     initializeAuth(authStore)
+  } else if (authStatus.value === 'verifying') {
+    // We have cached credentials, populate the store immediately so API calls work
+    // then verify them in the background
+    if (credentials.value) {
+      authStore.setCredentials(credentials.value)
+    }
+    verifyStoredCredentials(authStore)
+  }
 
   return {
     authStatus:  readonly(authStatus),

@@ -4,8 +4,8 @@
   import { ref } from 'vue'
 
   import { Song } from '../../lib/api/types'
-  import QueueItem from './QueueItem.vue'
   import { usePlayerStore } from '../../stores'
+  import QueueItem from './QueueItem.vue'
 
   const playerStore = usePlayerStore()
 

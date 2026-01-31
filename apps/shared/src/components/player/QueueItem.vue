@@ -3,6 +3,7 @@
   import { ref } from 'vue'
 
   import { Song } from '../../lib/api/types'
+  import { formatDuration } from '../../lib/utils'
   import ImageLoader from '../shared/ImageLoader.vue'
   import ShareDialog from '../shared/ShareDialog.vue'
   import Button from '../ui/Button.vue'
@@ -12,7 +13,6 @@
     ContextMenuItem,
     ContextMenuTrigger,
   } from '../ui/context-menu'
-  import { formatDuration } from '../../lib/utils'
 
   defineProps<{
     class?:     string,

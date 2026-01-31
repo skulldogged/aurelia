@@ -10,8 +10,10 @@
 
   import type { Album, Artist, Song } from '../../lib/api/types'
 
-  import ImageLoader from './ImageLoader.vue'
-  import ImagePlaceholder from './ImagePlaceholder.vue'
+  import { useSongInteractions } from '../../composables/useSongInteractions'
+  import { logger } from '../../lib/logger'
+  import { useAuthStore } from '../../stores'
+  import { useLibraryStore } from '../../stores/library'
   import {
     CommandDialog,
     CommandEmpty,
@@ -20,10 +22,8 @@
     CommandList,
   } from '../ui/command'
   import { DialogDescription, DialogTitle } from '../ui/dialog'
-  import { useSongInteractions } from '../../composables/useSongInteractions'
-  import { logger } from '../../lib/logger'
-  import { useAuthStore } from '../../stores'
-  import { useLibraryStore } from '../../stores/library'
+  import ImageLoader from './ImageLoader.vue'
+  import ImagePlaceholder from './ImagePlaceholder.vue'
 
   const props = defineProps<{
     open: boolean
@@ -205,7 +205,10 @@
       </CommandEmpty>
 
       <!-- Enhanced no results message -->
-      <div v-else-if='debouncedSearchTerm && !hasSearchResults' class='flex flex-col items-center gap-3 py-8 text-center'>
+      <div
+        v-else-if='debouncedSearchTerm && !hasSearchResults'
+        class='flex flex-col items-center gap-3 py-8 text-center'
+      >
         <div class='flex size-12 items-center justify-center rounded-full bg-muted/30'>
           <Search class='size-5 text-muted-foreground/60' />
         </div>

@@ -3,10 +3,10 @@
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import { computed, ref, watch } from 'vue'
 
-  import Sidebar from '../Sidebar.vue'
-  import Button from '../../ui/Button.vue'
   import { useMainLayout } from '../../../composables/useMainLayout'
   import { getPlatform, Platform } from '../../../lib/platform'
+  import Button from '../../ui/Button.vue'
+  import Sidebar from '../Sidebar.vue'
   import 'overlayscrollbars/overlayscrollbars.css'
 
   defineProps<{

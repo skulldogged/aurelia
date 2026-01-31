@@ -5,7 +5,6 @@
   import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
-  import { getApiClient, Playlist } from '../../index'
   import PlaylistsPageTopBar from '../../components/desktop/PlaylistsPageTopBar.vue'
   import ImageLoader from '../../components/shared/ImageLoader.vue'
   import ImagePlaceholder from '../../components/shared/ImagePlaceholder.vue'
@@ -35,6 +34,7 @@
   import { Skeleton } from '../../components/ui/skeleton'
   import { usePagination } from '../../composables/useLayoutPreference'
   import { useTopBar } from '../../composables/useTopBar'
+  import { Playlist } from '../../index'
   import { logger } from '../../lib/logger'
   import { useAuthStore } from '../../stores'
   import { usePlaylistStore } from '../../stores/playlists'

@@ -11,11 +11,14 @@
     /** Icon component to display */
     icon?:        Component
     /** Title text for the empty state */
-    title:        string
+    title?:       string
   }
 
   const props = withDefaults(defineProps<Props>(), {
-    icon: () => Inbox,
+    actionLabel: undefined,
+    description: undefined,
+    icon:        () => Inbox,
+    title:       undefined,
   })
 
   const emit = defineEmits<{
@@ -40,7 +43,8 @@
     <button
       @click='emit("action")'
       v-if='actionLabel'
-      class='mt-4 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-md hover:bg-primary/90 transition-colors'
+      class='mt-4 px-4 py-2 text-sm font-medium text-primary-foreground bg-primary
+             rounded-md hover:bg-primary/90 transition-colors'
     >
       {{ actionLabel }}
     </button>

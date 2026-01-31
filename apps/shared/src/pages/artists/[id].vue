@@ -3,7 +3,6 @@
   import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
-  import { getApiClient, Album, Artist, Song } from '../../index'
   import AddToPlaylistMenu from '../../components/shared/AddToPlaylistMenu.vue'
   import AlbumCard from '../../components/shared/AlbumCard.vue'
   import Carousel from '../../components/shared/Carousel.vue'
@@ -19,11 +18,12 @@
   } from '../../components/ui/dropdown-menu'
   import { Skeleton } from '../../components/ui/skeleton'
   import { scrollElementKey } from '../../composables/useMainLayout'
-  import { formatDuration } from '../../lib/utils'
+  import { Album, Artist, getApiClient, Song } from '../../index'
   import { logger } from '../../lib/logger'
+  import { formatDuration } from '../../lib/utils'
+  import { usePlayerStore } from '../../stores'
   import { useAuthStore } from '../../stores/auth'
   import { useLibraryStore } from '../../stores/library'
-  import { usePlayerStore } from '../../stores'
 
   const topSongsCount = 10
 
@@ -350,8 +350,8 @@
 
     <!-- Hero Section -->
     <section
-      ref='heroRef'
       v-if='artist || isLoading'
+      ref='heroRef'
       class='
         relative isolate overflow-hidden min-h-[400px]
         bg-linear-to-b from-sidebar via-sidebar to-background

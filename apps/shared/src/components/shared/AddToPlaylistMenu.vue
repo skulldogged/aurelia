@@ -3,6 +3,8 @@
   import { useRouter } from 'vue-router'
 
   import { Song } from '../../lib/api/types'
+  import { logger } from '../../lib/logger'
+  import { usePlaylistStore } from '../../stores/playlists'
   import {
     ContextMenuItem,
     ContextMenuSub,
@@ -15,8 +17,6 @@
     DropdownMenuSubContent,
     DropdownMenuSubTrigger,
   } from '../ui/dropdown-menu'
-  import { logger } from '../../lib/logger'
-  import { usePlaylistStore } from '../../stores/playlists'
 
   const props = defineProps<{
     songs: Song[]

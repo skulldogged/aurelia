@@ -189,8 +189,8 @@ pub async fn get_home_view_data(
         derived_albums.len()
     );
 
-    // Recently added - sort by date_created
-    let mut recently_added = derived_albums.clone();
+    // Recently added songs - sort by date_created
+    let mut recently_added = all_songs.clone();
     recently_added.sort_by(|a, b| {
         let date_a = a
             .date_created

@@ -8,6 +8,10 @@
   import type { PlaylistWithMeta } from '../../stores'
 
   import { PlaylistCreateData, PlaylistUpdateData, Song } from '../../lib/api/types'
+  import { logger } from '../../lib/logger'
+  import { useAuthStore } from '../../stores'
+  import { useLibraryStore } from '../../stores/library'
+  import { usePlaylistStore } from '../../stores/playlists'
   import ImageLoader from '../shared/ImageLoader.vue'
   import ImagePlaceholder from '../shared/ImagePlaceholder.vue'
   import Button from '../ui/Button.vue'
@@ -22,10 +26,6 @@
   } from '../ui/dialog'
   import { Input } from '../ui/input'
   import Label from '../ui/Label.vue'
-  import { logger } from '../../lib/logger'
-  import { useAuthStore } from '../../stores'
-  import { useLibraryStore } from '../../stores/library'
-  import { usePlaylistStore } from '../../stores/playlists'
 
   const route = useRoute()
   const router = useRouter()
@@ -152,8 +152,8 @@
         }
       } else if (playlist.value) {
         const updateData: PlaylistUpdateData = {
-          ids:        selectedSongs.value.map(song => song.id),
-          name:       name.value.trim(),
+          ids:  selectedSongs.value.map(song => song.id),
+          name: name.value.trim(),
         }
 
         const success = await playlistStore.updatePlaylist(playlist.value.id, updateData)

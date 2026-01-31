@@ -2,6 +2,14 @@
   import { storeToRefs } from 'pinia'
   import { computed, ref } from 'vue'
 
+  import { useSystemTray } from '../../composables/useSystemTray'
+  import { AccentColorName } from '../../lib/colorSchemes'
+  import {
+    useAccentColorStore,
+    usePlayerStore,
+    useSystemTrayStore,
+    useThemeStore,
+  } from '../../stores'
   import Label from '../ui/Label.vue'
   import {
     Select,
@@ -12,14 +20,6 @@
     SelectValue,
   } from '../ui/select'
   import Switch from '../ui/Switch.vue'
-  import { useSystemTray } from '../../composables/useSystemTray'
-  import { AccentColorName } from '../../lib/colorSchemes'
-  import {
-    useAccentColorStore,
-    usePlayerStore,
-    useSystemTrayStore,
-    useThemeStore,
-  } from '../../stores'
 
   const accentColorStore = useAccentColorStore()
   const themeStore = useThemeStore()
@@ -42,7 +42,6 @@
   const selectedAccentColorName = ref(accentColor.value.name)
   const selectedVisualizerStyle = ref(playerStore.visualizerStyle)
   const visualizerEnabled = ref(playerStore.visualizerEnabled)
-
 
   // Helper to capitalize enum names for display
   const formatEnumName = (name: string): string =>
@@ -80,7 +79,6 @@
     }
   }
 
-
   const handleMinimizeToggle = async (checked: boolean): Promise<void> => {
     systemTrayStore.minimizeToTray = checked
     await setMinimizeToTray(checked)
@@ -99,8 +97,6 @@
 
 <template>
   <div class='space-y-8'>
-
-
     <!-- Theme Settings Row -->
     <div class='space-y-4'>
       <h3 class='text-lg font-medium'>
@@ -115,7 +111,6 @@
           <Select
             @update:model-value='handleColorSchemeChange'
             v-model='selectedColorScheme'
-
           >
             <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
               <SelectValue placeholder='Select a color scheme' />
@@ -146,7 +141,6 @@
           <Select
             @update:model-value='handleAccentColorChange'
             v-model='selectedAccentColorName'
-
           >
             <SelectTrigger class='w-full bg-background/40 border-border/20 hover:border-border/40'>
               <SelectValue placeholder='Select an accent color' />
@@ -232,7 +226,6 @@
 
     <!-- System Tray -->
     <div class='space-y-4 pt-4 border-t border-border/20'>
-
       <h3 class='text-lg font-medium'>
         System Tray
       </h3>

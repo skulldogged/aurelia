@@ -2,11 +2,12 @@
   import { Loader2 } from 'lucide-vue-next'
   import { onMounted, ref } from 'vue'
 
-  import { getApiClient } from '../index'
   import type { Credentials, LoginResponse } from '../lib/api/types'
+
   import Button from '../components/ui/Button.vue'
   import { Input } from '../components/ui/input'
   import Label from '../components/ui/Label.vue'
+  import { getApiClient } from '../index'
   import { logger } from '../lib/logger'
   import { withCustomState } from '../lib/result'
 

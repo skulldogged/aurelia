@@ -4,7 +4,6 @@
   import { computed, inject, onMounted, onUnmounted, ref, Ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
-  import { getApiClient, Artist, Song } from '../../index'
   import ArtistsPageTopBar from '../../components/desktop/ArtistsPageTopBar.vue'
   import AlphabetNav from '../../components/shared/AlphabetNav.vue'
   import ArtistCard from '../../components/shared/ArtistCard.vue'
@@ -14,6 +13,7 @@
   import { scrollElementKey } from '../../composables/useMainLayout'
   import { useOptimizedVirtualScroller } from '../../composables/useOptimizedVirtualScroller'
   import { useTopBar } from '../../composables/useTopBar'
+  import { Artist, Song } from '../../index'
   import { useAuthStore } from '../../stores/auth'
   import { useLibraryStore } from '../../stores/library'
 
@@ -103,7 +103,7 @@
   })
 
   // Letter filter
-  const letterFilter = ref<string | null>(null)
+  const letterFilter = ref<null | string>(null)
 
   // Available letters for alphabet nav
   const availableLetters = computed(() => {
@@ -123,7 +123,7 @@
   const displayedArtists = computed(() => {
     if (!letterFilter.value) return filteredArtists.value
 
-    return filteredArtists.value.filter((artist) => {
+    return filteredArtists.value.filter(artist => {
       const firstChar = artist.name.charAt(0).toUpperCase()
       if (letterFilter.value === '#') {
         return !/[A-Z]/.test(firstChar)

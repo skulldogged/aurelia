@@ -347,7 +347,9 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const nextSong = (): void => {
-    logger.debug(`[Store] nextSong called. playlist.length=${playlist.value.length}, currentIndex=${currentIndex.value}`)
+    logger.debug(
+      `[Store] nextSong called. playlist.length=${playlist.value.length}, currentIndex=${currentIndex.value}`,
+    )
     if (playlist.value.length === 0) return
 
     const nextIndex = isShuffled.value

@@ -3,7 +3,6 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
 
-  import { getApiClient, Playlist, Song, type UserData } from '../../index'
   import ImageLoader from '../../components/shared/ImageLoader.vue'
   import ImagePlaceholder from '../../components/shared/ImagePlaceholder.vue'
   import SongList from '../../components/shared/SongList.vue'
@@ -24,6 +23,7 @@
   } from '../../components/ui/dropdown-menu'
   import { Skeleton } from '../../components/ui/skeleton'
   import { useSongInteractions } from '../../composables/useSongInteractions'
+  import { Playlist, Song, type UserData } from '../../index'
   import { logger } from '../../lib/logger'
   import { useAuthStore } from '../../stores'
   import { usePlaylistStore } from '../../stores/playlists'

@@ -3,11 +3,10 @@
   import { Heart, Pause, Play, Share2, Shuffle } from 'lucide-vue-next'
   import { computed, inject, ref, watch } from 'vue'
 
+  import { scrollElementKey } from '../../composables/useMainLayout'
   import { Song } from '../../lib/api/types'
-  import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
-  import ImageLoader from './ImageLoader.vue'
-  import ImagePlaceholder from './ImagePlaceholder.vue'
-  import ShareDialog from './ShareDialog.vue'
+  import { formatDuration } from '../../lib/utils'
+  import { usePlayerStore } from '../../stores'
   import Button from '../ui/Button.vue'
   import {
     ContextMenu,
@@ -16,9 +15,10 @@
     ContextMenuTrigger,
   } from '../ui/context-menu'
   import { Skeleton } from '../ui/skeleton'
-  import { scrollElementKey } from '../../composables/useMainLayout'
-  import { formatDuration } from '../../lib/utils'
-  import { usePlayerStore } from '../../stores'
+  import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
+  import ImageLoader from './ImageLoader.vue'
+  import ImagePlaceholder from './ImagePlaceholder.vue'
+  import ShareDialog from './ShareDialog.vue'
 
   const playerStore = usePlayerStore()
 
@@ -280,7 +280,11 @@
                     : 'hover:bg-muted/50 border-b last:border-b-0'
                 ]"
               >
-                <div :class="layoutMode === 'compact' ? 'flex items-center gap-2 px-2 py-1' : 'flex items-center gap-3'">
+                <div
+                  :class="layoutMode === 'compact'
+                    ? 'flex items-center gap-2 px-2 py-1'
+                    : 'flex items-center gap-3'"
+                >
                   <div
                     v-if='showTrackNumber'
                     :class="[
@@ -346,7 +350,11 @@
                   <div class='flex-1 min-w-0'>
                     <div class='flex items-center justify-between'>
                       <div class='flex-1 min-w-0 overflow-hidden'>
-                        <h3 :class="layoutMode === 'compact' ? 'font-medium text-sm truncate' : 'font-semibold truncate'">
+                        <h3
+                          :class="layoutMode === 'compact'
+                            ? 'font-medium text-sm truncate'
+                            : 'font-semibold truncate'"
+                        >
                           {{ song.name }}
                         </h3>
 
@@ -360,12 +368,12 @@
                           <div class='flex items-center gap-1 truncate'>
                             <span v-if='showArtist'>
                               <template
-                                v-if='song.artists && song.artistIds &&
-                                  song.artists.length === song.artistIds.length'
+                                v-if='song.artists && song.artistIds
+                                  && song.artists.length === song.artistIds.length'
                               >
                                 <template
                                   v-for='(artist, artistIndex) in song.artists'
-                                  :key='song.artistIds[artistIndex]'
+                                  :key='song.artistIds![artistIndex]'
                                 >
                                   <RouterLink
                                     @click.stop

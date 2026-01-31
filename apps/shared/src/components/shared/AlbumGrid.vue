@@ -2,10 +2,11 @@
   import { Play, Shuffle } from 'lucide-vue-next'
   import { computed } from 'vue'
 
+  import { useSongInteractions } from '../../composables/useSongInteractions'
   import { Album, Song } from '../../lib/api/types'
-  import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
-  import AlbumCard from './AlbumCard.vue'
-  import ImageLoader from './ImageLoader.vue'
+  import { logger } from '../../lib/logger'
+  import { sortSongsByTrackOrder } from '../../lib/transforms'
+  import { useAuthStore } from '../../stores'
   import Button from '../ui/Button.vue'
   import {
     ContextMenu,
@@ -14,10 +15,9 @@
     ContextMenuTrigger,
   } from '../ui/context-menu'
   import { Skeleton } from '../ui/skeleton'
-  import { useSongInteractions } from '../../composables/useSongInteractions'
-  import { logger } from '../../lib/logger'
-  import { sortSongsByTrackOrder } from '../../lib/transforms'
-  import { useAuthStore } from '../../stores'
+  import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
+  import AlbumCard from './AlbumCard.vue'
+  import ImageLoader from './ImageLoader.vue'
 
   const authStore = useAuthStore()
 

@@ -1,11 +1,7 @@
 <script setup lang='ts'>
-  import { useColorMode, useMagicKeys } from '@vueuse/core'
-  import { storeToRefs } from 'pinia'
-  import { computed, onMounted, ref, watch } from 'vue'
-
-  import type { Credentials } from '@/lib/api/bindings'
   import type { Song } from '@shared/lib/api/types'
 
+  import { getApiClient, isDesktop } from '@shared'
   // Import from shared package
   import MainLayout from '@shared/components/layout/MainLayout.vue'
   import Equalizer from '@shared/components/player/Equalizer.vue'
@@ -36,17 +32,24 @@
   import { useSystemTray } from '@shared/composables/useSystemTray'
   import { useTopBar } from '@shared/composables/useTopBar'
   import { useVisualizerData } from '@shared/composables/useVisualizerData'
-  import { getApiClient, isDesktop } from '@shared'
   import { setAuthLogout } from '@shared/lib/auth-interceptor'
   import Login from '@shared/pages/login.vue'
   import { useHomeStore, useLibraryStore } from '@shared/stores'
+  import { useColorMode, useMagicKeys } from '@vueuse/core'
+  import { computed, onMounted, ref, watch } from 'vue'
 
-  // Desktop-specific imports
-  import { commands } from '@/lib/api/bindings'
+  import type { Credentials } from '@/lib/api/bindings'
 
   useColorMode()
 
-  const { authStatus: authStatusRef, clearError: clearAuthError, credentials: credentialsRef, error: authErrorRef, login, logout } = useAuth()
+  const {
+    authStatus: authStatusRef,
+    clearError: clearAuthError,
+    credentials: credentialsRef,
+    error: authErrorRef,
+    login,
+    logout,
+  } = useAuth()
   setAuthLogout(logout)
   const libraryStore = useLibraryStore()
   const homeStore = useHomeStore()
@@ -64,7 +67,11 @@
   const topBarContent = computed(() => topBarContentRef.value)
 
   // Visualizer data from Rust backend FFT analysis
-  const { frequencyData: frequencyDataRef, setEnabled: setAnalyzerEnabled, timeDomainData: timeDomainDataRef } = useVisualizerData()
+  const {
+    frequencyData: frequencyDataRef,
+    setEnabled: setAnalyzerEnabled,
+    timeDomainData: timeDomainDataRef,
+  } = useVisualizerData()
   const frequencyData = computed(() => frequencyDataRef.value)
   const timeDomainData = computed(() => timeDomainDataRef.value)
 
@@ -253,7 +260,7 @@
     playerStore.setCurrentIndex(-1)
   }
 
-  const handleToggleFavorite = (song: Song | null): void => {
+  const handleToggleFavorite = (song: null | Song): void => {
     if (song) {
       toggleFavorite(song)
     }
@@ -308,7 +315,7 @@
 
 <template>
   <div id='app' class='h-screen text-foreground'>
-    <div v-if="authStatus === 'pending'" class='size-full flex items-center justify-center'>
+    <div v-if="authStatus === 'pending' || authStatus === 'initializing'" class='size-full flex items-center justify-center'>
       <div class='text-center'>
         <div class='animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mx-auto' />
         <p class='mt-4 text-muted-foreground'>

@@ -1,95 +1,93 @@
 /**
  * Unified Audio Player Interface
- * 
+ *
  * Abstracts platform-specific audio implementations (Web Audio API vs Rust backend)
  * providing a single consistent interface for the audio engine.
  */
 
-import type { Song } from '../lib/api/types'
+export type AudioErrorCallback = (error: Error) => void
 
-export interface EQBand {
-  frequency: number
-  gain: number
-  Q: number
-  type: BiquadFilterType
-}
-
-export interface EQPreset {
-  bands: EQBand[]
-  name: string
-}
-
-export interface PlayMetadata {
-  album?: null | string
-  artist?: null | string
-  artworkUrl?: null | string
-  title?: null | string
-}
+export type AudioEventCallback = (event: AudioPosition) => void
 
 export interface AudioLoadResult {
   duration: number
-  success: boolean
+  success:  boolean
 }
-
-export interface AudioPosition {
-  isFinished: boolean
-  position: number
-}
-
-export type AudioEventCallback = (event: AudioPosition) => void
-export type AudioErrorCallback = (error: Error) => void
-export type DurationChangeCallback = (duration: number) => void
 
 /**
  * Unified audio player interface - all methods return Promises for consistency
  */
 export interface AudioPlayer {
-  // Lifecycle
-  initialize(): Promise<boolean>
-  reinitialize(): Promise<boolean>
-  destroy(): Promise<void>
-  isAvailable(): boolean
-
-  // Playback control
-  load(url: string, token: string, metadata?: PlayMetadata): Promise<AudioLoadResult>
-  play(): Promise<boolean>
-  pause(): Promise<boolean>
-  stop(): Promise<boolean>
-  seek(positionSecs: number): Promise<boolean>
-  prepareNext(url: string, token: string): Promise<boolean>
   advanceGapless(): Promise<boolean>
-
-  // State getters
-  isPlaying(): Promise<boolean>
-  isFinished(): Promise<boolean>
-  getPosition(): Promise<number>
-  getDuration(): Promise<number>
-  getVolume(): Promise<number>
-
-  // Volume
-  setVolume(volume: number): Promise<boolean>
-
-  // EQ
-  setEQEnabled(enabled: boolean): Promise<boolean>
-  isEQEnabled(): Promise<boolean>
-  setEQBand(bandIndex: number, gainDb: number): Promise<boolean>
-  getEQBand(bandIndex: number): Promise<number>
-  getAllEQBands(): Promise<number[]>
-  resetEQ(): Promise<boolean>
   applyEQPreset(presetName: string): Promise<boolean>
-
-  // Event handling
-  onPositionUpdate(callback: AudioEventCallback): () => void
-  onError(callback: AudioErrorCallback): () => void
-  onDurationChange(callback: DurationChangeCallback): () => void
-  onTrackEnd(callback: () => void): () => void
+  destroy(): Promise<void>
+  getAllEQBands(): Promise<number[]>
 
   // Visualizer (Web Audio only - returns null for Rust)
   getAnalyserNode(): AnalyserNode | null
-
+  getDefaultEQBands(): EQBand[]
+  getDuration(): Promise<number>
+  getEQBand(bandIndex: number): Promise<number>
   // EQ Presets (shared across platforms)
   getEQPresets(): EQPreset[]
-  getDefaultEQBands(): EQBand[]
+  getPosition(): Promise<number>
+  getVolume(): Promise<number>
+
+  // Lifecycle
+  initialize(): Promise<boolean>
+  isAvailable(): boolean
+  isEQEnabled(): Promise<boolean>
+  isFinished(): Promise<boolean>
+  // State getters
+  isPlaying(): Promise<boolean>
+
+  // Playback control
+  load(url: string, token: string, metadata?: PlayMetadata): Promise<AudioLoadResult>
+
+  onDurationChange(callback: DurationChangeCallback): () => void
+  onError(callback: AudioErrorCallback): () => void
+  // Event handling
+  onPositionUpdate(callback: AudioEventCallback): () => void
+  onTrackEnd(callback: () => void): () => void
+  pause(): Promise<boolean>
+  play(): Promise<boolean>
+  prepareNext(url: string, token: string): Promise<boolean>
+
+  reinitialize(): Promise<boolean>
+  resetEQ(): Promise<boolean>
+  seek(positionSecs: number): Promise<boolean>
+  setEQBand(bandIndex: number, gainDb: number): Promise<boolean>
+
+  // EQ
+  setEQEnabled(enabled: boolean): Promise<boolean>
+
+  // Volume
+  setVolume(volume: number): Promise<boolean>
+  stop(): Promise<boolean>
+}
+
+export interface AudioPosition {
+  isFinished: boolean
+  position:   number
+}
+
+export type DurationChangeCallback = (duration: number) => void
+export interface EQBand {
+  frequency: number
+  gain:      number
+  Q:         number
+  type:      BiquadFilterType
+}
+export interface EQPreset {
+  bands: EQBand[]
+  name:  string
+}
+
+export interface PlayMetadata {
+  album?:      null | string
+  artist?:     null | string
+  artworkUrl?: null | string
+  title?:      null | string
 }
 
 // Shared EQ configuration - single source of truth
@@ -104,7 +102,7 @@ export const DEFAULT_EQ_BANDS: EQBand[] = [
 export const EQ_PRESETS: EQPreset[] = [
   {
     bands: DEFAULT_EQ_BANDS.map(band => ({ ...band, gain: 0 })),
-    name: 'Flat',
+    name:  'Flat',
   },
   {
     bands: [

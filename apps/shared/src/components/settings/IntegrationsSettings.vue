@@ -2,16 +2,16 @@
   import { ExternalLink, XCircle } from 'lucide-vue-next'
   import { computed, onBeforeUnmount, ref } from 'vue'
 
+  import { useLastFm } from '../../composables/useLastFm'
+  import { useListenBrainz } from '../../composables/useListenBrainz'
   import { getApiClient } from '../../index'
+  import { logger } from '../../lib/logger'
+  import { isTauri } from '../../lib/platform'
+  import { useLastFmStore, useListenBrainzStore } from '../../stores'
   import Button from '../ui/Button.vue'
   import { Input } from '../ui/input'
   import Label from '../ui/Label.vue'
   import Switch from '../ui/Switch.vue'
-  import { useLastFm } from '../../composables/useLastFm'
-  import { useListenBrainz } from '../../composables/useListenBrainz'
-  import { logger } from '../../lib/logger'
-  import { isTauri } from '../../lib/platform'
-  import { useLastFmStore, useListenBrainzStore } from '../../stores'
 
   // Type for unlisten function
   type UnlistenFn = () => void

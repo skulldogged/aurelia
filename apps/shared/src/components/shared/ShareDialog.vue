@@ -19,6 +19,8 @@
   import { computed, ref, watch } from 'vue'
 
   import { getApiClient } from '../../index'
+  import { logger } from '../../lib/logger'
+  import { isTauri } from '../../lib/platform'
   import Button from '../ui/Button.vue'
   import {
     Dialog,
@@ -26,8 +28,6 @@
     DialogHeader,
     DialogTitle,
   } from '../ui/dialog'
-  import { logger } from '../../lib/logger'
-  import { isTauri } from '../../lib/platform'
 
   interface Props {
     itemId:   string

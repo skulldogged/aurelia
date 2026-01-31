@@ -73,12 +73,11 @@ const registerCapabilities = async (authStore: ReturnType<typeof useAuthStore>):
   )
 
   try {
-    const result =
-      await getApiClient().registerClientCapabilities(
-        authStore.serverUrl,
-        authStore.token,
-        sessionState.value.deviceId,
-      )
+    const result = await getApiClient().registerClientCapabilities(
+      authStore.serverUrl,
+      authStore.token,
+      sessionState.value.deviceId,
+    )
     if (result.status === 'error') {
       logger.error('Failed to register client capabilities:', result.error)
       return
@@ -100,8 +99,15 @@ const reportPlaybackStart = async (
     return
 
   try {
-    const ticks = positionTicks ? Math.floor(positionTicks * 10_000_000) : null
-    const result = await getApiClient().reportPlaybackStart(authStore.serverUrl, authStore.token, itemId, ticks)
+    const ticks = positionTicks ? Math.floor(positionTicks * 10_000_000) : undefined
+    const result = await getApiClient().reportPlayback(
+      authStore.serverUrl,
+      authStore.token,
+      itemId,
+      ticks,
+      'start',
+      undefined,
+    )
     if (result.status === 'error') {
       logger.error('Failed to report playback start:', result.error)
       return
@@ -123,13 +129,13 @@ const reportPlaybackProgress = async (
     return
 
   try {
-    const result = await getApiClient().reportPlaybackProgress(
+    const result = await getApiClient().reportPlayback(
       authStore.serverUrl,
       authStore.token,
       itemId,
       Math.floor(positionTicks * 10_000_000),
-      eventName ?? null,
-      isPaused ?? null,
+      eventName,
+      isPaused,
     )
     if (result.status === 'error') {
       logger.debug('Failed to report playback progress:', result.error)
@@ -149,8 +155,15 @@ const reportPlaybackStop = async (
     return
 
   try {
-    const ticks = positionTicks ? Math.floor(positionTicks * 10_000_000) : null
-    const result = await getApiClient().reportPlaybackStop(authStore.serverUrl, authStore.token, itemId, ticks)
+    const ticks = positionTicks ? Math.floor(positionTicks * 10_000_000) : undefined
+    const result = await getApiClient().reportPlayback(
+      authStore.serverUrl,
+      authStore.token,
+      itemId,
+      ticks,
+      'stop',
+      undefined,
+    )
     if (result.status === 'error') {
       logger.error('Failed to report playback stop:', result.error)
       return
@@ -161,26 +174,6 @@ const reportPlaybackStop = async (
     sessionState.value.playSessionId = `play-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
   } catch (error) {
     logger.error('Failed to report playback stop:', error)
-  }
-}
-
-const markItemPlayed = async (
-  authStore: ReturnType<typeof useAuthStore>,
-  itemId: string,
-): Promise<void> => {
-  if (!authStore.serverUrl || !authStore.token || !authStore.userId)
-    return
-
-  try {
-    const result = await getApiClient().markItemPlayed(authStore.serverUrl, authStore.token, authStore.userId, itemId)
-    if (result.status === 'error') {
-      logger.error('Failed to mark item as played:', result.error)
-      return
-    }
-
-    logger.debug('Item marked as played', { itemId })
-  } catch (error) {
-    logger.error('Failed to mark item as played:', error)
   }
 }
 
@@ -196,7 +189,6 @@ const generateNewSession = (): void => {
 export interface Session {
   generateNewSession:     () => void
   initializeSession:      () => Promise<void>
-  markItemPlayed:         (itemId: string) => Promise<void>
   registerCapabilities:   () => Promise<void>
   reportPlaybackProgress: (
     itemId: string,
@@ -222,7 +214,6 @@ export const useSession = (): Session => {
     generateNewSession,
 
     initializeSession,
-    markItemPlayed:         itemId => markItemPlayed(authStore, itemId),
     registerCapabilities:   () => registerCapabilities(authStore),
     reportPlaybackProgress: (itemId, positionTicks, eventName, isPaused) =>
       reportPlaybackProgress(authStore, itemId, positionTicks, eventName, isPaused),

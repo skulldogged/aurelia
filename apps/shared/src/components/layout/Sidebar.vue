@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
-
+  import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
   import { computed } from 'vue'
 
   import { getPlatform, Platform } from '../../lib/platform'
@@ -8,18 +7,15 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
 
   const isMacos = computed(() => getPlatform() === Platform.MacOS)
 
-
   const props = defineProps<{
     currentView: string
     isCollapsed: boolean
   }>()
 
-
   const emit = defineEmits<{
     'global-search': []
     navigate:        [view: string]
   }>()
-
 
   // Now that we've removed window transparency, use solid background
   const sidebarBgClass = computed(() => 'bg-background-dark')
@@ -30,7 +26,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
 
     return 'w-48'
   })
-
 
   const navItemClass = computed(() => (view: string) => {
     const isActive = props.currentView === view
@@ -47,12 +42,10 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
     ]
   })
 
-
   const navIconClass = computed(() =>
     // Desktop - always use fixed width to prevent shifting during collapse animation
-    'w-12 shrink-0 flex justify-center items-center'
+    'w-12 shrink-0 flex justify-center items-center',
   )
-
 
   // Offset by -1px to compensate for the button's left border
   // so the search icon aligns with nav icons (which have no border)
@@ -73,7 +66,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
       'flex-col h-full',
       sidebarWidthClass,
     ]"
-
   >
     <div
       :class="['absolute z-10 top-12 pointer-events-none outer-shadow-right', shadowBottomClass]"
@@ -81,7 +73,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
     <div :class="['flex', 'flex-col', 'h-full', isMacos && 'pt-10']">
       <!-- Search -->
       <div class='m-2 mb-2'>
-
         <button
           @click="emit('global-search')"
           class='
@@ -113,7 +104,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
       </div>
       <nav class='flex flex-col grow m-2 mt-0'>
         <div class='grow space-y-2'>
-
           <RouterLink
             :class="navItemClass('home')"
             to='/'
@@ -127,7 +117,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
                 props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
               ]"
             >
-
               <span class='whitespace-nowrap'>Home</span>
             </div>
           </RouterLink>
@@ -144,7 +133,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
                 props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
               ]"
             >
-
               <span class='whitespace-nowrap'>Songs</span>
             </div>
           </RouterLink>
@@ -161,7 +149,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
                 props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
               ]"
             >
-
               <span class='whitespace-nowrap'>Artists</span>
             </div>
           </RouterLink>
@@ -178,7 +165,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
                 props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
               ]"
             >
-
               <span class='whitespace-nowrap'>Albums</span>
             </div>
           </RouterLink>
@@ -195,7 +181,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
                 props.isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
               ]"
             >
-
               <span class='whitespace-nowrap'>Playlists</span>
             </div>
           </RouterLink>
@@ -204,7 +189,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
           :class="navItemClass('settings')"
           to='/settings'
         >
-
           <div :class='navIconClass'>
             <Settings class='size-5' />
           </div>
@@ -217,7 +201,6 @@ import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vu
             <span class='whitespace-nowrap'>Settings</span>
           </div>
         </RouterLink>
-
       </nav>
     </div>
   </div>

@@ -36,10 +36,15 @@ struct HomeViewData {
 }
 
 // Types matching the aurelia-core API
+/// API response that serializes as a discriminated union
+/// Success: { "status": "ok", "data": T }
+/// Error: { "status": "error", "error": E }
 #[derive(Debug, Serialize)]
 struct ApiResponse<T> {
     status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
 }
 
@@ -79,7 +84,7 @@ struct FavoriteRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlaylistItemsRequest {
-    item_ids: Vec<String>,
+    song_ids: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -87,7 +92,6 @@ struct PlaylistItemsRequest {
 struct StreamUrlRequest {
     server_url: String,
     token: String,
-    item_id: String,
     container: Option<String>,
 }
 
@@ -98,6 +102,40 @@ struct LyricsRequest {
     artist: String,
     title: String,
     path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CapabilitiesRequest {
+    server_url: String,
+    token: String,
+    device_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaybackReportRequest {
+    server_url: String,
+    token: String,
+    item_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    position_ticks: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    event_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    is_paused: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageUrlRequest {
+    image_type: String,
+    server_url: String,
+    token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    width: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    quality: Option<u32>,
 }
 
 // App state
@@ -187,13 +225,18 @@ async fn main() {
         .route("/api/home", get(get_home_view))
         .route("/api/home/recently-played", get(get_recently_played))
         // Audio routes
-        .route("/api/audio/stream-url", post(get_stream_url))
+        .route("/api/audio/{item_id}/stream-url", get(get_stream_url))
         .route("/api/audio/proxy", get(proxy_audio))
         // Lyrics routes
         .route("/api/lyrics", post(get_lyrics))
         // Artist routes
         .route("/api/artists/{artist_id}", get(get_artist))
         .route("/api/artists/{artist_id}/related", get(get_related_artists))
+        // Playback reporting routes
+        .route("/api/sessions/capabilities", post(register_capabilities))
+        .route("/api/sessions/playing", post(report_playback))
+        // Image routes
+        .route("/api/images/{item_id}", get(get_image_url))
         // WebSocket
         .route("/ws", get(websocket_handler))
         .layer(cors)
@@ -564,7 +607,7 @@ async fn add_playlist_items(
 ) -> impl IntoResponse {
     match aurelia_core::load_credentials(state.app_data_dir.to_string_lossy().to_string()) {
         Ok(Some(creds)) => {
-            match aurelia_core::add_playlist_items(creds.server_url, creds.token, playlist_id, req.item_ids).await {
+            match aurelia_core::add_playlist_items(creds.server_url, creds.token, playlist_id, req.song_ids).await {
                 Ok(_) => (StatusCode::OK, Json(ApiResponse::ok(()))),
                 Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e.to_string()))),
             }
@@ -580,7 +623,7 @@ async fn remove_playlist_items(
 ) -> impl IntoResponse {
     match aurelia_core::load_credentials(state.app_data_dir.to_string_lossy().to_string()) {
         Ok(Some(creds)) => {
-            match aurelia_core::remove_playlist_items(creds.server_url, creds.token, playlist_id, req.item_ids).await {
+            match aurelia_core::remove_playlist_items(creds.server_url, creds.token, playlist_id, req.song_ids).await {
                 Ok(_) => (StatusCode::OK, Json(ApiResponse::ok(()))),
                 Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e.to_string()))),
             }
@@ -764,13 +807,16 @@ async fn proxy_audio(
 }
 
 // Audio handlers
-async fn get_stream_url(Json(req): Json<StreamUrlRequest>) -> impl IntoResponse {
-    info!("get_stream_url request: {:?}", req);
+async fn get_stream_url(
+    Path(item_id): Path<String>,
+    Query(params): Query<StreamUrlRequest>,
+) -> impl IntoResponse {
+    info!("get_stream_url request for item: {}", item_id);
     let url = aurelia_core::build_stream_url(
-        req.server_url,
-        req.token,
-        req.item_id,
-        req.container,
+        params.server_url,
+        params.token,
+        item_id,
+        params.container,
     );
     info!("Generated stream URL: {}", url);
     (StatusCode::OK, Json(ApiResponse::ok(url)))
@@ -779,14 +825,17 @@ async fn get_stream_url(Json(req): Json<StreamUrlRequest>) -> impl IntoResponse 
 // Lyrics handlers
 async fn get_lyrics(Json(req): Json<LyricsRequest>) -> impl IntoResponse {
     // For LRCLIB, we don't need server/token/item_id from Jellyfin
+    // but we still pass them for API compatibility
     let lyrics = aurelia_core::get_lyrics(
         "".to_string(),
         "".to_string(),
-        "".to_string(),
+        req.id,
         req.artist,
         req.title,
     ).await;
-    (StatusCode::OK, Json(ApiResponse::ok(lyrics)))
+    // Return empty string as null for consistency with frontend expectations
+    let result = if lyrics.is_empty() { None } else { Some(lyrics) };
+    (StatusCode::OK, Json(ApiResponse::ok(result)))
 }
 
 // Artist handlers
@@ -798,6 +847,49 @@ async fn get_related_artists(
         Ok(artists) => (StatusCode::OK, Json(ApiResponse::ok(artists))),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ApiResponse::err(e.to_string()))),
     }
+}
+
+// Playback reporting handlers
+async fn register_capabilities(Json(req): Json<CapabilitiesRequest>) -> impl IntoResponse {
+    // For web, we don't need to register capabilities with Jellyfin in the same way
+    // The frontend handles this directly. Just return success.
+    info!("Register capabilities request for device: {}", req.device_id);
+    (StatusCode::OK, Json(ApiResponse::ok(())))
+}
+
+async fn report_playback(Json(req): Json<PlaybackReportRequest>) -> impl IntoResponse {
+    info!(
+        "Playback report - item: {}, position: {:?}, event: {:?}, paused: {:?}",
+        req.item_id, req.position_ticks, req.event_name, req.is_paused
+    );
+    
+    // For web, playback reporting is handled by the frontend directly with Jellyfin
+    // This endpoint is here for API compatibility with desktop
+    (StatusCode::OK, Json(ApiResponse::ok(())))
+}
+
+// Image handler - generates Jellyfin image URL
+async fn get_image_url(
+    Path(item_id): Path<String>,
+    Query(params): Query<ImageUrlRequest>,
+) -> impl IntoResponse {
+    let mut url = format!("{}/Items/{}/Images/{}", params.server_url, item_id, params.image_type);
+    
+    let query_params: Vec<String> = [
+        Some(format!("api_key={}", params.token)),
+        params.width.map(|w| format!("width={}", w)),
+        params.quality.map(|q| format!("quality={}", q)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    
+    if !query_params.is_empty() {
+        url.push_str("?");
+        url.push_str(&query_params.join("&"));
+    }
+    
+    (StatusCode::OK, Json(ApiResponse::ok(url)))
 }
 
 // WebSocket handler

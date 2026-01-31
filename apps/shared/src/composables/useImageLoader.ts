@@ -1,5 +1,6 @@
-import { getApiClient } from '../index'
 import type { Result } from '../lib/api/types'
+
+import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
 import { LRUCache } from '../lib/lru-cache'
 import { isTauri } from '../lib/platform'
@@ -40,8 +41,7 @@ const getImageUrl = async (
     return assetUrlCache.get(cacheKey)!
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await (getApiClient() as any).getImage({ itemId, imageType, serverUrl, token, width: width ?? null, quality: quality ?? null })
+  const result = await getApiClient().getImage(itemId, imageType, serverUrl, token, width, quality)
   if (result.status === 'error' || !result.data) {
     if (result.status === 'error')
       logger.warn(`Failed to get image for ${itemId}: ${result.error}`)

@@ -14,15 +14,15 @@ export enum Platform {
  * Check if the current environment is Tauri
  */
 export const isTauri = (): boolean => (
-  typeof window !== 'undefined' && 
+  typeof window !== 'undefined' &&
   (
-    '__TAURI_INTERNALS__' in window || 
-    (window as any).__TAURI__ !== undefined
+    '__TAURI_INTERNALS__' in window ||
+    (window as Window & { __TAURI__?: unknown }).__TAURI__ !== undefined
   )
 )
 
 // Cache for platform value to avoid repeated async calls
-let cachedPlatform: Platform | null = null
+let cachedPlatform: null | Platform = null
 
 /**
 * Get the current platform
@@ -73,7 +73,7 @@ export const initializePlatform = async (): Promise<Platform> => {
     }
     cachedPlatform = platformMap[platform()] ?? Platform.Unknown
     return cachedPlatform
-  } catch (e) {
+  } catch {
     cachedPlatform = Platform.Unknown
     return cachedPlatform
   }

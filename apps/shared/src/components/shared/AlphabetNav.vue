@@ -2,7 +2,7 @@
   import { computed } from 'vue'
 
   interface Props {
-    activeLetter?:    string | null
+    activeLetter?:    null | string
     availableLetters: Set<string>
   }
 
@@ -11,7 +11,7 @@
   })
 
   const emit = defineEmits<{
-    select: [letter: string | null]
+    select: [letter: null | string]
   }>()
 
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('')
@@ -35,8 +35,8 @@
   <nav class='flex flex-wrap gap-0.5 justify-center'>
     <!-- Clear filter button -->
     <button
-      v-if='activeLetter'
       @click='$emit("select", null)'
+      v-if='activeLetter'
       class='
         px-2 h-7 text-xs font-medium rounded transition-colors mr-1
         bg-accent text-accent-foreground hover:bg-accent/80

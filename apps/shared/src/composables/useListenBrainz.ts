@@ -37,10 +37,12 @@ export const useListenBrainz = (): {
   }
 
   if (listenbrainzStore.credentials) {
-    void getApiClient().listenbrainzSetCredentials(listenbrainzStore.credentials).then((result: Result<unknown, string>) => {
-      if (result.status === 'error')
-        logger.error('Failed to restore credentials:', result.error)
-    })
+    void getApiClient()
+      .listenbrainzSetCredentials(listenbrainzStore.credentials)
+      .then((result: Result<unknown, string>) => {
+        if (result.status === 'error')
+          logger.error('Failed to restore credentials:', result.error)
+      })
   }
 
   let hasScrobbled = false

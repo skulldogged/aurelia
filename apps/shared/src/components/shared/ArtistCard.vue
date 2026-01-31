@@ -3,9 +3,9 @@
 
   import type { Artist } from '../../lib/api/types'
 
+  import Button from '../ui/Button.vue'
   import ImageLoader from './ImageLoader.vue'
   import ImagePlaceholder from './ImagePlaceholder.vue'
-  import Button from '../ui/Button.vue'
 
   interface Props {
     artist:      Artist
@@ -33,7 +33,7 @@
     class='artist-card cursor-pointer group'
   >
     <!-- Artist image (circular) -->
-    <div class='artist-card-image relative' :class='compact ? "mb-2" : "mb-3"'>
+    <div :class='compact ? "mb-2" : "mb-3"' class='artist-card-image relative'>
       <div class='relative w-full aspect-square'>
         <ImageLoader
           :alt='`${artist.name} artist image`'

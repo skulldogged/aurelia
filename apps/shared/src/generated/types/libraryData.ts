@@ -1,0 +1,1 @@
+export type LibraryData = { albums: Album[]; artists: Artist[]; songs: Song[] }

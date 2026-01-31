@@ -4,6 +4,7 @@
   import { storeToRefs } from 'pinia'
 
   import { getAudioPlayer } from '../../audio'
+  import { usePlayerControls } from '../../composables/usePlayerControls'
   import Button from '../ui/Button.vue'
   import {
     Select,
@@ -15,7 +16,6 @@
     SelectValue,
   } from '../ui/select'
   import { Slider } from '../ui/slider'
-  import { usePlayerControls } from '../../composables/usePlayerControls'
 
   // Get player store
   const { playerStore } = usePlayerControls()

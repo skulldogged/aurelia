@@ -3,7 +3,6 @@
   import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
 
-  import { getApiClient, Album, NameIdPair, Song } from '../../index'
   import AddToPlaylistMenu from '../../components/shared/AddToPlaylistMenu.vue'
   import AlbumTrackList from '../../components/shared/AlbumTrackList.vue'
   import ImageLoader from '../../components/shared/ImageLoader.vue'
@@ -17,6 +16,7 @@
   } from '../../components/ui/dropdown-menu'
   import { Skeleton } from '../../components/ui/skeleton'
   import { scrollElementKey } from '../../composables/useMainLayout'
+  import { Album, NameIdPair, Song } from '../../index'
   import { useAuthStore } from '../../stores/auth'
   import { useLibraryStore } from '../../stores/library'
 
@@ -60,14 +60,14 @@
   const albumSongs = computed(() =>
     album.value
       ? [...album.value.songs || []].sort((a, b) => {
-          // Sort by disc number first, then by track number
-          const discA = a.discNumber ?? 1
-          const discB = b.discNumber ?? 1
-          if (discA !== discB) {
-            return discA - discB
-          }
-          return (a.trackNumber ?? 0) - (b.trackNumber ?? 0)
-        })
+        // Sort by disc number first, then by track number
+        const discA = a.discNumber ?? 1
+        const discB = b.discNumber ?? 1
+        if (discA !== discB) {
+          return discA - discB
+        }
+        return (a.trackNumber ?? 0) - (b.trackNumber ?? 0)
+      })
       : [],
   )
 
@@ -250,8 +250,8 @@
 
     <!-- Hero Section -->
     <section
-      ref='heroRef'
       v-if='album || libraryLoading'
+      ref='heroRef'
       class='
         relative isolate overflow-hidden min-h-[400px]
         bg-linear-to-b from-sidebar via-sidebar to-background

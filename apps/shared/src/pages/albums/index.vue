@@ -4,7 +4,6 @@
   import { computed, inject, onMounted, onUnmounted, ref, Ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
 
-  import { getApiClient, Album, Song } from '../../index'
   import AlbumsPageTopBar from '../../components/desktop/AlbumsPageTopBar.vue'
   import AddToPlaylistMenu from '../../components/shared/AddToPlaylistMenu.vue'
   import AlbumCard from '../../components/shared/AlbumCard.vue'
@@ -22,6 +21,7 @@
   import { scrollElementKey } from '../../composables/useMainLayout'
   import { useOptimizedVirtualScroller } from '../../composables/useOptimizedVirtualScroller'
   import { useTopBar } from '../../composables/useTopBar'
+  import { Album, Song } from '../../index'
   import { useAuthStore } from '../../stores'
   import { useLibraryStore } from '../../stores/library'
 
@@ -89,7 +89,7 @@
   })
 
   // Letter filter
-  const letterFilter = ref<string | null>(null)
+  const letterFilter = ref<null | string>(null)
 
   // Available letters for alphabet nav (based on all albums, not filtered)
   const availableLetters = computed(() => {
@@ -112,7 +112,7 @@
   const displayedAlbums = computed(() => {
     if (!letterFilter.value) return filteredAlbums.value
 
-    return filteredAlbums.value.filter((album) => {
+    return filteredAlbums.value.filter(album => {
       const firstChar = album.name.charAt(0).toUpperCase()
       if (letterFilter.value === '#') {
         return !/[A-Z]/.test(firstChar)

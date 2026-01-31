@@ -23,13 +23,13 @@
   import { PropType } from 'vue'
 
   import { Song } from '../../lib/api/types'
-  import AudioVisualizer from './AudioVisualizer.vue'
-  import FullscreenEqualizer from './FullscreenEqualizer.vue'
-  import FullscreenQueue from './FullscreenQueue.vue'
   import ImageLoader from '../shared/ImageLoader.vue'
   import LyricsView from '../shared/LyricsView.vue'
   import Button from '../ui/Button.vue'
   import { Slider } from '../ui/slider'
+  import AudioVisualizer from './AudioVisualizer.vue'
+  import FullscreenEqualizer from './FullscreenEqualizer.vue'
+  import FullscreenQueue from './FullscreenQueue.vue'
 
   // Lazy load WindowControls - only imported on desktop when actually rendered
   const WindowControls = defineAsyncComponent(() => import('../shared/WindowControls.vue'))
@@ -121,7 +121,7 @@
 
   // Media queries for responsive behavior
   const isLargeScreen = useMediaQuery('(min-width: 1024px)')
-  const isMediumScreen = useMediaQuery('(min-width: 768px)')
+  const _isMediumScreen = useMediaQuery('(min-width: 768px)')
   const isNarrowScreen = useMediaQuery('(max-width: 480px)')
 
   // Platform detection
@@ -617,9 +617,9 @@
 
         <!-- Lyrics panel (large screens) - always in DOM for smooth transitions -->
         <aside
-          v-if='isLargeScreen'
           @touchmove.stop
           @touchstart.stop
+          v-if='isLargeScreen'
           :class="[
             'lyrics-panel',
             showLyrics ? 'lyrics-panel-open' : 'lyrics-panel-closed'
@@ -648,7 +648,7 @@
         @touchmove.stop
         @touchstart.stop
         v-if='isNarrowScreen'
-                class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-3 sm:gap-4 p-3 sm:p-4'
+        class='absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center gap-3 sm:gap-4 p-3 sm:p-4'
       >
         <Button
           @click="playerState.currentSong && $emit('toggle-favorite', playerState.currentSong)"

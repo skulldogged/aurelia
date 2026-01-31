@@ -4,7 +4,9 @@
 
   import type { Album, Song } from '../../lib/api/types'
 
-  import AlbumCard from './AlbumCard.vue'
+  import { sortSongsByTrackOrder } from '../../lib/transforms'
+  import { useAuthStore } from '../../stores/auth'
+  import { useLibraryStore } from '../../stores/library'
   import {
     ContextMenu,
     ContextMenuContent,
@@ -12,9 +14,7 @@
     ContextMenuTrigger,
   } from '../ui/context-menu'
   import AddToPlaylistMenu from './AddToPlaylistMenu.vue'
-  import { sortSongsByTrackOrder } from '../../lib/transforms'
-  import { useAuthStore } from '../../stores/auth'
-  import { useLibraryStore } from '../../stores/library'
+  import AlbumCard from './AlbumCard.vue'
 
   const authStore = useAuthStore()
   const libraryStore = useLibraryStore()
@@ -46,7 +46,7 @@
 
   const updateScrollState = (): void => {
     if (!scrollContainer.value) return
-    const { scrollLeft, scrollWidth, clientWidth } = scrollContainer.value
+    const { clientWidth, scrollLeft, scrollWidth } = scrollContainer.value
     canScrollLeft.value = scrollLeft > 0
     canScrollRight.value = scrollLeft + clientWidth < scrollWidth - 10
   }
@@ -77,7 +77,9 @@
     <div class='flex items-center justify-between mb-4'>
       <div class='flex items-center gap-2'>
         <Sparkles class='size-5 text-accent' />
-        <h2 class='text-lg font-semibold'>Recently Added</h2>
+        <h2 class='text-lg font-semibold'>
+          Recently Added
+        </h2>
       </div>
 
       <!-- Scroll controls -->
@@ -109,8 +111,8 @@
 
     <!-- Scrollable row -->
     <div
-      ref='scrollContainer'
       @scroll='updateScrollState'
+      ref='scrollContainer'
       class='flex gap-4 overflow-x-auto pt-1 pb-3 scrollbar-none snap-x snap-mandatory'
     >
       <ContextMenu v-for='album in recentAlbums' :key='album.id || album.name'>

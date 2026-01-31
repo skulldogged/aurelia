@@ -9,10 +9,10 @@
 
   const isMaximized = ref(false)
   const isLinuxPlatform = ref(false)
-  
+
   // Conditionally get window instance only on desktop
   const appWindow = isDesktop() ? Window.getCurrent() : null
-  
+
   const { closeToTray, minimizeToTray } = storeToRefs(useSystemTrayStore())
   const { hideMainWindow } = useSystemTray()
 

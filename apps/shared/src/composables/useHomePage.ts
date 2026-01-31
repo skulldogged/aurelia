@@ -2,11 +2,11 @@ import { computed, ComputedRef, ref, shallowRef } from 'vue'
 
 import type { Album, NameIdPair, Song } from '../lib/api/types'
 
-import { useDebouncedComputed } from './useDebouncedComputed'
-import { useSongInteractions } from './useSongInteractions'
 import { logger } from '../lib/logger'
 import { sortSongsByTrackOrder } from '../lib/transforms'
 import { useAuthStore, useHomeStore, useLibraryStore } from '../stores'
+import { useDebouncedComputed } from './useDebouncedComputed'
+import { useSongInteractions } from './useSongInteractions'
 
 export interface HomePageComposableReturn {
   featuredAlbum:            ComputedRef<Album | null>

@@ -22,14 +22,21 @@ export default defineConfig(
     },
   },
 
-  // Ignores
+  // Ignores - workspace-wide patterns
   {
     ignores: [
-      'node_modules/**',
-      'dist/**',
-      'src-tauri/**',
-      '*.d.ts',
-      'src/components/ui/**',
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/src-tauri/**',
+      '**/target/**',
+      '**/crates/**',
+      '**/*.d.ts',
+      '**/components/ui/**',
+      // Generated files - regenerated frequently
+      '**/generated/**',
+      'apps/shared/src/api/apiClient.ts',
+      // Android app - not web code
+      'apps/mobile/**',
     ],
   },
 
@@ -164,9 +171,9 @@ export default defineConfig(
     },
   },
 
-  // Generated bindings file rules
+  // Desktop-specific: Generated bindings file rules
   {
-    files: ['src/bindings.ts'],
+    files: ['apps/desktop/src/lib/api/bindings.ts'],
     rules: {
       '@stylistic/max-len':                               'off',
       '@typescript-eslint/explicit-function-return-type': 'off',

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 
 import type { Album, Song } from '../lib/api/types'
+
 import { getApiClient } from '../index'
 import { getAuthLogout } from '../lib/auth-interceptor'
 import { logger } from '../lib/logger'
@@ -69,14 +70,14 @@ export const useHomeStore = defineStore('home', () => {
       const apiClient = getApiClient()
       const result = await apiClient.getHomeViewData()
 
-if (result.status === 'ok') {
+      if (result.status === 'ok') {
         // Normalize data - support both camelCase (web) and snake_case (desktop) property names
         const raw = result.data as Record<string, unknown>
         const data = {
-          recentlyPlayed: (raw.recentlyPlayed ?? raw.recently_played ?? []) as Song[],
-          recentlyAdded: (raw.recentlyAdded ?? raw.recently_added ?? []) as Album[],
-          randomAlbums: (raw.randomAlbums ?? raw.random_albums ?? []) as Album[],
           featuredAlbums: (raw.featuredAlbums ?? raw.featured_albums ?? []) as Album[],
+          randomAlbums:   (raw.randomAlbums ?? raw.random_albums ?? []) as Album[],
+          recentlyAdded:  (raw.recentlyAdded ?? raw.recently_added ?? []) as Album[],
+          recentlyPlayed: (raw.recentlyPlayed ?? raw.recently_played ?? []) as Song[],
         }
 
         // Store full data but only expose progressive amounts
@@ -85,7 +86,7 @@ if (result.status === 'ok') {
         randomAlbums.value = data.randomAlbums
         featuredAlbums.value = data.featuredAlbums
 
-// Track if we have more data for progressive loading
+        // Track if we have more data for progressive loading
         hasMoreData.value = {
           featuredAlbums: false, // Featured albums are typically limited already
           randomAlbums:   (data.randomAlbums?.length || 0) > getStageLimit('randomAlbums', stage),

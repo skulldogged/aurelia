@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 import { toast } from 'vue-sonner'
 
-import type { Album, Artist, Credentials, Song } from '../lib/api/types'
+import type { Album, Artist, Credentials, Song } from '../generated'
 
 import { getApiClient } from '../index'
 import { logger } from '../lib/logger'

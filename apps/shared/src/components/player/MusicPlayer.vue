@@ -21,9 +21,14 @@
   } from 'lucide-vue-next'
   import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 
-  import { getApiClient, isDesktop } from '../../index'
   import type { Song } from '../../lib/api/types'
-  import AudioVisualizer from './AudioVisualizer.vue'
+
+  import { useAudioEngine } from '../../composables/useAudioEngine'
+  import { useSwipe } from '../../composables/useSwipe'
+  import { getApiClient, isDesktop } from '../../index'
+  import { logger } from '../../lib/logger'
+  import { getSongFormatInfo } from '../../lib/utils'
+  import { usePlayerStore } from '../../stores'
   import ImageLoader from '../shared/ImageLoader.vue'
   import Button from '../ui/Button.vue'
   import {
@@ -33,11 +38,7 @@
     DropdownMenuTrigger,
   } from '../ui/dropdown-menu'
   import { Slider } from '../ui/slider'
-  import { useAudioEngine } from '../../composables/useAudioEngine'
-  import { useSwipe } from '../../composables/useSwipe'
-  import { logger } from '../../lib/logger'
-  import { getSongFormatInfo } from '../../lib/utils'
-  import { usePlayerStore } from '../../stores'
+  import AudioVisualizer from './AudioVisualizer.vue'
 
   const props = defineProps<{
     frequencyData?:   Uint8Array
@@ -56,7 +57,7 @@
       startY:    number
     }]
     'toggle-equalizer':  []
-    'toggle-favorite':   [song: Song | null]
+    'toggle-favorite':   [song: null | Song]
     'toggle-fullscreen': []
     'toggle-lyrics':     []
     'toggle-queue':      []
@@ -65,11 +66,11 @@
   const playerStore = usePlayerStore()
 
   const {
+    audioPlayer,
     initializePlayer,
     loadSong,
     nextSong,
     resumeContext,
-    audioPlayer,
     seek: seekPlayer,
   } = useAudioEngine(props)
 
@@ -193,7 +194,6 @@
   )
 
   const songFormatInfo = computed(() => getSongFormatInfo(playerStore.currentSong))
-
 
   const { startTracking, stopTracking, swipeProgress, updateTracking } = useSwipe({ maxTime: 300 })
 
@@ -538,291 +538,291 @@
     </Transition>
     <div ref='containerRef' class='player-bar-inner'>
       <!-- Left: Song info -->
-        <div
-          @mouseenter='onTitleMouseEnter'
-          @mouseleave='onTitleMouseLeave'
-          class='flex items-center gap-3 min-w-0 flex-1'
-        >
-          <div @click="emit('toggle-fullscreen')" class='shrink-0 player-album-art'>
-            <ImageLoader
-              :item-id='playerStore.currentSong.albumId || playerStore.currentSong.id'
-              :server-url='serverUrl'
-              :token='token'
-              alt='Album art'
-              class='size-12 rounded-lg'
-            >
-              <template #fallback>
-                <div class='size-12 bg-muted rounded-lg flex items-center justify-center'>
-                  <Music2 class='size-5 text-muted-foreground' />
-                </div>
-              </template>
-            </ImageLoader>
-          </div>
-
-          <div class='min-w-0 flex-1'>
-            <div ref='titleContainerRef' class='overflow-hidden'>
-              <div
-                @animationiteration='handleMarqueeIteration'
-                ref='marqueeTrackRef'
-                :class="['marquee-track', isMarqueePaused && 'marquee-paused']"
-                :style='marqueeStyle'
-              >
-                <span ref='titleTextRef' class='font-medium text-sm whitespace-nowrap'>
-                  {{ playerStore.currentSong.name }}
-                </span>
-                <span v-if='shouldMarquee' aria-hidden='true' class='font-medium text-sm whitespace-nowrap'>
-                  {{ playerStore.currentSong.name }}
-                </span>
+      <div
+        @mouseenter='onTitleMouseEnter'
+        @mouseleave='onTitleMouseLeave'
+        class='flex items-center gap-3 min-w-0 flex-1'
+      >
+        <div @click="emit('toggle-fullscreen')" class='shrink-0 player-album-art'>
+          <ImageLoader
+            :item-id='playerStore.currentSong.albumId || playerStore.currentSong.id'
+            :server-url='serverUrl'
+            :token='token'
+            alt='Album art'
+            class='size-12 rounded-lg'
+          >
+            <template #fallback>
+              <div class='size-12 bg-muted rounded-lg flex items-center justify-center'>
+                <Music2 class='size-5 text-muted-foreground' />
               </div>
+            </template>
+          </ImageLoader>
+        </div>
+
+        <div class='min-w-0 flex-1'>
+          <div ref='titleContainerRef' class='overflow-hidden'>
+            <div
+              @animationiteration='handleMarqueeIteration'
+              ref='marqueeTrackRef'
+              :class="['marquee-track', isMarqueePaused && 'marquee-paused']"
+              :style='marqueeStyle'
+            >
+              <span ref='titleTextRef' class='font-medium text-sm whitespace-nowrap'>
+                {{ playerStore.currentSong.name }}
+              </span>
+              <span v-if='shouldMarquee' aria-hidden='true' class='font-medium text-sm whitespace-nowrap'>
+                {{ playerStore.currentSong.name }}
+              </span>
             </div>
-            <p class='text-xs text-muted-foreground truncate'>
-              <template v-if='playerStore.currentSong.artists?.length'>
-                <template v-for='(artist, i) in playerStore.currentSong.artists' :key='i'>
-                  <RouterLink
-                    v-if='playerStore.currentSong.artistIds?.[i]'
-                    :to='`/artists/${playerStore.currentSong.artistIds[i]}`'
-                    class='hover:underline'
-                  >
-                    {{ artist }}
-                  </RouterLink>
-                  <span v-else>{{ artist }}</span>
-                  <span v-if='i < playerStore.currentSong.artists.length - 1'>, </span>
-                </template>
-              </template>
-              <template v-if='playerStore.currentSong.album'>
-                <span class='mx-1 opacity-50'>·</span>
+          </div>
+          <p class='text-xs text-muted-foreground truncate'>
+            <template v-if='playerStore.currentSong.artists?.length'>
+              <template v-for='(artist, i) in playerStore.currentSong.artists' :key='i'>
                 <RouterLink
-                  v-if='playerStore.currentSong.albumId'
-                  :to='`/albums/${playerStore.currentSong.albumId}`'
+                  v-if='playerStore.currentSong.artistIds?.[i]'
+                  :to='`/artists/${playerStore.currentSong.artistIds[i]}`'
                   class='hover:underline'
                 >
-                  {{ playerStore.currentSong.album }}
+                  {{ artist }}
                 </RouterLink>
-                <span v-else>{{ playerStore.currentSong.album }}</span>
+                <span v-else>{{ artist }}</span>
+                <span v-if='i < playerStore.currentSong.artists.length - 1'>, </span>
               </template>
-            </p>
-            <p v-if='songFormatInfo' class='text-[10px] text-muted-foreground/60 truncate'>
-              {{ songFormatInfo }}
-            </p>
-          </div>
+            </template>
+            <template v-if='playerStore.currentSong.album'>
+              <span class='mx-1 opacity-50'>·</span>
+              <RouterLink
+                v-if='playerStore.currentSong.albumId'
+                :to='`/albums/${playerStore.currentSong.albumId}`'
+                class='hover:underline'
+              >
+                {{ playerStore.currentSong.album }}
+              </RouterLink>
+              <span v-else>{{ playerStore.currentSong.album }}</span>
+            </template>
+          </p>
+          <p v-if='songFormatInfo' class='text-[10px] text-muted-foreground/60 truncate'>
+            {{ songFormatInfo }}
+          </p>
         </div>
+      </div>
 
-        <!-- Center: Controls & Progress -->
-        <div class='flex-1 max-w-lg px-4'>
-          <div class='flex items-center justify-center gap-1'>
-            <Button
-              @click='playerStore.toggleShuffle'
-              :class="['player-control-btn', playerStore.isShuffled && 'is-active']"
-              size='icon'
-              variant='ghost'
-            >
-              <Shuffle class='size-4' />
-            </Button>
-
-            <Button
-              @click='previousSong'
-              :disabled='!hasPrevious'
-              class='player-control-btn'
-              size='icon'
-              variant='ghost'
-            >
-              <SkipBack class='size-4' />
-            </Button>
-
-            <Button
-              @click='togglePlayPause'
-              :disabled='!playerStore.audioReady || playerStore.isBuffering || isSeekLoading'
-              class='player-play-btn'
-              size='icon'
-              variant='default'
-            >
-              <Loader2 v-if='playerStore.isBuffering || isSeekLoading' class='size-4 animate-spin' />
-              <Play v-else-if='!playerStore.isPlaying' class='size-4 ml-0.5' />
-              <Pause v-else class='size-4' />
-            </Button>
-
-            <Button
-              @click='nextSong'
-              :disabled='!hasNext'
-              class='player-control-btn'
-              size='icon'
-              variant='ghost'
-            >
-              <SkipForward class='size-4' />
-            </Button>
-
-            <Button
-              @click='playerStore.cycleRepeatMode'
-              :class="['player-control-btn', playerStore.repeatMode !== 'none' && 'is-active']"
-              size='icon'
-              variant='ghost'
-            >
-              <Repeat1 v-if="playerStore.repeatMode === 'one'" class='size-4' />
-              <Repeat v-else class='size-4' />
-            </Button>
-          </div>
-
-          <div class='flex items-center gap-2 mt-1.5'>
-            <span class='text-[10px] text-muted-foreground tabular-nums w-8 text-right'>
-              {{ formatTime(playerStore.currentTime) }}
-            </span>
-            <Slider
-              @update:model-value='onSeek'
-              :max='100'
-              :model-value='[playerStore.progress]'
-              :step='0.1'
-              class='flex-1'
-            />
-            <span class='text-[10px] text-muted-foreground tabular-nums w-8'>
-              {{ formatTime(playerStore.duration) }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Right: Secondary controls -->
-        <div class='flex items-center justify-end gap-1 flex-1'>
+      <!-- Center: Controls & Progress -->
+      <div class='flex-1 max-w-lg px-4'>
+        <div class='flex items-center justify-center gap-1'>
           <Button
-            @click="emit('toggle-queue')"
-            v-if="visibleIcons.includes('queue')"
-            :class="['player-control-btn', activeView === 'queue' && 'is-active']"
+            @click='playerStore.toggleShuffle'
+            :class="['player-control-btn', playerStore.isShuffled && 'is-active']"
             size='icon'
             variant='ghost'
           >
-            <ListMusic class='size-4' />
+            <Shuffle class='size-4' />
           </Button>
 
           <Button
-            @click="emit('toggle-lyrics')"
-            v-if="visibleIcons.includes('lyrics')"
-            :class="['player-control-btn', activeView === 'lyrics' && 'is-active']"
-            :disabled='!hasLyrics'
-            size='icon'
-            variant='ghost'
-          >
-            <Mic2 class='size-4' />
-          </Button>
-
-          <Button
-            @click="emit('toggle-favorite', playerStore.currentSong)"
-            v-if="visibleIcons.includes('favorite')"
+            @click='previousSong'
+            :disabled='!hasPrevious'
             class='player-control-btn'
             size='icon'
             variant='ghost'
           >
-            <Heart :class="['size-4', playerStore.currentSong.isFavorite && 'fill-current']" />
+            <SkipBack class='size-4' />
           </Button>
 
           <Button
-            @click="emit('toggle-fullscreen')"
-            v-if="visibleIcons.includes('fullscreen')"
+            @click='togglePlayPause'
+            :disabled='!playerStore.audioReady || playerStore.isBuffering || isSeekLoading'
+            class='player-play-btn'
+            size='icon'
+            variant='default'
+          >
+            <Loader2 v-if='playerStore.isBuffering || isSeekLoading' class='size-4 animate-spin' />
+            <Play v-else-if='!playerStore.isPlaying' class='size-4 ml-0.5' />
+            <Pause v-else class='size-4' />
+          </Button>
+
+          <Button
+            @click='nextSong'
+            :disabled='!hasNext'
             class='player-control-btn'
             size='icon'
             variant='ghost'
           >
-            <Expand class='size-4' />
+            <SkipForward class='size-4' />
           </Button>
 
           <Button
-            @click="emit('toggle-equalizer')"
-            v-if="visibleIcons.includes('equalizer')"
-            :class="['player-control-btn', activeView === 'equalizer' && 'is-active']"
+            @click='playerStore.cycleRepeatMode'
+            :class="['player-control-btn', playerStore.repeatMode !== 'none' && 'is-active']"
             size='icon'
             variant='ghost'
           >
-            <Sliders class='size-4' />
+            <Repeat1 v-if="playerStore.repeatMode === 'one'" class='size-4' />
+            <Repeat v-else class='size-4' />
           </Button>
+        </div>
 
-          <!-- Volume -->
-          <div v-if="visibleIcons.includes('volume')" class='relative'>
-            <Button
-              @click='handleVolumeClick'
-              :class="['player-control-btn', isVolumePopupVisible && 'is-active']"
-              size='icon'
-              variant='ghost'
-              data-volume-button
-            >
-              <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
-              <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
-              <VolumeX v-else class='size-4' />
+        <div class='flex items-center gap-2 mt-1.5'>
+          <span class='text-[10px] text-muted-foreground tabular-nums w-8 text-right'>
+            {{ formatTime(playerStore.currentTime) }}
+          </span>
+          <Slider
+            @update:model-value='onSeek'
+            :max='100'
+            :model-value='[playerStore.progress]'
+            :step='0.1'
+            class='flex-1'
+          />
+          <span class='text-[10px] text-muted-foreground tabular-nums w-8'>
+            {{ formatTime(playerStore.duration) }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Right: Secondary controls -->
+      <div class='flex items-center justify-end gap-1 flex-1'>
+        <Button
+          @click="emit('toggle-queue')"
+          v-if="visibleIcons.includes('queue')"
+          :class="['player-control-btn', activeView === 'queue' && 'is-active']"
+          size='icon'
+          variant='ghost'
+        >
+          <ListMusic class='size-4' />
+        </Button>
+
+        <Button
+          @click="emit('toggle-lyrics')"
+          v-if="visibleIcons.includes('lyrics')"
+          :class="['player-control-btn', activeView === 'lyrics' && 'is-active']"
+          :disabled='!hasLyrics'
+          size='icon'
+          variant='ghost'
+        >
+          <Mic2 class='size-4' />
+        </Button>
+
+        <Button
+          @click="emit('toggle-favorite', playerStore.currentSong)"
+          v-if="visibleIcons.includes('favorite')"
+          class='player-control-btn'
+          size='icon'
+          variant='ghost'
+        >
+          <Heart :class="['size-4', playerStore.currentSong.isFavorite && 'fill-current']" />
+        </Button>
+
+        <Button
+          @click="emit('toggle-fullscreen')"
+          v-if="visibleIcons.includes('fullscreen')"
+          class='player-control-btn'
+          size='icon'
+          variant='ghost'
+        >
+          <Expand class='size-4' />
+        </Button>
+
+        <Button
+          @click="emit('toggle-equalizer')"
+          v-if="visibleIcons.includes('equalizer')"
+          :class="['player-control-btn', activeView === 'equalizer' && 'is-active']"
+          size='icon'
+          variant='ghost'
+        >
+          <Sliders class='size-4' />
+        </Button>
+
+        <!-- Volume -->
+        <div v-if="visibleIcons.includes('volume')" class='relative'>
+          <Button
+            @click='handleVolumeClick'
+            :class="['player-control-btn', isVolumePopupVisible && 'is-active']"
+            size='icon'
+            variant='ghost'
+            data-volume-button
+          >
+            <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
+            <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
+            <VolumeX v-else class='size-4' />
+          </Button>
+          <Transition name='pop'>
+            <div v-if='isVolumePopupVisible' ref='volumePopupRef' class='volume-popup'>
+              <span class='text-xs text-muted-foreground tabular-nums'>
+                {{ Math.round(playerStore.volume * 100) }}%
+              </span>
+              <Slider
+                @update:model-value='onVolumeInput'
+                :max='100'
+                :model-value='[playerStore.volume * 100]'
+                :step='1'
+                class='h-20 w-1.5'
+                orientation='vertical'
+              />
+              <button
+                @click.stop='playerStore.toggleMute'
+                class='p-1 text-muted-foreground hover:text-foreground transition-colors'
+              >
+                <VolumeX v-if='playerStore.volume === 0' class='size-4' />
+                <Volume2 v-else class='size-4' />
+              </button>
+            </div>
+          </Transition>
+        </div>
+
+        <!-- Overflow menu -->
+        <DropdownMenu v-if='hasHiddenIcons'>
+          <DropdownMenuTrigger as-child>
+            <Button class='player-control-btn' size='icon' variant='ghost'>
+              <MoreHorizontal class='size-4' />
             </Button>
-            <Transition name='pop'>
-              <div v-if='isVolumePopupVisible' ref='volumePopupRef' class='volume-popup'>
-                <span class='text-xs text-muted-foreground tabular-nums'>
-                  {{ Math.round(playerStore.volume * 100) }}%
-                </span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end'>
+            <DropdownMenuItem v-if="!visibleIcons.includes('volume')">
+              <div class='flex items-center gap-2 w-full'>
+                <button @click='playerStore.toggleMute' class='text-muted-foreground hover:text-foreground'>
+                  <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
+                  <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
+                  <VolumeX v-else class='size-4' />
+                </button>
                 <Slider
                   @update:model-value='onVolumeInput'
                   :max='100'
                   :model-value='[playerStore.volume * 100]'
                   :step='1'
-                  class='h-20 w-1.5'
-                  orientation='vertical'
+                  class='w-24 flex-1'
                 />
-                <button
-                  @click.stop='playerStore.toggleMute'
-                  class='p-1 text-muted-foreground hover:text-foreground transition-colors'
-                >
-                  <VolumeX v-if='playerStore.volume === 0' class='size-4' />
-                  <Volume2 v-else class='size-4' />
-                </button>
               </div>
-            </Transition>
-          </div>
-
-          <!-- Overflow menu -->
-          <DropdownMenu v-if='hasHiddenIcons'>
-            <DropdownMenuTrigger as-child>
-              <Button class='player-control-btn' size='icon' variant='ghost'>
-                <MoreHorizontal class='size-4' />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem v-if="!visibleIcons.includes('volume')">
-                <div class='flex items-center gap-2 w-full'>
-                  <button @click='playerStore.toggleMute' class='text-muted-foreground hover:text-foreground'>
-                    <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
-                    <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
-                    <VolumeX v-else class='size-4' />
-                  </button>
-                  <Slider
-                    @update:model-value='onVolumeInput'
-                    :max='100'
-                    :model-value='[playerStore.volume * 100]'
-                    :step='1'
-                    class='w-24 flex-1'
-                  />
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="emit('toggle-equalizer')" v-if="!visibleIcons.includes('equalizer')">
-                <Sliders class='size-4 mr-2' />
-                Equalizer
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="emit('toggle-fullscreen')" v-if="!visibleIcons.includes('fullscreen')">
-                <Expand class='size-4 mr-2' />
-                Fullscreen
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                @click="emit('toggle-favorite', playerStore.currentSong)"
-                v-if="!visibleIcons.includes('favorite')"
-              >
-                <Heart :class="['size-4 mr-2', playerStore.currentSong.isFavorite && 'fill-current']" />
-                Favorite
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                @click="emit('toggle-lyrics')"
-                v-if="!visibleIcons.includes('lyrics')"
-                :disabled='!hasLyrics'
-              >
-                <Mic2 class='size-4 mr-2' />
-                Lyrics
-              </DropdownMenuItem>
-              <DropdownMenuItem @click="emit('toggle-queue')" v-if="!visibleIcons.includes('queue')">
-                <ListMusic class='size-4 mr-2' />
-                Queue
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="emit('toggle-equalizer')" v-if="!visibleIcons.includes('equalizer')">
+              <Sliders class='size-4 mr-2' />
+              Equalizer
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="emit('toggle-fullscreen')" v-if="!visibleIcons.includes('fullscreen')">
+              <Expand class='size-4 mr-2' />
+              Fullscreen
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              @click="emit('toggle-favorite', playerStore.currentSong)"
+              v-if="!visibleIcons.includes('favorite')"
+            >
+              <Heart :class="['size-4 mr-2', playerStore.currentSong.isFavorite && 'fill-current']" />
+              Favorite
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              @click="emit('toggle-lyrics')"
+              v-if="!visibleIcons.includes('lyrics')"
+              :disabled='!hasLyrics'
+            >
+              <Mic2 class='size-4 mr-2' />
+              Lyrics
+            </DropdownMenuItem>
+            <DropdownMenuItem @click="emit('toggle-queue')" v-if="!visibleIcons.includes('queue')">
+              <ListMusic class='size-4 mr-2' />
+              Queue
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </div>
   </div>
 </template>

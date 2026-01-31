@@ -9,6 +9,7 @@ pub mod system_tray;
 pub use anyhow::Result;
 
 use aurelia_core::{db, listenbrainz_core, state};
+use aurelia_api::traits::tauri_commands;
 #[cfg(debug_assertions)]
 use specta_typescript::{BigIntExportBehavior, Typescript};
 #[cfg(debug_assertions)]
