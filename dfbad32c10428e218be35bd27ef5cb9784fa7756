@@ -1,0 +1,25 @@
+apps/shared/src/index.ts
+  3cb23205d2f28a7a 51
+apps/shared/src/lib/api/index.ts
+  3cb23205d2f28a7a 29-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "dfbad32c10428e218be35bd27ef5cb9784fa7756",
+  "prompts": {
+    "3cb23205d2f28a7a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eece7db4ffeN22Z3B37qGQkwW",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 4,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    }
+  }
+}
