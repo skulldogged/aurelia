@@ -1,0 +1,37 @@
+apps/shared/src/generated/httpClient.ts
+  3cb23205d2f28a7a 241-277
+apps/shared/src/composables/useSession.ts
+  3cb23205d2f28a7a 102-103,107-109,132,158-159,163-165
+apps/web/backend/src/main.rs
+  3cb23205d2f28a7a 39-41,45,47,107-140,228,235-239,811-812,814,816-817,819,849-891
+crates/uniffi-bindgen/src/http_client_generator.rs
+  3cb23205d2f28a7a 223-226,228-232,257-293,378-384
+apps/shared/src/composables/useImageLoader.ts
+  3cb23205d2f28a7a 43
+package.json
+  3cb23205d2f28a7a 8,10,12,14,16
+crates/aurelia-core/src/api/traits.rs
+  3cb23205d2f28a7a 15
+apps/shared/src/composables/useAudioEngine.ts
+  3cb23205d2f28a7a 273-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "7c76e27e3242e6412ddd915227ed37c506cd81c8",
+  "prompts": {
+    "3cb23205d2f28a7a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3eece7db4ffeN22Z3B37qGQkwW",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 348,
+      "total_deletions": 175,
+      "accepted_lines": 230,
+      "overriden_lines": 0
+    }
+  }
+}
