@@ -23,7 +23,7 @@ pub type ApiResult<T> = Result<T, AppError>;
 #[allow(async_fn_in_trait)]
 pub trait Api {
     // ─── Auth ────────────────────────────────────────────────────
-    
+
     #[api(POST "/auth/login")]
     async fn login_to_jellyfin(
         &self, 

@@ -200,6 +200,7 @@ impl AudioPlayer {
         // multiplicative volume issues when tracks are reloaded
         sink.set_volume(self.volume);
         sink.append(analyzer_source);
+        sink.play();
 
         self.sink = Some(sink);
         self.current_url = Some(url.to_string());

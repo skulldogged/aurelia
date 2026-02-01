@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -49,7 +50,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -87,17 +87,17 @@ import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.data.model.Lyrics
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.RepeatMode
-import uniffi.aurelia_core.Song
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.WavyMusicSlider
 import com.aurelia.app.ui.navigation.Screen
-import com.aurelia.app.utils.formatDuration
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberNowPlayingStyle
+import com.aurelia.app.utils.formatDuration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import uniffi.aurelia_core.Song
 
 private enum class ControlButton { NONE, PREVIOUS, PLAY_PAUSE, NEXT }
 
@@ -362,6 +362,7 @@ fun PlayerScreen(
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.Medium,
               color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+              modifier = Modifier.widthIn(min = 40.dp),
             )
             val durationMs = state.durationMs
             val progressFraction =
@@ -391,6 +392,7 @@ fun PlayerScreen(
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.Medium,
               color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+              modifier = Modifier.widthIn(min = 40.dp),
             )
           }
         }
@@ -493,16 +495,17 @@ private fun rememberCurrentPosition(state: PlayerState): Long {
       val startTime = SystemClock.elapsedRealtime()
       val startPosition = state.positionMs
       while (true) {
-        val timeSinceUpdate = SystemClock.elapsedRealtime() - state.updateTimeMs
+        SystemClock.elapsedRealtime() - state.updateTimeMs
         // If we have a valid update time, use it. Otherwise fall back to local delta
         // But state.updateTimeMs comes from the snapshot time.
         // Wait, if we use state.updateTimeMs, we trust the snapshot time.
         // If state.updateTimeMs is 0 (initial), we shouldn't use it.
         if (state.updateTimeMs > 0) {
-            currentPosition = startPosition + ((SystemClock.elapsedRealtime() - state.updateTimeMs) * state.playbackSpeed).toLong()
+          currentPosition =
+            startPosition + ((SystemClock.elapsedRealtime() - state.updateTimeMs) * state.playbackSpeed).toLong()
         } else {
-             // Fallback for when we don't have a reliable server timestamp yet
-             currentPosition = startPosition + ((SystemClock.elapsedRealtime() - startTime) * state.playbackSpeed).toLong()
+          // Fallback for when we don't have a reliable server timestamp yet
+          currentPosition = startPosition + ((SystemClock.elapsedRealtime() - startTime) * state.playbackSpeed).toLong()
         }
         delay(16L)
       }
@@ -720,7 +723,9 @@ private fun SecondaryControls(
         Icon(
           imageVector = Icons.Filled.Shuffle,
           contentDescription = if (isShuffled) "Shuffle on" else "Shuffle off",
-          modifier = Modifier.padding(start = 4.dp).size(24.dp),
+          modifier = Modifier
+            .padding(start = 4.dp)
+            .size(24.dp),
         )
       }
 

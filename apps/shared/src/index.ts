@@ -52,6 +52,7 @@ export { usePlayerControls } from './composables/usePlayerControls'
 export { usePlayerSession } from './composables/usePlayerSession'
 export { useSongInteractions } from './composables/useSongInteractions'
 export { useTopBar } from './composables/useTopBar'
+export { useVisualizerData } from './composables/useVisualizerData'
 // Re-export generated types
 export * from './generated'
 // WebSocket client for web platform

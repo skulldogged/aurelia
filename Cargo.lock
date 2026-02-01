@@ -6602,10 +6602,12 @@ name = "uniffi-bindgen"
 version = "0.1.0"
 dependencies = [
  "aurelia-core",
+ "camino",
  "clap",
  "specta",
  "specta-typescript",
  "uniffi",
+ "uniffi_bindgen",
 ]
 
 [[package]]

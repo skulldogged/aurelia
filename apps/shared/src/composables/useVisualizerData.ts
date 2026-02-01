@@ -1,12 +1,15 @@
 /**
- * Composable for audio visualizer data from Rust backend
+ * Composable for audio visualizer data
  *
  * Provides real-time spectrum and waveform data.
  * - Desktop: Uses Tauri events from Rust FFT analysis
+ * - Web: Uses Web Audio API AnalyserNode
  */
 import { onUnmounted, ref, type Ref, watch } from 'vue'
 
-import { getApiClient, isDesktop } from '../index'
+import { getAudioPlayer } from '../audio'
+import { getApiClient } from '../index'
+import { isDesktop } from '../lib/platform'
 import { logger } from '../lib/logger'
 
 interface SpectrumEvent {
@@ -25,7 +28,7 @@ interface UseVisualizerDataReturn {
   timeDomainData: Ref<Uint8Array>
 }
 
-/** FFT size used by the Rust analyzer */
+/** FFT size used by the analyzer */
 const FFT_SIZE = 256
 
 /** Number of frequency bins (FFT_SIZE / 2) */
@@ -54,6 +57,9 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
 
   // Event listener cleanup (desktop)
   let eventUnlisten: (() => void) | null = null
+
+  // Animation frame ID (web)
+  let animationFrameId: number | null = null
 
   /**
    * Apply temporal smoothing to spectrum data.
@@ -98,9 +104,7 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
   /**
    * Desktop: Setup event listener for spectrum data from Rust.
    */
-  const setupEventListener = async (): Promise<void> => {
-    if (!isDesktop()) return
-
+  const setupDesktopEventListener = async (): Promise<void> => {
     // Clean up existing listener
     if (eventUnlisten) {
       eventUnlisten()
@@ -115,25 +119,70 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
       applySmoothingAndUpdate(new Uint8Array(freqData), new Uint8Array(timeData))
     })
 
-    logger.debug('Spectrum event listener registered')
+    logger.debug('Spectrum event listener registered (desktop)')
   }
 
   /**
-   * Start the data source.
+   * Web: Setup Web Audio API analyzer polling
+   */
+  const setupWebAnalyzer = (): void => {
+    const audioPlayer = getAudioPlayer()
+    const analyserNode = audioPlayer.getAnalyserNode()
+
+    if (!analyserNode) {
+      logger.warn('Web Audio analyzer node not available')
+      return
+    }
+
+    // Configure analyzer to match expected format
+    analyserNode.fftSize = FFT_SIZE
+    analyserNode.smoothingTimeConstant = 0.8
+
+    const frequencyBuffer = new Uint8Array(analyserNode.frequencyBinCount)
+    const timeDomainBuffer = new Uint8Array(analyserNode.fftSize)
+
+    const update = (): void => {
+      if (!isEnabled.value) return
+
+      analyserNode.getByteFrequencyData(frequencyBuffer)
+      analyserNode.getByteTimeDomainData(timeDomainBuffer)
+
+      applySmoothingAndUpdate(frequencyBuffer, timeDomainBuffer)
+
+      animationFrameId = requestAnimationFrame(update)
+    }
+
+    animationFrameId = requestAnimationFrame(update)
+    logger.debug('Web Audio analyzer started')
+  }
+
+  /**
+   * Start the data source based on platform
    */
   const startDataSource = async (): Promise<void> => {
-    if (!eventUnlisten) {
-      await setupEventListener()
+    if (isDesktop()) {
+      if (!eventUnlisten) {
+        await setupDesktopEventListener()
+      }
+    } else {
+      setupWebAnalyzer()
     }
   }
 
   /**
-   * Stop the data source and cleanup.
+   * Stop the data source and cleanup
    */
   const stopDataSource = (): void => {
+    // Desktop cleanup
     if (eventUnlisten) {
       eventUnlisten()
       eventUnlisten = null
+    }
+
+    // Web cleanup
+    if (animationFrameId !== null) {
+      cancelAnimationFrame(animationFrameId)
+      animationFrameId = null
     }
 
     // Clear data and reset smoothing buffers
@@ -143,15 +192,18 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
     smoothedTimeDomain = new Float32Array(FFT_SIZE)
   }
 
-  // Set analyzer enabled state in backend
+  // Set analyzer enabled state
   const setEnabled = async (enabled: boolean): Promise<void> => {
     try {
       logger.debug(`setEnabled called: enabled=${enabled}`)
 
-      const result = await getApiClient().audioSetAnalyzerEnabled(enabled)
-      if (result.status === 'error') {
-        logger.error('Failed to set analyzer enabled:', result.error)
-        return
+      // For desktop, notify backend
+      if (isDesktop()) {
+        const result = await getApiClient().audioSetAnalyzerEnabled(enabled)
+        if (result.status === 'error') {
+          logger.error('Failed to set analyzer enabled:', result.error)
+          return
+        }
       }
 
       isEnabled.value = enabled
@@ -179,7 +231,9 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
   onUnmounted(() => {
     stopDataSource()
     // Disable analyzer when component unmounts to save CPU
-    getApiClient().audioSetAnalyzerEnabled(false).catch(() => {})
+    if (isDesktop()) {
+      getApiClient().audioSetAnalyzerEnabled(false).catch(() => {})
+    }
   })
 
   return {

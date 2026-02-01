@@ -24,6 +24,7 @@
     useSongInteractions,
     useThemeStore,
     useTopBar,
+    useVisualizerData,
   } from '@shared'
   import { useColorMode } from '@vueuse/core'
   import { computed, onMounted, ref, watch } from 'vue'
@@ -33,6 +34,15 @@
   useAccentColorStore() // Initialize accent colors and apply CSS variables
 
   const { authStatus, credentials, login, logout } = useAuth()
+
+  // Visualizer data from Web Audio API
+  const {
+    frequencyData: frequencyDataRef,
+    setEnabled: setAnalyzerEnabled,
+    timeDomainData: timeDomainDataRef,
+  } = useVisualizerData()
+  const frequencyData = computed(() => frequencyDataRef.value)
+  const timeDomainData = computed(() => timeDomainDataRef.value)
   const libraryStore = useLibraryStore()
   const homeStore = useHomeStore()
   const playerStore = usePlayerStore()
@@ -54,6 +64,16 @@
 
   // Initialize player session for playback reporting
   usePlayerSession()
+
+  // Enable analyzer when visualizer is enabled and playing
+  watch(
+    [() => playerStore.visualizerEnabled, () => playerStore.isPlaying],
+    ([vizEnabled, isPlaying]) => {
+      const shouldEnable = vizEnabled && isPlaying
+      setAnalyzerEnabled(shouldEnable)
+    },
+    { immediate: true },
+  )
 
   const isAuthenticated = computed(() => authStatus.value === 'loggedIn' || authStatus.value === 'verifying')
 
@@ -216,10 +236,12 @@
             @toggle-fullscreen='playerControls.toggleFullScreenPlayer'
             @toggle-lyrics='playerControls.toggleLyrics'
             @toggle-queue='playerControls.toggleQueue'
+            :frequency-data='frequencyData'
             :is-equalizer-open='playerControls.isEqualizerOpen.value'
             :is-lyrics-open='playerControls.isLyricsOpen.value'
             :is-queue-open='playerControls.isQueueOpen.value'
             :server-url="credentials?.serverUrl ?? ''"
+            :time-domain-data='timeDomainData'
             :token="credentials?.token ?? ''"
           />
         </template>
@@ -242,6 +264,7 @@
         @toggle-shuffle='handleToggleShuffle'
         @volume-change='handleVolumeChange'
         v-if='playerControls.isFullScreenPlayerOpen.value'
+        :frequency-data='frequencyData'
         :is-equalizer-open='playerControls.isEqualizerOpen.value'
         :is-lyrics-open='playerControls.isLyricsOpen.value'
         :is-queue-open='playerControls.isQueueOpen.value'
@@ -261,6 +284,7 @@
         }'
         :server-url="credentials?.serverUrl ?? ''"
         :show='true'
+        :time-domain-data='timeDomainData'
         :token="credentials?.token ?? ''"
       />
 

@@ -16,7 +16,7 @@ pub struct LibraryData {
 #[serde(rename_all = "camelCase")]
 pub struct HomeViewData {
     pub recently_played: Vec<Song>,
-    pub recently_added: Vec<Song>,
+    pub recently_added: Vec<Album>,
     pub random_albums: Vec<Album>,
     pub featured_albums: Vec<Album>,
 }

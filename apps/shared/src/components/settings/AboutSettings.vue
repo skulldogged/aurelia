@@ -4,35 +4,13 @@
     Github,
     Info,
   } from 'lucide-vue-next'
-  import { onMounted, ref } from 'vue'
 
-  import { isTauri } from '../../lib/platform'
+  import { APP_VERSION } from '../../generated'
+  import { getPlatform, isTauri } from '../../lib/platform'
   import Button from '../ui/Button.vue'
 
-  const appVersion = ref<string>('Loading...')
-  const platformInfo = ref<string>('Loading...')
-
-  onMounted(async () => {
-    try {
-      if (isTauri()) {
-        const { getVersion } = await import('@tauri-apps/api/app')
-        const { type, version: osVersion } = await import('@tauri-apps/plugin-os')
-        appVersion.value = await getVersion()
-        const osType = type()
-        const osVer = osVersion()
-        platformInfo.value = `${osType} ${osVer}`
-      } else {
-        appVersion.value = 'Web'
-        platformInfo.value = navigator.userAgent.includes('Windows') ? 'Windows'
-          : navigator.userAgent.includes('Mac') ? 'macOS'
-            : navigator.userAgent.includes('Linux') ? 'Linux'
-              : 'Browser'
-      }
-    } catch {
-      appVersion.value = 'Unknown'
-      platformInfo.value = 'Unknown'
-    }
-  })
+  const appVersion = APP_VERSION
+  const platformInfo = isTauri() ? getPlatform() : 'web'
 
   const openLink = async (url: string): Promise<void> => {
     if (isTauri()) {

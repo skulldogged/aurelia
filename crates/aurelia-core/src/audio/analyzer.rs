@@ -114,7 +114,7 @@ impl SpectrumAnalyzer {
         Self {
             planner: FftPlanner::new(),
             window,
-            smoothing: 0.8, // Similar to Web Audio API default
+            smoothing: 0.3, // Light smoothing - TypeScript will apply additional smoothing
             prev_spectrum: [0.0; FREQUENCY_BIN_COUNT],
         }
     }

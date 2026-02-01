@@ -22,7 +22,7 @@ pub fn ping() -> String {
     "pong".to_string()
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn authenticate(
     server_url: String,
     username: String,
@@ -32,7 +32,7 @@ pub async fn authenticate(
     client.authenticate(&username, &password).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn fetch_songs(
     server_url: String,
     token: String,
@@ -189,7 +189,7 @@ pub async fn get_lyrics(
     }
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn toggle_favorite(
     server_url: String,
     token: String,
@@ -206,7 +206,7 @@ pub async fn toggle_favorite(
 
 // Playlist operations
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn get_playlists(
     server_url: String,
     token: String,
@@ -216,7 +216,7 @@ pub async fn get_playlists(
     client.get_playlists(&user_id).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn create_playlist(
     server_url: String,
     token: String,
@@ -226,7 +226,7 @@ pub async fn create_playlist(
     client.create_playlist(&data).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn update_playlist(
     server_url: String,
     token: String,
@@ -237,7 +237,7 @@ pub async fn update_playlist(
     client.update_playlist(&playlist_id, &updates).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn delete_playlist(
     server_url: String,
     token: String,
@@ -247,7 +247,7 @@ pub async fn delete_playlist(
     client.delete_playlist(&playlist_id).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn add_playlist_items(
     server_url: String,
     token: String,
@@ -258,7 +258,7 @@ pub async fn add_playlist_items(
     client.add_playlist_items(&playlist_id, &item_ids).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn remove_playlist_items(
     server_url: String,
     token: String,
@@ -269,7 +269,7 @@ pub async fn remove_playlist_items(
     client.remove_playlist_items(&playlist_id, &item_ids).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn get_playlist_items(
     server_url: String,
     token: String,
@@ -279,7 +279,7 @@ pub async fn get_playlist_items(
     client.get_playlist_items(&playlist_id).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn mark_item_played(
     server_url: String,
     token: String,
@@ -293,7 +293,7 @@ pub async fn mark_item_played(
 // Lazy-load functions for hybrid sync
 
 /// Sync only songs (fast startup). Artists/albums are fetched on-demand.
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn sync_songs_only(
     server_url: String,
     token: String,
@@ -313,7 +313,7 @@ pub async fn sync_songs_only(
 }
 
 /// Fetch a single artist from server and cache it
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn fetch_artist(
     server_url: String,
     token: String,
@@ -336,7 +336,7 @@ pub async fn fetch_artist(
 }
 
 /// Fetch a single album from server and cache it
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn fetch_album(
     server_url: String,
     token: String,
@@ -394,7 +394,7 @@ pub fn get_cached_song(
     db::songs::get_by_id(&song_id).map_err(|e| error::AppError::Database(e.to_string()))
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn get_recently_played(
     server_url: String,
     token: String,
@@ -404,7 +404,7 @@ pub async fn get_recently_played(
     client.get_recently_played(&user_id).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn get_instant_mix(
     server_url: String,
     token: String,
@@ -414,7 +414,7 @@ pub async fn get_instant_mix(
     client.get_instant_mix(&item_id).await
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn get_song_share_urls(
     song: models::Song,
 ) -> Result<std::collections::HashMap<String, String>, error::AppError> {
@@ -423,7 +423,7 @@ pub async fn get_song_share_urls(
         .map_err(|e| error::AppError::UniFfi(e))
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn get_related_artists(
     app_data_dir: String,
     artist_id: String,

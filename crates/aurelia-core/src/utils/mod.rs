@@ -10,10 +10,13 @@ pub mod lyrics;
 
 /// Application constants
 pub mod constants {
+    /// Application version - single source of truth
+    pub const APP_VERSION: &str = "0.1.0";
+
     /// Jellyfin client information
     pub const JELLYFIN_CLIENT: &str = "Aurelia";
     pub const JELLYFIN_DEVICE: &str = "Desktop";
-    pub const JELLYFIN_VERSION: &str = "0.1.0";
+    pub const JELLYFIN_VERSION: &str = APP_VERSION;
 
     /// `LrcLib` API endpoint
     pub const LRCLIB_SEARCH_URL: &str = "https://lrclib.net/api/search";

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,8 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -36,7 +33,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -95,7 +91,7 @@ fun LoginScreen(
         }
 
         Text(
-          text = "Welcome back",
+          text = "Welcome to Aurelia",
           style = MaterialTheme.typography.displayLarge,
           color = MaterialTheme.colorScheme.onBackground,
         )
@@ -143,34 +139,6 @@ fun LoginScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
           )
-
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            Column {
-              Text(
-                text = "Material You",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-              )
-              Text(
-                text = "Use your system palette",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-            }
-            Switch(
-              checked = state.useDynamicColor,
-              onCheckedChange = viewModel::toggleDynamicColor,
-              colors =
-                SwitchDefaults.colors(
-                  checkedThumbColor = MaterialTheme.colorScheme.primary,
-                  checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
-                ),
-            )
-          }
 
           if (state.error != null) {
             Text(text = state.error ?: "", color = MaterialTheme.colorScheme.error)

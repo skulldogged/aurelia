@@ -119,7 +119,7 @@
         :class='compact ? "text-[10px]" : "text-xs"'
         class='flex items-center gap-1 text-muted-foreground shrink-0 mt-0.5'
       >
-        <span class='leading-none'>{{ album.songs?.length || 0 }}</span>
+        <span class='leading-none'>{{ album.songs?.length ?? album.songCount ?? 0 }}</span>
         <Disc :class='compact ? "size-2.5" : "size-3"' />
       </div>
     </div>

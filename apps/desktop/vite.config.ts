@@ -49,7 +49,7 @@ export default defineConfig(async () => ({
       }
       : undefined,
     host:       host || false,
-    port:       3000,
+    port:       3001,
     strictPort: true,
     watch:      {
       ignored: ['**/src-tauri/**'],
