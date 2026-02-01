@@ -1,0 +1,60 @@
+apps/desktop/src-tauri/src/lib.rs
+  0687f520b3ca8786 43-44,46,109,132,138,235,237,251-252,254-255,258,260-261,263-267,269-271,273-274,276,280
+  2f7cd68c19714778 13,281-309,313
+apps/mobile/android/app/src/main/java/com/aurelia/app/utils/TimeFormatUtils.kt
+  def681a8f581798a 5-8,10-11
+apps/mobile/android/app/src/main/java/com/aurelia/app/ui/PlayerScreen.kt
+  def681a8f581798a 95,361,390
+crates/aurelia-core/src/cache.rs
+  def681a8f581798a 3
+crates/aurelia-core/src/services/jellyfin.rs
+  def681a8f581798a 889
+apps/shared/src/composables/useAuth.ts
+  2f7cd68c19714778 22-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "ee097be7d98d2f5a1f11d1c9b7dede8e5fd9176f",
+  "prompts": {
+    "0687f520b3ca8786": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e9146f9bffe3rDWnv5hT4dgGX",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 63,
+      "total_deletions": 90,
+      "accepted_lines": 29,
+      "overriden_lines": 0
+    },
+    "2f7cd68c19714778": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e91b89a3ffeVyzJn3wB0NzuEY",
+        "model": "opencode/gpt-5-nano"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 40,
+      "total_deletions": 2,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    },
+    "def681a8f581798a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e924e3cdffe7IxParLEwfrrE8",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 54,
+      "total_deletions": 86,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    }
+  }
+}
