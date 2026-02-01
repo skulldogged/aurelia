@@ -77,7 +77,7 @@ fn expand_aurelia_api(mut input: syn::ItemTrait) -> syn::Result<proc_macro2::Tok
     // Write to apps/shared/src/api/apiClient.ts
     // We use CARGO_MANIFEST_DIR to find the project root
     let project_root = std::env::var("CARGO_MANIFEST_DIR")
-        .map(|s| std::path::PathBuf::from(s))
+        .map(std::path::PathBuf::from)
         .ok()
         .and_then(|p| p.parent().map(|p| p.to_path_buf())) // crates/ -> root
         .and_then(|p| p.parent().map(|p| p.to_path_buf()));

@@ -135,13 +135,9 @@ impl Api for AxumApiImpl {
         password: String,
         device_id: String,
     ) -> ApiResult<serde_json::Value> {
-        let login_resp = aurelia_core::authenticate(
-            server_url.clone(),
-            username.clone(),
-            password,
-            device_id,
-        )
-        .await?;
+        let login_resp =
+            aurelia_core::authenticate(server_url.clone(), username.clone(), password, device_id)
+                .await?;
         Ok(serde_json::to_value(login_resp).map_err(|e| AppError::General(e.to_string()))?)
     }
 

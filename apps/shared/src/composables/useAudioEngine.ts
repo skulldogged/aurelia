@@ -42,6 +42,7 @@ export const useAudioEngine = (
   // State
   const isGaplessTransition = ref(false)
   const mediaEventUnlisteners = ref<UnlistenFn[]>([])
+  const lastTrackEndedId = ref<null | string>(null)
 
   const hasNext = computed(() =>
     playerStore.playlist.length > 1
@@ -364,13 +365,45 @@ export const useAudioEngine = (
 
     // Setup event listeners
     audioPlayer.onPositionUpdate((event: AudioPosition) => {
-      const { isFinished, position } = event
+      const { didAutoAdvance, isFinished, position } = event as AudioPosition & { didAutoAdvance?: boolean }
 
       if (!playerStore.isSeeking) {
         playerStore.setCurrentTime(position)
       }
 
-      if (isFinished && playerStore.isPlaying) {
+      // Handle auto-advance from Rust (gapless transition already happened)
+      if (didAutoAdvance) {
+        logger.debug('[Gapless] Auto-advance detected from Rust backend')
+        const upcomingSong = nextSongInQueue.value
+        if (upcomingSong) {
+          // Mark as gapless transition to prevent song watcher from triggering loadSong
+          isGaplessTransition.value = true
+
+          // Update store to reflect the track that just started playing
+          const newIndex = playerStore.playlist.findIndex(s => s.id === upcomingSong.id)
+          playerStore.setCurrentSong(upcomingSong)
+          if (newIndex !== -1) {
+            playerStore.setCurrentIndex(newIndex)
+          }
+          playerStore.setCurrentTime(0)
+          playerStore.setDuration(upcomingSong.duration || 0)
+          playerStore.play()
+
+          // Prepare the next track for seamless continuation (fire and forget)
+          prepareNextTrack().catch(error => {
+            logger.error('[Gapless] Failed to prepare next track after auto-advance:', error)
+          })
+
+          // Defer resetting the flag to next tick to ensure song watcher sees it as true
+          setTimeout(() => {
+            isGaplessTransition.value = false
+          }, 0)
+        }
+        return
+      }
+
+      if (isFinished && lastTrackEndedId.value !== playerStore.currentSong?.id) {
+        lastTrackEndedId.value = playerStore.currentSong?.id || null
         handleTrackEnded()
       }
     })
@@ -448,6 +481,10 @@ export const useAudioEngine = (
   watch(() => playerStore.currentSong?.id, async (newId, oldId) => {
     logger.debug(`Song watcher triggered: ${oldId} -> ${newId}, isGaplessTransition: ${isGaplessTransition.value}`)
     if (newId === oldId) return
+
+    // Reset last track ended ID when song changes
+    lastTrackEndedId.value = null
+
     if (isGaplessTransition.value) {
       logger.debug('Skipping load - gapless transition in progress')
       return

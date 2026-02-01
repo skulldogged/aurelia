@@ -15,10 +15,14 @@ use std::sync::mpsc::{Sender, channel};
 use std::thread;
 use tracing::{debug, info, trace, warn};
 
+/// Type alias for a boxed audio source
+type BoxedSource = Box<dyn Source<Item = f32> + Send + 'static>;
+
 /// Prepared audio source ready for gapless transition
 struct PreparedSource {
     url: String,
     token: String,
+    sink: Sink,
 }
 
 /// Information needed to restart a stream from a specific position
@@ -156,6 +160,41 @@ impl AudioPlayer {
         // Convert seconds to Jellyfin ticks (10,000 ticks = 1ms, so 10,000,000 ticks = 1s)
         let start_time_ticks = start_position_secs.map(|secs| (secs * 10_000_000.0) as u64);
 
+        let source = self.create_source(url, token, start_time_ticks).await?;
+
+        // Create a sink via the background thread
+        let (sink_tx, sink_rx) = channel();
+        self.cmd_tx
+            .send(AudioThreadCommand::CreateSink(sink_tx))
+            .context("Failed to request audio sink")?;
+
+        let sink = sink_rx.recv().context("Failed to receive audio sink")?;
+
+        // Volume is controlled via sink.set_volume() only (not amplify) to avoid
+        // multiplicative volume issues when tracks are reloaded
+        sink.set_volume(self.volume);
+        sink.append(source);
+        sink.play();
+
+        self.sink = Some(sink);
+        self.current_url = Some(url.to_string());
+        self.current_track = Some(CurrentTrack {
+            url: url.to_string(),
+            token: token.to_string(),
+        });
+        self.is_playing.store(true, Ordering::SeqCst);
+
+        info!("Audio playback started");
+        Ok(())
+    }
+
+    /// Internal helper to create a decoded source with EQ and analyzer applied
+    async fn create_source(
+        &self,
+        url: &str,
+        token: &str,
+        start_time_ticks: Option<u64>,
+    ) -> Result<BoxedSource> {
         // Create streaming source with optional start time
         let streaming = StreamingSource::with_start_time(url, token, start_time_ticks)
             .await
@@ -169,10 +208,7 @@ impl AudioPlayer {
         let analyzer_buffer = Arc::clone(&self.analyzer_buffer);
 
         // Offload blocking decoder creation to a dedicated thread
-        // Decoder::new() reads from the stream to guess the format, which can block
-        // if the stream is downloading. If this runs on the async worker thread,
-        // it might deadlock with the download task.
-        let analyzer_source = tokio::task::spawn_blocking(move || {
+        let source = tokio::task::spawn_blocking(move || {
             // Create decoder using builder for better seeking support
             let reader = BufReader::new(streaming);
             let mut decoder_builder = Decoder::builder().with_data(reader);
@@ -195,12 +231,23 @@ impl AudioPlayer {
             let eq_source = EQSource::new(decoder, eq_settings);
 
             // Wrap with analyzer for visualization (lock-free sample capture)
-            Ok::<_, anyhow::Error>(AnalyzerSource::new(eq_source, analyzer_buffer))
+            let analyzer_source = AnalyzerSource::new(eq_source, analyzer_buffer);
+
+            Ok::<BoxedSource, anyhow::Error>(Box::new(analyzer_source))
         })
         .await
         .context("Failed to join blocking task")??;
 
-        // Create a sink via the background thread
+        Ok(source)
+    }
+
+    /// Prepare the next track for gapless transition (async pre-decoding and sink creation)
+    pub async fn prepare_next(&mut self, url: &str, token: &str) -> Result<()> {
+        debug!("Preparing next track (pre-decoding): {}", url);
+
+        let source = self.create_source(url, token, None).await?;
+
+        // Request a sink via the background thread
         let (sink_tx, sink_rx) = channel();
         self.cmd_tx
             .send(AudioThreadCommand::CreateSink(sink_tx))
@@ -208,39 +255,98 @@ impl AudioPlayer {
 
         let sink = sink_rx.recv().context("Failed to receive audio sink")?;
 
-        // Volume is controlled via sink.set_volume() only (not amplify) to avoid
-        // multiplicative volume issues when tracks are reloaded
+        // Setup the sink but keep it paused until transition
         sink.set_volume(self.volume);
-        sink.append(analyzer_source);
-        sink.play();
+        sink.pause();
+        sink.append(source);
 
-        self.sink = Some(sink);
-        self.current_url = Some(url.to_string());
-        self.current_track = Some(CurrentTrack {
-            url: url.to_string(),
-            token: token.to_string(),
-        });
-        self.is_playing.store(true, Ordering::SeqCst);
-
-        info!("Audio playback started");
-        Ok(())
-    }
-
-    /// Prepare the next track for gapless transition
-    pub fn prepare_next(&mut self, url: &str, token: &str) {
-        debug!("Preparing next track: {}", url);
         self.next_source = Some(PreparedSource {
             url: url.to_string(),
             token: token.to_string(),
+            sink,
         });
+
+        debug!("Next track prepared, decoded, and queued in paused sink: {}", url);
+        Ok(())
     }
 
-    /// Advance to the prepared next track (gapless)
+    /// Check if the current track has finished and there's a prepared next track
+    pub fn should_auto_advance(&self) -> bool {
+        if let Some(sink) = &self.sink {
+            // Track finished AND we have a prepared next track
+            sink.empty() && self.next_source.is_some()
+        } else {
+            false
+        }
+    }
+
+    /// Auto-advance to the prepared next track (called from position update loop)
+    /// Returns true if auto-advance occurred
+    pub fn auto_advance_to_next(&mut self) -> bool {
+        if !self.should_auto_advance() {
+            return false;
+        }
+
+        let next = match self.next_source.take() {
+            Some(n) => n,
+            None => return false,
+        };
+
+        let url = next.url.clone();
+        let token = next.token.clone();
+
+        trace!("Auto-advancing to next track (gapless): {}", url);
+
+        // Stop current playback (clears old sink)
+        if let Some(sink) = self.sink.take() {
+            sink.stop();
+        }
+
+        let sink = next.sink;
+
+        // Ensure volume is current and start playback
+        sink.set_volume(self.volume);
+        sink.play();
+
+        self.sink = Some(sink);
+        self.current_url = Some(url.clone());
+        self.current_track = Some(CurrentTrack {
+            url: url.clone(),
+            token,
+        });
+        self.is_playing.store(true, Ordering::SeqCst);
+
+        trace!("Gapless auto-advance completed");
+        true
+    }
+
+    /// Advance to the prepared next track (gapless) - manual version for API calls
     pub async fn advance_to_next(&mut self) -> Result<()> {
         let next = self.next_source.take().context("No next track prepared")?;
+        let url = next.url.clone();
+        let token = next.token.clone();
 
-        info!("Advancing to next track (gapless): {}", next.url);
-        self.play_url(&next.url, &next.token).await
+        info!("Advancing to next track (gapless): {}", url);
+
+        // Stop current playback (clears old sink)
+        self.stop();
+
+        let sink = next.sink;
+
+        // Ensure volume is current and start playback
+        sink.set_volume(self.volume);
+        sink.play();
+
+        self.sink = Some(sink);
+        self.current_url = Some(url.clone());
+        self.current_track = Some(CurrentTrack {
+            url: url.clone(),
+            token,
+        });
+        self.is_playing.store(true, Ordering::SeqCst);
+
+        info!("Gapless transition completed");
+        Ok(())
     }
 
     /// Pause playback
@@ -301,7 +407,7 @@ impl AudioPlayer {
         if let Some(sink) = &self.sink {
             sink.empty()
         } else {
-            true
+            false
         }
     }
 

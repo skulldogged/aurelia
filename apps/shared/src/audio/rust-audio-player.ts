@@ -368,9 +368,9 @@ export class RustAudioPlayerImpl implements AudioPlayer {
     const { listen } = await import('@tauri-apps/api/event')
 
     // Listen for position updates from Rust
-    const positionUnlisten = await listen<{ isFinished: boolean; position: number; }>('audio:position', event => {
-      const { isFinished, position } = event.payload
-      this.positionCallbacks.forEach(cb => cb({ isFinished, position }))
+    const positionUnlisten = await listen<{ didAutoAdvance?: boolean; isFinished: boolean; position: number; }>('audio:position', event => {
+      const { didAutoAdvance, isFinished, position } = event.payload
+      this.positionCallbacks.forEach(cb => cb({ didAutoAdvance, isFinished, position }))
 
       if (isFinished) {
         this.trackEndCallbacks.forEach(cb => cb())

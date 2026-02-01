@@ -284,28 +284,39 @@ pub fn run() {
 
                 let handle_for_audio = handle.clone();
                 tauri::async_runtime::spawn(async move {
-                    let mut interval = tokio::time::interval(Duration::from_millis(250));
+                    let mut interval = tokio::time::interval(Duration::from_millis(50));
                     loop {
                         interval.tick().await;
 
                         let audio_state = handle_for_audio.state::<aurelia_core::audio::AudioState>();
 
-                        // Check if player is initialized and playing
-                        let player_guard = audio_state.player.lock().await;
-                        if let Some(player) = player_guard.as_ref() {
-                            if player.is_playing() {
+                        // Check if player is initialized
+                        let mut player_guard = audio_state.player.lock().await;
+                        if let Some(player) = player_guard.as_mut() {
+                            // Check for gapless auto-advance BEFORE checking finished state
+                            // This ensures seamless transitions without frontend round-trip
+                            let did_auto_advance = player.auto_advance_to_next();
+                            if did_auto_advance {
+                                debug!("Gapless auto-advance occurred in position loop");
+                            }
+
+                            let is_playing = player.is_playing();
+                            let is_finished = player.is_finished();
+
+                            // Emit position update if playing OR if it just finished
+                            // (Frontend needs isFinished=true to trigger next track)
+                            if is_playing || is_finished {
                                 let position = player.get_position();
-                                let is_finished = player.is_finished();
 
                                 // Emit position update to frontend
                                 let _ = handle_for_audio.emit("audio:position", serde_json::json!({
                                     "position": position,
-                                    "isFinished": is_finished
+                                    "isFinished": is_finished,
+                                    "didAutoAdvance": did_auto_advance
                                 }));
 
                                 if is_finished {
-                                    // Track ended, could emit a separate event here if needed
-                                    debug!("Audio playback finished");
+                                    debug!("Audio playback finished, event emitted");
                                 }
                             }
                         }

@@ -1,11 +1,7 @@
 //! Parse syn types into our Intermediate Representation
 
 use crate::ir::{ApiDefinition, ApiMethod, BodyParam, HttpMethod, PathParam, QueryParam};
-use proc_macro2::Span;
-use syn::{
-    parse::Parse, Attribute, FnArg, Ident, ItemTrait, Pat, Receiver, ReturnType, TraitItem,
-    TraitItemFn, Type,
-};
+use syn::{Attribute, FnArg, Ident, ItemTrait, Pat, TraitItem, TraitItemFn, Type, parse::Parse};
 
 pub fn parse_api_trait(input: &ItemTrait) -> syn::Result<ApiDefinition> {
     let trait_name = input.ident.clone();
@@ -41,7 +37,7 @@ fn parse_api_method(method: &TraitItemFn) -> syn::Result<ApiMethod> {
     let mut query_params = Vec::new();
     let mut body_param = None;
 
-    for (idx, input) in method.sig.inputs.iter().enumerate() {
+    for input in method.sig.inputs.iter() {
         match input {
             FnArg::Receiver(_) => {
                 // Skip &self
@@ -110,7 +106,7 @@ fn parse_api_attr(attr: &Attribute) -> syn::Result<(HttpMethod, String, bool)> {
                     return Err(syn::Error::new_spanned(
                         method_ident,
                         "Expected HTTP method (GET, POST, PUT, DELETE, PATCH)",
-                    ))
+                    ));
                 }
             };
 
@@ -151,20 +147,21 @@ fn extract_param_name(pat: &Pat) -> syn::Result<Ident> {
 
 fn is_request_struct(ty: &Type) -> bool {
     // Check if type name ends with "Request" or is a complex struct
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            let name = segment.ident.to_string();
-            return name.ends_with("Request") || name.ends_with("Data");
-        }
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.last()
+    {
+        let name = segment.ident.to_string();
+        return name.ends_with("Request") || name.ends_with("Data");
     }
     false
 }
 
 fn is_option_type(ty: &Type) -> bool {
-    if let Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.first() {
-            return segment.ident == "Option";
-        }
+    if let Type::Path(type_path) = ty
+        && let Some(segment) = type_path.path.segments.first()
+    {
+        return segment.ident == "Option";
     }
+
     false
 }

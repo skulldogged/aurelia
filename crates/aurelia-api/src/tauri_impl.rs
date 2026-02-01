@@ -64,13 +64,9 @@ impl Api for TauriApiImpl {
         password: String,
         device_id: String,
     ) -> ApiResult<serde_json::Value> {
-        let login_resp = aurelia_core::authenticate(
-            server_url.clone(),
-            username.clone(),
-            password,
-            device_id,
-        )
-        .await?;
+        let login_resp =
+            aurelia_core::authenticate(server_url.clone(), username.clone(), password, device_id)
+                .await?;
         let creds = Credentials {
             server_url: server_url.clone(),
             username: username.clone(),
@@ -1164,8 +1160,10 @@ impl Api for TauriApiImpl {
         let player = player_guard
             .as_mut()
             .ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
-        player.prepare_next(&url, &token);
-        Ok(())
+        player
+            .prepare_next(&url, &token)
+            .await
+            .map_err(|e| AppError::General(e.to_string()))
     }
 
     async fn audio_is_finished(&self) -> ApiResult<bool> {

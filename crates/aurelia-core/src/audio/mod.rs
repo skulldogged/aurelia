@@ -151,8 +151,7 @@ pub async fn audio_seek(state: &AudioState, position_secs: f64) -> Result<()> {
 pub async fn audio_prepare_next(state: &AudioState, url: String, token: String) -> Result<()> {
     let mut player_guard = state.player.lock().await;
     let player = player_guard.as_mut().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
-    player.prepare_next(&url, &token);
-    Ok(())
+    player.prepare_next(&url, &token).await
 }
 
 /// Advance to next prepared track

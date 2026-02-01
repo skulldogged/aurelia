@@ -236,15 +236,15 @@ fn generate_ts_method(method: &ApiMethod) -> syn::Result<String> {
     let mut tauri_payload_fields = Vec::new();
     for param in &method.path_params {
         let name = to_camel_case(&param.name.to_string());
-        tauri_payload_fields.push(format!("{}", name));
+        tauri_payload_fields.push(name.to_string());
     }
     for param in &method.query_params {
         let name = to_camel_case(&param.name.to_string());
-        tauri_payload_fields.push(format!("{}", name));
+        tauri_payload_fields.push(name.to_string());
     }
     if let Some(body) = &method.body_param {
         let name = to_camel_case(&body.name.to_string());
-        tauri_payload_fields.push(format!("{}", name));
+        tauri_payload_fields.push(name.to_string());
     }
 
     let tauri_payload = if tauri_payload_fields.is_empty() {
@@ -310,14 +310,14 @@ fn generate_desktop_only_method(method: &ApiMethod) -> syn::Result<String> {
         } else {
             param_list.push(format!("{}: {}", name, ty_name));
         }
-        arg_list.push(format!("{}", name));
+        arg_list.push(name.to_string());
     }
 
     if let Some(body) = &method.body_param {
         let name = to_camel_case(&body.name.to_string());
         let ty_name = type_to_ts(&body.ty);
         param_list.push(format!("{}: {}", name, ty_name));
-        arg_list.push(format!("{}", name));
+        arg_list.push(name.to_string());
     }
 
     let params_str = param_list.join(", ");
@@ -352,25 +352,24 @@ fn type_to_ts(ty: &syn::Type) -> String {
                 "bool" => "boolean".to_string(),
                 "Vec" => {
                     // Try to extract inner type
-                    if let Some(seg) = type_path.path.segments.last() {
-                        if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                            if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                                let inner_str = type_to_ts(inner);
-                                return format!("{}[]", inner_str);
-                            }
-                        }
+                    if let Some(seg) = type_path.path.segments.last()
+                        && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+                        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                    {
+                        let inner_str = type_to_ts(inner);
+                        return format!("{}[]", inner_str);
                     }
                     "any[]".to_string()
                 }
                 "Option" => {
                     // Try to extract inner type
-                    if let Some(seg) = type_path.path.segments.last() {
-                        if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-                            if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-                                return type_to_ts(inner).to_string();
-                            }
-                        }
+                    if let Some(seg) = type_path.path.segments.last()
+                        && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+                        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+                    {
+                        return type_to_ts(inner).to_string();
                     }
+
                     "any".to_string()
                 }
                 _ => name,

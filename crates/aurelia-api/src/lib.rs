@@ -10,10 +10,10 @@ pub use aurelia_api_macros::aurelia_api;
 
 // Re-export core types
 pub use aurelia_core::{
-    error::AppError,
-    models::*,
-    listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen},
     domain,
+    error::AppError,
+    listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen},
+    models::*,
 };
 
 // The Api trait with macro annotations

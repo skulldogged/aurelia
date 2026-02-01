@@ -2,7 +2,7 @@
 
 use crate::ir::{ApiDefinition, ApiMethod};
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 
 pub fn generate(api_def: &ApiDefinition) -> syn::Result<TokenStream> {
     let commands: Vec<TokenStream> = api_def

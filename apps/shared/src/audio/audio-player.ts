@@ -67,8 +67,9 @@ export interface AudioPlayer {
 }
 
 export interface AudioPosition {
-  isFinished: boolean
-  position:   number
+  didAutoAdvance?: boolean
+  isFinished:     boolean
+  position:       number
 }
 
 export type DurationChangeCallback = (duration: number) => void
