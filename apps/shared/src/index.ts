@@ -55,7 +55,7 @@ export { useTopBar } from './composables/useTopBar'
 // Re-export generated types
 export * from './generated'
 // WebSocket client for web platform
-export type { WebSocketClient } from './lib/api/types'
+// Types are exported from lib/api/types
 export { default as Login } from './pages/login.vue'
 
 export { useAccentColorStore } from './stores/accentColor'

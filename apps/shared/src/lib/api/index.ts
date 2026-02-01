@@ -3,8 +3,9 @@
 // This module provides the unified API client that works on both
 // desktop (via Tauri IPC) and web (via HTTP).
 
-// Re-export unified API client
-export { apiClient } from '../api/apiClient'
+// Re-export unified API client and setup function
+export { apiClient } from '../../api/apiClient'
+export { setApiClient } from '../..'
 
 // Re-export generated types
 export type {
@@ -16,10 +17,7 @@ export type {
   LibraryData,
   Playlist,
   Song,
-} from '../generated'
+} from '../../generated'
 
 // Platform detection utilities
-export { isTauri } from '../lib/platform'
-
-// Legacy Tauri client factory (used by desktop app during transition)
-export { createTauriClient } from './tauriClient'
+export { isTauri } from '../platform'

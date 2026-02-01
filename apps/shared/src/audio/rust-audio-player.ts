@@ -194,10 +194,6 @@ export class RustAudioPlayerImpl implements AudioPlayer {
 
       const { invoke } = await import('@tauri-apps/api/core')
       await invoke('audio_play', {
-        album:      metadata?.album ?? null,
-        artist:     metadata?.artist ?? null,
-        artworkUrl: metadata?.artworkUrl ?? null,
-        title:      metadata?.title ?? null,
         token,
         url,
       })

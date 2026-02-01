@@ -108,14 +108,17 @@ export const useAudioEngine = (
     if (!isTauri()) return
 
     try {
+      const client = getApiClient()
+      const mediaUpdateNowPlaying = client.mediaUpdateNowPlaying
+      if (!mediaUpdateNowPlaying) return
       const payload: NowPlayingPayload = {
-        album:        song.album ?? null,
-        artist:       song.artists?.join(', ') ?? null,
-        coverUrl:     song.albumArtUrl ?? null,
-        durationSecs: song.duration ?? null,
-        title:        song.name,
+        album:    song.album ?? null,
+        artist:   song.artists?.join(', ') ?? null,
+        coverUrl: song.albumArtUrl ?? null,
+        duration: song.duration ?? null,
+        title:    song.name,
       }
-      await getApiClient().mediaUpdateNowPlaying(payload)
+      await mediaUpdateNowPlaying(payload)
       logger.debug(`Updated OS Now Playing: ${song.name}`)
     } catch (error) {
       logger.error('Failed to update Now Playing:', error)
@@ -127,12 +130,15 @@ export const useAudioEngine = (
     if (!isTauri()) return
 
     try {
+      const client = getApiClient()
+      const mediaSetButtonEnabled = client.mediaSetButtonEnabled
+      if (!mediaSetButtonEnabled) return
       const canGoNext = hasNext.value || playerStore.repeatMode === 'all'
       const canGoPrevious = hasPrevious.value
 
       await Promise.all([
-        getApiClient().mediaSetButtonEnabled('next', canGoNext),
-        getApiClient().mediaSetButtonEnabled('previous', canGoPrevious),
+        mediaSetButtonEnabled('next', canGoNext),
+        mediaSetButtonEnabled('previous', canGoPrevious),
       ])
       logger.debug(`Updated media buttons: next=${canGoNext}, previous=${canGoPrevious}`)
     } catch (error) {
@@ -208,12 +214,12 @@ export const useAudioEngine = (
     }
 
     try {
-      const streamResult = await getApiClient().getAudioStreamUrl({
-        container: next.container,
-        itemId:    next.id,
-        serverUrl: props.serverUrl,
-        token:     props.token,
-      })
+      const streamResult = await getApiClient().getAudioStreamUrl(
+        next.id,
+        props.serverUrl,
+        props.token,
+        next.container ?? undefined,
+      )
 
       if (streamResult.status === 'ok') {
         await audioPlayer.prepareNext(streamResult.data, props.token)

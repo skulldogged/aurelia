@@ -1,6 +1,7 @@
 import { ref, type Ref, watch } from 'vue'
 
-import type { ListenBrainzCredentials, Result, Song } from '../lib/api/types'
+import type { ListenBrainzCredentials, Song } from '../generated'
+import type { Result } from '../lib/result'
 
 import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
@@ -26,6 +27,7 @@ export const useListenBrainz = (): {
     const noop = async (): Promise<void> => {}
     const noopValidate = async (): Promise<ListenBrainzCredentials> => ({
       userToken: '',
+      username: null,
     })
 
     return {
@@ -89,7 +91,7 @@ export const useListenBrainz = (): {
 
     const artist = song.artists?.[0] ?? 'Unknown Artist'
     const track = song.name
-    const album = song.album ?? null
+    const album = song.album ?? undefined
 
     const result = await getApiClient().listenbrainzPlayingNow(artist, track, album)
     if (result.status === 'error')

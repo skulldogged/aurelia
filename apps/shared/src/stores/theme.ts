@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { computed, watch } from 'vue'
 
 import { COLOR_SCHEMES } from '../lib/colorSchemes'
-import { _logger } from '../lib/logger'
+
 
 export const useThemeStore = defineStore('theme', () => {
   // Determine default theme based on system preference if no saved preference exists

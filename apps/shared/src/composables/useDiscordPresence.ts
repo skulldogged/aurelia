@@ -1,19 +1,7 @@
 import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 
 import type { Song } from '../lib/api/types'
-
-// Discord RPC activity type (desktop-only, not in shared types)
-interface RpcActivity {
-  buttons:         null | { label: string; url: string }[]
-  details:         null | string
-  end_timestamp:   null | number
-  large_image:     null | string
-  large_text:      null | string
-  small_image:     null | string
-  small_text:      null | string
-  start_timestamp: null | number
-  state:           null | string
-}
+import type { RpcActivity } from '../generated'
 
 import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
@@ -174,20 +162,19 @@ export const useDiscordPresence = (): {
       artistImageUrl = `${song.albumArtUrl.split('/Items/')[0]}/Items/${song.artistIds[0]}/Images/Primary`
 
     const activity: RpcActivity = {
-      buttons:         null,
       details:         song.name,
-      end_timestamp:   null,
-      large_image:     song.albumArtUrl ?? null,
-      large_text:      song.album ?? 'Unknown Album',
-      small_image:     null,
-      small_text:      null,
-      start_timestamp: null,
+      endTimestamp:    null,
+      largeImageKey:   song.albumArtUrl ?? null,
+      largeImageText:  song.album ?? 'Unknown Album',
+      smallImageKey:   null,
+      smallImageText:  null,
+      startTimestamp:  null,
       state:           null,
     }
 
     if (artistImageUrl) {
-      activity.small_image = artistImageUrl
-      activity.small_text = artists
+      activity.smallImageKey = artistImageUrl
+      activity.smallImageText = artists
     }
 
     if (isPlaying) {
@@ -196,11 +183,11 @@ export const useDiscordPresence = (): {
       const songStartTime = currentSongStartTime ?? (Date.now() - (position * 1000))
       const startAt = Math.max(0, songStartTime)
 
-      activity.start_timestamp = Math.floor(startAt / 1000)
+      activity.startTimestamp = Math.floor(startAt / 1000)
 
       if (duration > 0) {
         const endAt = startAt + (duration * 1000)
-        activity.end_timestamp = Math.floor(endAt / 1000)
+        activity.endTimestamp = Math.floor(endAt / 1000)
       }
     } else {
       activity.state = artists
@@ -210,8 +197,8 @@ export const useDiscordPresence = (): {
         const positionMs = Math.round(position * 1000)
         const startAt = Math.max(0, now - positionMs)
 
-        activity.start_timestamp = Math.floor(startAt / 1000)
-        activity.end_timestamp = null
+        activity.startTimestamp = Math.floor(startAt / 1000)
+        activity.endTimestamp = null
       }
     }
 

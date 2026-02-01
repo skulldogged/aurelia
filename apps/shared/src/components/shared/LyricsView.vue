@@ -82,7 +82,7 @@
             newSong.id,
             newSong.artists![0],
             newSong.name,
-            null,
+            undefined,
           ),
           {
             onError: errorString => {

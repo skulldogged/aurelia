@@ -1,22 +1,19 @@
 #[cfg(target_os = "android")]
 mod android_audio_player;
-pub mod audio;
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-pub mod discord_rpc;
-pub mod handlers;
 pub mod system_tray;
 
 pub use anyhow::Result;
 
-use aurelia_core::{db, listenbrainz_core, state};
 use aurelia_api::traits::tauri_commands;
-#[cfg(debug_assertions)]
-use specta_typescript::{BigIntExportBehavior, Typescript};
-#[cfg(debug_assertions)]
-use std::process::Command;
+use aurelia_api::Api;
+use aurelia_api::tauri_impl::TauriApiImpl;
+use aurelia_core::{db, listenbrainz_core, state};
+#[cfg(not(target_os = "android"))]
+use aurelia_core::audio;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+use aurelia_core::{discord_rpc, media_controls};
 use std::sync::Once;
 use tauri::Manager;
-use tauri_specta::{Builder, collect_commands};
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -34,259 +31,10 @@ fn init_logging() {
     });
 }
 
-#[cfg(debug_assertions)]
-fn bunx_eslint_formatter(file: &std::path::Path) -> std::io::Result<()> {
-    Command::new("bunx")
-        .arg("eslint")
-        .arg("--fix")
-        .arg(file)
-        .output()
-        .map(|_| ())
-        .map_err(std::io::Error::other)
-}
-
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 #[allow(clippy::large_stack_frames)]
 pub fn run() {
     init_logging();
     info!("Starting Tauri application");
-
-    #[allow(unused_mut)]
-    let mut builder = Builder::<tauri::Wry>::new();
-
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        builder = builder.commands(collect_commands![
-            handlers::auth::login_to_jellyfin,
-            handlers::auth::save_credentials,
-            handlers::auth::get_saved_credentials,
-            handlers::auth::clear_saved_credentials,
-            handlers::auth::save_volume,
-            handlers::auth::get_saved_volume,
-            handlers::music::get_library,
-            handlers::music::get_song,
-            handlers::music::get_artist,
-            handlers::music::get_album,
-            handlers::music::get_audio_stream_url,
-            handlers::music::toggle_favorite_status,
-            handlers::music::sync_library,
-            handlers::music::clear_cache,
-            handlers::music::get_recently_played,
-            handlers::music::register_client_capabilities,
-            handlers::music::get_instant_mix,
-            handlers::music::get_related_artists,
-            handlers::music::get_home_view_data,
-            handlers::music::report_playback_start,
-            handlers::music::report_playback_progress,
-            handlers::music::report_playback_stop,
-            handlers::music::mark_item_played,
-            handlers::music::get_song_share_urls,
-            handlers::music::get_album_share_urls,
-            handlers::music::get_artist_share_urls,
-            handlers::music::get_sync_state,
-            handlers::lyrics::get_lyrics,
-            handlers::images::get_image,
-            handlers::images::clear_image_cache,
-            handlers::images::get_image_cache_stats,
-            handlers::images::clear_image_from_cache,
-            handlers::playlists::get_playlists,
-            handlers::playlists::create_playlist,
-            handlers::playlists::update_playlist,
-            handlers::playlists::delete_playlist,
-            handlers::playlists::add_playlist_items,
-            handlers::playlists::remove_playlist_items,
-            handlers::playlists::get_playlist_items,
-            discord_rpc::discord_rpc_start,
-            discord_rpc::discord_rpc_stop,
-            discord_rpc::discord_rpc_is_running,
-            discord_rpc::discord_rpc_set_activity,
-            discord_rpc::discord_rpc_clear_activity,
-            handlers::listenbrainz::listenbrainz_validate_token,
-            handlers::listenbrainz::listenbrainz_submit_listen,
-            handlers::listenbrainz::listenbrainz_playing_now,
-            handlers::listenbrainz::listenbrainz_set_credentials,
-            handlers::listenbrainz::listenbrainz_clear_credentials,
-            handlers::listenbrainz::listenbrainz_is_authenticated,
-            system_tray::show_main_window,
-            system_tray::hide_main_window,
-            system_tray::quit_application,
-            system_tray::set_minimize_to_tray,
-            system_tray::set_close_to_tray,
-            // Audio commands
-            audio::audio_init,
-            audio::audio_play,
-            audio::audio_pause,
-            audio::audio_resume,
-            audio::audio_stop,
-            audio::audio_set_volume,
-            audio::audio_get_volume,
-            audio::audio_is_playing,
-            audio::audio_is_finished,
-            audio::audio_get_position,
-            audio::audio_seek,
-            audio::audio_prepare_next,
-            audio::audio_advance_gapless,
-            audio::audio_set_eq_enabled,
-            audio::audio_is_eq_enabled,
-            audio::audio_set_eq_band,
-            audio::audio_get_eq_band,
-            audio::audio_get_all_eq_bands,
-            audio::audio_reset_eq,
-            // Analyzer commands
-            audio::audio_set_analyzer_enabled,
-            audio::audio_is_analyzer_enabled,
-            audio::audio_reinit,
-            // Media controls commands
-            audio::media_controls::media_update_now_playing,
-            audio::media_controls::media_set_playback_status,
-            audio::media_controls::media_clear_now_playing,
-            audio::media_controls::media_set_button_enabled,
-        ]);
-    }
-
-    #[cfg(target_os = "android")]
-    {
-        builder = builder.commands(collect_commands![
-            handlers::auth::login_to_jellyfin,
-            handlers::auth::save_credentials,
-            handlers::auth::get_saved_credentials,
-            handlers::auth::clear_saved_credentials,
-            handlers::auth::save_volume,
-            handlers::auth::get_saved_volume,
-            handlers::music::get_library,
-            handlers::music::get_song,
-            handlers::music::get_artist,
-            handlers::music::get_album,
-            handlers::music::get_audio_stream_url,
-            handlers::music::toggle_favorite_status,
-            handlers::music::sync_library,
-            handlers::music::clear_cache,
-            handlers::music::get_recently_played,
-            handlers::music::register_client_capabilities,
-            handlers::music::get_instant_mix,
-            handlers::music::get_related_artists,
-            handlers::music::get_home_view_data,
-            handlers::music::report_playback_start,
-            handlers::music::report_playback_progress,
-            handlers::music::report_playback_stop,
-            handlers::music::mark_item_played,
-            handlers::music::get_song_share_urls,
-            handlers::music::get_album_share_urls,
-            handlers::music::get_artist_share_urls,
-            handlers::music::get_sync_state,
-            handlers::lyrics::get_lyrics,
-            handlers::images::get_image,
-            handlers::images::clear_image_cache,
-            handlers::images::get_image_cache_stats,
-            handlers::images::clear_image_from_cache,
-            handlers::playlists::get_playlists,
-            handlers::playlists::create_playlist,
-            handlers::playlists::update_playlist,
-            handlers::playlists::delete_playlist,
-            handlers::playlists::add_playlist_items,
-            handlers::playlists::remove_playlist_items,
-            handlers::playlists::get_playlist_items,
-            handlers::listenbrainz::listenbrainz_validate_token,
-            handlers::listenbrainz::listenbrainz_submit_listen,
-            handlers::listenbrainz::listenbrainz_playing_now,
-            handlers::listenbrainz::listenbrainz_set_credentials,
-            handlers::listenbrainz::listenbrainz_clear_credentials,
-            handlers::listenbrainz::listenbrainz_is_authenticated,
-            system_tray::quit_application,
-            // Audio commands - forwarded to Kotlin ExoPlayer plugin
-            android_audio_player::audio_init,
-            android_audio_player::audio_play,
-            android_audio_player::audio_pause,
-            android_audio_player::audio_resume,
-            android_audio_player::audio_stop,
-            android_audio_player::audio_set_volume,
-            android_audio_player::audio_get_volume,
-            android_audio_player::audio_is_playing,
-            android_audio_player::audio_is_finished,
-            android_audio_player::audio_get_position,
-            android_audio_player::audio_seek,
-            android_audio_player::audio_prepare_next,
-            android_audio_player::audio_advance_gapless,
-            android_audio_player::audio_set_eq_enabled,
-            android_audio_player::audio_is_eq_enabled,
-            android_audio_player::audio_set_eq_band,
-            android_audio_player::audio_get_eq_band,
-            android_audio_player::audio_get_all_eq_bands,
-            android_audio_player::audio_reset_eq,
-            android_audio_player::audio_set_analyzer_enabled,
-            android_audio_player::audio_is_analyzer_enabled,
-            android_audio_player::audio_reinit,
-            android_audio_player::audio_check_record_permission,
-            android_audio_player::audio_request_record_permission,
-            // Media controls commands (stubs - handled natively by MediaSession)
-            android_audio_player::media_update_now_playing,
-            android_audio_player::media_set_playback_status,
-            android_audio_player::media_clear_now_playing,
-            android_audio_player::media_set_button_enabled,
-        ]);
-    }
-
-    #[cfg(target_os = "ios")]
-    {
-        builder = builder.commands(collect_commands![
-            handlers::auth::login_to_jellyfin,
-            handlers::auth::save_credentials,
-            handlers::auth::get_saved_credentials,
-            handlers::auth::clear_saved_credentials,
-            handlers::auth::save_volume,
-            handlers::auth::get_saved_volume,
-            handlers::music::get_library,
-            handlers::music::get_song,
-            handlers::music::get_artist,
-            handlers::music::get_album,
-            handlers::music::get_audio_stream_url,
-            handlers::music::toggle_favorite_status,
-            handlers::music::sync_library,
-            handlers::music::clear_cache,
-            handlers::music::get_recently_played,
-            handlers::music::register_client_capabilities,
-            handlers::music::get_instant_mix,
-            handlers::music::get_related_artists,
-            handlers::music::get_home_view_data,
-            handlers::music::report_playback_start,
-            handlers::music::report_playback_progress,
-            handlers::music::report_playback_stop,
-            handlers::music::mark_item_played,
-            handlers::music::get_song_share_urls,
-            handlers::music::get_album_share_urls,
-            handlers::music::get_artist_share_urls,
-            handlers::music::get_sync_state,
-            handlers::lyrics::get_lyrics,
-            handlers::images::get_image,
-            handlers::images::clear_image_cache,
-            handlers::images::get_image_cache_stats,
-            handlers::images::clear_image_from_cache,
-            handlers::playlists::get_playlists,
-            handlers::playlists::create_playlist,
-            handlers::playlists::update_playlist,
-            handlers::playlists::delete_playlist,
-            handlers::playlists::add_playlist_items,
-            handlers::playlists::remove_playlist_items,
-            handlers::playlists::get_playlist_items,
-            handlers::listenbrainz::listenbrainz_validate_token,
-            handlers::listenbrainz::listenbrainz_submit_listen,
-            handlers::listenbrainz::listenbrainz_playing_now,
-            handlers::listenbrainz::listenbrainz_set_credentials,
-            handlers::listenbrainz::listenbrainz_clear_credentials,
-            handlers::listenbrainz::listenbrainz_is_authenticated,
-            system_tray::quit_application,
-        ]);
-    }
-
-    #[cfg(all(debug_assertions, not(any(target_os = "android", target_os = "ios"))))]
-    builder
-        .export(
-            Typescript::default()
-                .bigint(BigIntExportBehavior::BigInt)
-                .formatter(bunx_eslint_formatter),
-            "../src/lib/api/bindings.ts",
-        )
-        .expect("Failed to export typescript bindings");
 
     #[allow(unused_mut)]
     let mut tauri_builder = tauri::Builder::default()
@@ -300,7 +48,7 @@ pub fn run() {
 
     #[cfg(not(target_os = "android"))]
     {
-        tauri_builder = tauri_builder.manage(audio::AudioState::default());
+        tauri_builder = tauri_builder.manage(audio::AudioState::new());
     }
 
     #[cfg(any(target_os = "android", target_os = "ios"))]
@@ -317,16 +65,122 @@ pub fn run() {
     {
         tauri_builder = tauri_builder
             .manage(discord_rpc::DiscordRpcState::new())
-            .manage(audio::MediaControlsState::default());
+            .manage(media_controls::MediaControlsState::new());
     }
 
+    // Register all commands from the unified API
     tauri_builder
-        .invoke_handler(builder.invoke_handler())
+        .invoke_handler(tauri::generate_handler![
+            // Auth
+            tauri_commands::login_to_jellyfin,
+            tauri_commands::save_credentials,
+            tauri_commands::get_saved_credentials,
+            tauri_commands::clear_saved_credentials,
+            tauri_commands::save_volume,
+            tauri_commands::get_saved_volume,
+            // Library
+            tauri_commands::get_library,
+            tauri_commands::sync_library,
+            tauri_commands::get_sync_state,
+            // Songs
+            tauri_commands::get_song,
+            tauri_commands::toggle_favorite_status,
+            tauri_commands::get_instant_mix,
+            tauri_commands::get_song_share_urls,
+            // Artists
+            tauri_commands::get_artist,
+            tauri_commands::get_related_artists,
+            tauri_commands::get_artist_share_urls,
+            // Albums
+            tauri_commands::get_album,
+            tauri_commands::get_album_share_urls,
+            // Playlists
+            tauri_commands::get_playlists,
+            tauri_commands::get_playlist_items,
+            tauri_commands::create_playlist,
+            tauri_commands::update_playlist,
+            tauri_commands::delete_playlist,
+            tauri_commands::add_playlist_items,
+            tauri_commands::remove_playlist_items,
+            // Home
+            tauri_commands::get_home_view_data,
+            tauri_commands::get_recently_played,
+            // Images
+            tauri_commands::get_image,
+            tauri_commands::clear_image_cache,
+            tauri_commands::get_image_cache_stats,
+            tauri_commands::clear_image_from_cache,
+            // Audio streaming
+            tauri_commands::get_audio_stream_url,
+            // Lyrics
+            tauri_commands::get_lyrics,
+            // Cache
+            tauri_commands::clear_cache,
+            // Session / Playback
+            tauri_commands::register_client_capabilities,
+            tauri_commands::report_playback_start,
+            tauri_commands::report_playback_progress,
+            tauri_commands::report_playback_stop,
+            tauri_commands::mark_item_played,
+            // ListenBrainz
+            tauri_commands::listenbrainz_set_credentials,
+            tauri_commands::listenbrainz_clear_credentials,
+            tauri_commands::listenbrainz_is_authenticated,
+            tauri_commands::listenbrainz_validate_token,
+            tauri_commands::listenbrainz_submit_listen,
+            tauri_commands::listenbrainz_playing_now,
+            // Audio (desktop only)
+            tauri_commands::audio_init,
+            tauri_commands::audio_play,
+            tauri_commands::audio_pause,
+            tauri_commands::audio_resume,
+            tauri_commands::audio_stop,
+            tauri_commands::audio_get_volume,
+            tauri_commands::audio_set_volume,
+            tauri_commands::audio_seek,
+            tauri_commands::audio_get_position,
+            tauri_commands::audio_is_playing,
+            tauri_commands::audio_is_finished,
+            tauri_commands::audio_advance_gapless,
+            tauri_commands::audio_prepare_next,
+            tauri_commands::audio_set_eq_enabled,
+            tauri_commands::audio_is_eq_enabled,
+            tauri_commands::audio_set_eq_band,
+            tauri_commands::audio_get_eq_band,
+            tauri_commands::audio_get_all_eq_bands,
+            tauri_commands::audio_reset_eq,
+            tauri_commands::audio_set_analyzer_enabled,
+            tauri_commands::audio_is_analyzer_enabled,
+            tauri_commands::audio_reinit,
+            // Discord RPC (desktop only)
+            tauri_commands::discord_rpc_start,
+            tauri_commands::discord_rpc_stop,
+            tauri_commands::discord_rpc_is_running,
+            tauri_commands::discord_rpc_set_activity,
+            tauri_commands::discord_rpc_clear_activity,
+            // Media controls (desktop only)
+            tauri_commands::media_update_now_playing,
+            tauri_commands::media_clear_now_playing,
+            tauri_commands::media_set_playback_status,
+            tauri_commands::media_set_button_enabled,
+            // Last.fm
+            tauri_commands::lastfm_set_credentials,
+            tauri_commands::lastfm_clear_credentials,
+            tauri_commands::lastfm_is_authenticated,
+            tauri_commands::lastfm_start_auth_server,
+            tauri_commands::lastfm_authenticate,
+            tauri_commands::lastfm_scrobble,
+            tauri_commands::lastfm_update_now_playing,
+            // Window management
+            tauri_commands::show_main_window,
+            tauri_commands::hide_main_window,
+            tauri_commands::quit_application,
+            tauri_commands::set_minimize_to_tray,
+            tauri_commands::set_close_to_tray,
+        ])
         .setup(move |app| {
             let handle = app.handle();
             info!("Setting up application...");
-            info!("DEBUG: Setup function called successfully");
-            builder.mount_events(app);
 
             info!("Initializing database...");
             let app_data_dir = handle
@@ -368,17 +222,11 @@ pub fn run() {
                             info!("Triggering library sync on startup.");
                             let handle = handle.clone();
                             tauri::async_runtime::spawn(async move {
-                                if let Ok(Some(creds)) =
-                                    handlers::auth::get_credentials_cached(&handle).await
-                                    && let Err(e) = handlers::music::sync_library(
-                                        handle.clone(),
-                                        handle.state(),
-                                        creds.server_url,
-                                        creds.token,
-                                    )
-                                    .await
-                                {
-                                    error!("Failed to sync library: {}", e);
+                                let api = TauriApiImpl::new(handle);
+                                if let Ok(Some(_creds)) = api.get_saved_credentials().await {
+                                    if let Err(e) = api.sync_library().await {
+                                        error!("Failed to sync library: {}", e);
+                                    }
                                 }
                             });
                         }
@@ -398,24 +246,59 @@ pub fn run() {
                 system_tray::setup_window_behavior(handle);
 
                 // Initialize OS media controls (SMTC on Windows, MPRIS on Linux, etc.)
-                match audio::media_controls::init_media_controls(handle) {
-                    Ok(media_state) => {
-                        // Attach event handlers
-                        if let Err(e) = audio::media_controls::attach_media_handlers(
-                            &media_state,
-                            handle.clone(),
-                        ) {
-                            error!("Failed to attach media control handlers: {}", e);
-                        }
-                        // Replace the default state with the initialized one
-                        // Note: The state was already managed with default, we update the inner controls
-                        let managed_state = handle.state::<audio::MediaControlsState>();
-                        *managed_state.controls.lock().unwrap() =
-                            media_state.controls.into_inner().unwrap();
-                        info!("OS media controls initialized");
+                let media_state = handle.state::<media_controls::MediaControlsState>();
+                let hwnd = {
+                    #[cfg(target_os = "windows")]
+                    {
+                        handle
+                            .get_webview_window("main")
+                            .and_then(|w| {
+                                use raw_window_handle::HasWindowHandle;
+                                let handle = w.window_handle().ok()?;
+                                match handle.as_raw() {
+                                    raw_window_handle::RawWindowHandle::Win32(h) => {
+                                        Some(h.hwnd.get() as *mut std::ffi::c_void)
+                                    }
+                                    _ => None,
+                                }
+                            })
                     }
-                    Err(e) => {
-                        error!("Failed to initialize media controls: {}", e);
+                    #[cfg(not(target_os = "windows"))]
+                    { None }
+                };
+                if let Err(e) = media_state.init(hwnd) {
+                    error!("Failed to initialize media controls: {}", e);
+                } else {
+                    let handle_clone = handle.clone();
+                    if let Err(e) = media_state.attach_handler(move |event| {
+                        use tauri::Emitter;
+                        match event {
+                            media_controls::MediaEvent::Play => {
+                                let _ = handle_clone.emit("media-control-play", ());
+                            }
+                            media_controls::MediaEvent::Pause => {
+                                let _ = handle_clone.emit("media-control-pause", ());
+                            }
+                            media_controls::MediaEvent::Toggle => {
+                                let _ = handle_clone.emit("media-control-toggle", ());
+                            }
+                            media_controls::MediaEvent::Next => {
+                                let _ = handle_clone.emit("media-control-next", ());
+                            }
+                            media_controls::MediaEvent::Previous => {
+                                let _ = handle_clone.emit("media-control-previous", ());
+                            }
+                            media_controls::MediaEvent::Stop => {
+                                let _ = handle_clone.emit("media-control-stop", ());
+                            }
+                            media_controls::MediaEvent::Seek(seconds) => {
+                                let _ = handle_clone.emit("media-control-seek", seconds);
+                            }
+                        }
+                    }) {
+                        error!("Failed to attach media control handlers: {}", e);
+                    } else {
+                        info!("OS media controls initialized");
                     }
                 }
             }

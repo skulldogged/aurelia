@@ -22,5 +22,5 @@ reqwest = { version = "0.12", optional = true }
 
 [features]
 default = []
-desktop = ["tauri", "specta", "rand"]
+desktop = ["tauri", "specta", "rand", "reqwest", "aurelia-core/desktop"]
 web = ["axum", "tokio", "rand", "reqwest"]

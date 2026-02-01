@@ -64,11 +64,15 @@ fn expand_aurelia_api(mut input: syn::ItemTrait) -> syn::Result<proc_macro2::Tok
     // Generate the original trait (with attributes stripped)
     let original_trait = quote::quote! { #input };
 
-    // Generate Tauri commands (Rust side)
+    // Generate Tauri commands (desktop)
     let tauri_impl = gen_tauri::generate(&api_def)?;
+
+    // Generate Axum routes (web)
+    let axum_impl = gen_axum::generate(&api_def)?;
 
     // Generate TypeScript and write to file immediately
     let typescript = gen_typescript::generate_string(&api_def)?;
+    let types_interface = gen_typescript::generate_types_interface(&api_def)?;
 
     // Write to apps/shared/src/api/apiClient.ts
     // We use CARGO_MANIFEST_DIR to find the project root
@@ -84,11 +88,20 @@ fn expand_aurelia_api(mut input: syn::ItemTrait) -> syn::Result<proc_macro2::Tok
             let _ = std::fs::create_dir_all(parent);
         }
         let _ = std::fs::write(&ts_path, &typescript);
+
+        // Also write the generated types interface
+        let types_path = root.join("apps/shared/src/lib/api/types.ts");
+        if let Some(parent) = types_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(&types_path, &types_interface);
     }
 
     Ok(quote::quote! {
         #original_trait
 
         #tauri_impl
+
+        #axum_impl
     })
 }

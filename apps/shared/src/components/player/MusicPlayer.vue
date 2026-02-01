@@ -105,7 +105,7 @@
               newSong.id,
               newSong.artists[0],
               newSong.name,
-              null,
+              undefined,
             )
 
             playerStore.setHasLyrics(result.status === 'ok' && !!result.data && result.data.trim() !== '')

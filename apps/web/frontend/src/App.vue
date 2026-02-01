@@ -32,7 +32,7 @@
   useThemeStore() // Initialize theme and apply CSS variables
   useAccentColorStore() // Initialize accent colors and apply CSS variables
 
-  const { authStatus, clearError: clearAuthError, credentials, error: authError, login, logout } = useAuth()
+  const { authStatus, credentials, login, logout } = useAuth()
   const libraryStore = useLibraryStore()
   const homeStore = useHomeStore()
   const playerStore = usePlayerStore()
@@ -57,7 +57,6 @@
 
   const isAuthenticated = computed(() => authStatus.value === 'loggedIn' || authStatus.value === 'verifying')
 
-  const showLogoutConfirm = ref(false)
   const isSyncing = ref(false)
   const isClearing = ref(false)
   const lastSyncTime = ref<null | string>(null)
@@ -111,9 +110,8 @@
   // Watcher will handle sync
   }
 
-  const _handleLogout = (): void => {
+  const handleLogout = (): void => {
     logout()
-    showLogoutConfirm.value = false
   }
 
   const handleQuit = (): void => {
@@ -153,7 +151,7 @@
 
     <template v-else-if='isAuthenticated'>
       <MainLayout
-        @logout='showLogoutConfirm = true'
+        @logout='handleLogout'
         @navigate='navigation.handleNavigation'
         @navigate-back='navigation.navigateBack'
         @navigate-forward='navigation.navigateForward'
@@ -174,6 +172,7 @@
           <component
             :is='Component'
             @clear-cache='handleClearCache'
+            @logout='handleLogout'
             @play-instant-mix='songInteractions.playInstantMix'
             @play-song='songInteractions.playSong'
             @play-songs='songInteractions.playSongs'
@@ -252,12 +251,13 @@
           duration: playerStore.duration,
           hasNext: true, // Derived from playlist length in component
           hasPrevious: true, // Derived from playlist length in component
-          isBuffering: playerStore.isBuffering,
           isMuted: playerStore.isMuted,
           isPlaying: playerStore.isPlaying,
           isShuffled: playerStore.isShuffled,
           repeatMode: playerStore.repeatMode,
           volume: playerStore.volume,
+          playlist: playerStore.playlist,
+          progress: playerStore.progress,
         }'
         :server-url="credentials?.serverUrl ?? ''"
         :show='true'

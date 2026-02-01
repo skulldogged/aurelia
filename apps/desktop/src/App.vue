@@ -1,5 +1,6 @@
 <script setup lang='ts'>
   import type { Song } from '@shared/lib/api/types'
+  import type { Credentials } from '@shared/lib/api/types'
 
   import { getApiClient, isDesktop } from '@shared'
   // Import from shared package
@@ -37,8 +38,6 @@
   import { useHomeStore, useLibraryStore } from '@shared/stores'
   import { useColorMode, useMagicKeys } from '@vueuse/core'
   import { computed, onMounted, ref, watch } from 'vue'
-
-  import type { Credentials } from '@/lib/api/bindings'
 
   useColorMode()
 
@@ -371,7 +370,7 @@
           @select-album='navigateToAlbum'
           @select-artist='navigateToArtist'
           @sync-library='handleSyncLibrary'
-          @toggle-favorite='toggleFavorite'
+          @toggle-favorite='handleToggleFavorite'
           :credentials='credentials'
           :current-song='currentSong'
           :is-clearing='isClearing'

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 aurelia-core = { path = "../../../crates/aurelia-core" }
+aurelia-api = { path = "../../../crates/aurelia-api", features = ["web"] }
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
 tower = { version = "0.5", features = ["full"] }

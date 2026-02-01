@@ -18,7 +18,7 @@ pub use aurelia_core::{
 
 // The Api trait with macro annotations
 pub mod traits;
-pub use traits::{Api, ApiResult};
+pub use traits::{Api, ApiResult, RpcActivity};
 
 // Platform-specific implementations
 #[cfg(feature = "desktop")]

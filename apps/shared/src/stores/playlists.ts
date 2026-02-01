@@ -119,12 +119,12 @@ export const usePlaylistStore = defineStore('playlists', () => {
   }
 
   const buildUpdatePayload = (updates: PlaylistUpdateInput): PlaylistUpdateData => ({
-    ids:        updates.ids ?? undefined,
-    isFavorite: updates.isFavorite ?? undefined,
-    isPublic:   updates.isPublic ?? undefined,
-    name:       updates.name ?? undefined,
-    songs:      updates.songs ?? undefined,
-    userId:     updates.userId ?? undefined,
+    ids:        updates.ids ?? null,
+    isFavorite: updates.isFavorite ?? null,
+    isPublic:   updates.isPublic ?? null,
+    name:       updates.name ?? null,
+    songs:      updates.songs ?? null,
+    userId:     updates.userId ?? null,
   })
 
   const updatePlaylist = async (id: string, updates: PlaylistUpdateInput): Promise<boolean> => {

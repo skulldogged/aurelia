@@ -87,7 +87,7 @@
       const backgroundColor = styles.getPropertyValue('--background').trim() || '#1a1b26'
       const textColor = styles.getPropertyValue('--foreground').trim() || '#cdd6f4'
 
-      const result = await getApiClient().lastfmStartAuthServer(primaryColor, backgroundColor, textColor)
+      const result = await getApiClient().lastfmStartAuthServer()
       if (result.status === 'error') {
         lastfmError.value = result.error
         isWaitingForCallback.value = false

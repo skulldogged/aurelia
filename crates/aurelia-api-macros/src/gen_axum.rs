@@ -59,8 +59,8 @@ fn generate_route(method: &ApiMethod) -> syn::Result<TokenStream> {
     let path = &method.path;
     let handler_name = format_ident!("handler_{}", method.name);
 
-    // Convert path pattern from {param} to Axum's :param
-    let axum_path = path.replace("{", ":").replace("}", "");
+    // Axum 0.8 uses {param} syntax directly (same as our trait definition)
+    let axum_path = path.clone();
 
     let method_fn = match method.http_method {
         HttpMethod::Get => quote! { get(#handler_name) },
@@ -75,9 +75,13 @@ fn generate_route(method: &ApiMethod) -> syn::Result<TokenStream> {
     })
 }
 
+/// Whether the HTTP method uses a request body (as opposed to query params)
+fn uses_body(method: &HttpMethod) -> bool {
+    matches!(method, HttpMethod::Post | HttpMethod::Put | HttpMethod::Patch)
+}
+
 fn generate_structs(method: &ApiMethod) -> syn::Result<TokenStream> {
     let fn_name = &method.name;
-    // Convert to PascalCase for struct names
     let fn_name_pascal = syn::Ident::new(&to_pascal_case(&fn_name.to_string()), fn_name.span());
 
     // Generate Path struct if there are path params
@@ -103,10 +107,10 @@ fn generate_structs(method: &ApiMethod) -> syn::Result<TokenStream> {
         None
     };
 
-    // Generate Query struct if there are query params
-    let query_struct = if !method.query_params.is_empty() {
-        let query_struct_name = format_ident!("{}Query", fn_name_pascal);
-        let query_fields: Vec<_> = method
+    // For POST/PUT/PATCH without an explicit body param, wrap query params in a body struct
+    // For GET/DELETE, use query params as-is
+    let extra_struct = if !method.query_params.is_empty() {
+        let fields: Vec<_> = method
             .query_params
             .iter()
             .map(|p| {
@@ -116,19 +120,34 @@ fn generate_structs(method: &ApiMethod) -> syn::Result<TokenStream> {
             })
             .collect();
 
-        Some(quote! {
-            #[derive(serde::Deserialize)]
-            pub struct #query_struct_name {
-                #(#query_fields),*
-            }
-        })
+        if uses_body(&method.http_method) && method.body_param.is_none() {
+            // Body struct for POST/PUT/PATCH
+            let body_struct_name = format_ident!("{}Body", fn_name_pascal);
+            Some(quote! {
+                #[derive(serde::Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                pub struct #body_struct_name {
+                    #(#fields),*
+                }
+            })
+        } else {
+            // Query struct for GET/DELETE
+            let query_struct_name = format_ident!("{}Query", fn_name_pascal);
+            Some(quote! {
+                #[derive(serde::Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                pub struct #query_struct_name {
+                    #(#fields),*
+                }
+            })
+        }
     } else {
         None
     };
 
     Ok(quote! {
         #path_struct
-        #query_struct
+        #extra_struct
     })
 }
 
@@ -137,9 +156,12 @@ fn generate_handler(method: &ApiMethod) -> syn::Result<TokenStream> {
     let fn_name = &method.name;
     let fn_name_pascal = syn::Ident::new(&to_pascal_case(&fn_name.to_string()), fn_name.span());
 
-    // Generate extractors
+    // Generate extractors - State MUST come first for Axum 0.8 Handler trait
     let mut extractors = Vec::new();
     let mut arg_exprs = Vec::new();
+
+    // State comes FIRST (required by Axum 0.8 Handler trait)
+    extractors.push(quote! { State(state): State<Arc<AppState>> });
 
     // Path params
     if !method.path_params.is_empty() {
@@ -152,26 +174,33 @@ fn generate_handler(method: &ApiMethod) -> syn::Result<TokenStream> {
         }
     }
 
-    // Query params
+    // Non-path params: use body for POST/PUT/PATCH, query for GET/DELETE
     if !method.query_params.is_empty() {
-        let query_struct_name = format_ident!("{}Query", fn_name_pascal);
-        extractors.push(quote! { Query(query): Query<#query_struct_name> });
+        if uses_body(&method.http_method) && method.body_param.is_none() {
+            let body_struct_name = format_ident!("{}Body", fn_name_pascal);
+            extractors.push(quote! { Json(body): Json<#body_struct_name> });
 
-        for param in &method.query_params {
-            let name = &param.name;
-            arg_exprs.push(quote! { query.#name });
+            for param in &method.query_params {
+                let name = &param.name;
+                arg_exprs.push(quote! { body.#name });
+            }
+        } else {
+            let query_struct_name = format_ident!("{}Query", fn_name_pascal);
+            extractors.push(quote! { Query(query): Query<#query_struct_name> });
+
+            for param in &method.query_params {
+                let name = &param.name;
+                arg_exprs.push(quote! { query.#name });
+            }
         }
     }
 
-    // Body param
+    // Explicit body param (struct types like PlaylistCreateData) comes last
     if let Some(body) = &method.body_param {
         let ty = &body.ty;
         extractors.push(quote! { Json(body): Json<#ty> });
         arg_exprs.push(quote! { body });
     }
-
-    // State
-    extractors.push(quote! { State(state): State<Arc<AppState>> });
 
     Ok(quote! {
         async fn #handler_name(
@@ -184,7 +213,7 @@ fn generate_handler(method: &ApiMethod) -> syn::Result<TokenStream> {
                     (StatusCode::OK, Json(response)).into_response()
                 }
                 Err(e) => {
-                    let response = ApiResponse::err(e.to_string());
+                    let response: ApiResponse<serde_json::Value> = ApiResponse::err(e.to_string());
                     (StatusCode::INTERNAL_SERVER_ERROR, Json(response)).into_response()
                 }
             }
@@ -193,7 +222,6 @@ fn generate_handler(method: &ApiMethod) -> syn::Result<TokenStream> {
 }
 
 fn to_pascal_case(s: &str) -> String {
-    // Simple conversion: snake_case to PascalCase
     s.split('_')
         .map(|word| {
             let mut chars = word.chars();

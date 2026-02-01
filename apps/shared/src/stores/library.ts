@@ -128,7 +128,7 @@ export const useLibraryStore = defineStore('library', () => {
     const toastId = toast.loading('Syncing library...')
 
     await withCustomState<void, string>(
-      () => getApiClient().syncLibrary(credentials.serverUrl, credentials.token),
+      () => getApiClient().syncLibrary(),
       {
         onError: errorString => {
           const errorMessage = `Failed to sync library: ${errorString}`
@@ -156,7 +156,7 @@ export const useLibraryStore = defineStore('library', () => {
     homeStore.resetHomeData()
 
     await withCustomState<void, string>(
-      () => getApiClient().clearCache(credentials.serverUrl, credentials.token),
+      () => getApiClient().clearCache(),
       {
         onError: errorString => {
           const errorMessage = `Failed to clear cache: ${errorString}`

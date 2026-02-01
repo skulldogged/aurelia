@@ -1,1 +1,0 @@
-export type HomeViewData = { recentlyPlayed: Song[]; recentlyAdded: Song[]; randomAlbums: Album[]; featuredAlbums: Album[] }

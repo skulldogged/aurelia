@@ -12,10 +12,10 @@
 //! - Filter coefficients are rebuilt only when settings change
 //! - Audio processing happens without any mutex locks
 
-use biquad::{Biquad, Coefficients, DirectForm1, Q_BUTTERWORTH_F32, ToHertz, Type};
+use biquad::{Biquad, Coefficients, DirectForm1, ToHertz, Type, Q_BUTTERWORTH_F32};
 use rodio::Source;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// EQ band configuration
@@ -176,12 +176,12 @@ impl EQSettings {
     }
 
     /// Get current generation (for change detection)
-    fn generation(&self) -> u64 {
+    pub fn generation(&self) -> u64 {
         self.generation.load(Ordering::Acquire)
     }
 
     /// Get current sample rate
-    fn sample_rate(&self) -> u32 {
+    pub fn sample_rate(&self) -> u32 {
         self.sample_rate.load(Ordering::Acquire)
     }
 }

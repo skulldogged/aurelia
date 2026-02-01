@@ -4,12 +4,12 @@
 //! Uses a lock-free architecture to avoid blocking the audio thread:
 //! - Audio thread writes samples to a ring buffer
 //! - Event loop reads samples and computes FFT periodically
-//! - Results are emitted as Tauri events
+//! - Results are emitted as events
 
 use rodio::Source;
-use rustfft::{FftPlanner, num_complex::Complex};
-use std::sync::Arc;
+use rustfft::{num_complex::Complex, FftPlanner};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// FFT size - must be power of 2. 256 matches Web Audio API default

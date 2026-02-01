@@ -2,6 +2,91 @@
 
 use crate::ir::{ApiDefinition, ApiMethod};
 
+/// Generate TypeScript interface definitions for the ApiClient
+pub fn generate_types_interface(api_def: &ApiDefinition) -> syn::Result<String> {
+    let interface_methods: Vec<String> = api_def
+        .methods
+        .iter()
+        .map(generate_interface_method)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let type_imports = collect_type_imports_for_interface(api_def);
+
+    Ok(format!(
+        r#"// Auto-generated TypeScript types for Aurelia API
+// Generated from Api trait - DO NOT EDIT MANUALLY
+
+import type {{ Result }} from './result'
+import type {{ {type_imports} }} from '../../generated'
+
+export interface ApiClient {{
+{}}}
+
+// Re-export model types from generated
+export * from '../../generated'
+"#,
+        interface_methods.join("\n")
+    ))
+}
+
+/// Collect type names that are referenced in method signatures
+fn collect_type_imports_for_interface(_api_def: &ApiDefinition) -> String {
+    // These are all the types that might be referenced in method signatures
+    let types = vec![
+        "Credentials",
+        "Song",
+        "Album",
+        "Artist",
+        "Playlist",
+        "PlaylistCreateData",
+        "PlaylistUpdateData",
+        "LibraryData",
+        "HomeViewData",
+        "SyncStateInfo",
+        "ListenBrainzCredentials",
+        "ListenBrainzListen",
+        "RpcActivity",
+        "NowPlayingPayload",
+        "LastFmCredentials",
+    ];
+    types.join(", ")
+}
+
+fn generate_interface_method(method: &ApiMethod) -> syn::Result<String> {
+    let fn_name = to_camel_case(&method.name.to_string());
+
+    // Build parameter list
+    let mut param_list = Vec::new();
+
+    for param in &method.path_params {
+        let name = to_camel_case(&param.name.to_string());
+        param_list.push(format!("{}: string", name));
+    }
+
+    for param in &method.query_params {
+        let name = to_camel_case(&param.name.to_string());
+        let ty_name = type_to_ts(&param.ty);
+        if param.optional {
+            param_list.push(format!("{}?: {}", name, ty_name));
+        } else {
+            param_list.push(format!("{}: {}", name, ty_name));
+        }
+    }
+
+    if let Some(body) = &method.body_param {
+        let name = to_camel_case(&body.name.to_string());
+        let ty_name = type_to_ts(&body.ty);
+        param_list.push(format!("{}: {}", name, ty_name));
+    }
+
+    let params_str = param_list.join(", ");
+
+    Ok(format!(
+        "  {}({}): Promise<Result<any>>",
+        fn_name, params_str
+    ))
+}
+
 /// Generate the TypeScript client as a String (for embedding in Rust code)
 pub fn generate_string(api_def: &ApiDefinition) -> syn::Result<String> {
     let client_methods: Vec<String> = api_def
@@ -18,74 +103,78 @@ pub fn generate_string(api_def: &ApiDefinition) -> syn::Result<String> {
         .map(generate_desktop_only_method)
         .collect::<Result<Vec<_>, _>>()?;
 
+    let type_imports = collect_type_imports(api_def);
+
     Ok(format!(
         r#"// Auto-generated TypeScript client for Aurelia API
 // Generated from Api trait - DO NOT EDIT MANUALLY
 
 import {{ invoke }} from '@tauri-apps/api/core';
+import type {{ {type_imports} }} from '../generated';
 
 type Result<T, E = string> = 
   | {{ status: 'ok'; data: T }}
   | {{ status: 'error'; error: E }};
 
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
-const isTauri = typeof window !== 'undefined' && (window as any).__TAURI__ !== undefined;
+// Check for Tauri v2 internals using 'in' operator
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-async function apiRequest<T>(
+async function tauriCommand<T>(
+  command: string,
+  payload?: Record<string, unknown>
+): Promise<Result<T>> {{
+  try {{
+    const data = await invoke(command, payload);
+    return {{ status: 'ok', data: data as T }};
+  }} catch (error) {{
+    return {{ status: 'error', error: String(error) }};
+  }}
+}}
+
+async function webRequest<T>(
   method: string,
   endpoint: string,
   body?: unknown,
   query?: Record<string, string | number | undefined>
 ): Promise<Result<T>> {{
-  if (isTauri) {{
-    // Desktop: use Tauri IPC
-    const command = `cmd_${{method}}`;
-    try {{
-      const data = await invoke(command, body);
-      return {{ status: 'ok', data: data as T }};
-    }} catch (error) {{
-      return {{ status: 'error', error: String(error) }};
-    }}
-  }} else {{
-    // Web: use HTTP
-    let url = `${{BASE_URL}}/api${{endpoint}}`;
-    if (query) {{
-      const params = new URLSearchParams();
-      for (const [key, value] of Object.entries(query)) {{
-        if (value !== undefined) {{
-          params.append(key, String(value));
-        }}
-      }}
-      const queryString = params.toString();
-      if (queryString) {{
-        url += `?${{queryString}}`;
+  let url = `${{BASE_URL}}/api${{endpoint}}`;
+  if (query) {{
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {{
+      if (value !== undefined) {{
+        params.append(key, String(value));
       }}
     }}
-    
-    const options: RequestInit = {{
-      method,
-      credentials: 'include',
-      headers: {{
-        'Content-Type': 'application/json',
-      }},
-    }};
-
-    if (body !== undefined) {{
-      options.body = JSON.stringify(body);
+    const queryString = params.toString();
+    if (queryString) {{
+      url += `?${{queryString}}`;
     }}
-
-    const response = await fetch(url, options);
-
-    if (!response.ok) {{
-      const errorText = await response.text();
-      return {{
-        status: 'error',
-        error: `HTTP ${{response.status}}: ${{errorText || response.statusText}}`,
-      }};
-    }}
-
-    return await response.json();
   }}
+  
+  const options: RequestInit = {{
+    method,
+    credentials: 'include',
+    headers: {{
+      'Content-Type': 'application/json',
+    }},
+  }};
+
+  if (body !== undefined) {{
+    options.body = JSON.stringify(body);
+  }}
+
+  const response = await fetch(url, options);
+
+  if (!response.ok) {{
+    const errorText = await response.text();
+    return {{
+      status: 'error',
+      error: `HTTP ${{response.status}}: ${{errorText || response.statusText}}`,
+    }};
+  }}
+
+  return await response.json();
 }}
 
 export const apiClient = {{
@@ -102,6 +191,8 @@ fn generate_ts_method(method: &ApiMethod) -> syn::Result<String> {
     let fn_name = to_camel_case(&method.name.to_string());
     let http_method = format!("{:?}", method.http_method).to_uppercase();
     let endpoint = &method.path;
+    // Use snake_case command name to match existing Tauri handlers
+    let command_name = method.name.to_string();
 
     // Build parameter list and call arguments
     let mut param_list = Vec::new();
@@ -141,32 +232,56 @@ fn generate_ts_method(method: &ApiMethod) -> syn::Result<String> {
         endpoint_expr = endpoint_expr.replace(pattern, &format!("${{{}}}", name));
     }
 
+    // Build payload object for Tauri
+    let mut tauri_payload_fields = Vec::new();
+    for param in &method.path_params {
+        let name = to_camel_case(&param.name.to_string());
+        tauri_payload_fields.push(format!("{}", name));
+    }
+    for param in &method.query_params {
+        let name = to_camel_case(&param.name.to_string());
+        tauri_payload_fields.push(format!("{}", name));
+    }
+    if let Some(body) = &method.body_param {
+        let name = to_camel_case(&body.name.to_string());
+        tauri_payload_fields.push(format!("{}", name));
+    }
+
+    let tauri_payload = if tauri_payload_fields.is_empty() {
+        "undefined".to_string()
+    } else {
+        format!("{{ {} }}", tauri_payload_fields.join(", "))
+    };
+
     // For POST/PUT/PATCH: body params go in request body, not query
     let is_body_method = matches!(
         method.http_method,
         crate::ir::HttpMethod::Post | crate::ir::HttpMethod::Put | crate::ir::HttpMethod::Patch
     );
 
-    let (body_expr, query_expr) = if is_body_method && body_arg.is_none() && !query_args.is_empty()
-    {
-        // POST/PUT/PATCH with primitive params: put them in body
-        let body_obj = format!("{{ {} }}", query_args.join(", "));
-        (body_obj, "undefined".to_string())
-    } else {
-        // GET/DELETE or POST with explicit body param: use normal behavior
-        let query_expr = if query_args.is_empty() {
-            "undefined".to_string()
+    let (web_body_expr, web_query_expr) =
+        if is_body_method && body_arg.is_none() && !query_args.is_empty() {
+            // POST/PUT/PATCH with primitive params: put them in body
+            let body_obj = format!("{{ {} }}", query_args.join(", "));
+            (body_obj, "undefined".to_string())
         } else {
-            format!("{{ {} }}", query_args.join(", "))
+            // GET/DELETE or POST with explicit body param: use normal behavior
+            let query_expr = if query_args.is_empty() {
+                "undefined".to_string()
+            } else {
+                format!("{{ {} }}", query_args.join(", "))
+            };
+            let body_expr = body_arg.unwrap_or_else(|| "undefined".to_string());
+            (body_expr, query_expr)
         };
-        let body_expr = body_arg.unwrap_or_else(|| "undefined".to_string());
-        (body_expr, query_expr)
-    };
 
     Ok(format!(
         r#"  // {fn_name}
   {fn_name}: async ({params_str}): Promise<Result<any>> => {{
-    return apiRequest('{http_method}', `{endpoint_expr}`, {body_expr}, {query_expr});
+    if (isTauri) {{
+      return tauriCommand('{command_name}', {tauri_payload});
+    }}
+    return webRequest('{http_method}', `{endpoint_expr}`, {web_body_expr}, {web_query_expr});
   }},
 "#
     ))
@@ -174,19 +289,48 @@ fn generate_ts_method(method: &ApiMethod) -> syn::Result<String> {
 
 fn generate_desktop_only_method(method: &ApiMethod) -> syn::Result<String> {
     let fn_name = to_camel_case(&method.name.to_string());
+    // Use snake_case command name to match existing Tauri handlers
+    let command_name = method.name.to_string();
+
+    // Build parameter list
+    let mut param_list = Vec::new();
+    let mut arg_list = Vec::new();
+
+    for param in &method.path_params {
+        let name = to_camel_case(&param.name.to_string());
+        param_list.push(format!("{}: string", name));
+        arg_list.push(name.clone());
+    }
+
+    for param in &method.query_params {
+        let name = to_camel_case(&param.name.to_string());
+        let ty_name = type_to_ts(&param.ty);
+        if param.optional {
+            param_list.push(format!("{}?: {}", name, ty_name));
+        } else {
+            param_list.push(format!("{}: {}", name, ty_name));
+        }
+        arg_list.push(format!("{}", name));
+    }
+
+    if let Some(body) = &method.body_param {
+        let name = to_camel_case(&body.name.to_string());
+        let ty_name = type_to_ts(&body.ty);
+        param_list.push(format!("{}: {}", name, ty_name));
+        arg_list.push(format!("{}", name));
+    }
+
+    let params_str = param_list.join(", ");
+    let args_str = if arg_list.is_empty() {
+        "undefined".to_string()
+    } else {
+        format!("{{ {} }}", arg_list.join(", "))
+    };
+
     Ok(format!(
         r#"  // Desktop-only: {fn_name}
-  {fn_name}: async (...args: any[]): Promise<Result<any>> => {{
-    if (!isTauri) {{
-      return {{ status: 'error', error: 'Desktop-only feature' }};
-    }}
-    const command = `cmd_{fn_name}`;
-    try {{
-      const data = await invoke(command, args[0] || {{}});
-      return {{ status: 'ok', data }};
-    }} catch (error) {{
-      return {{ status: 'error', error: String(error) }};
-    }}
+  {fn_name}: async ({params_str}): Promise<Result<any>> => {{
+    return tauriCommand('{command_name}', {args_str});
   }},
 "#
     ))
@@ -234,6 +378,29 @@ fn type_to_ts(ty: &syn::Type) -> String {
         }
         _ => "any".to_string(),
     }
+}
+
+/// Collect all type names that need to be imported from generated types
+fn collect_type_imports(_api_def: &ApiDefinition) -> String {
+    let types = vec![
+        "Credentials",
+        "Song",
+        "Album",
+        "Artist",
+        "Playlist",
+        "PlaylistCreateData",
+        "PlaylistUpdateData",
+        "LibraryData",
+        "HomeViewData",
+        "SyncStateInfo",
+        "ListenBrainzCredentials",
+        "ListenBrainzListen",
+        "AppError",
+        "RpcActivity",
+        "NowPlayingPayload",
+        "LastFmCredentials",
+    ];
+    types.join(", ")
 }
 
 /// Convert snake_case to camelCase

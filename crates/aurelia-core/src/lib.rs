@@ -9,6 +9,14 @@ pub mod services;
 pub mod state;
 pub mod utils;
 
+// Desktop-only modules
+#[cfg(feature = "desktop")]
+pub mod audio;
+#[cfg(feature = "desktop")]
+pub mod discord_rpc;
+#[cfg(feature = "desktop")]
+pub mod media_controls;
+
 #[uniffi::export]
 pub fn ping() -> String {
     "pong".to_string()
@@ -190,11 +198,10 @@ pub async fn toggle_favorite(
     is_favorite: bool,
 ) -> Result<bool, error::AppError> {
     let client = services::JellyfinClient::with_auth(server_url, token);
-    let new_state = !is_favorite;
     client
-        .toggle_favorite(&user_id, &item_id, new_state)
+        .toggle_favorite(&user_id, &item_id, is_favorite)
         .await?;
-    Ok(new_state)
+    Ok(is_favorite)
 }
 
 // Playlist operations

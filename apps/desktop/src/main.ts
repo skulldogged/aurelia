@@ -1,6 +1,6 @@
 // Import shared package and set up API client
-import { createTauriClient, setApiClient } from '@shared/lib/api'
-import { useAccentColorStore, usePlaylistStore, useThemeStore } from '@shared/stores'
+import { apiClient, setApiClient } from '@shared'
+import { useAccentColorStore, useThemeStore } from '@shared/stores'
 import 'vue-sonner/style.css'
 import { createPinia } from 'pinia'
 
@@ -8,12 +8,10 @@ import '@/assets/main.css'
 import { createApp } from 'vue'
 
 import App from '@/App.vue'
-import { commands } from '@/lib/api/bindings'
 import router from '@/router'
 
-// Create and set the Tauri API client
-const tauriClient = createTauriClient(commands as unknown)
-setApiClient(tauriClient, 'desktop')
+// Set the unified API client (auto-detects Tauri vs web)
+setApiClient(apiClient, 'desktop')
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -21,10 +19,11 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Initialize theme and accent color stores
-useThemeStore()
+// Initialize theme store  
+const themeStore = useThemeStore()
+themeStore.setColorScheme(themeStore.selectedSchemeName)
+
+// Initialize accent color store (triggers CSS variable application)
 useAccentColorStore()
-const playlistStore = usePlaylistStore()
-playlistStore.initialize()
 
 app.mount('#app')

@@ -84,7 +84,7 @@
     loadingFallbackSongs.value = true
     artistDataError.value = false
     try {
-      const result = await getApiClient().getArtist(artistId, true)
+      const result = await getApiClient().getArtist(artistId)
       if (result.status === 'ok' && result.data.songs) {
         const songs = result.data.songs as Song[]
         fallbackSongs.value = songs

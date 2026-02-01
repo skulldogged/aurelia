@@ -1,10 +1,8 @@
-import type { Result } from '../lib/api/types'
-
 import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
 import { LRUCache } from '../lib/lru-cache'
 import { isTauri } from '../lib/platform'
-import { err, ok } from '../lib/result'
+import { err, ok, type Result } from '../lib/result'
 
 // LRU cache for asset URLs with bounded size to prevent memory leaks
 // 2000 entries covers typical browsing patterns while limiting memory usage

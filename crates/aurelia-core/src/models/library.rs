@@ -20,3 +20,51 @@ pub struct HomeViewData {
     pub random_albums: Vec<Album>,
     pub featured_albums: Vec<Album>,
 }
+
+/// Sync state information for UI display
+#[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStateInfo {
+    pub last_sync_time: Option<String>,
+    pub song_count: u32,
+    pub artist_count: u32,
+    pub album_count: u32,
+}
+
+/// Discord Rich Presence activity data
+#[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct RpcActivity {
+    pub state: Option<String>,
+    pub details: Option<String>,
+    pub large_image_key: Option<String>,
+    pub large_image_text: Option<String>,
+    pub small_image_key: Option<String>,
+    pub small_image_text: Option<String>,
+    pub start_timestamp: Option<i64>,
+    pub end_timestamp: Option<i64>,
+}
+
+/// Media controls now playing payload
+#[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct NowPlayingPayload {
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration: Option<f64>,
+    pub cover_url: Option<String>,
+}
+
+/// Last.fm credentials
+#[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct LastFmCredentials {
+    pub session_key: String,
+    pub username: String,
+    pub api_key: Option<String>,
+}

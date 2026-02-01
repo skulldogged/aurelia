@@ -1,6 +1,7 @@
 import { ref, type Ref, watch } from 'vue'
 
-import type { LastFmCredentials, Result, Song } from '../lib/api/types'
+import type { LastFmCredentials, Song } from '../generated'
+import type { Result } from '../lib/result'
 
 import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
@@ -27,7 +28,6 @@ export const useLastFm = (): {
     const noop = async (): Promise<void> => {}
     const noopAuth = async (): Promise<LastFmCredentials> => ({
       apiKey:     '',
-      apiSecret:  '',
       sessionKey: '',
       username:   '',
     })
@@ -94,7 +94,7 @@ export const useLastFm = (): {
 
     try {
       logger.info('Scrobbling track:', { artist, timestamp, track })
-      const result = await getApiClient().lastfmScrobble(scrobble)
+      const result = await getApiClient().lastfmScrobble(artist, track, album ?? undefined, timestamp)
       if (result.status === 'error') {
         logger.error('Failed to scrobble track:', result.error)
         // Reset flag on error so we can retry
@@ -117,7 +117,7 @@ export const useLastFm = (): {
     const track = song.name
     const album = song.album ?? undefined
 
-    const result = await getApiClient().lastfmUpdateNowPlaying(artist, track, album ?? null)
+    const result = await getApiClient().lastfmUpdateNowPlaying(artist, track, album ?? undefined)
     if (result.status === 'error') {
       logger.warn('Failed to update now playing:', result.error)
     } else {
@@ -170,7 +170,7 @@ export const useLastFm = (): {
   ): Promise<LastFmCredentials> => {
     try {
       logger.info('Authenticating with Last.fm')
-      const result = await getApiClient().lastfmAuthenticate(apiKey, apiSecret, token)
+      const result = await getApiClient().lastfmAuthenticate()
       if (result.status === 'error') {
         throw new Error(result.error)
       }

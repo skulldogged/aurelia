@@ -2,7 +2,7 @@
   import { Loader2 } from 'lucide-vue-next'
   import { onMounted, ref } from 'vue'
 
-  import type { Credentials, LoginResponse } from '../lib/api/types'
+  import type { Credentials } from '../generated'
 
   import Button from '../components/ui/Button.vue'
   import { Input } from '../components/ui/input'
@@ -38,7 +38,7 @@
 
     // First, attempt login
     await withCustomState(
-      () => apiClient.authenticate(
+      () => apiClient.loginToJellyfin(
         form.value.serverUrl,
         form.value.username,
         form.value.password,
@@ -52,7 +52,7 @@
           error.value = ''
           loading.value = true
         },
-        onSuccess: async (loginData: LoginResponse) => {
+        onSuccess: async (loginData) => {
           await withCustomState(
             () => apiClient.saveCredentials(
               form.value.serverUrl,

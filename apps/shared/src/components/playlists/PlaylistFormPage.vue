@@ -152,8 +152,12 @@
         }
       } else if (playlist.value) {
         const updateData: PlaylistUpdateData = {
-          ids:  selectedSongs.value.map(song => song.id),
-          name: name.value.trim(),
+          ids:        selectedSongs.value.map(song => song.id),
+          name:       name.value.trim(),
+          userId:     null,
+          isPublic:   null,
+          songs:      null,
+          isFavorite: null,
         }
 
         const success = await playlistStore.updatePlaylist(playlist.value.id, updateData)

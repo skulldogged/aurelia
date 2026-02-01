@@ -58,7 +58,7 @@
 
   const createDefaultUserData = (): UserData => ({
     isFavorite:            false,
-    lastPlayedDate:        undefined,
+    lastPlayedDate:        null,
     playbackPositionTicks: 0,
     playCount:             0,
     played:                false,

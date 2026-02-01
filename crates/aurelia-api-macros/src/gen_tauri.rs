@@ -26,7 +26,7 @@ pub fn generate(api_def: &ApiDefinition) -> syn::Result<TokenStream> {
 
 fn generate_tauri_command(method: &ApiMethod) -> syn::Result<TokenStream> {
     let fn_name = &method.name;
-    let command_name = format_ident!("cmd_{}", fn_name);
+    let command_name = fn_name.clone();
 
     // Generate parameter list
     let mut param_defs = Vec::new();

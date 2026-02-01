@@ -3,8 +3,11 @@
 //! This module provides the Tauri-specific implementation of the Api trait.
 
 use tauri::{AppHandle, Manager};
-use crate::{Api, ApiResult, AppError, Credentials, Song, Album, Artist, Playlist, LibraryData, HomeViewData, PlaylistCreateData, PlaylistUpdateData};
-use aurelia_core::listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen};
+use crate::{Api, ApiResult, AppError, Credentials, Song, Album, Artist, Playlist, LibraryData, HomeViewData, PlaylistCreateData, PlaylistUpdateData, RpcActivity, SyncStateInfo, NowPlayingPayload, LastFmCredentials};
+use aurelia_core::listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen, ListenBrainzState};
+use aurelia_core::audio::AudioState;
+use aurelia_core::discord_rpc::DiscordRpcState;
+use aurelia_core::media_controls::MediaControlsState;
 use std::collections::HashMap;
 
 /// Helper to get cached credentials from Tauri state
@@ -46,7 +49,7 @@ impl Api for TauriApiImpl {
         get_credentials(&self.app)
     }
 
-    async fn authenticate(&self, server_url: String, username: String, password: String) -> ApiResult<Credentials> {
+    async fn login_to_jellyfin(&self, server_url: String, username: String, password: String) -> ApiResult<serde_json::Value> {
         let login_resp = aurelia_core::authenticate(server_url.clone(), username.clone(), password).await?;
         let creds = Credentials {
             server_url: server_url.clone(),
@@ -63,10 +66,32 @@ impl Api for TauriApiImpl {
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
         app_state.set_credentials(Some(creds.clone()));
         
-        Ok(creds)
+        // Return as JSON value
+        Ok(serde_json::json!({
+            "token": login_resp.token,
+            "userId": login_resp.user_id
+        }))
     }
 
-    async fn logout(&self) -> ApiResult<()> {
+    async fn save_credentials(&self, server_url: String, username: String, token: String, user_id: String) -> ApiResult<()> {
+        let creds = Credentials {
+            server_url,
+            username,
+            token,
+            user_id,
+        };
+        
+        let app_dir = self.app.path().app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        aurelia_core::save_credentials(app_dir.to_string_lossy().to_string(), creds.clone())?;
+        
+        let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
+        app_state.set_credentials(Some(creds));
+        
+        Ok(())
+    }
+
+    async fn clear_saved_credentials(&self) -> ApiResult<()> {
         // Clear memory cache
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
         app_state.set_credentials(None);
@@ -75,6 +100,38 @@ impl Api for TauriApiImpl {
         let app_dir = self.app.path().app_data_dir()
             .map_err(|e| AppError::FileSystem(e.to_string()))?;
         aurelia_core::clear_credentials(app_dir.to_string_lossy().to_string())
+    }
+
+    async fn save_volume(&self, volume: f64) -> ApiResult<()> {
+        let app_dir = self.app.path().app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let volume_path = app_dir.join("volume.json");
+        
+        let json = serde_json::to_string(&volume)
+            .map_err(|e| AppError::Serialization(e.to_string()))?;
+        
+        std::fs::write(&volume_path, json)
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        
+        Ok(())
+    }
+
+    async fn get_saved_volume(&self) -> ApiResult<Option<f64>> {
+        let app_dir = self.app.path().app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let volume_path = app_dir.join("volume.json");
+        
+        if !volume_path.exists() {
+            return Ok(None);
+        }
+        
+        let json = std::fs::read_to_string(&volume_path)
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        
+        let volume: f64 = serde_json::from_str(&json)
+            .map_err(|e| AppError::Serialization(e.to_string()))?;
+        
+        Ok(Some(volume))
     }
 
     async fn get_library(&self) -> ApiResult<LibraryData> {
@@ -162,10 +219,17 @@ impl Api for TauriApiImpl {
         Ok(())
     }
 
-    async fn get_sync_state(&self) -> ApiResult<aurelia_core::domain::SyncState> {
+    async fn get_sync_state(&self) -> ApiResult<SyncStateInfo> {
         let app_dir = self.app.path().app_data_dir()
             .map_err(|e| AppError::FileSystem(e.to_string()))?;
-        aurelia_core::get_sync_state(app_dir.to_string_lossy().to_string())
+        // Get the internal sync state and convert to SyncStateInfo
+        let internal_state = aurelia_core::get_sync_state(app_dir.to_string_lossy().to_string())?;
+        Ok(SyncStateInfo {
+            last_sync_time: Some(internal_state.last_sync_time),
+            song_count: internal_state.song_count,
+            artist_count: internal_state.artist_count,
+            album_count: internal_state.album_count,
+        })
     }
 
     async fn get_song(&self, song_id: String) -> ApiResult<Song> {
@@ -189,9 +253,68 @@ impl Api for TauriApiImpl {
         Ok(new_state)
     }
 
-    async fn get_instant_mix(&self, item_id: String, _limit: Option<u32>) -> ApiResult<Vec<Song>> {
+    async fn get_instant_mix(&self, item_id: String) -> ApiResult<Vec<Song>> {
         let creds = get_credentials(&self.app)?.ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
         aurelia_core::get_instant_mix(creds.server_url, creds.token, item_id).await
+    }
+
+    async fn get_artist_share_urls(&self, artist_id: String) -> ApiResult<HashMap<String, String>> {
+        // Get artist from cache
+        let app_dir = self.app.path().app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        
+        let artist = aurelia_core::get_cached_artist(app_dir.to_string_lossy().to_string(), artist_id)?
+            .ok_or_else(|| AppError::General("Artist not found".to_string()))?;
+        
+        // Use MusicBrainz to get share URLs
+        aurelia_core::services::MusicBrainzService::get_artist_share_urls(&artist)
+            .await
+            .map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn clear_image_from_cache(&self, item_id: String, image_type: String) -> ApiResult<()> {
+        let app_dir = self.app.path().app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let cache_dir = app_dir.join("image_cache");
+        let prefix = format!("{}_{}", item_id, image_type);
+        if cache_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+                for entry in entries.flatten() {
+                    if entry.file_name().to_string_lossy().starts_with(&prefix) {
+                        let _ = std::fs::remove_file(entry.path());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn report_playback_start(&self, item_id: String, position_ticks: Option<i64>) -> ApiResult<()> {
+        let creds = get_credentials(&self.app)?.ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
+        let client = aurelia_core::services::JellyfinClient::with_auth(creds.server_url, creds.token);
+        client.report_playback_start(&item_id, position_ticks).await
+            .map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn report_playback_progress(&self, item_id: String, position_ticks: i64, is_paused: bool) -> ApiResult<()> {
+        let creds = get_credentials(&self.app)?.ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
+        let client = aurelia_core::services::JellyfinClient::with_auth(creds.server_url, creds.token);
+        client.report_playback_progress(&item_id, Some(position_ticks), None, Some(is_paused)).await
+            .map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn report_playback_stop(&self, item_id: String, position_ticks: i64) -> ApiResult<()> {
+        let creds = get_credentials(&self.app)?.ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
+        let client = aurelia_core::services::JellyfinClient::with_auth(creds.server_url, creds.token);
+        client.report_playback_stop(&item_id, Some(position_ticks)).await
+            .map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn mark_item_played(&self, item_id: String) -> ApiResult<()> {
+        let creds = get_credentials(&self.app)?.ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
+        let client = aurelia_core::services::JellyfinClient::with_auth(creds.server_url.clone(), creds.token.clone());
+        client.mark_item_played(&creds.user_id, &item_id).await
+            .map_err(|e| AppError::General(e.to_string()))
     }
 
     async fn get_song_share_urls(&self, item_id: String) -> ApiResult<HashMap<String, String>> {
@@ -384,40 +507,57 @@ impl Api for TauriApiImpl {
         })
     }
 
-    async fn get_recently_played(&self, limit: Option<u32>) -> ApiResult<Vec<Song>> {
+    async fn get_recently_played(&self) -> ApiResult<Vec<Song>> {
         let creds = get_credentials(&self.app)?.ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-        let songs = aurelia_core::get_recently_played(
+        aurelia_core::get_recently_played(
             creds.server_url,
             creds.token,
             creds.user_id,
-        ).await?;
-        
-        if let Some(lim) = limit {
-            Ok(songs.into_iter().take(lim as usize).collect())
-        } else {
-            Ok(songs)
-        }
+        ).await
     }
 
     async fn get_image(&self, item_id: String, image_type: String, server_url: String, token: String, width: Option<u32>, quality: Option<u32>) -> ApiResult<Option<String>> {
-        // Build the Jellyfin image URL with authentication
+        let app_dir = self.app.path().app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let cache_dir = app_dir.join("image_cache");
+        std::fs::create_dir_all(&cache_dir)
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+
+        // Build cache filename
+        let mut cache_name = format!("{}_{}", item_id, image_type);
+        if let Some(w) = width { cache_name.push_str(&format!("_w{}", w)); }
+        if let Some(q) = quality { cache_name.push_str(&format!("_q{}", q)); }
+        let cache_path = cache_dir.join(&cache_name);
+
+        // Return cached file if it exists
+        if cache_path.exists() {
+            return Ok(Some(cache_path.to_string_lossy().to_string()));
+        }
+
+        // Build the Jellyfin image URL
         let mut url = format!("{}/Items/{}/Images/{}", server_url.trim_end_matches('/'), item_id, image_type);
-        
         let mut query = Vec::new();
-        if let Some(w) = width {
-            query.push(format!("width={}", w));
-        }
-        if let Some(q) = quality {
-            query.push(format!("quality={}", q));
-        }
+        if let Some(w) = width { query.push(format!("width={}", w)); }
+        if let Some(q) = quality { query.push(format!("quality={}", q)); }
         query.push(format!("api_key={}", token));
-        
         if !query.is_empty() {
-            url.push_str("?");
+            url.push('?');
             url.push_str(&query.join("&"));
         }
-        
-        Ok(Some(url))
+
+        // Download and cache
+        let client = reqwest::Client::new();
+        let response = client.get(&url).send().await
+            .map_err(|e| AppError::Network(e.to_string()))?;
+        if !response.status().is_success() {
+            return Ok(None);
+        }
+        let bytes = response.bytes().await
+            .map_err(|e| AppError::Network(e.to_string()))?;
+        std::fs::write(&cache_path, &bytes)
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+
+        Ok(Some(cache_path.to_string_lossy().to_string()))
     }
 
     async fn get_audio_stream_url(&self, item_id: String, server_url: String, token: String, container: Option<String>) -> ApiResult<String> {
@@ -425,8 +565,8 @@ impl Api for TauriApiImpl {
     }
 
     async fn register_client_capabilities(&self, server_url: String, token: String, device_id: String) -> ApiResult<()> {
-        use aurelia_core::models::jellyfin::{ClientCapabilities, DeviceProfile, DirectPlayProfile, TranscodingProfile, ContainerProfile, CodecProfile, SubtitleProfile, ResponseProfile};
-        
+        use aurelia_core::models::jellyfin::{ClientCapabilities, DeviceProfile, DirectPlayProfile, TranscodingProfile, SubtitleProfile};
+
         // Create default device profile for audio
         let device_profile = DeviceProfile {
             name: Some("Aurelia Audio Profile".to_string()),
@@ -458,13 +598,22 @@ impl Api for TauriApiImpl {
             transcoding_profiles: vec![
                 TranscodingProfile {
                     container: "mp3".to_string(),
-                    audio_codec: Some("mp3".to_string()),
-                    video_codec: None,
                     profile_type: "Audio".to_string(),
+                    video_codec: None,
+                    audio_codec: Some("mp3".to_string()),
+                    protocol: "http".to_string(),
+                    estimate_content_length: None,
+                    enable_mpegts_m2_ts_mode: None,
                     transcode_seek_info: None,
                     copy_timestamps: None,
                     context: Some("Streaming".to_string()),
                     enable_subtitles_in_manifest: None,
+                    max_audio_channels: None,
+                    min_segments: None,
+                    segment_length: None,
+                    break_on_non_key_frames: None,
+                    conditions: vec![],
+                    enable_audio_vbr_encoding: None,
                 },
             ],
             container_profiles: vec![],
@@ -474,15 +623,8 @@ impl Api for TauriApiImpl {
                     format: "srt".to_string(),
                     method: "External".to_string(),
                     didl_mode: None,
-                },
-            ],
-            response_profiles: vec![
-                ResponseProfile {
+                    language: None,
                     container: None,
-                    audio_codec: None,
-                    video_codec: None,
-                    profile_type: "Audio".to_string(),
-                    mime_type: Some("audio/mp3".to_string()),
                 },
             ],
         };
@@ -506,31 +648,39 @@ impl Api for TauriApiImpl {
         client.register_capabilities(&capabilities).await.map_err(|e| AppError::General(e.to_string()))
     }
 
-    async fn report_playback(&self, server_url: String, token: String, item_id: String, position_ticks: Option<i64>, event_name: Option<String>, is_paused: Option<bool>) -> ApiResult<()> {
-        let client = aurelia_core::services::JellyfinClient::with_auth(server_url, token);
-        
-        // Map event name to appropriate playback report
-        match event_name.as_deref() {
-            Some("start") => {
-                client.report_playback_start(&item_id, position_ticks).await.map_err(|e| AppError::General(e.to_string()))
-            }
-            Some("stop") => {
-                client.report_playback_stop(&item_id, position_ticks).await.map_err(|e| AppError::General(e.to_string()))
-            }
-            _ => {
-                // Default to progress report
-                client.report_playback_progress(&item_id, position_ticks, event_name.as_deref(), is_paused).await.map_err(|e| AppError::General(e.to_string()))
-            }
-        }
-    }
-
     async fn clear_image_cache(&self) -> ApiResult<()> {
-        // This would call the existing image cache handler
+        let app_dir = self.app.path().app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let cache_dir = app_dir.join("image_cache");
+        if cache_dir.exists() {
+            std::fs::remove_dir_all(&cache_dir)
+                .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        }
         Ok(())
     }
 
     async fn get_image_cache_stats(&self) -> ApiResult<String> {
-        Ok("{}".to_string())
+        let app_dir = self.app.path().app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let cache_dir = app_dir.join("image_cache");
+        let (mut file_count, mut total_size) = (0u64, 0u64);
+        if cache_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+                for entry in entries.flatten() {
+                    if let Ok(meta) = entry.metadata() {
+                        if meta.is_file() {
+                            file_count += 1;
+                            total_size += meta.len();
+                        }
+                    }
+                }
+            }
+        }
+        Ok(serde_json::json!({
+            "cache_dir": cache_dir.to_string_lossy(),
+            "file_count": file_count,
+            "total_size": total_size,
+        }).to_string())
     }
 
     async fn get_lyrics(&self, _id: String, artist: String, title: String, _path: Option<String>) -> ApiResult<String> {
@@ -549,88 +699,335 @@ impl Api for TauriApiImpl {
         aurelia_core::clear_cache(app_dir.to_string_lossy().to_string())
     }
 
-    async fn listenbrainz_set_credentials(&self, _credentials: ListenBrainzCredentials) -> ApiResult<()> {
-        // TODO: Implement ListenBrainz credentials storage
-        Err(AppError::General("Not implemented".to_string()))
+    // ─── ListenBrainz ────────────────────────────────────────────────
+    
+    async fn listenbrainz_set_credentials(&self, credentials: ListenBrainzCredentials) -> ApiResult<()> {
+        let state: tauri::State<'_, ListenBrainzState> = self.app.state();
+        aurelia_core::listenbrainz_core::listenbrainz_set_credentials(credentials, &state)
+            .map_err(|e| AppError::General(e))
     }
 
     async fn listenbrainz_clear_credentials(&self) -> ApiResult<()> {
-        // TODO: Implement ListenBrainz credentials clearing
-        Err(AppError::General("Not implemented".to_string()))
+        let state: tauri::State<'_, ListenBrainzState> = self.app.state();
+        aurelia_core::listenbrainz_core::listenbrainz_clear_credentials(&state)
+            .map_err(|e| AppError::General(e))
     }
 
     async fn listenbrainz_is_authenticated(&self) -> ApiResult<bool> {
-        // TODO: Implement ListenBrainz authentication check
-        Ok(false)
+        let state: tauri::State<'_, ListenBrainzState> = self.app.state();
+        aurelia_core::listenbrainz_core::listenbrainz_is_authenticated(&state)
+            .map_err(|e| AppError::General(e))
     }
 
-    async fn listenbrainz_validate_token(&self, _user_token: String) -> ApiResult<ListenBrainzCredentials> {
-        // TODO: Implement ListenBrainz token validation
-        Err(AppError::General("Not implemented".to_string()))
+    async fn listenbrainz_validate_token(&self, user_token: String) -> ApiResult<ListenBrainzCredentials> {
+        let state: tauri::State<'_, ListenBrainzState> = self.app.state();
+        aurelia_core::listenbrainz_core::listenbrainz_validate_token(user_token, &state).await
+            .map_err(|e| AppError::General(e))
     }
 
-    async fn listenbrainz_submit_listen(&self, _listen: ListenBrainzListen, _timestamp: i64) -> ApiResult<()> {
-        // TODO: Implement ListenBrainz listen submission
-        Err(AppError::General("Not implemented".to_string()))
+    async fn listenbrainz_submit_listen(&self, listen: ListenBrainzListen, timestamp: i64) -> ApiResult<()> {
+        let state: tauri::State<'_, ListenBrainzState> = self.app.state();
+        aurelia_core::listenbrainz_core::listenbrainz_submit_listen(listen, timestamp as f64, &state).await
+            .map_err(|e| AppError::General(e))
     }
 
-    async fn listenbrainz_playing_now(&self, _artist: String, _track: String, _album: Option<String>) -> ApiResult<()> {
-        // TODO: Implement ListenBrainz playing now
-        Err(AppError::General("Not implemented".to_string()))
+    async fn listenbrainz_playing_now(&self, artist: String, track: String, album: Option<String>) -> ApiResult<()> {
+        let state: tauri::State<'_, ListenBrainzState> = self.app.state();
+        aurelia_core::listenbrainz_core::listenbrainz_playing_now(artist, track, album, &state).await
+            .map_err(|e| AppError::General(e))
     }
 
-    // Desktop-only methods - these delegate to the audio system
-    async fn audio_play(&self) -> ApiResult<()> {
-        // This would integrate with the audio player system
-        // For now, stub - the real implementation is in the existing Tauri audio handlers
+    // ─── Audio (desktop-only) ────────────────────────────────────────
+    
+    async fn audio_init(&self) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let mut player_guard = audio_state.player.lock().await;
+
+        if player_guard.is_none() {
+            let player = aurelia_core::audio::AudioPlayer::new()
+                .map_err(|e| AppError::General(e.to_string()))?;
+            
+            // Get analyzer buffer before moving player
+            let analyzer_buffer = player.analyzer_buffer();
+            
+            *player_guard = Some(player);
+            
+            // Store analyzer buffer for spectrum events
+            let mut buffer_guard = audio_state.analyzer_buffer.lock().unwrap();
+            *buffer_guard = Some(analyzer_buffer);
+        }
+
         Ok(())
     }
 
+    async fn audio_play(&self, url: String, token: String) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let mut player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_mut().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        
+        player.play_url(&url, &token).await.map_err(|e| AppError::General(e.to_string()))
+    }
+
     async fn audio_pause(&self) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.pause();
+        Ok(())
+    }
+
+    async fn audio_resume(&self) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.resume();
         Ok(())
     }
 
     async fn audio_stop(&self) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let mut player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_mut().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.stop();
         Ok(())
+    }
+
+    async fn audio_seek(&self, position_secs: f64) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let mut player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_mut().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.seek_with_fallback(position_secs).await.map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn audio_get_position(&self) -> ApiResult<f64> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        Ok(player.get_position())
+    }
+
+    async fn audio_is_playing(&self) -> ApiResult<bool> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        Ok(player.is_playing())
     }
 
     async fn audio_get_volume(&self) -> ApiResult<f64> {
-        let app_dir = self.app.path().app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
-        let volume_path = app_dir.join("volume.json");
-        
-        if !volume_path.exists() {
-            return Ok(0.5);
-        }
-        
-        let json = std::fs::read_to_string(&volume_path)
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
-        
-        serde_json::from_str(&json)
-            .map_err(|e| AppError::Serialization(e.to_string()))
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        Ok(player.get_volume() as f64)
     }
 
     async fn audio_set_volume(&self, volume: f64) -> ApiResult<()> {
-        let app_dir = self.app.path().app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
-        let volume_path = app_dir.join("volume.json");
-        
-        let json = serde_json::to_string(&volume)
-            .map_err(|e| AppError::Serialization(e.to_string()))?;
-        
-        std::fs::write(&volume_path, json)
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
-        
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let mut player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_mut().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.set_volume(volume as f32);
         Ok(())
     }
 
-    async fn discord_rpc_start(&self, _app_id: String) -> ApiResult<()> {
-        // TODO: Implement Discord RPC start
-        Err(AppError::General("Not implemented".to_string()))
+    async fn audio_is_eq_enabled(&self) -> ApiResult<bool> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        Ok(player.is_eq_enabled())
+    }
+
+    async fn audio_set_eq_enabled(&self, enabled: bool) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.set_eq_enabled(enabled).map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn audio_get_eq_band(&self, band: u32) -> ApiResult<f64> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        Ok(player.get_eq_band(band as usize) as f64)
+    }
+
+    async fn audio_set_eq_band(&self, band: u32, gain_db: f64) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.set_eq_band(band as usize, gain_db as f32).map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn audio_get_all_eq_bands(&self) -> ApiResult<Vec<f64>> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        Ok(player.get_all_eq_bands().iter().map(|&x| x as f64).collect())
+    }
+
+    async fn audio_reset_eq(&self) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.reset_eq().map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn audio_advance_gapless(&self) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let mut player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_mut().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.advance_to_next().await.map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn audio_prepare_next(&self, url: String, token: String) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let mut player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_mut().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.prepare_next(&url, &token);
+        Ok(())
+    }
+
+    async fn audio_is_finished(&self) -> ApiResult<bool> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        Ok(player.is_finished())
+    }
+
+    async fn audio_set_analyzer_enabled(&self, enabled: bool) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.set_analyzer_enabled(enabled);
+        Ok(())
+    }
+
+    async fn audio_is_analyzer_enabled(&self) -> ApiResult<bool> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_ref().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        Ok(player.is_analyzer_enabled())
+    }
+
+    async fn audio_reinit(&self) -> ApiResult<()> {
+        let audio_state: tauri::State<'_, AudioState> = self.app.state();
+        let mut player_guard = audio_state.player.lock().await;
+        let player = player_guard.as_mut().ok_or_else(|| AppError::General("Audio player not initialized".to_string()))?;
+        player.reinit().map_err(|e| AppError::General(e.to_string()))
+    }
+
+    // ─── Discord RPC (desktop-only) ──────────────────────────────────
+    
+    async fn discord_rpc_start(&self, app_id: String) -> ApiResult<()> {
+        let state: tauri::State<'_, DiscordRpcState> = self.app.state();
+        state.start(app_id).map_err(|e| AppError::General(e.to_string()))
     }
 
     async fn discord_rpc_stop(&self) -> ApiResult<()> {
-        // TODO: Implement Discord RPC stop
-        Err(AppError::General("Not implemented".to_string()))
+        let state: tauri::State<'_, DiscordRpcState> = self.app.state();
+        state.stop().map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn discord_rpc_is_running(&self) -> ApiResult<bool> {
+        let state: tauri::State<'_, DiscordRpcState> = self.app.state();
+        Ok(state.is_running())
+    }
+
+    async fn discord_rpc_set_activity(&self, activity: RpcActivity) -> ApiResult<()> {
+        let state: tauri::State<'_, DiscordRpcState> = self.app.state();
+        state.set_activity(activity).map_err(|e| AppError::General(e.to_string()))
+    }
+
+    async fn discord_rpc_clear_activity(&self) -> ApiResult<()> {
+        let state: tauri::State<'_, DiscordRpcState> = self.app.state();
+        state.clear_activity().map_err(|e| AppError::General(e.to_string()))
+    }
+
+    // ─── Media Controls (desktop-only) ───────────────────────────────
+    
+    async fn media_update_now_playing(&self, payload: NowPlayingPayload) -> ApiResult<()> {
+        let state: tauri::State<'_, MediaControlsState> = self.app.state();
+        state.update_now_playing(payload).map_err(|e| AppError::General(e))
+    }
+
+    async fn media_clear_now_playing(&self) -> ApiResult<()> {
+        let state: tauri::State<'_, MediaControlsState> = self.app.state();
+        state.clear_now_playing().map_err(|e| AppError::General(e))
+    }
+
+    async fn media_set_playback_status(&self, is_playing: bool, position_secs: Option<f64>) -> ApiResult<()> {
+        let state: tauri::State<'_, MediaControlsState> = self.app.state();
+        state.set_playback_status(is_playing, position_secs).map_err(|e| AppError::General(e))
+    }
+
+    async fn media_set_button_enabled(&self, button: String, enabled: bool) -> ApiResult<()> {
+        let state: tauri::State<'_, MediaControlsState> = self.app.state();
+        state.set_button_enabled(&button, enabled).map_err(|e| AppError::General(e))
+    }
+
+    // ─── Last.fm (stub for now) ──────────────────────────────────────
+    
+    async fn lastfm_set_credentials(&self, _credentials: LastFmCredentials) -> ApiResult<()> {
+        // TODO: Implement Last.fm in aurelia-core
+        Ok(())
+    }
+
+    async fn lastfm_clear_credentials(&self) -> ApiResult<()> {
+        Ok(())
+    }
+
+    async fn lastfm_is_authenticated(&self) -> ApiResult<bool> {
+        Ok(false)
+    }
+
+    async fn lastfm_start_auth_server(&self) -> ApiResult<()> {
+        Ok(())
+    }
+
+    async fn lastfm_authenticate(&self) -> ApiResult<LastFmCredentials> {
+        Ok(LastFmCredentials {
+            api_key: None,
+            session_key: String::new(),
+            username: String::new(),
+        })
+    }
+
+    async fn lastfm_scrobble(&self, _artist: String, _track: String, _album: Option<String>, _timestamp: Option<i64>) -> ApiResult<()> {
+        Ok(())
+    }
+
+    async fn lastfm_update_now_playing(&self, _artist: String, _track: String, _album: Option<String>) -> ApiResult<()> {
+        Ok(())
+    }
+
+    // ─── Window/Tray (desktop-only) ──────────────────────────────────
+    
+    async fn show_main_window(&self) -> ApiResult<()> {
+        if let Some(window) = self.app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+        Ok(())
+    }
+
+    async fn hide_main_window(&self) -> ApiResult<()> {
+        if let Some(window) = self.app.get_webview_window("main") {
+            let _ = window.hide();
+        }
+        Ok(())
+    }
+
+    async fn quit_application(&self) -> ApiResult<()> {
+        self.app.cleanup_before_exit();
+        std::process::exit(0);
+    }
+
+    async fn set_minimize_to_tray(&self, _minimize_to_tray: bool) -> ApiResult<()> {
+        // TODO: Implement via AtomicBool in a state
+        Ok(())
+    }
+
+    async fn set_close_to_tray(&self, _close_to_tray: bool) -> ApiResult<()> {
+        // TODO: Implement via AtomicBool in a state
+        Ok(())
     }
 }

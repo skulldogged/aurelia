@@ -41,7 +41,7 @@ const syncLibrary = async (credentials: Credentials): Promise<void> => {
   logger.info('Starting library sync...')
 
   await withCustomState<void, string>(
-    () => getApiClient().syncLibrary(credentials.serverUrl, credentials.token),
+    () => getApiClient().syncLibrary(),
     {
       onError: error => {
         const errorMessage = `Failed to sync library: ${error}`
@@ -59,8 +59,14 @@ const syncLibrary = async (credentials: Credentials): Promise<void> => {
 const clearCache = async (credentials: Credentials): Promise<void> => {
   logger.info('Starting cache clear...')
 
+  const client = getApiClient()
+  if (!client.clearCache) {
+    logger.warn('clearCache not available')
+    return
+  }
+
   await withCustomState<void, string>(
-    () => getApiClient().clearCache(credentials.serverUrl, credentials.token),
+    () => client.clearCache!(),
     {
       onError: error => {
         const errorMessage = `Failed to clear cache: ${error}`
