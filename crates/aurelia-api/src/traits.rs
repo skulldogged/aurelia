@@ -358,7 +358,12 @@ pub trait Api {
     async fn lastfm_start_auth_server(&self) -> ApiResult<()>;
 
     #[api(POST "/lastfm/authenticate", desktop_only)]
-    async fn lastfm_authenticate(&self) -> ApiResult<LastFmCredentials>;
+    async fn lastfm_authenticate(
+        &self,
+        api_key: String,
+        api_secret: String,
+        token: String,
+    ) -> ApiResult<LastFmCredentials>;
 
     #[api(POST "/lastfm/scrobble", desktop_only)]
     async fn lastfm_scrobble(

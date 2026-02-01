@@ -105,25 +105,17 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-use std::sync::atomic::{AtomicBool, Ordering};
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-static MINIMIZE_TO_TRAY: AtomicBool = AtomicBool::new(true);
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
-static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(false);
-
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 #[specta::specta]
 pub fn set_minimize_to_tray(minimize_to_tray: bool) {
-    MINIMIZE_TO_TRAY.store(minimize_to_tray, Ordering::Relaxed);
+    aurelia_core::tray_settings::set_minimize_to_tray(minimize_to_tray);
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 #[specta::specta]
 pub fn set_close_to_tray(close_to_tray: bool) {
-    CLOSE_TO_TRAY.store(close_to_tray, Ordering::Relaxed);
+    aurelia_core::tray_settings::set_close_to_tray(close_to_tray);
 }
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -132,7 +124,7 @@ pub fn setup_window_behavior(app: &AppHandle) {
 
     // Listen for minimize events
     let _minimize_id = app.listen("tauri://window-minimize", move |_event| {
-        if MINIMIZE_TO_TRAY.load(Ordering::Relaxed)
+        if aurelia_core::tray_settings::minimize_to_tray_enabled()
             && let Some(window) = app_handle_minimize.get_webview_window("main")
         {
             let _ = window.hide();
@@ -144,7 +136,7 @@ pub fn setup_window_behavior(app: &AppHandle) {
         let window_clone = window.clone();
         window.on_window_event(move |event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event
-                && CLOSE_TO_TRAY.load(Ordering::Relaxed)
+                && aurelia_core::tray_settings::close_to_tray_enabled()
             {
                 let _ = window_clone.hide();
                 api.prevent_close();

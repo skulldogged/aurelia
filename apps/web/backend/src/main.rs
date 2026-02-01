@@ -17,6 +17,8 @@ use tracing::{info, warn};
 use aurelia_api::Api;
 use aurelia_api::axum_impl::{AppState, AxumApiImpl};
 use aurelia_api::traits::axum_routes::build_router;
+use aurelia_core::lastfm_core::LastFmState;
+use aurelia_core::listenbrainz_core::ListenBrainzState;
 
 /// Server state wrapper that includes WebSocket broadcaster
 #[derive(Clone)]
@@ -65,6 +67,8 @@ async fn main() {
 
     let app_state = Arc::new(AppState {
         app_data_dir: app_data_dir.clone(),
+        listenbrainz_state: Arc::new(ListenBrainzState::new()),
+        lastfm_state: Arc::new(LastFmState::new()),
     });
 
     let server_state = Arc::new(ServerState {

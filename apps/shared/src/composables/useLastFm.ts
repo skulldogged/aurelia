@@ -79,18 +79,8 @@ export const useLastFm = (): {
     const artist = song.artists?.[0] ?? 'Unknown Artist'
     const track = song.name
     const album = song.album ?? null
-    const duration = song.duration ? Math.floor(song.duration) : null
-
     // Use the timestamp when the track started, not when we're scrobbling
     const timestamp = trackStartTimestamp
-
-    const scrobble = {
-      album,
-      artist,
-      duration,
-      timestamp,
-      track,
-    }
 
     try {
       logger.info('Scrobbling track:', { artist, timestamp, track })
@@ -170,7 +160,7 @@ export const useLastFm = (): {
   ): Promise<LastFmCredentials> => {
     try {
       logger.info('Authenticating with Last.fm')
-      const result = await getApiClient().lastfmAuthenticate()
+      const result = await getApiClient().lastfmAuthenticate(apiKey, apiSecret, token)
       if (result.status === 'error') {
         throw new Error(result.error)
       }

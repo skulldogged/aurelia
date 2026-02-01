@@ -606,8 +606,8 @@ export const apiClient = {
   },
 
   // Desktop-only: lastfmAuthenticate
-  lastfmAuthenticate: async (): Promise<Result<any>> => {
-    return tauriCommand('lastfm_authenticate', undefined);
+  lastfmAuthenticate: async (apiKey: string, apiSecret: string, token: string): Promise<Result<any>> => {
+    return tauriCommand('lastfm_authenticate', { apiKey, apiSecret, token });
   },
 
   // Desktop-only: lastfmScrobble

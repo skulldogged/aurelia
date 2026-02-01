@@ -9,12 +9,68 @@ use crate::{
 };
 use aurelia_core::audio::AudioState;
 use aurelia_core::discord_rpc::DiscordRpcState;
+use aurelia_core::lastfm_core::{
+    LastFmState, lastfm_authenticate, lastfm_clear_credentials, lastfm_is_authenticated,
+    lastfm_scrobble, lastfm_set_api_secret, lastfm_set_credentials, lastfm_update_now_playing,
+};
 use aurelia_core::listenbrainz_core::{
     ListenBrainzCredentials, ListenBrainzListen, ListenBrainzState,
 };
 use aurelia_core::media_controls::MediaControlsState;
+use aurelia_core::tray_settings;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use std::path::{Path, PathBuf};
+use std::thread;
+use tauri::Emitter;
 use tauri::{AppHandle, Manager};
+
+#[derive(Debug, Serialize, Deserialize)]
+struct LastFmSecretStore {
+    api_secret: String,
+}
+
+fn lastfm_secret_path(app_dir: &Path) -> PathBuf {
+    app_dir.join("lastfm_secret.json")
+}
+
+fn load_lastfm_secret(app_dir: &Path) -> Option<String> {
+    let path = lastfm_secret_path(app_dir);
+    let contents = std::fs::read_to_string(path).ok()?;
+    let store: LastFmSecretStore = serde_json::from_str(&contents).ok()?;
+    Some(store.api_secret)
+}
+
+fn save_lastfm_secret(app_dir: &Path, api_secret: &str) -> ApiResult<()> {
+    let path = lastfm_secret_path(app_dir);
+    let payload = serde_json::to_string(&LastFmSecretStore {
+        api_secret: api_secret.to_string(),
+    })
+    .map_err(|e| AppError::Serialization(e.to_string()))?;
+    std::fs::write(path, payload).map_err(|e| AppError::FileSystem(e.to_string()))?;
+    Ok(())
+}
+
+fn clear_lastfm_secret(app_dir: &Path) -> ApiResult<()> {
+    let path = lastfm_secret_path(app_dir);
+    if path.exists() {
+        std::fs::remove_file(path).map_err(|e| AppError::FileSystem(e.to_string()))?;
+    }
+    Ok(())
+}
+
+fn extract_lastfm_token(request: &str) -> Option<String> {
+    let line = request.lines().next()?;
+    let token_pos = line.find("token=")?;
+    let token_start = token_pos + "token=".len();
+    let remainder = &line[token_start..];
+    let end = remainder
+        .find(|c| ['&', ' '].contains(&c))
+        .unwrap_or(remainder.len());
+    Some(remainder[..end].to_string())
+}
 
 /// Helper to get cached credentials from Tauri state
 fn get_credentials(app: &AppHandle) -> ApiResult<Option<Credentials>> {
@@ -1270,48 +1326,100 @@ impl Api for TauriApiImpl {
 
     // ─── Last.fm (stub for now) ──────────────────────────────────────
 
-    async fn lastfm_set_credentials(&self, _credentials: LastFmCredentials) -> ApiResult<()> {
-        // TODO: Implement Last.fm in aurelia-core
+    async fn lastfm_set_credentials(&self, credentials: LastFmCredentials) -> ApiResult<()> {
+        let state: tauri::State<'_, LastFmState> = self.app.state();
+        lastfm_set_credentials(credentials, &state).map_err(AppError::General)?;
+
+        if let Ok(app_dir) = self.app.path().app_data_dir()
+            && let Some(api_secret) = load_lastfm_secret(&app_dir)
+        {
+            let _ = lastfm_set_api_secret(api_secret, &state);
+        }
+
         Ok(())
     }
 
     async fn lastfm_clear_credentials(&self) -> ApiResult<()> {
+        let state: tauri::State<'_, LastFmState> = self.app.state();
+        lastfm_clear_credentials(&state).map_err(AppError::General)?;
+
+        if let Ok(app_dir) = self.app.path().app_data_dir() {
+            let _ = clear_lastfm_secret(&app_dir);
+        }
+
         Ok(())
     }
 
     async fn lastfm_is_authenticated(&self) -> ApiResult<bool> {
-        Ok(false)
+        let state: tauri::State<'_, LastFmState> = self.app.state();
+        lastfm_is_authenticated(&state).map_err(AppError::General)
     }
 
     async fn lastfm_start_auth_server(&self) -> ApiResult<()> {
+        let listener = TcpListener::bind("127.0.0.1:3000")
+            .map_err(|e| AppError::General(format!("Failed to bind callback server: {e}")))?;
+
+        let app = self.app.clone();
+        thread::spawn(move || {
+            if let Some(Ok(mut stream)) = listener.incoming().next() {
+                let mut buffer = [0u8; 4096];
+                let bytes_read = stream.read(&mut buffer).unwrap_or(0);
+                let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+
+                if let Some(token) = extract_lastfm_token(&request) {
+                    let _ = app.emit("lastfm://token-received", token);
+                }
+
+                let response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\nLast.fm authorization received. You can close this window.";
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+
         Ok(())
     }
 
-    async fn lastfm_authenticate(&self) -> ApiResult<LastFmCredentials> {
-        Ok(LastFmCredentials {
-            api_key: None,
-            session_key: String::new(),
-            username: String::new(),
-        })
+    async fn lastfm_authenticate(
+        &self,
+        api_key: String,
+        api_secret: String,
+        token: String,
+    ) -> ApiResult<LastFmCredentials> {
+        let state: tauri::State<'_, LastFmState> = self.app.state();
+        let credentials = lastfm_authenticate(api_key, api_secret.clone(), token, &state)
+            .await
+            .map_err(AppError::General)?;
+
+        if let Ok(app_dir) = self.app.path().app_data_dir() {
+            let _ = save_lastfm_secret(&app_dir, &api_secret);
+        }
+
+        Ok(credentials)
     }
 
     async fn lastfm_scrobble(
         &self,
-        _artist: String,
-        _track: String,
-        _album: Option<String>,
-        _timestamp: Option<i64>,
+        artist: String,
+        track: String,
+        album: Option<String>,
+        timestamp: Option<i64>,
     ) -> ApiResult<()> {
-        Ok(())
+        let state: tauri::State<'_, LastFmState> = self.app.state();
+        lastfm_scrobble(artist, track, album, timestamp, &state)
+            .await
+            .map_err(AppError::General)
     }
 
     async fn lastfm_update_now_playing(
         &self,
-        _artist: String,
-        _track: String,
-        _album: Option<String>,
+        artist: String,
+        track: String,
+        album: Option<String>,
     ) -> ApiResult<()> {
-        Ok(())
+        let state: tauri::State<'_, LastFmState> = self.app.state();
+        lastfm_update_now_playing(artist, track, album, &state)
+            .await
+            .map_err(AppError::General)
     }
 
     // ─── Window/Tray (desktop-only) ──────────────────────────────────
@@ -1338,12 +1446,12 @@ impl Api for TauriApiImpl {
     }
 
     async fn set_minimize_to_tray(&self, _minimize_to_tray: bool) -> ApiResult<()> {
-        // TODO: Implement via AtomicBool in a state
+        tray_settings::set_minimize_to_tray(_minimize_to_tray);
         Ok(())
     }
 
     async fn set_close_to_tray(&self, _close_to_tray: bool) -> ApiResult<()> {
-        // TODO: Implement via AtomicBool in a state
+        tray_settings::set_close_to_tray(_close_to_tray);
         Ok(())
     }
 }

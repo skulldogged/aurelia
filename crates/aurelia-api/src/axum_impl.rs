@@ -8,16 +8,58 @@ use crate::{
     LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData, PlaylistUpdateData, RpcActivity,
     Song, SyncStateInfo,
 };
+use aurelia_core::lastfm_core::{
+    LastFmState, lastfm_authenticate, lastfm_clear_credentials, lastfm_is_authenticated,
+    lastfm_scrobble, lastfm_set_api_secret, lastfm_set_credentials, lastfm_update_now_playing,
+};
+use aurelia_core::listenbrainz_core::ListenBrainzState;
 use aurelia_core::listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct LastFmSecretStore {
+    api_secret: String,
+}
+
+fn lastfm_secret_path(app_dir: &Path) -> PathBuf {
+    app_dir.join("lastfm_secret.json")
+}
+
+fn load_lastfm_secret(app_dir: &Path) -> Option<String> {
+    let path = lastfm_secret_path(app_dir);
+    let contents = std::fs::read_to_string(path).ok()?;
+    let store: LastFmSecretStore = serde_json::from_str(&contents).ok()?;
+    Some(store.api_secret)
+}
+
+fn save_lastfm_secret(app_dir: &Path, api_secret: &str) -> ApiResult<()> {
+    let path = lastfm_secret_path(app_dir);
+    let payload = serde_json::to_string(&LastFmSecretStore {
+        api_secret: api_secret.to_string(),
+    })
+    .map_err(|e| AppError::Serialization(e.to_string()))?;
+    std::fs::write(path, payload).map_err(|e| AppError::FileSystem(e.to_string()))?;
+    Ok(())
+}
+
+fn clear_lastfm_secret(app_dir: &Path) -> ApiResult<()> {
+    let path = lastfm_secret_path(app_dir);
+    if path.exists() {
+        std::fs::remove_file(path).map_err(|e| AppError::FileSystem(e.to_string()))?;
+    }
+    Ok(())
+}
 
 /// Application state for Axum
 #[derive(Clone)]
 pub struct AppState {
     pub app_data_dir: PathBuf,
+    pub listenbrainz_state: Arc<ListenBrainzState>,
+    pub lastfm_state: Arc<LastFmState>,
 }
 
 /// Helper to get cached credentials
@@ -794,41 +836,69 @@ impl Api for AxumApiImpl {
 
     async fn listenbrainz_set_credentials(
         &self,
-        _credentials: ListenBrainzCredentials,
+        credentials: ListenBrainzCredentials,
     ) -> ApiResult<()> {
-        Ok(())
+        aurelia_core::listenbrainz_core::listenbrainz_set_credentials(
+            credentials,
+            self.state.listenbrainz_state.as_ref(),
+        )
+        .map_err(AppError::General)
     }
 
     async fn listenbrainz_clear_credentials(&self) -> ApiResult<()> {
-        Ok(())
+        aurelia_core::listenbrainz_core::listenbrainz_clear_credentials(
+            self.state.listenbrainz_state.as_ref(),
+        )
+        .map_err(AppError::General)
     }
 
     async fn listenbrainz_is_authenticated(&self) -> ApiResult<bool> {
-        Ok(false)
+        aurelia_core::listenbrainz_core::listenbrainz_is_authenticated(
+            self.state.listenbrainz_state.as_ref(),
+        )
+        .map_err(AppError::General)
     }
 
     async fn listenbrainz_validate_token(
         &self,
-        _user_token: String,
+        user_token: String,
     ) -> ApiResult<ListenBrainzCredentials> {
-        Err(AppError::General("Not implemented".to_string()))
+        aurelia_core::listenbrainz_core::listenbrainz_validate_token(
+            user_token,
+            self.state.listenbrainz_state.as_ref(),
+        )
+        .await
+        .map_err(AppError::General)
     }
 
     async fn listenbrainz_submit_listen(
         &self,
-        _listen: ListenBrainzListen,
-        _timestamp: i64,
+        listen: ListenBrainzListen,
+        timestamp: i64,
     ) -> ApiResult<()> {
-        Ok(())
+        aurelia_core::listenbrainz_core::listenbrainz_submit_listen(
+            listen,
+            timestamp as f64,
+            self.state.listenbrainz_state.as_ref(),
+        )
+        .await
+        .map_err(AppError::General)
     }
 
     async fn listenbrainz_playing_now(
         &self,
-        _artist: String,
-        _track: String,
-        _album: Option<String>,
+        artist: String,
+        track: String,
+        album: Option<String>,
     ) -> ApiResult<()> {
-        Ok(())
+        aurelia_core::listenbrainz_core::listenbrainz_playing_now(
+            artist,
+            track,
+            album,
+            self.state.listenbrainz_state.as_ref(),
+        )
+        .await
+        .map_err(AppError::General)
     }
 
     // ─── Desktop-only operations ─────────────────────────────────
@@ -961,43 +1031,74 @@ impl Api for AxumApiImpl {
         Err(AppError::General("Desktop-only feature".to_string()))
     }
 
-    async fn lastfm_set_credentials(&self, _credentials: LastFmCredentials) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn lastfm_set_credentials(&self, credentials: LastFmCredentials) -> ApiResult<()> {
+        let state = self.state.lastfm_state.as_ref();
+        lastfm_set_credentials(credentials, state).map_err(AppError::General)?;
+
+        if let Some(api_secret) = load_lastfm_secret(&self.state.app_data_dir) {
+            let _ = lastfm_set_api_secret(api_secret, state);
+        }
+
+        Ok(())
     }
 
     async fn lastfm_clear_credentials(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+        let state = self.state.lastfm_state.as_ref();
+        lastfm_clear_credentials(state).map_err(AppError::General)?;
+        let _ = clear_lastfm_secret(&self.state.app_data_dir);
+        Ok(())
     }
 
     async fn lastfm_is_authenticated(&self) -> ApiResult<bool> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+        let state = self.state.lastfm_state.as_ref();
+        lastfm_is_authenticated(state).map_err(AppError::General)
     }
 
     async fn lastfm_start_auth_server(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+        Err(AppError::General(
+            "Last.fm auth server is only supported on desktop".to_string(),
+        ))
     }
 
-    async fn lastfm_authenticate(&self) -> ApiResult<LastFmCredentials> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn lastfm_authenticate(
+        &self,
+        api_key: String,
+        api_secret: String,
+        token: String,
+    ) -> ApiResult<LastFmCredentials> {
+        let state = self.state.lastfm_state.as_ref();
+        let credentials = lastfm_authenticate(api_key, api_secret.clone(), token, state)
+            .await
+            .map_err(AppError::General)?;
+
+        let _ = save_lastfm_secret(&self.state.app_data_dir, &api_secret);
+
+        Ok(credentials)
     }
 
     async fn lastfm_scrobble(
         &self,
-        _artist: String,
-        _track: String,
-        _album: Option<String>,
-        _timestamp: Option<i64>,
+        artist: String,
+        track: String,
+        album: Option<String>,
+        timestamp: Option<i64>,
     ) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+        let state = self.state.lastfm_state.as_ref();
+        lastfm_scrobble(artist, track, album, timestamp, state)
+            .await
+            .map_err(AppError::General)
     }
 
     async fn lastfm_update_now_playing(
         &self,
-        _artist: String,
-        _track: String,
-        _album: Option<String>,
+        artist: String,
+        track: String,
+        album: Option<String>,
     ) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+        let state = self.state.lastfm_state.as_ref();
+        lastfm_update_now_playing(artist, track, album, state)
+            .await
+            .map_err(AppError::General)
     }
 
     async fn show_main_window(&self) -> ApiResult<()> {

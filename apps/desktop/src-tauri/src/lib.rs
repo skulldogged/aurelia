@@ -6,7 +6,7 @@ use aurelia_api::Api;
 use aurelia_api::tauri_impl::TauriApiImpl;
 use aurelia_api::traits::tauri_commands;
 use aurelia_core::audio;
-use aurelia_core::{db, listenbrainz_core, state};
+use aurelia_core::{db, lastfm_core, listenbrainz_core, state};
 use aurelia_core::{discord_rpc, media_controls};
 use std::sync::Once;
 use tauri::Manager;
@@ -39,6 +39,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(lastfm_core::LastFmState::new())
         .manage(listenbrainz_core::ListenBrainzState::new())
         .manage(state::AppState::new())
         .manage(audio::AudioState::new())

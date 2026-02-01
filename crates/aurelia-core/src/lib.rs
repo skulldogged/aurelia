@@ -3,10 +3,12 @@ pub mod cache;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod lastfm_core;
 pub mod listenbrainz_core;
 pub mod models;
 pub mod services;
 pub mod state;
+pub mod tray_settings;
 pub mod utils;
 
 // Desktop-only modules
