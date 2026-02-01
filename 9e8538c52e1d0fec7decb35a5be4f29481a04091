@@ -1,0 +1,39 @@
+apps/web/backend/src/main.rs
+  face20bbb021452e 20-21,70-71
+crates/aurelia-core/src/tray_settings.rs
+  face20bbb021452e 1-20
+crates/aurelia-core/src/lastfm_core.rs
+  face20bbb021452e 1-181,187,189-225,231-232,234-249
+apps/desktop/src-tauri/src/system_tray.rs
+  face20bbb021452e 111,118,127,139
+apps/shared/src/composables/useLastFm.ts
+  face20bbb021452e 163
+apps/desktop/src-tauri/src/lib.rs
+  face20bbb021452e 9,42
+crates/aurelia-api/src/axum_impl.rs
+  face20bbb021452e 11,14-15,17,23-27,29-31,33-38,40-48,50-55,61-62,839,841-845,849-852,856-859,864,866-868,870-871,876-877,879-885,890-892,894-901,1064-1067,1070,1074
+crates/aurelia-api/src/tauri_impl.rs
+  face20bbb021452e 12,14-15,20-21,23-24,26-27,30-34,36-38,40-45,47-55,57-69,71-73,1329-1338,1343-1349,1354-1355,1359-1363,1365-1367,1369-1371,1373-1375,1378,1382-1391,1393-1394,1396-1397,1402-1405,1407-1410,1415-1417,1419-1422,1449,1454
+crates/aurelia-api/src/traits.rs
+  face20bbb021452e 362-365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "9e8538c52e1d0fec7decb35a5be4f29481a04091",
+  "prompts": {
+    "face20bbb021452e": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "a19f1372-91a3-481b-a4b6-ac0cdc858aaa",
+        "model": "copilot/gpt-5.2-codex"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 538,
+      "total_deletions": 80,
+      "accepted_lines": 469,
+      "overriden_lines": 18
+    }
+  }
+}
