@@ -1,0 +1,80 @@
+apps/web/backend/Cargo.toml
+  fbf76f33bf32090e 8
+crates/aurelia-api/src/tauri_impl.rs
+  d5c90e8addf11b8d 6,857-858,864-865,871-872,878,894,901-902,908-909,927-928,938,945,949-950,954-955,959-960,967,970-985,987,989-996,1002,1007-1011,1014-1018,1021-1023,1026-1028
+  fbf76f33bf32090e 7-10,702-707,711-713,717-719,722-725,728-731,734-737,740-741,743,745-759,764,766-768,772,774-775,780,782-783,788,790-791,796,798-799,803,805-806,810,812-813,817,819-820,824,826-827,831-832,834-835,837-839,841-846,848-853,855-856,859-860,862-863,866-867,869-870,873-874,876-877,879-881,883-884,888-889,891-893,895-896,898-900,903-904,906-907,910-911,913-921,925-926,929-934,936-937,939-944,946-948,951-953,956-958,961-966,968-969,997-1001,1003-1006,1012-1013,1019-1020,1024-1025,1029
+  b67642383a5baccf 275-288,520-537,544,547-553,555-560,652-658,663-683
+  8eebf96bc0d46138 773,797,804,818,825,833,840,847,854,861,868,875,882,897,912
+  4364d372a70b231b 569,602-606,611-616,626
+  50b6241e1a97f28f 986,988
+  da113e316973ac2c 52,69-73,76-94,105-134,222,225-232,261-274,289-317,742,763,776-779,795,800-802,807-809,836
+apps/web/frontend/src/App.vue
+  b67642383a5baccf 113,154,175
+crates/aurelia-api/Cargo.toml
+  b67642383a5baccf 25
+apps/desktop/src-tauri/src/lib.rs
+  b67642383a5baccf 8-9,71,74-131,133-154,156-160,162-179,225-227,250-269
+  fbf76f33bf32090e 11-14,51,68,73,132,155,161,180,229,249,270-296,298-300
+crates/aurelia-core/src/lib.rs
+  b67642383a5baccf 202,204
+crates/aurelia-api-macros/src/gen_axum.rs
+  b67642383a5baccf 62-63,78-82,110-113,123-135,138,140,143,150,177,179-181,185-194,198,216
+  fbf76f33bf32090e 159,163-165
+crates/aurelia-api/src/axum_impl.rs
+  b67642383a5baccf 442-444
+apps/web/backend/src/main.rs
+  b67642383a5baccf 82-83,86
+  fbf76f33bf32090e 18-25,29,33,67-73,84,87-88,91,103,110,119-120
+crates/aurelia-api-macros/src/lib.rs
+  fbf76f33bf32090e 67,70-71,104-105
+Cargo.lock
+  fbf76f33bf32090e 489
+crates/aurelia-api-macros/src/gen_tauri.rs
+  b67642383a5baccf 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "9b2822a3ef5f35e3974b117e1da3527fb9a7e904",
+  "prompts": {
+    "8eebf96bc0d46138": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e983e3b6ffeivOsNCKEmUijwe",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 4680,
+      "total_deletions": 3446,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    },
+    "b67642383a5baccf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3a4d080c-3f8c-43b3-9fd7-e076e47e8418",
+        "model": "claude-opus-4-5-20251101"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 332,
+      "total_deletions": 575,
+      "accepted_lines": 318,
+      "overriden_lines": 0
+    },
+    "fbf76f33bf32090e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e9ccd5b1ffeErGNJS4Km5JK73",
+        "model": "opencode/gpt-5-nano"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 610,
+      "total_deletions": 1128,
+      "accepted_lines": 304,
+      "overriden_lines": 8
+    }
+  }
+}
