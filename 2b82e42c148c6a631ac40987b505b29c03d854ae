@@ -1,0 +1,55 @@
+crates/aurelia-core/src/audio/analyzer.rs
+  c2eb54816b4dde9a 68,71
+crates/aurelia-api/src/tauri_impl.rs
+  c2eb54816b4dde9a 351,615,861,865
+.ruler/AGENTS.md
+  079d84ce62d5c8ea 17-23
+crates/aurelia-api/src/axum_impl.rs
+  c2eb54816b4dde9a 517,599
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "2b82e42c148c6a631ac40987b505b29c03d854ae",
+  "prompts": {
+    "079d84ce62d5c8ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdfd1d96-e0a3-4993-b3cd-af61dde7c591",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 7,
+      "total_deletions": 8,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    },
+    "c2eb54816b4dde9a": {
+      "agent_id": {
+        "tool": "github-copilot",
+        "id": "e502c923-4d51-43cf-8a5f-7297849f5fef",
+        "model": "unknown"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 43,
+      "total_deletions": 51,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "d9f7614092edc3dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e87f5227ffejFCQNByRcWtQ3y",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 1598,
+      "total_deletions": 137,
+      "accepted_lines": 1016,
+      "overriden_lines": 6
+    }
+  }
+}
