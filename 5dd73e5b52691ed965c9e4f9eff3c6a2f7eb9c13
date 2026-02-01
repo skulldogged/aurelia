@@ -1,0 +1,115 @@
+apps/shared/src/composables/useVisualizerData.ts
+  de04912ab46d9445 6,10-12,61-63,107,122-139,141-156,160,163-168,176,182-187,200-201,206,234,236
+apps/web/frontend/src/App.vue
+  de04912ab46d9445 27,37-45,68-77,239,244,267,287
+crates/aurelia-api/src/axum_impl.rs
+  de04912ab46d9445 499,501,503-509,511-512,515-517,540-543
+apps/desktop/src-tauri/tauri.conf.json
+  de04912ab46d9445 33
+apps/shared/src/components/settings/AboutSettings.vue
+  de04912ab46d9445 8-9,12-13
+crates/uniffi-bindgen/src/main.rs
+  a36bf228f1282c68 32-44,65,71
+  d6bdda5a8bfd3934 66-70,72
+crates/aurelia-api/src/tauri_impl.rs
+  de04912ab46d9445 595,599,601,604-607,609-610,613-615,618-619,625-626,631,638-641
+apps/desktop/vite.config.ts
+  de04912ab46d9445 52
+apps/shared/src/index.ts
+  de04912ab46d9445 55
+crates/aurelia-core/src/audio/analyzer.rs
+  de04912ab46d9445 117
+crates/aurelia-core/src/models/library.rs
+  de04912ab46d9445 19
+apps/mobile/android/app/src/main/java/com/aurelia/app/utils/TimeFormatUtils.kt
+  79e10c460cb5c1b0 11
+apps/mobile/android/app/src/main/java/com/aurelia/app/ui/PlayerScreen.kt
+  79e10c460cb5c1b0 365,395
+crates/aurelia-core/src/audio/player.rs
+  de04912ab46d9445 203
+apps/shared/src/components/shared/AlbumCard.vue
+  de04912ab46d9445 122
+crates/aurelia-core/src/utils/mod.rs
+  de04912ab46d9445 13-15,19
+crates/aurelia-api/src/traits.rs
+  de04912ab46d9445 26
+crates/aurelia-core/src/lib.rs
+  79e10c460cb5c1b0 282,296,339,397,407,417,426
+crates/uniffi-bindgen/src/ts_generator.rs
+  de04912ab46d9445 90-94
+crates/uniffi-bindgen/Cargo.toml
+  a36bf228f1282c68 12
+  d6bdda5a8bfd3934 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "5dd73e5b52691ed965c9e4f9eff3c6a2f7eb9c13",
+  "prompts": {
+    "79e10c460cb5c1b0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e8cf6452ffeDFEl6Ko3pnYvEy",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 23,
+      "accepted_lines": 16,
+      "overriden_lines": 1
+    },
+    "9b5f9bdf6cd1cce7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e8eb3bf9ffegbT9DhFTxITCGD",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 37,
+      "total_deletions": 36,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "a36bf228f1282c68": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2dbe184b-a22e-4169-af13-f58f3f384739",
+        "model": "claude-sonnet-4-5-20250929"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 76,
+      "total_deletions": 26,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "d6bdda5a8bfd3934": {
+      "agent_id": {
+        "tool": "gemini",
+        "id": "74d2a743-94d6-4763-9f00-5fc7f5921a32",
+        "model": "gemini-3-flash-preview"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 96,
+      "total_deletions": 116,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    },
+    "de04912ab46d9445": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e90b42adffe6EsOTsF6FS2VJV",
+        "model": "kimi-for-coding/k2p5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 213,
+      "total_deletions": 127,
+      "accepted_lines": 148,
+      "overriden_lines": 0
+    }
+  }
+}
