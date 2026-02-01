@@ -27,9 +27,10 @@ pub async fn authenticate(
     server_url: String,
     username: String,
     password: String,
+    device_id: String,
 ) -> Result<models::LoginResponse, error::AppError> {
     let client = services::JellyfinClient::new(server_url);
-    client.authenticate(&username, &password).await
+    client.authenticate(&username, &password, &device_id).await
 }
 
 #[uniffi::export(async_runtime = "tokio")]

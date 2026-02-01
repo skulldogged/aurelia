@@ -10,8 +10,10 @@
   import { getApiClient } from '../index'
   import { logger } from '../lib/logger'
   import { withCustomState } from '../lib/result'
+  import { useSession } from '../composables/useSession'
 
   const apiClient = getApiClient()
+  const { initializeSession, sessionState } = useSession()
 
   interface LoginForm {
     password:  string
@@ -42,6 +44,7 @@
         form.value.serverUrl,
         form.value.username,
         form.value.password,
+        sessionState.value.deviceId,
       ),
       {
         onError: loginError => {
@@ -83,6 +86,7 @@
   }
 
   onMounted(async () => {
+    await initializeSession()
     await withCustomState(
       () => apiClient.getSavedCredentials(),
       {

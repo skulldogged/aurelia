@@ -95,7 +95,7 @@ const registerCapabilities = async (authStore: ReturnType<typeof useAuthStore>):
 const reportPlaybackStart = async (
   authStore: ReturnType<typeof useAuthStore>,
   itemId: string,
-  positionTicks?: number,
+  positionSeconds?: number,
 ): Promise<void> => {
   if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered)
     return
@@ -103,12 +103,18 @@ const reportPlaybackStart = async (
   try {
     const client = getApiClient()
     if (!client.reportPlaybackStart) return
+
+    // Convert seconds to ticks (10,000,000 ticks per second) and ensure it's an integer
+    const positionTicks = positionSeconds !== undefined
+      ? Math.floor(positionSeconds * 10_000_000)
+      : undefined
+
     const result = await client.reportPlaybackStart(itemId, positionTicks)
     if (result.status === 'error') {
       logger.error('Failed to report playback start:', result.error)
       return
     }
-    logger.debug('Playback start reported', { itemId, positionTicks })
+    logger.debug('Playback start reported', { itemId, positionSeconds, positionTicks })
   } catch (error) {
     logger.error('Failed to report playback start:', error)
   }
@@ -117,7 +123,7 @@ const reportPlaybackStart = async (
 const reportPlaybackProgress = async (
   authStore: ReturnType<typeof useAuthStore>,
   itemId: string,
-  positionTicks: number,
+  positionSeconds: number,
   _eventName?: string,
   isPaused?: boolean,
 ): Promise<void> => {
@@ -127,6 +133,10 @@ const reportPlaybackProgress = async (
   try {
     const client = getApiClient()
     if (!client.reportPlaybackProgress) return
+
+    // Convert seconds to ticks (10,000,000 ticks per second) and ensure it's an integer
+    const positionTicks = Math.floor(positionSeconds * 10_000_000)
+
     const result = await client.reportPlaybackProgress(itemId, positionTicks, isPaused ?? false)
     if (result.status === 'error') {
       logger.debug('Failed to report playback progress:', result.error)
@@ -140,7 +150,7 @@ const reportPlaybackProgress = async (
 const reportPlaybackStop = async (
   authStore: ReturnType<typeof useAuthStore>,
   itemId: string,
-  positionTicks?: number,
+  positionSeconds?: number,
 ): Promise<void> => {
   if (!authStore.serverUrl || !authStore.token || !sessionState.value.isRegistered)
     return
@@ -148,13 +158,19 @@ const reportPlaybackStop = async (
   try {
     const client = getApiClient()
     if (!client.reportPlaybackStop) return
-    const result = await client.reportPlaybackStop(itemId, positionTicks ?? 0)
+
+    // Convert seconds to ticks (10,000,000 ticks per second) and ensure it's an integer
+    const positionTicks = positionSeconds !== undefined
+      ? Math.floor(positionSeconds * 10_000_000)
+      : 0
+
+    const result = await client.reportPlaybackStop(itemId, positionTicks)
     if (result.status === 'error') {
       logger.error('Failed to report playback stop:', result.error)
       return
     }
 
-    logger.debug('Playback stop reported', { itemId, positionTicks })
+    logger.debug('Playback stop reported', { itemId, positionSeconds, positionTicks })
 
     sessionState.value.playSessionId = `play-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
   } catch (error) {
@@ -199,17 +215,17 @@ export interface Session {
   registerCapabilities:   () => Promise<void>
   reportPlaybackProgress: (
     itemId: string,
-    positionTicks: number,
+    positionSeconds: number,
     eventName?: string,
     isPaused?: boolean,
   ) => Promise<void>
   reportPlaybackStart:    (
     itemId: string,
-    positionTicks?: number,
+    positionSeconds?: number,
   ) => Promise<void>
   reportPlaybackStop: (
     itemId: string,
-    positionTicks?: number,
+    positionSeconds?: number,
   ) => Promise<void>
   sessionState: Readonly<Ref<SessionState>>
 }
@@ -223,10 +239,10 @@ export const useSession = (): Session => {
     initializeSession,
     markItemPlayed:         (itemId) => markItemPlayed(authStore, itemId),
     registerCapabilities:   () => registerCapabilities(authStore),
-    reportPlaybackProgress: (itemId, positionTicks, eventName, isPaused) =>
-      reportPlaybackProgress(authStore, itemId, positionTicks, eventName, isPaused),
-    reportPlaybackStart: (itemId, positionTicks) => reportPlaybackStart(authStore, itemId, positionTicks),
-    reportPlaybackStop:  (itemId, positionTicks) => reportPlaybackStop(authStore, itemId, positionTicks),
+    reportPlaybackProgress: (itemId, positionSeconds, eventName, isPaused) =>
+      reportPlaybackProgress(authStore, itemId, positionSeconds, eventName, isPaused),
+    reportPlaybackStart: (itemId, positionSeconds) => reportPlaybackStart(authStore, itemId, positionSeconds),
+    reportPlaybackStop:  (itemId, positionSeconds) => reportPlaybackStop(authStore, itemId, positionSeconds),
     sessionState:        readonly(sessionState),
   }
 }

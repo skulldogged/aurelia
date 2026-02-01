@@ -164,29 +164,41 @@ impl AudioPlayer {
         let content_length = streaming.content_length();
         debug!("Stream content length: {:?}", content_length);
 
-        // Create decoder using builder for better seeking support
-        let reader = BufReader::new(streaming);
-        let mut decoder_builder = Decoder::builder().with_data(reader);
+        // Clone Arcs for the blocking task
+        let eq_settings = Arc::clone(&self.eq_settings);
+        let analyzer_buffer = Arc::clone(&self.analyzer_buffer);
 
-        // If we know the content length, set it to enable backward seeking
-        if let Some(len) = content_length {
-            trace!("Setting byte_len for decoder: {} bytes", len);
-            decoder_builder = decoder_builder.with_byte_len(len);
-        }
+        // Offload blocking decoder creation to a dedicated thread
+        // Decoder::new() reads from the stream to guess the format, which can block
+        // if the stream is downloading. If this runs on the async worker thread,
+        // it might deadlock with the download task.
+        let analyzer_source = tokio::task::spawn_blocking(move || {
+            // Create decoder using builder for better seeking support
+            let reader = BufReader::new(streaming);
+            let mut decoder_builder = Decoder::builder().with_data(reader);
 
-        let decoder = decoder_builder
-            .build()
-            .context("Failed to decode audio stream")?;
+            // If we know the content length, set it to enable backward seeking
+            if let Some(len) = content_length {
+                trace!("Setting byte_len for decoder: {} bytes", len);
+                decoder_builder = decoder_builder.with_byte_len(len);
+            }
 
-        // Update EQ sample rate (lock-free, preserves band gains and enabled state)
-        let sample_rate = decoder.sample_rate();
-        self.eq_settings.update_sample_rate(sample_rate);
+            let decoder = decoder_builder
+                .build()
+                .context("Failed to decode audio stream")?;
 
-        // Apply EQ to the source (lock-free processing)
-        let eq_source = EQSource::new(decoder, Arc::clone(&self.eq_settings));
+            // Update EQ sample rate (lock-free, preserves band gains and enabled state)
+            let sample_rate = decoder.sample_rate();
+            eq_settings.update_sample_rate(sample_rate);
 
-        // Wrap with analyzer for visualization (lock-free sample capture)
-        let analyzer_source = AnalyzerSource::new(eq_source, Arc::clone(&self.analyzer_buffer));
+            // Apply EQ to the source (lock-free processing)
+            let eq_source = EQSource::new(decoder, eq_settings);
+
+            // Wrap with analyzer for visualization (lock-free sample capture)
+            Ok::<_, anyhow::Error>(AnalyzerSource::new(eq_source, analyzer_buffer))
+        })
+        .await
+        .context("Failed to join blocking task")??;
 
         // Create a sink via the background thread
         let (sink_tx, sink_rx) = channel();

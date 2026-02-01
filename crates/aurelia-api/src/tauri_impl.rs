@@ -62,9 +62,15 @@ impl Api for TauriApiImpl {
         server_url: String,
         username: String,
         password: String,
+        device_id: String,
     ) -> ApiResult<serde_json::Value> {
-        let login_resp =
-            aurelia_core::authenticate(server_url.clone(), username.clone(), password).await?;
+        let login_resp = aurelia_core::authenticate(
+            server_url.clone(),
+            username.clone(),
+            password,
+            device_id,
+        )
+        .await?;
         let creds = Credentials {
             server_url: server_url.clone(),
             username: username.clone(),

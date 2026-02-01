@@ -90,6 +90,15 @@ class SessionStore(
 
   fun getToken(): String? = getCredentials()?.token
 
+  fun getDeviceId(): String {
+    val savedId = prefs.getString("device_id", null)
+    if (savedId != null) return savedId
+
+    val newId = java.util.UUID.randomUUID().toString()
+    prefs.edit { putString("device_id", newId) }
+    return newId
+  }
+
   private fun migrateFromSharedPreferences(appDataDir: String) {
     val oldServerUrl = prefs.getString("serverUrl", null)
     val oldUserId = prefs.getString("userId", null)

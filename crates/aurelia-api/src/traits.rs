@@ -29,7 +29,8 @@ pub trait Api {
         &self, 
         server_url: String, 
         username: String, 
-        password: String
+        password: String,
+        device_id: String
     ) -> ApiResult<serde_json::Value>; // Returns LoginResponse
     
     #[api(POST "/auth/credentials")]

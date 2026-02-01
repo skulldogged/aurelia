@@ -50,21 +50,28 @@ impl JellyfinClient {
     /// Get the authorization header value
     #[must_use]
     pub fn get_auth_header(&self) -> String {
-        self.token
-            .as_ref()
-            .map_or_else(utils::build_jellyfin_auth_header, |token| {
-                format!("MediaBrowser Token=\"{token}\"")
-            })
+        self.token.as_ref().map_or_else(
+            || utils::build_jellyfin_auth_header(None),
+            |token| format!("MediaBrowser Token=\"{token}\""),
+        )
     }
 
     /// Authenticate user with Jellyfin server
-    pub async fn authenticate(&self, username: &str, password: &str) -> AppResult<LoginResponse> {
+    pub async fn authenticate(
+        &self,
+        username: &str,
+        password: &str,
+        device_id: &str,
+    ) -> AppResult<LoginResponse> {
         let login_url = utils::build_jellyfin_url(&self.server_url, "/Users/AuthenticateByName");
 
         let response = self
             .client
             .post(&login_url)
-            .header("Authorization", self.get_auth_header())
+            .header(
+                "Authorization",
+                utils::build_jellyfin_auth_header(Some(device_id)),
+            )
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({
                 "Username": username,

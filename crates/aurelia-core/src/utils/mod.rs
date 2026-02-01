@@ -82,13 +82,16 @@ pub fn supports_seeking(container: Option<&str>) -> bool {
 
 /// Build Jellyfin authorization header
 #[must_use]
-pub fn build_jellyfin_auth_header() -> String {
-    let device_id = get_device_id().unwrap_or_else(|_| "Aurelia-Fallback".to_string());
+pub fn build_jellyfin_auth_header(device_id: Option<&str>) -> String {
+    let id = device_id
+        .map(ToString::to_string)
+        .unwrap_or_else(|| get_device_id().unwrap_or_else(|_| "Aurelia-Fallback".to_string()));
+
     format!(
         "MediaBrowser Client=\"{}\", Device=\"{}\", DeviceId=\"{}\", Version=\"{}\", Token=\"\"",
         constants::JELLYFIN_CLIENT,
         constants::JELLYFIN_DEVICE,
-        device_id,
+        id,
         constants::JELLYFIN_VERSION
     )
 }

@@ -71,11 +71,11 @@ async function webRequest<T>(
 
 export const apiClient = {
   // loginToJellyfin
-  loginToJellyfin: async (serverUrl: string, username: string, password: string): Promise<Result<any>> => {
+  loginToJellyfin: async (serverUrl: string, username: string, password: string, deviceId: string): Promise<Result<any>> => {
     if (isTauri) {
-      return tauriCommand('login_to_jellyfin', { serverUrl, username, password });
+      return tauriCommand('login_to_jellyfin', { serverUrl, username, password, deviceId });
     }
-    return webRequest('POST', `/auth/login`, { serverUrl: serverUrl, username: username, password: password }, undefined);
+    return webRequest('POST', `/auth/login`, { serverUrl: serverUrl, username: username, password: password, deviceId: deviceId }, undefined);
   },
 
   // saveCredentials

@@ -5,7 +5,7 @@ import type { Result } from './result'
 import type { Credentials, Song, Album, Artist, Playlist, PlaylistCreateData, PlaylistUpdateData, LibraryData, HomeViewData, SyncStateInfo, ListenBrainzCredentials, ListenBrainzListen, RpcActivity, NowPlayingPayload, LastFmCredentials } from '../../generated'
 
 export interface ApiClient {
-  loginToJellyfin(serverUrl: string, username: string, password: string): Promise<Result<any>>
+  loginToJellyfin(serverUrl: string, username: string, password: string, deviceId: string): Promise<Result<any>>
   saveCredentials(serverUrl: string, username: string, token: string, userId: string): Promise<Result<any>>
   getSavedCredentials(): Promise<Result<any>>
   clearSavedCredentials(): Promise<Result<any>>

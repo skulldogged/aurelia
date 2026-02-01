@@ -262,7 +262,11 @@ export const useAudioEngine = (
   }
 
   const resumeContext = async (): Promise<void> => {
-    await audioPlayer.reinitialize()
+    // Only reinitialize (resume AudioContext) on web.
+    // On desktop, reinit is too heavy to call on every play/pause as it restarts the audio thread.
+    if (!isDesktop()) {
+      await audioPlayer.reinitialize()
+    }
   }
 
   const loadSong = async (song: null | Song): Promise<void> => {

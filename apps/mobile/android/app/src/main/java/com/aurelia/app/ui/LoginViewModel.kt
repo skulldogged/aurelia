@@ -48,7 +48,12 @@ class LoginViewModel(
 
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        val response = authenticate(current.serverUrl, current.username, current.password)
+        val response = authenticate(
+          current.serverUrl,
+          current.username,
+          current.password,
+          sessionStore.getDeviceId()
+        )
         sessionStore.save(current.serverUrl, response.userId, response.token)
         mutableState.update {
           it.copy(isSubmitting = false, token = response.token, userId = response.userId)
