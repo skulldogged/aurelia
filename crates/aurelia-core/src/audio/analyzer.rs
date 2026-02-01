@@ -7,9 +7,9 @@
 //! - Results are emitted as events
 
 use rodio::Source;
-use rustfft::{num_complex::Complex, FftPlanner};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use rustfft::{FftPlanner, num_complex::Complex};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// FFT size - must be power of 2. 256 matches Web Audio API default
@@ -65,10 +65,10 @@ impl AnalyzerBuffer {
         let mut samples = [0.0f32; FFT_SIZE];
         let write_pos = self.write_pos.load(Ordering::Acquire);
 
-        for i in 0..FFT_SIZE {
+        for (i, sample) in samples.iter_mut().enumerate() {
             let read_pos = (write_pos + i) % FFT_SIZE;
             let bits = self.buffer[read_pos].load(Ordering::Relaxed);
-            samples[i] = f32::from_bits(bits);
+            *sample = f32::from_bits(bits);
         }
 
         samples

@@ -26,8 +26,8 @@ export const useListenBrainz = (): {
   if (!hasTauri) {
     const noop = async (): Promise<void> => {}
     const noopValidate = async (): Promise<ListenBrainzCredentials> => ({
+      username:  null,
       userToken: '',
-      username: null,
     })
 
     return {

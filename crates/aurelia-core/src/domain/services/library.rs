@@ -312,10 +312,10 @@ impl LibraryService {
 
         // Find albums to add/remove
         for album in remote_albums {
-            if let Some(id) = &album.id {
-                if !local_album_ids.contains(id) {
-                    delta.albums_to_add.push(id.clone());
-                }
+            if let Some(id) = &album.id
+                && !local_album_ids.contains(id)
+            {
+                delta.albums_to_add.push(id.clone());
             }
         }
         for local_id in &local_album_ids {

@@ -138,7 +138,7 @@ impl Api for AxumApiImpl {
         let login_resp =
             aurelia_core::authenticate(server_url.clone(), username.clone(), password, device_id)
                 .await?;
-        Ok(serde_json::to_value(login_resp).map_err(|e| AppError::General(e.to_string()))?)
+        serde_json::to_value(login_resp).map_err(|e| AppError::General(e.to_string()))
     }
 
     async fn save_credentials(
@@ -513,29 +513,29 @@ impl Api for AxumApiImpl {
         // Second pass: build album list with correct song counts
         let mut seen_albums: HashMap<String, bool> = HashMap::new();
         for song in &all_songs {
-            if let Some(album_id) = &song.album_id {
-                if !seen_albums.contains_key(album_id) {
-                    seen_albums.insert(album_id.clone(), true);
-                    let song_count = album_ids.get(album_id).copied().unwrap_or(0) as i64;
-                    albums.push(Album {
-                        id: Some(album_id.clone()),
-                        name: song.album.clone().unwrap_or_default(),
-                        artist: song
-                            .artists
-                            .as_ref()
-                            .and_then(|a| a.first())
-                            .cloned()
-                            .unwrap_or_default(),
-                        artist_id: song.artist_ids.as_ref().and_then(|a| a.first()).cloned(),
-                        album_art_url: song.album_art_url.clone(),
-                        song_count,
-                        songs: None,
-                        image_tags: None,
-                        provider_ids: None,
-                        date_created: song.date_created.clone(),
-                        date_modified: None,
-                    });
-                }
+            if let Some(album_id) = &song.album_id
+                && !seen_albums.contains_key(album_id)
+            {
+                seen_albums.insert(album_id.clone(), true);
+                let song_count = album_ids.get(album_id).copied().unwrap_or(0) as i64;
+                albums.push(Album {
+                    id: Some(album_id.clone()),
+                    name: song.album.clone().unwrap_or_default(),
+                    artist: song
+                        .artists
+                        .as_ref()
+                        .and_then(|a| a.first())
+                        .cloned()
+                        .unwrap_or_default(),
+                    artist_id: song.artist_ids.as_ref().and_then(|a| a.first()).cloned(),
+                    album_art_url: song.album_art_url.clone(),
+                    song_count,
+                    songs: None,
+                    image_tags: None,
+                    provider_ids: None,
+                    date_created: song.date_created.clone(),
+                    date_modified: None,
+                });
             }
         }
 
@@ -596,7 +596,7 @@ impl Api for AxumApiImpl {
         query.push(format!("api_key={}", token));
 
         if !query.is_empty() {
-            url.push_str("?");
+            url.push('?');
             url.push_str(&query.join("&"));
         }
 

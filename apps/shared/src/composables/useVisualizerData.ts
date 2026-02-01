@@ -9,8 +9,8 @@ import { onUnmounted, ref, type Ref, watch } from 'vue'
 
 import { getAudioPlayer } from '../audio'
 import { getApiClient } from '../index'
-import { isDesktop } from '../lib/platform'
 import { logger } from '../lib/logger'
+import { isDesktop } from '../lib/platform'
 
 interface SpectrumEvent {
   frequencyData:  number[]
@@ -59,7 +59,7 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
   let eventUnlisten: (() => void) | null = null
 
   // Animation frame ID (web)
-  let animationFrameId: number | null = null
+  let animationFrameId: null | number = null
 
   /**
    * Apply temporal smoothing to spectrum data.

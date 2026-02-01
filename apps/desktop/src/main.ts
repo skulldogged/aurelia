@@ -19,7 +19,7 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Initialize theme store  
+// Initialize theme store
 const themeStore = useThemeStore()
 themeStore.setColorScheme(themeStore.selectedSchemeName)
 

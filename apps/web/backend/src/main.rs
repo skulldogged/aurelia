@@ -3,21 +3,20 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::{
+    Router,
     extract::{State, WebSocketUpgrade},
     response::IntoResponse,
     routing::get,
-    Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{info, warn};
 
 // Re-export types from aurelia_core
-use aurelia_core::models::{Album, Artist, Song};
+use aurelia_api::Api;
 use aurelia_api::axum_impl::{AppState, AxumApiImpl};
 use aurelia_api::traits::axum_routes::build_router;
-use aurelia_api::Api;
 
 /// Server state wrapper that includes WebSocket broadcaster
 #[derive(Clone)]
@@ -51,9 +50,9 @@ async fn main() {
     let app_data_dir = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("./data"))
         .join("aurelia-web");
-    
+
     std::fs::create_dir_all(&app_data_dir).expect("Failed to create data directory");
-    
+
     info!("Using data directory: {:?}", app_data_dir);
 
     // Initialize database
@@ -67,7 +66,7 @@ async fn main() {
     let app_state = Arc::new(AppState {
         app_data_dir: app_data_dir.clone(),
     });
-    
+
     let server_state = Arc::new(ServerState {
         app_state: app_state.clone(),
         ws_tx: ws_tx.clone(),
@@ -105,10 +104,7 @@ async fn websocket_handler(
     ws.on_upgrade(move |socket| handle_websocket(socket, state))
 }
 
-async fn handle_websocket(
-    socket: axum::extract::ws::WebSocket,
-    state: Arc<ServerState>,
-) {
+async fn handle_websocket(socket: axum::extract::ws::WebSocket, state: Arc<ServerState>) {
     use axum::extract::ws::Message;
     use futures_util::{SinkExt, StreamExt};
 
@@ -130,11 +126,10 @@ async fn handle_websocket(
             msg = rx.recv() => {
                 match msg {
                     Ok(msg) => {
-                        if let Ok(json) = serde_json::to_string(&msg) {
-                            if sender.send(Message::Text(json.into())).await.is_err() {
+                        if let Ok(json) = serde_json::to_string(&msg)
+                            && sender.send(Message::Text(json.into())).await.is_err() {
                                 break;
                             }
-                        }
                     }
                     Err(_) => break,
                 }

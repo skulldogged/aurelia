@@ -2,11 +2,11 @@ pub mod system_tray;
 
 pub use anyhow::Result;
 
-use aurelia_api::traits::tauri_commands;
 use aurelia_api::Api;
 use aurelia_api::tauri_impl::TauriApiImpl;
-use aurelia_core::{db, listenbrainz_core, state};
+use aurelia_api::traits::tauri_commands;
 use aurelia_core::audio;
+use aurelia_core::{db, listenbrainz_core, state};
 use aurelia_core::{discord_rpc, media_controls};
 use std::sync::Once;
 use tauri::Manager;
@@ -200,10 +200,10 @@ pub fn run() {
                             let handle = handle.clone();
                             tauri::async_runtime::spawn(async move {
                                 let api = TauriApiImpl::new(handle);
-                                if let Ok(Some(_creds)) = api.get_saved_credentials().await {
-                                    if let Err(e) = api.sync_library().await {
-                                        error!("Failed to sync library: {}", e);
-                                    }
+                                if let Ok(Some(_creds)) = api.get_saved_credentials().await
+                                    && let Err(e) = api.sync_library().await
+                                {
+                                    error!("Failed to sync library: {}", e);
                                 }
                             });
                         }
@@ -225,21 +225,21 @@ pub fn run() {
             let hwnd = {
                 #[cfg(target_os = "windows")]
                 {
-                    handle
-                        .get_webview_window("main")
-                        .and_then(|w| {
-                            use raw_window_handle::HasWindowHandle;
-                            let handle = w.window_handle().ok()?;
-                            match handle.as_raw() {
-                                raw_window_handle::RawWindowHandle::Win32(h) => {
-                                    Some(h.hwnd.get() as *mut std::ffi::c_void)
-                                }
-                                _ => None,
+                    handle.get_webview_window("main").and_then(|w| {
+                        use raw_window_handle::HasWindowHandle;
+                        let handle = w.window_handle().ok()?;
+                        match handle.as_raw() {
+                            raw_window_handle::RawWindowHandle::Win32(h) => {
+                                Some(h.hwnd.get() as *mut std::ffi::c_void)
                             }
-                        })
+                            _ => None,
+                        }
+                    })
                 }
                 #[cfg(not(target_os = "windows"))]
-                { None }
+                {
+                    None
+                }
             };
             if let Err(e) = media_state.init(hwnd) {
                 error!("Failed to initialize media controls: {}", e);
@@ -288,7 +288,8 @@ pub fn run() {
                     loop {
                         interval.tick().await;
 
-                        let audio_state = handle_for_audio.state::<aurelia_core::audio::AudioState>();
+                        let audio_state =
+                            handle_for_audio.state::<aurelia_core::audio::AudioState>();
 
                         // Check if player is initialized
                         let mut player_guard = audio_state.player.lock().await;
@@ -309,11 +310,14 @@ pub fn run() {
                                 let position = player.get_position();
 
                                 // Emit position update to frontend
-                                let _ = handle_for_audio.emit("audio:position", serde_json::json!({
-                                    "position": position,
-                                    "isFinished": is_finished,
-                                    "didAutoAdvance": did_auto_advance
-                                }));
+                                let _ = handle_for_audio.emit(
+                                    "audio:position",
+                                    serde_json::json!({
+                                        "position": position,
+                                        "isFinished": is_finished,
+                                        "didAutoAdvance": did_auto_advance
+                                    }),
+                                );
 
                                 if is_finished {
                                     debug!("Audio playback finished, event emitted");

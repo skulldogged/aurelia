@@ -237,7 +237,7 @@ export const useSession = (): Session => {
     generateNewSession,
 
     initializeSession,
-    markItemPlayed:         (itemId) => markItemPlayed(authStore, itemId),
+    markItemPlayed:         itemId => markItemPlayed(authStore, itemId),
     registerCapabilities:   () => registerCapabilities(authStore),
     reportPlaybackProgress: (itemId, positionSeconds, eventName, isPaused) =>
       reportPlaybackProgress(authStore, itemId, positionSeconds, eventName, isPaused),

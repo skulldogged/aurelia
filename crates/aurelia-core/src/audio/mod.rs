@@ -14,8 +14,10 @@ mod eq;
 mod player;
 mod streaming;
 
-pub use analyzer::{AnalyzerBuffer, SpectrumAnalyzer, AnalyzerSource, FFT_SIZE, FREQUENCY_BIN_COUNT};
-pub use eq::{EQSettings, EQSource, EQBand, EQFilterType, DEFAULT_EQ_BANDS};
+pub use analyzer::{
+    AnalyzerBuffer, AnalyzerSource, FFT_SIZE, FREQUENCY_BIN_COUNT, SpectrumAnalyzer,
+};
+pub use eq::{DEFAULT_EQ_BANDS, EQBand, EQFilterType, EQSettings, EQSource};
 pub use player::AudioPlayer;
 pub use streaming::StreamingSource;
 
@@ -71,10 +73,14 @@ pub async fn audio_play(
     token: String,
 ) -> Result<()> {
     let mut player_guard = state.player.lock().await;
-    let player = player_guard.as_mut().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
-    
+    let player = player_guard
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+
     if let Some(start) = start_time_secs {
-        player.play_url_from_position(&url, &token, Some(start)).await
+        player
+            .play_url_from_position(&url, &token, Some(start))
+            .await
     } else {
         player.play_url(&url, &token).await
     }
@@ -83,7 +89,9 @@ pub async fn audio_play(
 /// Pause playback
 pub async fn audio_pause(state: &AudioState) -> Result<()> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.pause();
     Ok(())
 }
@@ -91,7 +99,9 @@ pub async fn audio_pause(state: &AudioState) -> Result<()> {
 /// Resume playback
 pub async fn audio_resume(state: &AudioState) -> Result<()> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.resume();
     Ok(())
 }
@@ -99,7 +109,9 @@ pub async fn audio_resume(state: &AudioState) -> Result<()> {
 /// Stop playback
 pub async fn audio_stop(state: &AudioState) -> Result<()> {
     let mut player_guard = state.player.lock().await;
-    let player = player_guard.as_mut().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.stop();
     Ok(())
 }
@@ -107,7 +119,9 @@ pub async fn audio_stop(state: &AudioState) -> Result<()> {
 /// Set volume (0.0 to 1.0)
 pub async fn audio_set_volume(state: &AudioState, volume: f32) -> Result<()> {
     let mut player_guard = state.player.lock().await;
-    let player = player_guard.as_mut().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.set_volume(volume.clamp(0.0, 1.0));
     Ok(())
 }
@@ -115,63 +129,81 @@ pub async fn audio_set_volume(state: &AudioState, volume: f32) -> Result<()> {
 /// Get current volume
 pub async fn audio_get_volume(state: &AudioState) -> Result<f32> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     Ok(player.get_volume())
 }
 
 /// Check if audio is currently playing
 pub async fn audio_is_playing(state: &AudioState) -> Result<bool> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     Ok(player.is_playing())
 }
 
 /// Check if playback has finished
 pub async fn audio_is_finished(state: &AudioState) -> Result<bool> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     Ok(player.is_finished())
 }
 
 /// Get current playback position in seconds
 pub async fn audio_get_position(state: &AudioState) -> Result<f64> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     Ok(player.get_position())
 }
 
 /// Seek to position
 pub async fn audio_seek(state: &AudioState, position_secs: f64) -> Result<()> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.seek(position_secs)
 }
 
 /// Prepare next track for gapless playback
 pub async fn audio_prepare_next(state: &AudioState, url: String, token: String) -> Result<()> {
     let mut player_guard = state.player.lock().await;
-    let player = player_guard.as_mut().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.prepare_next(&url, &token).await
 }
 
 /// Advance to next prepared track
 pub async fn audio_advance_gapless(state: &AudioState) -> Result<()> {
     let mut player_guard = state.player.lock().await;
-    let player = player_guard.as_mut().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.advance_to_next().await
 }
 
 /// Enable/disable EQ
 pub async fn audio_set_eq_enabled(state: &AudioState, enabled: bool) -> Result<()> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.set_eq_enabled(enabled)
 }
 
 /// Check if EQ is enabled
 pub async fn audio_is_eq_enabled(state: &AudioState) -> Result<bool> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     Ok(player.is_eq_enabled())
 }
 
@@ -184,21 +216,27 @@ pub async fn audio_set_eq_band(
     _q: f32,
 ) -> Result<()> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.set_eq_band(band as usize, gain)
 }
 
 /// Reset EQ to default
 pub async fn audio_reset_eq(state: &AudioState) -> Result<()> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.reset_eq()
 }
 
 /// Enable/disable analyzer
 pub async fn audio_set_analyzer_enabled(state: &AudioState, enabled: bool) -> Result<()> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     player.set_analyzer_enabled(enabled);
     Ok(())
 }
@@ -206,7 +244,9 @@ pub async fn audio_set_analyzer_enabled(state: &AudioState, enabled: bool) -> Re
 /// Check if analyzer is enabled
 pub async fn audio_is_analyzer_enabled(state: &AudioState) -> Result<bool> {
     let player_guard = state.player.lock().await;
-    let player = player_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     Ok(player.is_analyzer_enabled())
 }
 

@@ -3,9 +3,9 @@
 // This module provides the unified API client that works on both
 // desktop (via Tauri IPC) and web (via HTTP).
 
+export { setApiClient } from '../..'
 // Re-export unified API client and setup function
 export { apiClient } from '../../api/apiClient'
-export { setApiClient } from '../..'
 
 // Re-export generated types
 export type {

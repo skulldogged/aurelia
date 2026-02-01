@@ -421,7 +421,7 @@ pub async fn get_song_share_urls(
 ) -> Result<std::collections::HashMap<String, String>, error::AppError> {
     services::MusicBrainzService::get_song_share_urls(&song)
         .await
-        .map_err(|e| error::AppError::UniFfi(e))
+        .map_err(error::AppError::UniFfi)
 }
 
 #[uniffi::export(async_runtime = "tokio")]
@@ -432,7 +432,8 @@ pub async fn get_related_artists(
     let app_data_path = std::path::PathBuf::from(&app_data_dir);
     db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-    let all_artists = db::artists::get_all().map_err(|e| error::AppError::Database(e.to_string()))?;
+    let all_artists =
+        db::artists::get_all().map_err(|e| error::AppError::Database(e.to_string()))?;
     let all_songs = db::songs::get_all().map_err(|e| error::AppError::Database(e.to_string()))?;
 
     let current_artist = all_artists
@@ -531,7 +532,7 @@ pub async fn get_related_artists(
     }
 
     let mut sorted_artists: Vec<_> = artist_scores.into_iter().collect();
-    sorted_artists.sort_by(|a, b| b.1.cmp(&a.1));
+    sorted_artists.sort_by_key(|b| std::cmp::Reverse(b.1));
 
     let result: Vec<models::Artist> = sorted_artists
         .iter()

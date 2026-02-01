@@ -1,7 +1,7 @@
 import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 
-import type { Song } from '../lib/api/types'
 import type { RpcActivity } from '../generated'
+import type { Song } from '../lib/api/types'
 
 import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
@@ -162,14 +162,14 @@ export const useDiscordPresence = (): {
       artistImageUrl = `${song.albumArtUrl.split('/Items/')[0]}/Items/${song.artistIds[0]}/Images/Primary`
 
     const activity: RpcActivity = {
-      details:         song.name,
-      endTimestamp:    null,
-      largeImageKey:   song.albumArtUrl ?? null,
-      largeImageText:  song.album ?? 'Unknown Album',
-      smallImageKey:   null,
-      smallImageText:  null,
-      startTimestamp:  null,
-      state:           null,
+      details:        song.name,
+      endTimestamp:   null,
+      largeImageKey:  song.albumArtUrl ?? null,
+      largeImageText: song.album ?? 'Unknown Album',
+      smallImageKey:  null,
+      smallImageText: null,
+      startTimestamp: null,
+      state:          null,
     }
 
     if (artistImageUrl) {

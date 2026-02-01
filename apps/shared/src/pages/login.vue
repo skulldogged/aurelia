@@ -7,10 +7,10 @@
   import Button from '../components/ui/Button.vue'
   import { Input } from '../components/ui/input'
   import Label from '../components/ui/Label.vue'
+  import { useSession } from '../composables/useSession'
   import { getApiClient } from '../index'
   import { logger } from '../lib/logger'
   import { withCustomState } from '../lib/result'
-  import { useSession } from '../composables/useSession'
 
   const apiClient = getApiClient()
   const { initializeSession, sessionState } = useSession()
@@ -55,7 +55,7 @@
           error.value = ''
           loading.value = true
         },
-        onSuccess: async (loginData) => {
+        onSuccess: async loginData => {
           await withCustomState(
             () => apiClient.saveCredentials(
               form.value.serverUrl,

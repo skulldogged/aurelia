@@ -5,8 +5,8 @@
 
 use anyhow::Result;
 use discord_rich_presence::{
-    activity::{Activity, ActivityType, Assets, Timestamps},
     DiscordIpc, DiscordIpcClient,
+    activity::{Activity, ActivityType, Assets, Timestamps},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};

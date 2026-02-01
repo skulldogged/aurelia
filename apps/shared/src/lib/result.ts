@@ -7,8 +7,8 @@
 
 // Result type definition
 export type Result<T, E = string> =
-  | { status: 'ok'; data: T }
-  | { status: 'error'; error: E }
+  | { data: T; status: 'ok'; }
+  | { error: E; status: 'error'; }
 
 // Type guards
 export const isOk = <T, E>(result: Result<T, E>): result is { data: T; status: 'ok' } =>
@@ -33,7 +33,7 @@ export const unwrapErr = <T, E>(result: Result<T, E>): E => {
 }
 
 // Safe extractors (return null if wrong variant)
-export const unwrapOrNull = <T, E>(result: Result<T, E>): T | null =>
+export const unwrapOrNull = <T, E>(result: Result<T, E>): null | T =>
   isOk(result) ? result.data : null
 
 export const unwrapErrOrNull = <T, E>(result: Result<T, E>): E | null =>
@@ -48,10 +48,10 @@ export const unwrapOrElse = <T, E>(result: Result<T, E>, fn: (error: E) => T): T
 
 // Mapping
 export const map = <T, U, E>(result: Result<T, E>, fn: (data: T) => U): Result<U, E> =>
-  isOk(result) ? { status: 'ok', data: fn(result.data) } : result
+  isOk(result) ? { data: fn(result.data), status: 'ok' } : result
 
 export const mapErr = <T, E, F>(result: Result<T, E>, fn: (error: E) => F): Result<T, F> =>
-  isErr(result) ? { status: 'error', error: fn(result.error) } : result
+  isErr(result) ? { error: fn(result.error), status: 'error' } : result
 
 // Async operations
 export const andThenAsync = async <T, U, E>(
@@ -68,8 +68,8 @@ export const orElseAsync = async <T, E>(
 export const match = <T, E, U>(
   result: Result<T, E>,
   handlers: {
-    ok: (data: T) => U
     err: (error: E) => U
+    ok:  (data: T) => U
   },
 ): U => (isOk(result) ? handlers.ok(result.data) : handlers.err(result.error))
 
@@ -85,11 +85,11 @@ export const tapErr = <T, E>(result: Result<T, E>, fn: (error: E) => void): Resu
 }
 
 // Create Results
-export const ok = <T>(data: T): Result<T, never> => ({ status: 'ok', data })
-export const err = <E>(error: E): Result<never, E> => ({ status: 'error', error })
+export const ok = <T>(data: T): Result<T, never> => ({ data, status: 'ok' })
+export const err = <E>(error: E): Result<never, E> => ({ error, status: 'error' })
 
 // Convert nullable to Result
-export const fromNullable = <T>(value: T | null | undefined, error: string): Result<T, string> =>
+export const fromNullable = <T>(value: null | T | undefined, error: string): Result<T, string> =>
   value != null ? ok(value) : err(error)
 
 // Convert promise to Result
@@ -106,17 +106,14 @@ export const fromPromise = async <T>(promise: Promise<T>): Promise<Result<T, str
  * Similar to tanstack-query's useMutation but without the React dependency
  */
 export interface WithCustomStateOptions<T, E> {
-  onStart?: () => void
-  onSuccess?: (data: T) => void
-  onError?: (error: E) => void
+  onError?:   (error: E) => void
   onFinally?: () => void
+  onStart?:   () => void
+  onSuccess?: (data: T) => void
 }
 
-export async function withCustomState<T, E = string>(
-  fn: () => Promise<Result<T, E>>,
-  options: WithCustomStateOptions<T, E> = {},
-): Promise<Result<T, E>> {
-  const { onStart, onSuccess, onError, onFinally } = options
+export const withCustomState = async <T, E = string>(fn: () => Promise<Result<T, E>>, options: WithCustomStateOptions<T, E> = {}): Promise<Result<T, E>> => {
+  const { onError, onFinally, onStart, onSuccess } = options
 
   try {
     onStart?.()
@@ -133,7 +130,7 @@ export async function withCustomState<T, E = string>(
   } catch (e) {
     const error = (e instanceof Error ? e.message : String(e)) as E
     onError?.(error)
-    return { status: 'error', error }
+    return { error, status: 'error' }
   } finally {
     onFinally?.()
   }

@@ -492,7 +492,9 @@ impl JellyfinClient {
         let year = item["ProductionYear"]
             .as_i64()
             .and_then(|n| n.try_into().ok());
-        let disc_number = item["ParentIndexNumber"].as_i64().and_then(|n| n.try_into().ok());
+        let disc_number = item["ParentIndexNumber"]
+            .as_i64()
+            .and_then(|n| n.try_into().ok());
         let track_number = item["IndexNumber"].as_i64().and_then(|n| n.try_into().ok());
         let premiere_date = item["PremiereDate"]
             .as_str()

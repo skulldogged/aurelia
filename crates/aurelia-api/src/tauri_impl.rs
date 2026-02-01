@@ -347,12 +347,12 @@ impl Api for TauriApiImpl {
             .map_err(|e| AppError::FileSystem(e.to_string()))?;
         let cache_dir = app_dir.join("image_cache");
         let prefix = format!("{}_{}", item_id, image_type);
-        if cache_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(&cache_dir) {
-                for entry in entries.flatten() {
-                    if entry.file_name().to_string_lossy().starts_with(&prefix) {
-                        let _ = std::fs::remove_file(entry.path());
-                    }
+        if cache_dir.exists()
+            && let Ok(entries) = std::fs::read_dir(&cache_dir)
+        {
+            for entry in entries.flatten() {
+                if entry.file_name().to_string_lossy().starts_with(&prefix) {
+                    let _ = std::fs::remove_file(entry.path());
                 }
             }
         }
@@ -611,29 +611,29 @@ impl Api for TauriApiImpl {
         // Second pass: build album list with correct song counts
         let mut seen_albums: HashMap<String, bool> = HashMap::new();
         for song in &all_songs {
-            if let Some(album_id) = &song.album_id {
-                if !seen_albums.contains_key(album_id) {
-                    seen_albums.insert(album_id.clone(), true);
-                    let song_count = album_song_counts.get(album_id).copied().unwrap_or(0) as i64;
-                    albums.push(Album {
-                        id: Some(album_id.clone()),
-                        name: song.album.clone().unwrap_or_default(),
-                        artist: song
-                            .artists
-                            .as_ref()
-                            .and_then(|a| a.first())
-                            .cloned()
-                            .unwrap_or_default(),
-                        artist_id: song.artist_ids.as_ref().and_then(|a| a.first()).cloned(),
-                        album_art_url: song.album_art_url.clone(),
-                        song_count,
-                        songs: None,
-                        image_tags: None,
-                        provider_ids: None,
-                        date_created: song.date_created.clone(),
-                        date_modified: None,
-                    });
-                }
+            if let Some(album_id) = &song.album_id
+                && !seen_albums.contains_key(album_id)
+            {
+                seen_albums.insert(album_id.clone(), true);
+                let song_count = album_song_counts.get(album_id).copied().unwrap_or(0) as i64;
+                albums.push(Album {
+                    id: Some(album_id.clone()),
+                    name: song.album.clone().unwrap_or_default(),
+                    artist: song
+                        .artists
+                        .as_ref()
+                        .and_then(|a| a.first())
+                        .cloned()
+                        .unwrap_or_default(),
+                    artist_id: song.artist_ids.as_ref().and_then(|a| a.first()).cloned(),
+                    album_art_url: song.album_art_url.clone(),
+                    song_count,
+                    songs: None,
+                    image_tags: None,
+                    provider_ids: None,
+                    date_created: song.date_created.clone(),
+                    date_modified: None,
+                });
             }
         }
 
@@ -857,15 +857,15 @@ impl Api for TauriApiImpl {
             .map_err(|e| AppError::FileSystem(e.to_string()))?;
         let cache_dir = app_dir.join("image_cache");
         let (mut file_count, mut total_size) = (0u64, 0u64);
-        if cache_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(&cache_dir) {
-                for entry in entries.flatten() {
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.is_file() {
-                            file_count += 1;
-                            total_size += meta.len();
-                        }
-                    }
+        if cache_dir.exists()
+            && let Ok(entries) = std::fs::read_dir(&cache_dir)
+        {
+            for entry in entries.flatten() {
+                if let Ok(meta) = entry.metadata()
+                    && meta.is_file()
+                {
+                    file_count += 1;
+                    total_size += meta.len();
                 }
             }
         }
@@ -911,19 +911,19 @@ impl Api for TauriApiImpl {
     ) -> ApiResult<()> {
         let state: tauri::State<'_, ListenBrainzState> = self.app.state();
         aurelia_core::listenbrainz_core::listenbrainz_set_credentials(credentials, &state)
-            .map_err(|e| AppError::General(e))
+            .map_err(AppError::General)
     }
 
     async fn listenbrainz_clear_credentials(&self) -> ApiResult<()> {
         let state: tauri::State<'_, ListenBrainzState> = self.app.state();
         aurelia_core::listenbrainz_core::listenbrainz_clear_credentials(&state)
-            .map_err(|e| AppError::General(e))
+            .map_err(AppError::General)
     }
 
     async fn listenbrainz_is_authenticated(&self) -> ApiResult<bool> {
         let state: tauri::State<'_, ListenBrainzState> = self.app.state();
         aurelia_core::listenbrainz_core::listenbrainz_is_authenticated(&state)
-            .map_err(|e| AppError::General(e))
+            .map_err(AppError::General)
     }
 
     async fn listenbrainz_validate_token(
@@ -933,7 +933,7 @@ impl Api for TauriApiImpl {
         let state: tauri::State<'_, ListenBrainzState> = self.app.state();
         aurelia_core::listenbrainz_core::listenbrainz_validate_token(user_token, &state)
             .await
-            .map_err(|e| AppError::General(e))
+            .map_err(AppError::General)
     }
 
     async fn listenbrainz_submit_listen(
@@ -948,7 +948,7 @@ impl Api for TauriApiImpl {
             &state,
         )
         .await
-        .map_err(|e| AppError::General(e))
+        .map_err(AppError::General)
     }
 
     async fn listenbrainz_playing_now(
@@ -960,7 +960,7 @@ impl Api for TauriApiImpl {
         let state: tauri::State<'_, ListenBrainzState> = self.app.state();
         aurelia_core::listenbrainz_core::listenbrainz_playing_now(artist, track, album, &state)
             .await
-            .map_err(|e| AppError::General(e))
+            .map_err(AppError::General)
     }
 
     // ─── Audio (desktop-only) ────────────────────────────────────────
@@ -1242,14 +1242,12 @@ impl Api for TauriApiImpl {
 
     async fn media_update_now_playing(&self, payload: NowPlayingPayload) -> ApiResult<()> {
         let state: tauri::State<'_, MediaControlsState> = self.app.state();
-        state
-            .update_now_playing(payload)
-            .map_err(|e| AppError::General(e))
+        state.update_now_playing(payload).map_err(AppError::General)
     }
 
     async fn media_clear_now_playing(&self) -> ApiResult<()> {
         let state: tauri::State<'_, MediaControlsState> = self.app.state();
-        state.clear_now_playing().map_err(|e| AppError::General(e))
+        state.clear_now_playing().map_err(AppError::General)
     }
 
     async fn media_set_playback_status(
@@ -1260,14 +1258,14 @@ impl Api for TauriApiImpl {
         let state: tauri::State<'_, MediaControlsState> = self.app.state();
         state
             .set_playback_status(is_playing, position_secs)
-            .map_err(|e| AppError::General(e))
+            .map_err(AppError::General)
     }
 
     async fn media_set_button_enabled(&self, button: String, enabled: bool) -> ApiResult<()> {
         let state: tauri::State<'_, MediaControlsState> = self.app.state();
         state
             .set_button_enabled(&button, enabled)
-            .map_err(|e| AppError::General(e))
+            .map_err(AppError::General)
     }
 
     // ─── Last.fm (stub for now) ──────────────────────────────────────

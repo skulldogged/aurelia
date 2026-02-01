@@ -103,7 +103,7 @@ pub fn generate_typescript_bindings(out_dir: &Path) -> Result<(), Box<dyn std::e
         for defined in &defined_types {
             let defined_pascal = to_pascal_case(defined);
             if content.contains(&defined_pascal) && defined_pascal != type_name {
-                imports.push(format!("{}", defined_pascal));
+                imports.push(defined_pascal.to_string());
             }
         }
 

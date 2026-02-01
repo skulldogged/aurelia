@@ -77,7 +77,10 @@ fn generate_route(method: &ApiMethod) -> syn::Result<TokenStream> {
 
 /// Whether the HTTP method uses a request body (as opposed to query params)
 fn uses_body(method: &HttpMethod) -> bool {
-    matches!(method, HttpMethod::Post | HttpMethod::Put | HttpMethod::Patch)
+    matches!(
+        method,
+        HttpMethod::Post | HttpMethod::Put | HttpMethod::Patch
+    )
 }
 
 fn generate_structs(method: &ApiMethod) -> syn::Result<TokenStream> {

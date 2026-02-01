@@ -83,7 +83,7 @@ impl AudioPlayer {
                 match cmd {
                     AudioThreadCommand::CreateSink(reply_tx) => {
                         // Create a sink connected to the stream's mixer
-                        let sink = Sink::connect_new(&stream.mixer());
+                        let sink = Sink::connect_new(stream.mixer());
                         let _ = reply_tx.send(sink);
                     }
                 }
@@ -266,7 +266,10 @@ impl AudioPlayer {
             sink,
         });
 
-        debug!("Next track prepared, decoded, and queued in paused sink: {}", url);
+        debug!(
+            "Next track prepared, decoded, and queued in paused sink: {}",
+            url
+        );
         Ok(())
     }
 
@@ -542,7 +545,7 @@ impl AudioPlayer {
             while let Ok(cmd) = cmd_rx.recv() {
                 match cmd {
                     AudioThreadCommand::CreateSink(reply_tx) => {
-                        let sink = Sink::connect_new(&stream.mixer());
+                        let sink = Sink::connect_new(stream.mixer());
                         let _ = reply_tx.send(sink);
                     }
                 }

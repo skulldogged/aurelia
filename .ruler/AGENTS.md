@@ -14,14 +14,13 @@ Ship reliable updates to this actively evolving Tauri + Vue 3 music player deskt
 
 ## Golden Rules (read every time)
 
-1. **Use `bd` for task tracking.** Check `bd ready` or `bd list` before starting work. Create issues with `bd create`, update status as you work, and close when complete.
-2. **Digest the full prompt and repo guidance before touching code.** If context is missing, fetch it to verify before proceeding.
-3. **Work like an engineer, not a note-taker.** Propose a short plan, execute it immediately (using the tools).
-4. **Keep the repo healthy.** Leave files better organized, follow the patterns already in place, and note follow-ups only when work is safely scoped.
-5. **NEVER run ESLint or other code formatting/linting tools automatically.** Only run them when explicitly requested by the user. Style/formatting issues that don't affect functionality should be ignored.
-6. **Respect tooling guardrails.** Use Bun for package management (`bun install`, `bun add <pkg>` only—no npm/pnpm/yarn). Run scripts with `bun run <script>` or one-off tooling with `bunx`. Spin up long-running dev servers or perform full builds ONLY when the user explicitly requests it.
-7. **Keep the code modern.** This project is actively in development; retire deprecated patterns instead of preserving them.
-8. **Communicate clearly and concisely.** Use professional language without emojis in code, comments, documentation, and commit messages. In responses, ALWAYS sacrifice grammar for conciseness, even with incomplete sentences or informal grammar, as long as meaning is clear.
+1. **Digest the full prompt and repo guidance before touching code.** If context is missing, fetch it to verify before proceeding.
+2. **Work like an engineer, not a note-taker.** Propose a short plan, execute it immediately (using the tools).
+3. **Keep the repo healthy.** Leave files better organized, follow the patterns already in place, and note follow-ups only when work is safely scoped.
+4. **NEVER run ESLint or other code formatting/linting tools automatically.** Only run them when explicitly requested by the user. Style/formatting issues that don't affect functionality should be ignored.
+5. **Respect tooling guardrails.** Use Bun for package management (`bun install`, `bun add <pkg>` only—no npm/pnpm/yarn). Run scripts with `bun run <script>` or one-off tooling with `bunx`. Spin up long-running dev servers or perform full builds ONLY when the user explicitly requests it.
+6. **Keep the code modern.** This project is actively in development; retire deprecated patterns instead of preserving them.
+7. **Communicate clearly and concisely.** Use professional language without emojis in code, comments, documentation, and commit messages. In responses, ALWAYS sacrifice grammar for conciseness, even with incomplete sentences or informal grammar, as long as meaning is clear.
 
 ## Workflow Expectations
 
