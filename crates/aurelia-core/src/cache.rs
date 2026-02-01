@@ -1,6 +1,6 @@
 use crate::db;
 use crate::models::{Album, Artist, Credentials, Song};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use redb::ReadableDatabase;
 use serde_json;
 use std::path::PathBuf;
@@ -25,16 +25,6 @@ pub fn sync_library(
 pub fn get_songs(app_data_dir: PathBuf) -> Result<Vec<Song>> {
     init_db(&app_data_dir)?;
     db::songs::get_all()
-}
-
-pub fn get_artists(app_data_dir: PathBuf) -> Result<Vec<Artist>> {
-    init_db(&app_data_dir)?;
-    db::artists::get_all()
-}
-
-pub fn get_albums(app_data_dir: PathBuf) -> Result<Vec<Album>> {
-    init_db(&app_data_dir)?;
-    db::albums::get_all()
 }
 
 pub fn clear_cache(app_data_dir: PathBuf) -> Result<()> {

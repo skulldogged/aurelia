@@ -92,7 +92,7 @@ import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.WavyMusicSlider
 import com.aurelia.app.ui.navigation.Screen
-import com.aurelia.app.utils.formatTime
+import com.aurelia.app.utils.formatDuration
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberNowPlayingStyle
 import kotlinx.coroutines.delay
@@ -358,7 +358,7 @@ fun PlayerScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
           ) {
             Text(
-              text = formatTime(currentPositionMs),
+              text = formatDuration(currentPositionMs, clampNegative = true),
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.Medium,
               color = colors.onPrimaryContainer.copy(alpha = 0.7f),
@@ -387,7 +387,7 @@ fun PlayerScreen(
               isWaveEligible = true,
             )
             Text(
-              text = formatTime(state.durationMs),
+              text = formatDuration(state.durationMs, clampNegative = true),
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.Medium,
               color = colors.onPrimaryContainer.copy(alpha = 0.7f),

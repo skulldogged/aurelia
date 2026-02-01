@@ -353,11 +353,6 @@ impl AudioPlayer {
         Ok(())
     }
 
-    /// Check if we have track info available for seek restart
-    pub fn can_seek_restart(&self) -> bool {
-        self.current_track.is_some()
-    }
-
     /// Set EQ band gain (lock-free)
     pub fn set_eq_band(&self, band: usize, gain_db: f32) -> Result<()> {
         self.eq_settings.set_band_gain(band, gain_db);

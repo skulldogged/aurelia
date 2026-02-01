@@ -13,7 +13,6 @@ pub const ALBUMS_BY_ARTIST: TableDefinition<(&str, &str), ()> =
     TableDefinition::new("albums_by_artist");
 
 pub const FAVORITES: TableDefinition<&str, &[u8]> = TableDefinition::new("favorites");
-pub const RECENTLY_PLAYED: TableDefinition<&str, &[u8]> = TableDefinition::new("recently_played");
 
 pub const SYNC_STATE: TableDefinition<&str, &[u8]> = TableDefinition::new("sync_state");
 pub const CREDENTIALS: TableDefinition<&str, &[u8]> = TableDefinition::new("credentials");

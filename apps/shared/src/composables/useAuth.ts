@@ -19,7 +19,8 @@ export type AuthErrorType = 'auth' | 'config' | 'network' | 'unknown'
 
 export type AuthStatus = 'error' | 'initializing' | 'loggedIn' | 'loggedOut' | 'pending' | 'verifying'
 
-const STORAGE_KEY = 'aurelia-auth-credentials'
+const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+const STORAGE_KEY = isTauri ? 'aurelia-auth-credentials-desktop' : 'aurelia-auth-credentials-web'
 
 /// Load credentials from localStorage synchronously on module init
 const loadCredentialsFromStorage = (): Credentials | null => {

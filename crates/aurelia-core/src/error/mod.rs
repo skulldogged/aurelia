@@ -65,6 +65,3 @@ impl From<std::io::Error> for AppError {
 
 /// Result type alias for convenience
 pub type AppResult<T> = std::result::Result<T, AppError>;
-
-/// Convenience type for `anyhow::Result` (for internal use where we want ergonomic error handling)
-pub type Result<T> = anyhow::Result<T>;

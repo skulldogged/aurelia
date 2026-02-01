@@ -884,11 +884,6 @@ impl JellyfinClient {
             }
         }
 
-        if let Some(_album_artists_str) = album_artists_value.as_str() {
-            // This is more complex since we need to parse name-id pairs from a string
-            // For now, return None and let it fall back to track artists
-        }
-
         None
     }
 

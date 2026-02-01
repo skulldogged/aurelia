@@ -1,5 +1,3 @@
-#[cfg(target_os = "android")]
-mod android_audio_player;
 pub mod system_tray;
 
 pub use anyhow::Result;
@@ -8,13 +6,11 @@ use aurelia_api::traits::tauri_commands;
 use aurelia_api::Api;
 use aurelia_api::tauri_impl::TauriApiImpl;
 use aurelia_core::{db, listenbrainz_core, state};
-#[cfg(not(target_os = "android"))]
 use aurelia_core::audio;
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
 use aurelia_core::{discord_rpc, media_controls};
 use std::sync::Once;
 use tauri::Manager;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 static INIT_LOGGING: Once = Once::new();
@@ -44,29 +40,10 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .manage(listenbrainz_core::ListenBrainzState::new())
-        .manage(state::AppState::new());
-
-    #[cfg(not(target_os = "android"))]
-    {
-        tauri_builder = tauri_builder.manage(audio::AudioState::new());
-    }
-
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    {
-        tauri_builder = tauri_builder.plugin(tauri_plugin_m3::init());
-    }
-
-    #[cfg(target_os = "android")]
-    {
-        tauri_builder = tauri_builder.plugin(android_audio_player::init());
-    }
-
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        tauri_builder = tauri_builder
-            .manage(discord_rpc::DiscordRpcState::new())
-            .manage(media_controls::MediaControlsState::new());
-    }
+        .manage(state::AppState::new())
+        .manage(audio::AudioState::new())
+        .manage(discord_rpc::DiscordRpcState::new())
+        .manage(media_controls::MediaControlsState::new());
 
     // Register all commands from the unified API
     tauri_builder
@@ -129,7 +106,7 @@ pub fn run() {
             tauri_commands::listenbrainz_validate_token,
             tauri_commands::listenbrainz_submit_listen,
             tauri_commands::listenbrainz_playing_now,
-            // Audio (desktop only)
+            // Audio
             tauri_commands::audio_init,
             tauri_commands::audio_play,
             tauri_commands::audio_pause,
@@ -152,13 +129,13 @@ pub fn run() {
             tauri_commands::audio_set_analyzer_enabled,
             tauri_commands::audio_is_analyzer_enabled,
             tauri_commands::audio_reinit,
-            // Discord RPC (desktop only)
+            // Discord RPC
             tauri_commands::discord_rpc_start,
             tauri_commands::discord_rpc_stop,
             tauri_commands::discord_rpc_is_running,
             tauri_commands::discord_rpc_set_activity,
             tauri_commands::discord_rpc_clear_activity,
-            // Media controls (desktop only)
+            // Media controls
             tauri_commands::media_update_now_playing,
             tauri_commands::media_clear_now_playing,
             tauri_commands::media_set_playback_status,
@@ -238,69 +215,102 @@ pub fn run() {
                 });
             });
 
-            #[cfg(not(any(target_os = "android", target_os = "ios")))]
-            {
-                if let Err(e) = system_tray::setup_system_tray(handle) {
-                    error!("Failed to setup system tray: {}", e);
-                }
-                system_tray::setup_window_behavior(handle);
+            if let Err(e) = system_tray::setup_system_tray(handle) {
+                error!("Failed to setup system tray: {}", e);
+            }
+            system_tray::setup_window_behavior(handle);
 
-                // Initialize OS media controls (SMTC on Windows, MPRIS on Linux, etc.)
-                let media_state = handle.state::<media_controls::MediaControlsState>();
-                let hwnd = {
-                    #[cfg(target_os = "windows")]
-                    {
-                        handle
-                            .get_webview_window("main")
-                            .and_then(|w| {
-                                use raw_window_handle::HasWindowHandle;
-                                let handle = w.window_handle().ok()?;
-                                match handle.as_raw() {
-                                    raw_window_handle::RawWindowHandle::Win32(h) => {
-                                        Some(h.hwnd.get() as *mut std::ffi::c_void)
-                                    }
-                                    _ => None,
+            // Initialize OS media controls (SMTC on Windows, MPRIS on Linux, etc.)
+            let media_state = handle.state::<media_controls::MediaControlsState>();
+            let hwnd = {
+                #[cfg(target_os = "windows")]
+                {
+                    handle
+                        .get_webview_window("main")
+                        .and_then(|w| {
+                            use raw_window_handle::HasWindowHandle;
+                            let handle = w.window_handle().ok()?;
+                            match handle.as_raw() {
+                                raw_window_handle::RawWindowHandle::Win32(h) => {
+                                    Some(h.hwnd.get() as *mut std::ffi::c_void)
                                 }
-                            })
+                                _ => None,
+                            }
+                        })
+                }
+                #[cfg(not(target_os = "windows"))]
+                { None }
+            };
+            if let Err(e) = media_state.init(hwnd) {
+                error!("Failed to initialize media controls: {}", e);
+            } else {
+                let handle_clone = handle.clone();
+                if let Err(e) = media_state.attach_handler(move |event| {
+                    use tauri::Emitter;
+                    match event {
+                        media_controls::MediaEvent::Play => {
+                            let _ = handle_clone.emit("media-control-play", ());
+                        }
+                        media_controls::MediaEvent::Pause => {
+                            let _ = handle_clone.emit("media-control-pause", ());
+                        }
+                        media_controls::MediaEvent::Toggle => {
+                            let _ = handle_clone.emit("media-control-toggle", ());
+                        }
+                        media_controls::MediaEvent::Next => {
+                            let _ = handle_clone.emit("media-control-next", ());
+                        }
+                        media_controls::MediaEvent::Previous => {
+                            let _ = handle_clone.emit("media-control-previous", ());
+                        }
+                        media_controls::MediaEvent::Stop => {
+                            let _ = handle_clone.emit("media-control-stop", ());
+                        }
+                        media_controls::MediaEvent::Seek(seconds) => {
+                            let _ = handle_clone.emit("media-control-seek", seconds);
+                        }
                     }
-                    #[cfg(not(target_os = "windows"))]
-                    { None }
-                };
-                if let Err(e) = media_state.init(hwnd) {
-                    error!("Failed to initialize media controls: {}", e);
+                }) {
+                    error!("Failed to attach media control handlers: {}", e);
                 } else {
-                    let handle_clone = handle.clone();
-                    if let Err(e) = media_state.attach_handler(move |event| {
-                        use tauri::Emitter;
-                        match event {
-                            media_controls::MediaEvent::Play => {
-                                let _ = handle_clone.emit("media-control-play", ());
-                            }
-                            media_controls::MediaEvent::Pause => {
-                                let _ = handle_clone.emit("media-control-pause", ());
-                            }
-                            media_controls::MediaEvent::Toggle => {
-                                let _ = handle_clone.emit("media-control-toggle", ());
-                            }
-                            media_controls::MediaEvent::Next => {
-                                let _ = handle_clone.emit("media-control-next", ());
-                            }
-                            media_controls::MediaEvent::Previous => {
-                                let _ = handle_clone.emit("media-control-previous", ());
-                            }
-                            media_controls::MediaEvent::Stop => {
-                                let _ = handle_clone.emit("media-control-stop", ());
-                            }
-                            media_controls::MediaEvent::Seek(seconds) => {
-                                let _ = handle_clone.emit("media-control-seek", seconds);
+                    info!("OS media controls initialized");
+                }
+            }
+
+            // Spawn audio position update task
+            {
+                use std::time::Duration;
+                use tauri::Emitter;
+
+                let handle_for_audio = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    let mut interval = tokio::time::interval(Duration::from_millis(250));
+                    loop {
+                        interval.tick().await;
+
+                        let audio_state = handle_for_audio.state::<aurelia_core::audio::AudioState>();
+
+                        // Check if player is initialized and playing
+                        let player_guard = audio_state.player.lock().await;
+                        if let Some(player) = player_guard.as_ref() {
+                            if player.is_playing() {
+                                let position = player.get_position();
+                                let is_finished = player.is_finished();
+
+                                // Emit position update to frontend
+                                let _ = handle_for_audio.emit("audio:position", serde_json::json!({
+                                    "position": position,
+                                    "isFinished": is_finished
+                                }));
+
+                                if is_finished {
+                                    // Track ended, could emit a separate event here if needed
+                                    debug!("Audio playback finished");
+                                }
                             }
                         }
-                    }) {
-                        error!("Failed to attach media control handlers: {}", e);
-                    } else {
-                        info!("OS media controls initialized");
                     }
-                }
+                });
             }
 
             info!("Application setup finished.");
