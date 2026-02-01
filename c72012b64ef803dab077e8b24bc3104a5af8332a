@@ -1,0 +1,51 @@
+crates/aurelia-api/src/tauri_impl.rs
+  2dd78d211c1adbf3 1165-1166
+apps/shared/src/audio/rust-audio-player.ts
+  d9f7614092edc3dd 371-373
+crates/aurelia-core/src/audio/mod.rs
+  2dd78d211c1adbf3 154
+apps/desktop/src-tauri/src/lib.rs
+  d9f7614092edc3dd 294-302,314-315
+  2dd78d211c1adbf3 287,303-308,319
+apps/shared/src/audio/audio-player.ts
+  d9f7614092edc3dd 70
+crates/aurelia-core/src/audio/player.rs
+  2dd78d211c1adbf3 18-20,163-164,167,170,176-178,186-197,211,234-236,241,245,247-249,261,346,349,410
+  d9f7614092edc3dd 273-315,317-320,323
+apps/shared/src/composables/useAudioEngine.ts
+  d9f7614092edc3dd 368,374-402
+  2dd78d211c1adbf3 45,405-406,484-487
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "c72012b64ef803dab077e8b24bc3104a5af8332a",
+  "prompts": {
+    "2dd78d211c1adbf3": {
+      "agent_id": {
+        "tool": "gemini",
+        "id": "c88f592a-b2d4-4bcc-b51a-c9cfe0f88c02",
+        "model": "gemini-3-pro-preview"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 314,
+      "total_deletions": 183,
+      "accepted_lines": 66,
+      "overriden_lines": 22
+    },
+    "d9f7614092edc3dd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e87f5227ffejFCQNByRcWtQ3y",
+        "model": "opencode/kimi-k2.5-free"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 104,
+      "total_deletions": 14,
+      "accepted_lines": 98,
+      "overriden_lines": 0
+    }
+  }
+}
