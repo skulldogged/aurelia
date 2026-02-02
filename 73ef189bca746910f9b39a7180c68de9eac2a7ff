@@ -1,0 +1,103 @@
+apps/web/frontend/src/App.vue
+  f642d3778e84eaec 3,29-31,33-41,47-58,60-61,63-69,80-86,88-102,111-121,123-154,166-209,214-224,276-278,281-282,285-286,289-294,296,299-300,303-309,314-315,320-326,328-336,338-339,341-358,365-370,372,374,378-386,389-390,392-399,403-430,432,434-436,438,440-443,445,448,451-457,459,461-485
+.ruler/AGENTS.md
+  1803fdd4d35792ff 5,7,9-12,14,22,24-31,35
+apps/mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+  0734f2d149293025 4
+  89dc049109fa1144 3
+apps/web/frontend/index.html
+  89224bc616d9d63a 7
+.ruler/rules/desktop.md
+  1803fdd4d35792ff 3-16,20,24-39,42,46,49,52-77
+apps/mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+  89dc049109fa1144 3
+.ruler/rules/architecture.md
+  1803fdd4d35792ff 3,9,11-25,27-30,35-52,55-58,60,64-90
+apps/desktop/index.html
+  89224bc616d9d63a 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "73ef189bca746910f9b39a7180c68de9eac2a7ff",
+  "prompts": {
+    "0734f2d149293025": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e3d801caffeq3btVukhxDUjgN",
+        "model": "opencode/kimi-k2.5-free"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 4,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "1803fdd4d35792ff": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e40dffbdffeaDzyWB8j2m79qu",
+        "model": "opencode/kimi-k2.5-free"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 333,
+      "total_deletions": 258,
+      "accepted_lines": 164,
+      "overriden_lines": 4
+    },
+    "1f8d12879c942380": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e40b61f5ffe3TiKP2iWIEfV2g",
+        "model": "opencode/kimi-k2.5-free"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 149,
+      "total_deletions": 0,
+      "accepted_lines": 149,
+      "overriden_lines": 0
+    },
+    "89224bc616d9d63a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e40f44e6ffeVBIa75bPL7ol9q",
+        "model": "opencode/kimi-k2.5-free"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 97,
+      "total_deletions": 5,
+      "accepted_lines": 93,
+      "overriden_lines": 0
+    },
+    "89dc049109fa1144": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e3e5141dffe0uUt3Tt2QKjAAL",
+        "model": "opencode/kimi-k2.5-free"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 4,
+      "accepted_lines": 8,
+      "overriden_lines": 1
+    },
+    "f642d3778e84eaec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3e3f9429dffejCh8XT5nnhlE83",
+        "model": "opencode/gpt-5-nano"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 361,
+      "total_deletions": 172,
+      "accepted_lines": 319,
+      "overriden_lines": 0
+    }
+  }
+}
