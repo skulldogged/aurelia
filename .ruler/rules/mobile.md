@@ -1,6 +1,8 @@
-# Android Guidelines (Kotlin + Compose)
+# Mobile Guidelines (Kotlin + Compose)
 
-## Architecture
+Covers both Android and iOS platforms. See architecture.md for platform structure.
+
+## Android Architecture
 
 - **UI**: Composables in `ui/` package. One file per screen.
 - **State**: `ViewModel` + `StateFlow`. Data classes in same file or `*State.kt`.
@@ -22,3 +24,7 @@
 ### UX/Accessibility
 - Maintain contentDescription for accessibility.
 - Respect reduced motion preferences.
+
+## iOS
+
+Located at `apps/mobile/ios/`. Uses native iOS development with uniffi bindings to shared Rust core (`crates/aurelia-core/`). See uniffi.md for binding generation details.

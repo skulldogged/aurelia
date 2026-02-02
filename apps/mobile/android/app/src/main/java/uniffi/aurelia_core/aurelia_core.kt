@@ -835,6 +835,7 @@ internal object UniffiLib {
     `serverUrl`: RustBuffer.ByValue,
     `username`: RustBuffer.ByValue,
     `password`: RustBuffer.ByValue,
+    `deviceId`: RustBuffer.ByValue,
   ): Long
 
   external fun uniffi_aurelia_core_fn_func_build_mobile_stream_url(
@@ -1248,7 +1249,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
   if (lib.uniffi_aurelia_core_checksum_func_add_playlist_items() != 46373.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
-  if (lib.uniffi_aurelia_core_checksum_func_authenticate() != 21601.toShort()) {
+  if (lib.uniffi_aurelia_core_checksum_func_authenticate() != 60022.toShort()) {
     throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
   }
   if (lib.uniffi_aurelia_core_checksum_func_build_mobile_stream_url() != 27250.toShort()) {
@@ -3689,12 +3690,14 @@ suspend fun `authenticate`(
   `serverUrl`: kotlin.String,
   `username`: kotlin.String,
   `password`: kotlin.String,
+  `deviceId`: kotlin.String,
 ): LoginResponse =
   uniffiRustCallAsync(
     UniffiLib.uniffi_aurelia_core_fn_func_authenticate(
       FfiConverterString.lower(`serverUrl`),
       FfiConverterString.lower(`username`),
       FfiConverterString.lower(`password`),
+      FfiConverterString.lower(`deviceId`),
     ),
     {
       future,

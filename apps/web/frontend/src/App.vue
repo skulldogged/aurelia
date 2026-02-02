@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import type { Credentials } from '@shared'
+  import type { Song } from '@shared/lib/api/types'
 
   import {
     Equalizer,
@@ -13,7 +14,6 @@
     Queue,
     Toaster,
     useAccentColorStore,
-
     useAuth,
     useHomeStore,
     useLibraryStore,
@@ -26,14 +26,47 @@
     useTopBar,
     useVisualizerData,
   } from '@shared'
-  import { useColorMode } from '@vueuse/core'
+  import Button from '@shared/components/ui/Button.vue'
+  import { useLastFm } from '@shared/composables/useLastFm'
+  import { useListenBrainz } from '@shared/composables/useListenBrainz'
+  import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+  } from '@shared/components/ui/dialog'
+  import { setAuthLogout } from '@shared/lib/auth-interceptor'
+  import { useColorMode, useMagicKeys } from '@vueuse/core'
   import { computed, onMounted, ref, watch } from 'vue'
 
   useColorMode()
   useThemeStore() // Initialize theme and apply CSS variables
   useAccentColorStore() // Initialize accent colors and apply CSS variables
+  useLastFm()
+  useListenBrainz()
 
-  const { authStatus, credentials, login, logout } = useAuth()
+  const {
+    authStatus: authStatusRef,
+    clearError: clearAuthError,
+    credentials: credentialsRef,
+    error: authErrorRef,
+    login,
+    logout,
+  } = useAuth()
+  setAuthLogout(logout)
+
+  const libraryStore = useLibraryStore()
+  const homeStore = useHomeStore()
+
+  const { topBarContent: topBarContentRef } = useTopBar()
+  const topBarContent = computed(() => topBarContentRef.value)
+
+  // Unwrap readonly refs for template use
+  const authStatus = computed(() => authStatusRef.value)
+  const credentials = computed(() => credentialsRef.value)
+  const authError = computed(() => authErrorRef.value)
 
   // Visualizer data from Web Audio API
   const {
@@ -43,16 +76,31 @@
   } = useVisualizerData()
   const frequencyData = computed(() => frequencyDataRef.value)
   const timeDomainData = computed(() => timeDomainDataRef.value)
-  const libraryStore = useLibraryStore()
-  const homeStore = useHomeStore()
-  const playerStore = usePlayerStore()
 
-  const navigation = useNavigation()
-  const playerControls = usePlayerControls()
-  const songInteractions = useSongInteractions(credentials)
-  const _topBar = useTopBar()
+  const isSearchOpen = ref(false)
+  const showExitDialog = ref(false)
+  const keys = useMagicKeys()
+  const ctrlK = keys['Ctrl+K']
+  watch(ctrlK, v => {
+    if (v) isSearchOpen.value = !isSearchOpen.value
+  })
 
-  // Destructure player control handlers that are needed for FullscreenPlayer
+  const {
+    canGoBack: canGoBackRef,
+    canGoForward: canGoForwardRef,
+    currentView: currentViewRef,
+    handleNavigation,
+    navigateBack,
+    navigateForward,
+    navigateToAlbum,
+    navigateToArtist,
+  } = useNavigation()
+
+  // Unwrap navigation refs for template
+  const canGoBack = computed(() => canGoBackRef.value)
+  const canGoForward = computed(() => canGoForwardRef.value)
+  const currentView = computed(() => currentViewRef.value)
+
   const {
     handleNextSong,
     handlePreviousSong,
@@ -60,10 +108,50 @@
     handleTogglePlayPause,
     handleToggleRepeat,
     handleToggleShuffle,
-  } = playerControls
+    isEqualizerOpen: isEqualizerOpenRef,
+    isFullScreenPlayerOpen: isFullScreenPlayerOpenRef,
+    isLyricsOpen: isLyricsOpenRef,
+    isQueueOpen: isQueueOpenRef,
+    musicPlayerRef,
+    playerStore,
+    toggleEqualizer,
+    toggleFullScreenPlayer,
+    toggleLyrics,
+    toggleQueue,
+  } = usePlayerControls()
 
-  // Initialize player session for playback reporting
-  usePlayerSession()
+  // Unwrap player control refs for template
+  const isEqualizerOpen = computed(() => isEqualizerOpenRef.value)
+  const isFullScreenPlayerOpen = computed(() => isFullScreenPlayerOpenRef.value)
+  const isLyricsOpen = computed(() => isLyricsOpenRef.value)
+  const isQueueOpen = computed(() => isQueueOpenRef.value)
+
+  // State for fullscreen player panels
+  const isFsQueueOpen = ref(false)
+  const isFsEqualizerOpen = ref(false)
+  const isFsLyricsOpen = ref(false)
+
+  const toggleFsQueue = (): void => {
+    if (!isFsQueueOpen.value) {
+      isFsEqualizerOpen.value = false
+      isFsLyricsOpen.value = false
+    }
+    isFsQueueOpen.value = !isFsQueueOpen.value
+  }
+  const toggleFsEqualizer = (): void => {
+    if (!isFsEqualizerOpen.value) {
+      isFsQueueOpen.value = false
+      isFsLyricsOpen.value = false
+    }
+    isFsEqualizerOpen.value = !isFsEqualizerOpen.value
+  }
+  const toggleFsLyrics = (): void => {
+    if (!isFsLyricsOpen.value) {
+      isFsQueueOpen.value = false
+      isFsEqualizerOpen.value = false
+    }
+    isFsLyricsOpen.value = !isFsLyricsOpen.value
+  }
 
   // Enable analyzer when visualizer is enabled and playing
   watch(
@@ -75,16 +163,69 @@
     { immediate: true },
   )
 
-  const isAuthenticated = computed(() => authStatus.value === 'loggedIn' || authStatus.value === 'verifying')
+  const {
+    playInstantMix,
+    playSong,
+    playSongs,
+    removeSongFromPlaylist,
+    toggleFavorite,
+    updatePlaylist,
+  } = useSongInteractions(credentialsRef)
+
+  // Access player state directly via computed refs
+  const currentSong = computed(() => playerStore.currentSong)
+  const currentTime = computed(() => playerStore.currentTime)
+  const duration = computed(() => playerStore.duration)
+  const isPlaying = computed(() => playerStore.isPlaying)
+  const isShuffled = computed(() => playerStore.isShuffled)
+  const playlist = computed(() => playerStore.playlist)
+  const progress = computed(() => playerStore.progress)
+  const repeatMode = computed(() => playerStore.repeatMode)
+
+  const hasNext = computed(() =>
+    playlist.value.length > 1
+    && playerStore.currentIndex > -1
+    && playerStore.currentIndex < playlist.value.length - 1,
+  )
+  const hasPrevious = computed(() => playlist.value.length > 1 && playerStore.currentIndex > 0)
+
+  const playerState = computed(() => ({
+    currentSong: currentSong.value,
+    currentTime: currentTime.value,
+    duration: duration.value,
+    hasNext: hasNext.value,
+    hasPlayer: !!currentSong.value,
+    hasPrevious: hasPrevious.value,
+    isEqualizerOpen: isEqualizerOpen.value,
+    isLyricsOpen: isLyricsOpen.value,
+    isMuted: playerStore.isMuted,
+    isPlaying: isPlaying.value,
+    isQueueOpen: isQueueOpen.value,
+    isShuffled: isShuffled.value,
+    playlist: playlist.value,
+    progress: progress.value,
+    repeatMode: repeatMode.value,
+    volume: playerStore.volume * 100,
+  }))
 
   const isSyncing = ref(false)
   const isClearing = ref(false)
   const lastSyncTime = ref<null | string>(null)
+  const swipeProgress = ref<null | {
+    deltaY: number
+    direction: 'down' | 'left' | 'right' | 'up' | null
+    startY: number
+  }>(null)
+
+  usePlayerSession()
+
+  onMounted(async () => {
+    playerStore.setVolume(playerStore.volume)
+  })
 
   const loadLibraryAndHomeData = async (): Promise<void> => {
     await libraryStore.loadLibrary()
-    if (!libraryStore.isLoaded)
-      return
+    if (!libraryStore.isLoaded) return
     await homeStore.refreshHomeData()
   }
 
@@ -127,172 +268,220 @@
 
   const handleLogin = (creds: Credentials): void => {
     login(creds)
-  // Watcher will handle sync
+    // Watcher will handle sync
   }
 
   const handleLogout = (): void => {
     logout()
+    playerStore.setCurrentSong(null)
+    playerStore.setPlaylist([])
+    playerStore.setCurrentIndex(-1)
   }
 
-  const handleQuit = (): void => {
+  const handleToggleFavorite = (song: null | Song): void => {
+    if (song) toggleFavorite(song)
+  }
+
+  const handleVolumeChange = (newVolume: number): void => {
+    playerStore.setVolume(newVolume / 100)
+  }
+
+  const handleSwipeProgress = (
+    progress: null | {
+      deltaY: number
+      direction: 'down' | 'left' | 'right' | 'up' | null
+      startY: number
+    },
+  ): void => {
+    swipeProgress.value = progress
+  }
+
+  const handleLyricsLoaded = (hasLyrics: boolean): void => {
+    playerStore.setHasLyrics(hasLyrics)
+  }
+
+  const confirmExit = async (): Promise<void> => {
+    showExitDialog.value = false
     window.location.reload()
   }
 
-  const handleVolumeChange = (value: number): void => {
-    playerStore.setVolume(value / 100)
+  const cancelExit = (): void => {
+    showExitDialog.value = false
   }
-
-  const handleToggleMute = (): void => {
-    playerStore.toggleMute()
-  }
-
-  onMounted(async () => {
-    if (isAuthenticated.value && credentials.value) {
-      await loadLibraryAndHomeData()
-      await fetchSyncState()
-    }
-  })
 </script>
 
 <template>
-  <Toaster />
-
-  <div class='h-screen w-screen overflow-hidden bg-background text-foreground'>
-    <template v-if="authStatus === 'pending' || authStatus === 'initializing'">
-      <div class='size-full flex items-center justify-center'>
-        <div class='text-center'>
-          <div class='animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mx-auto' />
-          <p class='mt-4 text-muted-foreground'>
-            Connecting to server...
-          </p>
-        </div>
+  <div id='app' class='h-screen text-foreground'>
+    <div v-if="authStatus === 'pending' || authStatus === 'initializing'" class='size-full flex items-center justify-center'>
+      <div class='text-center'>
+        <div class='animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mx-auto' />
+        <p class='mt-4 text-muted-foreground'>
+          Connecting to server...
+        </p>
       </div>
-    </template>
+    </div>
+    <div v-else-if="authStatus === 'error'" class='size-full flex items-center justify-center'>
+      <div class='text-center max-w-md mx-auto p-8'>
+        <div class='text-red-500 text-6xl mb-4'>
+          !
+        </div>
+        <h2 class='text-xl font-semibold mb-2'>
+          Connection Error
+        </h2>
+        <p class='text-muted-foreground mb-4'>
+          {{ authError?.message || 'Failed to connect to server' }}
+        </p>
+        <Button @click='clearAuthError' variant='outline'>
+          Try Again
+        </Button>
+      </div>
+    </div>
+    <Login @login='handleLogin' v-else-if="authStatus === 'loggedOut'" />
+    <MainLayout
+      @global-search='isSearchOpen = !isSearchOpen'
+      @logout='handleLogout'
+      @navigate='handleNavigation'
+      @navigate-back='navigateBack'
+      @navigate-forward='navigateForward'
+      @quit='confirmExit'
+      v-else
+      :navigation-state='{
+        canGoBack,
+        canGoForward,
+        currentView,
+      }'
+      :player-state='{
+        hasPlayer: !!currentSong,
+        isEqualizerOpen,
+        isLyricsOpen,
+        isQueueOpen,
+      }'
+    >
+      <RouterView v-slot='{ Component }'>
+        <component
+          :is='Component'
+          @clear-cache='handleClearCache'
+          @logout='handleLogout'
+          @play-instant-mix='playInstantMix'
+          @play-song='playSong'
+          @play-songs='playSongs'
+          @reload-library='loadLibraryAndHomeData'
+          @select-album='navigateToAlbum'
+          @select-artist='navigateToArtist'
+          @sync-library='handleSyncLibrary'
+          @toggle-favorite='handleToggleFavorite'
+          :credentials='credentials'
+          :current-song='currentSong'
+          :is-clearing='isClearing'
+          :is-syncing='isSyncing'
+          :last-sync-time='lastSyncTime'
+        />
+      </RouterView>
 
-    <template v-else-if='isAuthenticated'>
-      <MainLayout
-        @logout='handleLogout'
-        @navigate='navigation.handleNavigation'
-        @navigate-back='navigation.navigateBack'
-        @navigate-forward='navigation.navigateForward'
-        @quit='handleQuit'
-        :navigation-state='{
-          canGoBack: navigation.canGoBack.value,
-          canGoForward: navigation.canGoForward.value,
-          currentView: navigation.currentView.value,
-        }'
-        :player-state='{
-          hasPlayer: true,
-          isEqualizerOpen: playerControls.isEqualizerOpen.value,
-          isLyricsOpen: playerControls.isLyricsOpen.value,
-          isQueueOpen: playerControls.isQueueOpen.value,
-        }'
-      >
-        <RouterView v-slot='{ Component }'>
-          <component
-            :is='Component'
-            @clear-cache='handleClearCache'
-            @logout='handleLogout'
-            @play-instant-mix='songInteractions.playInstantMix'
-            @play-song='songInteractions.playSong'
-            @play-songs='songInteractions.playSongs'
-            @select-album='navigation.navigateToAlbum'
-            @select-artist='navigation.navigateToArtist'
-            @sync-library='handleSyncLibrary'
-            @toggle-favorite='songInteractions.toggleFavorite'
-            :credentials='credentials'
-            :current-song='playerStore.currentSong'
-            :is-clearing='isClearing'
-            :is-syncing='isSyncing'
-            :last-sync-time='lastSyncTime'
+      <template #queue>
+        <div class='sidebar-panels h-full relative'>
+          <Queue
+            @remove-song='removeSongFromPlaylist'
+            v-show='isQueueOpen'
+            class='absolute inset-0'
           />
-        </RouterView>
-
-        <template #queue>
-          <div class='h-full w-full overflow-hidden'>
-            <Queue
-              @remove-song='songInteractions.removeSongFromPlaylist'
-              v-if='playerControls.isQueueOpen.value'
-            />
-            <Equalizer
-              v-else-if='playerControls.isEqualizerOpen.value'
-            />
-            <LyricsSidebar
-              @seek='playerControls.handleSeek'
-              v-else-if='playerControls.isLyricsOpen.value'
-              :current-song='playerStore.currentSong'
-              :current-time='playerStore.currentTime'
-              :duration='playerStore.duration'
-            />
-          </div>
-        </template>
-
-        <template #player>
-          <MusicPlayer
-            @add-to-playlist='() => {}'
-            @instant-mix='songInteractions.playInstantMix'
-            @toggle-equalizer='playerControls.toggleEqualizer'
-            @toggle-favorite='songInteractions.toggleFavorite'
-            @toggle-fullscreen='playerControls.toggleFullScreenPlayer'
-            @toggle-lyrics='playerControls.toggleLyrics'
-            @toggle-queue='playerControls.toggleQueue'
-            :frequency-data='frequencyData'
-            :is-equalizer-open='playerControls.isEqualizerOpen.value'
-            :is-lyrics-open='playerControls.isLyricsOpen.value'
-            :is-queue-open='playerControls.isQueueOpen.value'
-            :server-url="credentials?.serverUrl ?? ''"
-            :time-domain-data='timeDomainData'
-            :token="credentials?.token ?? ''"
+          <Equalizer
+            v-show='isEqualizerOpen'
+            class='absolute inset-0'
           />
-        </template>
-      </MainLayout>
+          <LyricsSidebar
+            @lyrics-loaded='handleLyricsLoaded'
+            @seek='handleSeek'
+            v-show='isLyricsOpen'
+            :current-song='currentSong as any'
+            :current-time='currentTime'
+            :duration='duration'
+            class='absolute inset-0'
+          />
+        </div>
+      </template>
 
-      <FullscreenPlayer
-        @close='playerControls.toggleFullScreenPlayer'
-        @instant-mix='songInteractions.playInstantMix'
-        @next-song='handleNextSong'
-        @previous-song='handlePreviousSong'
-        @seek='handleSeek'
-        @toggle-equalizer='playerControls.toggleEqualizer'
-        @toggle-favorite='songInteractions.toggleFavorite'
-        @toggle-fullscreen='playerControls.toggleFullScreenPlayer'
-        @toggle-lyrics='playerControls.toggleLyrics'
-        @toggle-mute='handleToggleMute'
-        @toggle-play-pause='handleTogglePlayPause'
-        @toggle-queue='playerControls.toggleQueue'
-        @toggle-repeat='handleToggleRepeat'
-        @toggle-shuffle='handleToggleShuffle'
-        @volume-change='handleVolumeChange'
-        v-if='playerControls.isFullScreenPlayerOpen.value'
-        :frequency-data='frequencyData'
-        :is-equalizer-open='playerControls.isEqualizerOpen.value'
-        :is-lyrics-open='playerControls.isLyricsOpen.value'
-        :is-queue-open='playerControls.isQueueOpen.value'
-        :player-state='{
-          currentSong: playerStore.currentSong,
-          currentTime: playerStore.currentTime,
-          duration: playerStore.duration,
-          hasNext: true, // Derived from playlist length in component
-          hasPrevious: true, // Derived from playlist length in component
-          isMuted: playerStore.isMuted,
-          isPlaying: playerStore.isPlaying,
-          isShuffled: playerStore.isShuffled,
-          repeatMode: playerStore.repeatMode,
-          volume: playerStore.volume,
-          playlist: playerStore.playlist,
-          progress: playerStore.progress,
-        }'
-        :server-url="credentials?.serverUrl ?? ''"
-        :show='true'
-        :time-domain-data='timeDomainData'
-        :token="credentials?.token ?? ''"
-      />
+      <template #player>
+        <MusicPlayer
+          @swipe-progress='handleSwipeProgress'
+          @toggle-equalizer='toggleEqualizer'
+          @toggle-favorite='handleToggleFavorite'
+          @toggle-fullscreen='toggleFullScreenPlayer'
+          @toggle-lyrics='toggleLyrics'
+          @toggle-queue='toggleQueue'
+          v-if='currentSong'
+          ref='musicPlayerRef'
+          :frequency-data='frequencyData'
+          :is-equalizer-open='isEqualizerOpen'
+          :is-lyrics-open='isLyricsOpen'
+          :is-queue-open='isQueueOpen'
+          :server-url='credentials!.serverUrl'
+          :time-domain-data='timeDomainData'
+          :token='credentials!.token'
+        />
+      </template>
 
-      <GlobalSearch :open='false' />
-    </template>
+      <template #top-bar>
+        <component
+          :is='topBarContent?.component'
+          v-if='topBarContent'
+          v-bind='topBarContent.props'
+        />
+      </template>
+    </MainLayout>
 
-    <template v-else-if="authStatus === 'loggedOut' || authStatus === 'error'">
-      <Login @login='handleLogin' />
-    </template>
+    <FullscreenPlayer
+      @close='toggleFullScreenPlayer'
+      @next-song='handleNextSong'
+      @play-song='playSong'
+      @previous-song='handlePreviousSong'
+      @remove-song='removeSongFromPlaylist'
+      @seek='handleSeek'
+      @toggle-equalizer='toggleFsEqualizer'
+      @toggle-favorite='handleToggleFavorite'
+      @toggle-lyrics='toggleFsLyrics'
+      @toggle-mute='playerStore.toggleMute'
+      @toggle-play-pause='handleTogglePlayPause'
+      @toggle-queue='toggleFsQueue'
+      @toggle-repeat='handleToggleRepeat'
+      @toggle-shuffle='handleToggleShuffle'
+      @update:playlist='updatePlaylist'
+      @volume-change='handleVolumeChange'
+      :frequency-data='frequencyData'
+      :is-equalizer-open='isFsEqualizerOpen'
+      :is-lyrics-open='isFsLyricsOpen'
+      :is-queue-open='isFsQueueOpen'
+      :player-state='playerState'
+      :preview-progress='swipeProgress'
+      :server-url='credentials?.serverUrl'
+      :show='isFullScreenPlayerOpen'
+      :time-domain-data='timeDomainData'
+      :token='credentials?.token'
+    />
+
+    <GlobalSearch v-model:open='isSearchOpen' />
+
+    <!-- Exit Confirmation Dialog -->
+    <Dialog v-model:open='showExitDialog'>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Exit Application</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to exit Aurelia?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button @click='cancelExit' variant='outline'>
+            Cancel
+          </Button>
+          <Button @click='confirmExit' variant='destructive'>
+            Exit
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Toast Notifications -->
+    <Toaster position='top-center' />
   </div>
 </template>
