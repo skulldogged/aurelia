@@ -12,27 +12,23 @@
     "build": "bun run scripts/aurelia.ts build",
     "build:web": "bun run scripts/aurelia.ts build --platform=web",
     "build:desktop": "bun run scripts/aurelia.ts build --platform=desktop",
-    "build:android": "bun run scripts/aurelia.ts build --platform=android",
-    "generate-bindings": "bun run scripts/aurelia.ts dev --platform=web --skip-bindings && cargo run -p uniffi-bindgen -- all --out-dir apps/shared/src/generated && cargo build -p aurelia-api --features web",
-    "generate-bindings:win": "powershell -File .\\scripts\\generate-bindings.ps1",
-    "dev:web:legacy": "./scripts/dev-web.sh",
-    "dev:web:win:legacy": "powershell -File .\\scripts\\dev-web.ps1"
+    "build:android": "bun run scripts/aurelia.ts build --platform=android"
   },
   "workspaces": [
     "apps/*"
   ],
   "devDependencies": {
     "@eslint/js": "^9.39.2",
-    "@stylistic/eslint-plugin": "^5.7.0",
-    "@typescript-eslint/parser": "^8.53.0",
+    "@stylistic/eslint-plugin": "^5.7.1",
+    "@typescript-eslint/parser": "^8.54.0",
     "eslint": "^9.39.2",
-    "eslint-plugin-perfectionist": "^5.3.1",
+    "eslint-plugin-perfectionist": "^5.4.0",
     "eslint-plugin-prefer-arrow-functions": "^3.9.1",
-    "eslint-plugin-vue": "^10.6.2",
-    "globals": "^17.0.0",
+    "eslint-plugin-vue": "^10.7.0",
+    "globals": "^17.3.0",
     "sharp": "^0.34.5",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.53.0",
+    "typescript-eslint": "^8.54.0",
     "vue-eslint-parser": "^10.2.0"
   },
   "engines": {
