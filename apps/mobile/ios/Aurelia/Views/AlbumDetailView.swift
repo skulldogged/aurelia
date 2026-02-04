@@ -163,7 +163,7 @@ struct AlbumDetailView: View {
 
             // Fetch fresh
             do {
-                let fetched = try fetchAlbum(
+                let fetched = try await fetchAlbum(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     userId: creds.userId,

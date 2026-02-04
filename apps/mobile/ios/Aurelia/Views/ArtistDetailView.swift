@@ -150,7 +150,7 @@ struct ArtistDetailView: View {
 
             // Fetch artist details
             do {
-                let fetched = try fetchArtist(
+                let fetched = try await fetchArtist(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     userId: creds.userId,

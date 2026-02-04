@@ -6,6 +6,7 @@ let package = Package(
     name: "AureliaCore",
     platforms: [
         .iOS(.v26),
+        .macOS(.v13),
     ],
     products: [
         .library(
@@ -16,11 +17,11 @@ let package = Package(
     targets: [
         .target(
             name: "AureliaCore",
-            dependencies: ["AureliaCoreFFI"],
+            dependencies: ["aurelia_coreFFI"],
             path: "Sources"
         ),
         .binaryTarget(
-            name: "AureliaCoreFFI",
+            name: "aurelia_coreFFI",
             path: "AureliaCoreFFI.xcframework"
         ),
         .testTarget(

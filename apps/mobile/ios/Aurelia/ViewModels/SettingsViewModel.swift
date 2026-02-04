@@ -50,7 +50,7 @@ final class SettingsViewModel: @unchecked Sendable {
 
         Task.detached { [self] in
             do {
-                let _ = try syncSongsOnly(
+                let _ = try await syncSongsOnly(
                     serverUrl: serverUrl,
                     token: token,
                     userId: userId,

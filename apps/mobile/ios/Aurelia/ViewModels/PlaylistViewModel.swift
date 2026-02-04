@@ -34,7 +34,7 @@ final class PlaylistViewModel: @unchecked Sendable {
 
         Task.detached { [self] in
             do {
-                let result = try getPlaylists(
+                let result = try await getPlaylists(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     userId: creds.userId
@@ -67,7 +67,7 @@ final class PlaylistViewModel: @unchecked Sendable {
                     userId: creds.userId,
                     isPublic: false
                 )
-                let newPlaylist = try AureliaCore.createPlaylist(
+                let newPlaylist = try await AureliaCore.createPlaylist(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     data: data
@@ -92,7 +92,7 @@ final class PlaylistViewModel: @unchecked Sendable {
 
         Task.detached { [self] in
             do {
-                try AureliaCore.deletePlaylist(
+                try await AureliaCore.deletePlaylist(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     playlistId: playlistId
@@ -122,7 +122,7 @@ final class PlaylistViewModel: @unchecked Sendable {
 
         Task.detached { [self] in
             do {
-                let songs = try getPlaylistItems(
+                let songs = try await getPlaylistItems(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     playlistId: playlistId
@@ -149,7 +149,7 @@ final class PlaylistViewModel: @unchecked Sendable {
 
         Task.detached { [self] in
             do {
-                try addPlaylistItems(
+                try await addPlaylistItems(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     playlistId: playlistId,

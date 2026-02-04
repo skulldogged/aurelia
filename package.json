@@ -17,7 +17,7 @@
     "test:android": "cd apps/mobile/android && ./gradlew test",
     "test:android:ui": "cd apps/mobile/android && ./gradlew connectedAndroidTest",
     "test:desktop": "bun --cwd apps/desktop test",
-    "test:ios": "cd apps/mobile/ios/AureliaCore && swift test",
+    "test:ios": "cd apps/mobile/ios && ./build-rust.sh && cd AureliaCore && swift test",
     "test:js": "bun run test:shared && bun run test:web && bun run test:desktop",
     "test:rust": "cargo test --workspace",
     "test:shared": "bun --cwd apps/shared test",

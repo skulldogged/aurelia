@@ -9,7 +9,7 @@ This repository has tests across Rust, shared Vue/TS, web + desktop apps, and mo
 - `bun run test` — JS + Rust
 - `bun run test:android` — Android JVM unit tests
 - `bun run test:android:ui` — Android instrumentation tests (requires device/emulator)
-- `bun run test:ios` — iOS Swift package tests (requires XCFramework)
+- `bun run test:ios` — iOS Swift package tests (builds XCFramework)
 
 ## JS/TS (Shared + Web + Desktop)
 
@@ -65,16 +65,8 @@ You need a running emulator or attached device for instrumentation tests.
 
 ## iOS
 
-The iOS Swift package tests require the UniFFI XCFramework to exist. Generate it first:
+Use the repo script (it builds the UniFFI XCFramework first, then runs `swift test`):
 
 ```bash
-cd apps/mobile/ios
-./build-rust.sh
-```
-
-Then run:
-
-```bash
-cd apps/mobile/ios/AureliaCore
-swift test
+bun run test:ios
 ```
