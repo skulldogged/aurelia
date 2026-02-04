@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.0.40",
+  "base_commit_sha": "2c1215b9ad48e5dbda1c7761cdebb597b3380b64",
+  "prompts": {
+    "34d7556b0451b0d8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3d92ea036ffefCEgjqVXNFNMwU",
+        "model": "opencode/kimi-k2.5-free"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 1694,
+      "total_deletions": 0,
+      "accepted_lines": 1694,
+      "overriden_lines": 0
+    }
+  }
+}
