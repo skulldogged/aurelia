@@ -43,26 +43,10 @@ describe('usePlayerControls', () => {
   it('closes other panels when toggling queue', () => {
     const controls = usePlayerControls()
 
-    if (controls.isQueueOpen.value) {
-      controls.toggleQueue()
-    }
-
-    if (controls.isEqualizerOpen.value) {
-      controls.toggleEqualizer()
-    }
-
-    if (controls.isLyricsOpen.value) {
-      controls.toggleLyrics()
-    }
-
-    if (!controls.isEqualizerOpen.value) {
-      controls.toggleEqualizer()
-    }
-
-    if (!controls.isLyricsOpen.value) {
-      controls.toggleLyrics()
-    }
-
+    // Set up initial state explicitly: equalizer and lyrics open, queue closed
+    controls.isQueueOpen.value = false
+    controls.isEqualizerOpen.value = true
+    controls.isLyricsOpen.value = true
     controls.toggleQueue()
 
     expect(controls.isQueueOpen.value).toBe(true)
