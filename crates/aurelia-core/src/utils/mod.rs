@@ -146,3 +146,37 @@ pub mod pagination {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{build_jellyfin_url, supports_seeking};
+    use super::pagination::{apply_pagination, validate_pagination};
+
+    #[test]
+    fn supports_seeking_is_case_insensitive() {
+        assert!(supports_seeking(Some("FLAC")));
+        assert!(supports_seeking(Some("mp3")));
+        assert!(!supports_seeking(Some("alac")));
+        assert!(!supports_seeking(None));
+    }
+
+    #[test]
+    fn build_jellyfin_url_normalizes_slashes() {
+        let url = build_jellyfin_url("http://localhost:8096/", "/Audio/123/stream");
+        assert_eq!(url, "http://localhost:8096/Audio/123/stream");
+    }
+
+    #[test]
+    fn apply_pagination_respects_offset_and_limit() {
+        let items = vec![1, 2, 3, 4, 5];
+        let paged = apply_pagination(items, Some(1), Some(2));
+        assert_eq!(paged, vec![2, 3]);
+    }
+
+    #[test]
+    fn validate_pagination_rejects_negative_values() {
+        assert!(validate_pagination(Some(-1), None).is_err());
+        assert!(validate_pagination(None, Some(0)).is_err());
+        assert!(validate_pagination(Some(0), Some(1)).is_ok());
+    }
+}

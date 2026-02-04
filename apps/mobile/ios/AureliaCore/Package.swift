@@ -23,5 +23,10 @@ let package = Package(
             name: "AureliaCoreFFI",
             path: "AureliaCoreFFI.xcframework"
         ),
+        .testTarget(
+            name: "AureliaCoreTests",
+            dependencies: ["AureliaCore"],
+            path: "Tests"
+        ),
     ]
 )

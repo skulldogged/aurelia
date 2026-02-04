@@ -18,3 +18,23 @@ pub fn minimize_to_tray_enabled() -> bool {
 pub fn close_to_tray_enabled() -> bool {
     CLOSE_TO_TRAY.load(Ordering::Relaxed)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toggles_tray_settings() {
+        set_minimize_to_tray(false);
+        set_close_to_tray(true);
+
+        assert!(!minimize_to_tray_enabled());
+        assert!(close_to_tray_enabled());
+
+        set_minimize_to_tray(true);
+        set_close_to_tray(false);
+
+        assert!(minimize_to_tray_enabled());
+        assert!(!close_to_tray_enabled());
+    }
+}

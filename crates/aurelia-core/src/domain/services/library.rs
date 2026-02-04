@@ -499,3 +499,181 @@ impl LibraryService {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::LibraryService;
+    use crate::db;
+    use crate::domain::models::SyncDelta;
+    use crate::models::{Album, Artist, Song};
+    use once_cell::sync::OnceCell;
+    use serial_test::serial;
+    use tempfile::TempDir;
+
+    fn init_db() {
+        static TEST_DIR: OnceCell<TempDir> = OnceCell::new();
+        let dir = TEST_DIR.get_or_init(|| TempDir::new().expect("temp dir"));
+        let path = dir.path().to_path_buf();
+        db::init(&path).expect("db init");
+        db::reset_for_tests().expect("db reset");
+    }
+
+    fn song(id: &str, album_id: &str, artist_id: &str, date_modified: &str) -> Song {
+        Song {
+            id: id.to_string(),
+            name: format!("Song {id}"),
+            item_type: "Audio".to_string(),
+            album: Some(format!("Album {album_id}")),
+            album_id: Some(album_id.to_string()),
+            artists: Some(vec![format!("Artist {artist_id}")]),
+            artist_ids: Some(vec![artist_id.to_string()]),
+            path: None,
+            duration: None,
+            album_art_url: None,
+            year: None,
+            play_count: None,
+            is_favorite: None,
+            disc_number: None,
+            track_number: None,
+            container: None,
+            bit_rate: None,
+            sample_rate: None,
+            codec: None,
+            genres: None,
+            premiere_date: None,
+            date_played: None,
+            date_created: Some("2024-01-01T00:00:00Z".to_string()),
+            date_modified: Some(date_modified.to_string()),
+            album_artists: None,
+            lyrics: None,
+            image_tags: None,
+        }
+    }
+
+    fn artist(id: &str) -> Artist {
+        Artist {
+            name: format!("Artist {id}"),
+            id: id.to_string(),
+            image_tags: None,
+            image_url: None,
+            overview: None,
+            provider_ids: None,
+            community_rating: None,
+            song_count: None,
+            date_modified: None,
+            songs: None,
+        }
+    }
+
+    fn album(id: &str, artist_id: &str) -> Album {
+        Album {
+            id: Some(id.to_string()),
+            name: format!("Album {id}"),
+            artist: format!("Artist {artist_id}"),
+            artist_id: Some(artist_id.to_string()),
+            album_art_url: None,
+            song_count: 1,
+            songs: None,
+            image_tags: None,
+            provider_ids: None,
+            date_created: Some("2024-01-01T00:00:00Z".to_string()),
+            date_modified: None,
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn compute_delta_detects_add_update_remove() {
+        init_db();
+        let db = db::get().expect("db");
+        let service = LibraryService::new(db);
+
+        let local_songs = vec![
+            song("song1", "album1", "artist1", "2024-01-01T00:00:00Z"),
+            song("song2", "album2", "artist2", "2024-01-01T00:00:00Z"),
+            song("song_local", "album2", "artist2", "2024-01-01T00:00:00Z"),
+        ];
+        let local_artists = vec![artist("artist1"), artist("artist2")];
+        let local_albums = vec![album("album1", "artist1"), album("album2", "artist2")];
+
+        service
+            .sync_library(&local_songs, &local_artists, &local_albums, true)
+            .expect("sync");
+
+        let remote_songs = vec![
+            song("song1", "album1", "artist1", "2024-01-01T00:00:00Z"),
+            song("song2", "album2", "artist2", "2024-02-01T00:00:00Z"),
+            song("song3", "album3", "artist3", "2024-02-01T00:00:00Z"),
+        ];
+        let remote_artists = vec![artist("artist1"), artist("artist3")];
+        let remote_albums = vec![album("album1", "artist1"), album("album3", "artist3")];
+
+        let delta = service
+            .compute_delta(&remote_songs, &remote_artists, &remote_albums)
+            .expect("delta");
+
+        assert!(delta.songs_to_add.contains(&"song3".to_string()));
+        assert!(delta.songs_to_update.contains(&"song2".to_string()));
+        assert!(delta.songs_to_remove.contains(&"song_local".to_string()));
+        assert!(delta.artists_to_add.contains(&"artist3".to_string()));
+        assert!(delta.artists_to_remove.contains(&"artist2".to_string()));
+        assert!(delta.albums_to_add.contains(&"album3".to_string()));
+        assert!(delta.albums_to_remove.contains(&"album2".to_string()));
+    }
+
+    #[test]
+    #[serial]
+    fn apply_delta_updates_counts() {
+        init_db();
+        let db = db::get().expect("db");
+        let service = LibraryService::new(db);
+
+        let local_songs = vec![
+            song("song1", "album1", "artist1", "2024-01-01T00:00:00Z"),
+            song("song2", "album2", "artist2", "2024-01-01T00:00:00Z"),
+            song("song_local", "album2", "artist2", "2024-01-01T00:00:00Z"),
+        ];
+        let local_artists = vec![artist("artist1"), artist("artist2")];
+        let local_albums = vec![album("album1", "artist1"), album("album2", "artist2")];
+
+        service
+            .sync_library(&local_songs, &local_artists, &local_albums, true)
+            .expect("sync");
+
+        let remote_songs = vec![
+            song("song1", "album1", "artist1", "2024-01-01T00:00:00Z"),
+            song("song2", "album2", "artist2", "2024-02-01T00:00:00Z"),
+            song("song3", "album3", "artist3", "2024-02-01T00:00:00Z"),
+        ];
+        let remote_artists = vec![artist("artist1"), artist("artist3")];
+        let remote_albums = vec![album("album1", "artist1"), album("album3", "artist3")];
+
+        let delta = service
+            .compute_delta(&remote_songs, &remote_artists, &remote_albums)
+            .expect("delta");
+
+        let report = service
+            .apply_delta(&delta, &remote_songs, &remote_artists, &remote_albums)
+            .expect("apply");
+
+        let (song_count, artist_count, album_count) =
+            service.get_library_stats().expect("stats");
+
+        assert_eq!(report.full_sync, false);
+        assert_eq!(song_count, 3);
+        assert_eq!(artist_count, 2);
+        assert_eq!(album_count, 2);
+    }
+
+    #[test]
+    #[serial]
+    fn apply_delta_noop_when_empty() {
+        init_db();
+        let db = db::get().expect("db");
+        let service = LibraryService::new(db);
+        let report = service
+            .apply_delta(&SyncDelta::default(), &[], &[], &[])
+            .expect("apply");
+        assert_eq!(report.songs_updated, 0);
+    }
+}

@@ -122,11 +122,14 @@ Fix any type errors before submitting your PR.
 
 ## Testing
 
-While we don't have formal tests yet, please:
-- **Manually test** all functionality you touch
-- **Test edge cases** and error conditions
-- **Verify** the app works on your platform
-- **Check** that existing features still work
+Automated tests are available across the Rust core, shared UI, and apps. Run the relevant suites for your changes:
+
+- JS/TS (shared + web + desktop): `bun run test:js`
+- Rust (core + backend): `bun run test:rust`
+- Android: `bun run test:android` (and `bun run test:android:ui` for instrumentation)
+- iOS: `bun run test:ios` (after generating the XCFramework)
+
+See [TESTING.md](./TESTING.md) for full details and prerequisites.
 
 ## Pull Request Guidelines
 
