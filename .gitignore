@@ -65,18 +65,17 @@ src-tauri/gen/schemas/
 # START Ruler Generated Files
 /.agent/rules/ruler.md
 /.agent/rules/ruler.md.bak
+/.agent/skills
 /.agents/skills
 /.claude/skills
 /.codex/skills
 /.cursor/skills
+/.factory/skills
 /.gemini/skills
 /.opencode/skill
 /.pi/skills
 /.roo/skills
-/.skillz
 /.vibe/skills
-/.windsurf/mcp_config.json
-/.windsurf/mcp_config.json.bak
 /AGENTS.md
 /AGENTS.md.bak
 /CLAUDE.md
