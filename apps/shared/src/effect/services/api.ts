@@ -5,8 +5,8 @@ import type {
   Artist,
   Credentials,
   HomeViewData,
-  LibraryData,
   LastFmCredentials,
+  LibraryData,
   ListenBrainzCredentials,
   ListenBrainzListen,
   NowPlayingPayload,
@@ -17,6 +17,7 @@ import type {
   Song,
   SyncStateInfo,
 } from '../../lib/api/types'
+
 import { getApiClient } from '../../index'
 import { ApiError, toErrorMessage } from '../errors'
 
@@ -41,7 +42,7 @@ const runApiRequest = <T>(
 ): Effect.Effect<T, ApiError> =>
   Effect.tryPromise({
     catch: cause => toApiError(operation, cause),
-    try: request,
+    try:   request,
   }).pipe(
     Effect.flatMap(result => apiResultToEffect(operation, result)),
   )

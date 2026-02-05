@@ -17,9 +17,9 @@
     DropdownMenuTrigger,
   } from '../../components/ui/dropdown-menu'
   import { Skeleton } from '../../components/ui/skeleton'
+  import { scrollElementKey } from '../../composables/useMainLayout'
   import { ApiError, runAureliaEffect } from '../../effect'
   import { getArtistEffect, getRelatedArtistsEffect } from '../../effect/services/api'
-  import { scrollElementKey } from '../../composables/useMainLayout'
   import { Album, Artist, Song } from '../../index'
   import { logger } from '../../lib/logger'
   import { formatDuration } from '../../lib/utils'

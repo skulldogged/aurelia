@@ -5,14 +5,14 @@
   import Button from '../components/ui/Button.vue'
   import { Input } from '../components/ui/input'
   import Label from '../components/ui/Label.vue'
+  import { useSession } from '../composables/useSession'
   import { ApiError } from '../effect/errors'
+  import { runAureliaEffect } from '../effect/runtime'
   import {
     getSavedCredentialsEffect,
     loginToJellyfinEffect,
     saveCredentialsEffect,
   } from '../effect/services/api'
-  import { runAureliaEffect } from '../effect/runtime'
-  import { useSession } from '../composables/useSession'
   import { logger } from '../lib/logger'
   const { initializeSession, sessionState } = useSession()
 

@@ -1,6 +1,7 @@
+import type { Result } from '../lib/api/result'
+
 import { ApiError, runAureliaEffect } from '../effect'
 import { clearImageFromCacheEffect, getImageCacheStatsEffect, getImageEffect } from '../effect/services/api'
-import type { Result } from '../lib/api/result'
 import { logger } from '../lib/logger'
 import { LRUCache } from '../lib/lru-cache'
 import { isTauri } from '../lib/platform'

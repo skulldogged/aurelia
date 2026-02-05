@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 import type { RpcActivity } from '../generated'
 import type { Song } from '../lib/api/types'
 
+import { runAureliaEffect } from '../effect/runtime'
 import {
   discordRpcClearActivityEffect,
   discordRpcIsRunningEffect,
@@ -10,7 +11,6 @@ import {
   discordRpcStartEffect,
   discordRpcStopEffect,
 } from '../effect/services/api'
-import { runAureliaEffect } from '../effect/runtime'
 import { logger } from '../lib/logger'
 import { isDesktop } from '../lib/platform'
 import { usePlayerStore } from '../stores'

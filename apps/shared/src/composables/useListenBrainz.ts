@@ -2,6 +2,7 @@ import { ref, type Ref, watch } from 'vue'
 
 import type { ListenBrainzCredentials, Song } from '../generated'
 
+import { runAureliaEffect } from '../effect/runtime'
 import {
   listenBrainzClearCredentialsEffect,
   listenBrainzPlayingNowEffect,
@@ -9,7 +10,6 @@ import {
   listenBrainzSubmitListenEffect,
   listenBrainzValidateTokenEffect,
 } from '../effect/services/api'
-import { runAureliaEffect } from '../effect/runtime'
 import { logger } from '../lib/logger'
 import { useListenBrainzStore, usePlayerStore } from '../stores'
 

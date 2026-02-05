@@ -40,7 +40,7 @@ export class StorageServiceTag extends Effect.Tag('aurelia/StorageService')<
 >() {}
 
 const makeStorageService = (): StorageService => ({
-  get: key => tryStorage(key, 'get', () => getBrowserStorage().getItem(key)),
+  get:     key => tryStorage(key, 'get', () => getBrowserStorage().getItem(key)),
   getJson: <T>(key: string) =>
     tryStorage(key, 'get', () => {
       const raw = getBrowserStorage().getItem(key)

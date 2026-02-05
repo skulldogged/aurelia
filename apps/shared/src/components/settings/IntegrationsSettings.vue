@@ -83,11 +83,6 @@
         }
       })
 
-      const styles = getComputedStyle(document.documentElement)
-      const primaryColor = styles.getPropertyValue('--accent').trim() || '#667eea'
-      const backgroundColor = styles.getPropertyValue('--background').trim() || '#1a1b26'
-      const textColor = styles.getPropertyValue('--foreground').trim() || '#cdd6f4'
-
       await runAureliaEffect(lastFmStartAuthServerEffect())
 
       logger.info('Started Last.fm callback server')

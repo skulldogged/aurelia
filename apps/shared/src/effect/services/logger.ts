@@ -5,8 +5,8 @@ import { logger } from '../../lib/logger'
 export interface LoggerService {
   debug: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>
   error: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>
-  info: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>
-  warn: (...args: ReadonlyArray<unknown>) => Effect.Effect<void>
+  info:  (...args: ReadonlyArray<unknown>) => Effect.Effect<void>
+  warn:  (...args: ReadonlyArray<unknown>) => Effect.Effect<void>
 }
 
 export class Logger extends Effect.Tag('aurelia/Logger')<Logger, LoggerService>() {}

@@ -1,12 +1,12 @@
-import { defineStore } from 'pinia'
 import { Effect, Schedule } from 'effect'
+import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 
 import type { Album, Song } from '../lib/api/types'
 
 import { ApiError } from '../effect/errors'
-import { getHomeViewDataEffect } from '../effect/services/api'
 import { runAureliaEffect } from '../effect/runtime'
+import { getHomeViewDataEffect } from '../effect/services/api'
 import { getAuthLogout } from '../lib/auth-interceptor'
 import { logger } from '../lib/logger'
 

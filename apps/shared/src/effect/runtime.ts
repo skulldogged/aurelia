@@ -1,4 +1,4 @@
-import { Effect, Layer, ManagedRuntime } from 'effect'
+import { Effect, Exit, Layer, ManagedRuntime } from 'effect'
 
 import { LoggerLive } from './services/logger'
 import { StorageServiceLive } from './services/storage'
@@ -26,7 +26,7 @@ export const runAureliaEffect = <A, E>(
 
 export const runAureliaEffectExit = <A, E>(
   effect: Effect.Effect<A, E, AureliaRuntimeContext>,
-) =>
+): Promise<Exit.Exit<A, E>> =>
   aureliaRuntime.runPromiseExit(effect)
 
 export const disposeAureliaRuntime = (): Promise<void> =>

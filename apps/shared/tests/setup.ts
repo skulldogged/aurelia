@@ -9,11 +9,11 @@ const createStorageMock = (): StorageMock => {
   const store = new Map<string, string>()
   return {
     _store: store,
-    clear: () => {
+    clear:  () => {
       store.clear()
     },
     getItem: key => (store.has(key) ? store.get(key)! : null),
-    key: index => Array.from(store.keys())[index] ?? null,
+    key:     index => Array.from(store.keys())[index] ?? null,
     get length() {
       return store.size
     },

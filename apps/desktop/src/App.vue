@@ -318,7 +318,10 @@
 
 <template>
   <div id='app' class='h-screen text-foreground'>
-    <div v-if="authStatus === 'pending' || authStatus === 'initializing'" class='size-full flex items-center justify-center'>
+    <div
+      v-if="authStatus === 'pending' || authStatus === 'initializing'"
+      class='size-full flex items-center justify-center'
+    >
       <div class='text-center'>
         <div class='animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mx-auto' />
         <p class='mt-4 text-muted-foreground'>
@@ -326,7 +329,10 @@
         </p>
       </div>
     </div>
-    <div v-else-if="authStatus === 'error'" class='size-full flex items-center justify-center'>
+    <div
+      v-else-if="authStatus === 'error'"
+      class='size-full flex items-center justify-center'
+    >
       <div class='text-center max-w-md mx-auto p-8'>
         <div class='text-red-500 text-6xl mb-4'>
           !

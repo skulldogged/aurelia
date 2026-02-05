@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { readonly, ref, type Ref } from 'vue'
 
 import { ApiError } from '../effect/errors'
+import { runAureliaEffect } from '../effect/runtime'
 import {
   markItemPlayedEffect,
   registerClientCapabilitiesEffect,
@@ -9,7 +10,6 @@ import {
   reportPlaybackStartEffect,
   reportPlaybackStopEffect,
 } from '../effect/services/api'
-import { runAureliaEffect } from '../effect/runtime'
 import { logger } from '../lib/logger'
 import { isTauri } from '../lib/platform'
 import { useAuthStore } from '../stores'

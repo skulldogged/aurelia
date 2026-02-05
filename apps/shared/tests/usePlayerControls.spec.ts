@@ -25,11 +25,11 @@ describe('usePlayerControls', () => {
     const onSeek = vi.fn()
 
     controls.musicPlayerRef.value = {
-      nextSong: vi.fn(),
+      nextSong:      vi.fn(),
       onSeek,
-      previousSong: vi.fn(),
+      previousSong:  vi.fn(),
       togglePlayPause,
-      toggleRepeat: vi.fn(),
+      toggleRepeat:  vi.fn(),
       toggleShuffle: vi.fn(),
     }
 

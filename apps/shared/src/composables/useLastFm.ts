@@ -2,6 +2,7 @@ import { ref, type Ref, watch } from 'vue'
 
 import type { LastFmCredentials, Song } from '../generated'
 
+import { runAureliaEffect } from '../effect/runtime'
 import {
   lastFmAuthenticateEffect,
   lastFmClearCredentialsEffect,
@@ -9,7 +10,6 @@ import {
   lastFmSetCredentialsEffect,
   lastFmUpdateNowPlayingEffect,
 } from '../effect/services/api'
-import { runAureliaEffect } from '../effect/runtime'
 import { logger } from '../lib/logger'
 import { useLastFmStore, usePlayerStore } from '../stores'
 

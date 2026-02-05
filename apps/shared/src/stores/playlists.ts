@@ -4,7 +4,9 @@ import { toast } from 'vue-sonner'
 
 import type { Playlist, PlaylistCreateData, PlaylistUpdateData, Song } from '../lib/api/types'
 
+import { useImageLoader } from '../composables/useImageLoader'
 import { ApiError } from '../effect/errors'
+import { runAureliaEffect } from '../effect/runtime'
 import {
   createPlaylistEffect,
   deletePlaylistEffect,
@@ -12,8 +14,6 @@ import {
   getPlaylistsEffect,
   updatePlaylistEffect,
 } from '../effect/services/api'
-import { runAureliaEffect } from '../effect/runtime'
-import { useImageLoader } from '../composables/useImageLoader'
 import { logger } from '../lib/logger'
 import { usePlayerStore } from './player'
 

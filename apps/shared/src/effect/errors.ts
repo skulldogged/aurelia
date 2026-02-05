@@ -1,25 +1,25 @@
 import { Data } from 'effect'
 
+export type AureliaEffectError = ApiError | PlatformError | StorageError
+
 export class ApiError extends Data.TaggedError('ApiError')<{
-  cause?: unknown
-  message: string
+  cause?:    unknown
+  message:   string
   operation: string
 }> {}
 
 export class PlatformError extends Data.TaggedError('PlatformError')<{
-  cause?: unknown
-  message: string
+  cause?:    unknown
+  message:   string
   operation: string
 }> {}
 
 export class StorageError extends Data.TaggedError('StorageError')<{
-  cause?: unknown
-  key: string
-  message: string
+  cause?:    unknown
+  key:       string
+  message:   string
   operation: 'get' | 'remove' | 'set'
 }> {}
-
-export type AureliaEffectError = ApiError | PlatformError | StorageError
 
 export const toErrorMessage = (error: unknown): string => {
   if (typeof error === 'string') {

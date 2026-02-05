@@ -1,6 +1,5 @@
-import path from 'path'
-
 import vue from '@vitejs/plugin-vue'
+import path from 'path'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
@@ -12,8 +11,8 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    globals: true,
-    include: [
+    globals:     true,
+    include:     [
       'tests/**/*.spec.ts',
       'tests/**/*.test.ts',
       'src/**/*.spec.ts',

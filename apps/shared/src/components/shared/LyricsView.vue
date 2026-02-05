@@ -100,8 +100,9 @@
           logger.error('Failed to fetch lyrics:', errorString)
           emit('lyrics-loaded', false)
         } finally {
-          if (currentLyricsRequestToken.value !== requestToken) return
-          isLoading.value = false
+          if (currentLyricsRequestToken.value === requestToken) {
+            isLoading.value = false
+          }
         }
       } else {
         error.value = 'Artist not available'

@@ -8,7 +8,7 @@ const createStorageMock = (): Storage => {
       store.clear()
     },
     getItem: (key: string) => store.get(key) ?? null,
-    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    key:     (index: number) => Array.from(store.keys())[index] ?? null,
     get length() {
       return store.size
     },
@@ -25,13 +25,13 @@ const installStorage = (name: 'localStorage' | 'sessionStorage', value: Storage)
   Object.defineProperty(globalThis, name, {
     configurable: true,
     value,
-    writable: true,
+    writable:     true,
   })
   if (typeof window !== 'undefined') {
     Object.defineProperty(window, name, {
       configurable: true,
       value,
-      writable: true,
+      writable:     true,
     })
   }
 }

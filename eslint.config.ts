@@ -35,6 +35,7 @@ export default defineConfig(
       // Generated files - regenerated frequently
       '**/generated/**',
       'apps/shared/src/api/apiClient.ts',
+      'apps/shared/src/lib/api/types.ts',
       // Android app - not web code
       'apps/mobile/**',
     ],

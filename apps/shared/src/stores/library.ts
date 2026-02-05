@@ -5,8 +5,8 @@ import { toast } from 'vue-sonner'
 import type { Album, Artist, Credentials, Song } from '../generated'
 
 import { ApiError } from '../effect/errors'
-import { clearCacheEffect, getLibraryEffect, syncLibraryEffect } from '../effect/services/api'
 import { runAureliaEffect } from '../effect/runtime'
+import { clearCacheEffect, getLibraryEffect, syncLibraryEffect } from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { useHomeStore } from './home'
 

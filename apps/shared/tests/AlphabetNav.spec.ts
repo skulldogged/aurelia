@@ -1,5 +1,5 @@
-import { render } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { render } from '@testing-library/vue'
 import { describe, expect, it } from 'vitest'
 
 import AlphabetNav from '../src/components/shared/AlphabetNav.vue'
@@ -7,9 +7,9 @@ import AlphabetNav from '../src/components/shared/AlphabetNav.vue'
 describe('AlphabetNav', () => {
   it('emits when clicking available letters', async () => {
     const user = userEvent.setup()
-    const { getByText, emitted } = render(AlphabetNav, {
+    const { emitted, getByText } = render(AlphabetNav, {
       props: {
-        activeLetter: 'A',
+        activeLetter:     'A',
         availableLetters: new Set(['A', 'B']),
       },
     })
@@ -25,7 +25,7 @@ describe('AlphabetNav', () => {
 
   it('disables unavailable letters', async () => {
     const user = userEvent.setup()
-    const { getByText, emitted } = render(AlphabetNav, {
+    const { emitted, getByText } = render(AlphabetNav, {
       props: {
         availableLetters: new Set(['A']),
       },

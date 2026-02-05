@@ -1,7 +1,8 @@
 import { Effect } from 'effect'
 
-import { logger } from '../lib/logger'
 import type { AureliaRuntimeContext } from './runtime'
+
+import { logger } from '../lib/logger'
 import { runAureliaEffect } from './runtime'
 
 export const runEffectInAppRuntime = <A, E>(

@@ -12,6 +12,7 @@
     MainLayout,
     MusicPlayer,
     Queue,
+    runAureliaEffect,
     Toaster,
     useAccentColorStore,
     useAuth,
@@ -20,16 +21,12 @@
     useNavigation,
     usePlayerControls,
     usePlayerSession,
-    usePlayerStore,
     useSongInteractions,
     useThemeStore,
     useTopBar,
     useVisualizerData,
-    runAureliaEffect,
   } from '@shared'
   import Button from '@shared/components/ui/Button.vue'
-  import { useLastFm } from '@shared/composables/useLastFm'
-  import { useListenBrainz } from '@shared/composables/useListenBrainz'
   import {
     Dialog,
     DialogContent,
@@ -38,6 +35,8 @@
     DialogHeader,
     DialogTitle,
   } from '@shared/components/ui/dialog'
+  import { useLastFm } from '@shared/composables/useLastFm'
+  import { useListenBrainz } from '@shared/composables/useListenBrainz'
   import { setAuthLogout } from '@shared/lib/auth-interceptor'
   import { useColorMode, useMagicKeys } from '@vueuse/core'
   import { computed, onMounted, ref, watch } from 'vue'
@@ -191,31 +190,31 @@
   const hasPrevious = computed(() => playlist.value.length > 1 && playerStore.currentIndex > 0)
 
   const playerState = computed(() => ({
-    currentSong: currentSong.value,
-    currentTime: currentTime.value,
-    duration: duration.value,
-    hasNext: hasNext.value,
-    hasPlayer: !!currentSong.value,
-    hasPrevious: hasPrevious.value,
+    currentSong:     currentSong.value,
+    currentTime:     currentTime.value,
+    duration:        duration.value,
+    hasNext:         hasNext.value,
+    hasPlayer:       !!currentSong.value,
+    hasPrevious:     hasPrevious.value,
     isEqualizerOpen: isEqualizerOpen.value,
-    isLyricsOpen: isLyricsOpen.value,
-    isMuted: playerStore.isMuted,
-    isPlaying: isPlaying.value,
-    isQueueOpen: isQueueOpen.value,
-    isShuffled: isShuffled.value,
-    playlist: playlist.value,
-    progress: progress.value,
-    repeatMode: repeatMode.value,
-    volume: playerStore.volume * 100,
+    isLyricsOpen:    isLyricsOpen.value,
+    isMuted:         playerStore.isMuted,
+    isPlaying:       isPlaying.value,
+    isQueueOpen:     isQueueOpen.value,
+    isShuffled:      isShuffled.value,
+    playlist:        playlist.value,
+    progress:        progress.value,
+    repeatMode:      repeatMode.value,
+    volume:          playerStore.volume * 100,
   }))
 
   const isSyncing = ref(false)
   const isClearing = ref(false)
   const lastSyncTime = ref<null | string>(null)
   const swipeProgress = ref<null | {
-    deltaY: number
+    deltaY:    number
     direction: 'down' | 'left' | 'right' | 'up' | null
-    startY: number
+    startY:    number
   }>(null)
 
   usePlayerSession()
@@ -293,9 +292,9 @@
 
   const handleSwipeProgress = (
     progress: null | {
-      deltaY: number
+      deltaY:    number
       direction: 'down' | 'left' | 'right' | 'up' | null
-      startY: number
+      startY:    number
     },
   ): void => {
     swipeProgress.value = progress
@@ -317,7 +316,10 @@
 
 <template>
   <div id='app' class='h-screen text-foreground'>
-    <div v-if="authStatus === 'pending' || authStatus === 'initializing'" class='size-full flex items-center justify-center'>
+    <div
+      v-if="authStatus === 'pending' || authStatus === 'initializing'"
+      class='size-full flex items-center justify-center'
+    >
       <div class='text-center'>
         <div class='animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mx-auto' />
         <p class='mt-4 text-muted-foreground'>
@@ -325,7 +327,10 @@
         </p>
       </div>
     </div>
-    <div v-else-if="authStatus === 'error'" class='size-full flex items-center justify-center'>
+    <div
+      v-else-if="authStatus === 'error'"
+      class='size-full flex items-center justify-center'
+    >
       <div class='text-center max-w-md mx-auto p-8'>
         <div class='text-red-500 text-6xl mb-4'>
           !
