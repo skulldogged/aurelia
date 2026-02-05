@@ -17,8 +17,10 @@
     DropdownMenuTrigger,
   } from '../../components/ui/dropdown-menu'
   import { Skeleton } from '../../components/ui/skeleton'
+  import { ApiError, runAureliaEffect } from '../../effect'
+  import { getArtistEffect, getRelatedArtistsEffect } from '../../effect/services/api'
   import { scrollElementKey } from '../../composables/useMainLayout'
-  import { Album, Artist, getApiClient, Song } from '../../index'
+  import { Album, Artist, Song } from '../../index'
   import { logger } from '../../lib/logger'
   import { formatDuration } from '../../lib/utils'
   import { usePlayerStore } from '../../stores'
@@ -84,19 +86,22 @@
     loadingFallbackSongs.value = true
     artistDataError.value = false
     try {
-      const result = await getApiClient().getArtist(artistId)
-      if (result.status === 'ok' && result.data.songs) {
-        const songs = result.data.songs as Song[]
+      const artistData = await runAureliaEffect(getArtistEffect(artistId))
+      if (artistData.songs) {
+        const songs = artistData.songs as Song[]
         fallbackSongs.value = songs
         fallbackSongsCache.set(artistId, songs)
 
-        if (result.data.songs.length === 0)
+        if (artistData.songs.length === 0)
           artistDataError.value = true
       } else {
         artistDataError.value = true
       }
-    } catch (error) {
-      logger.error('Error fetching fallback artist songs:', error)
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      logger.error('Error fetching fallback artist songs:', errorMessage)
       artistDataError.value = true
     } finally {
       loadingFallbackSongs.value = false
@@ -138,10 +143,12 @@
         return
       }
 
-      const result = await getApiClient().getRelatedArtists(newArtist.id)
-      if (result.status === 'ok') {
-        relatedArtists.value = result.data as Artist[]
-        relatedArtistsCache.set(newArtist.id, result.data as Artist[])
+      try {
+        const artists = await runAureliaEffect(getRelatedArtistsEffect(newArtist.id))
+        relatedArtists.value = artists as Artist[]
+        relatedArtistsCache.set(newArtist.id, artists as Artist[])
+      } catch (cause) {
+        logger.warn('Failed to load related artists', cause)
       }
     }
   })

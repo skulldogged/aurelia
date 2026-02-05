@@ -14,8 +14,10 @@ const levelColors: Record<string, string> = {
   warn:  'gold',
 }
 
+const isDev = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV ?? false
+
 export const logger = createConsola({
-  level:     import.meta.env.DEV ? 4 : 2, // debug in dev, warn in prod
+  level:     isDev ? 4 : 2, // debug in dev, warn in prod
   reporters: [
     {
       log: logObj => {

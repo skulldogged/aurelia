@@ -1,9 +1,15 @@
 import { ref, type Ref, watch } from 'vue'
 
 import type { LastFmCredentials, Song } from '../generated'
-import type { Result } from '../lib/result'
 
-import { getApiClient } from '../index'
+import {
+  lastFmAuthenticateEffect,
+  lastFmClearCredentialsEffect,
+  lastFmScrobbleEffect,
+  lastFmSetCredentialsEffect,
+  lastFmUpdateNowPlayingEffect,
+} from '../effect/services/api'
+import { runAureliaEffect } from '../effect/runtime'
 import { logger } from '../lib/logger'
 import { useLastFmStore, usePlayerStore } from '../stores'
 
@@ -42,13 +48,13 @@ export const useLastFm = (): {
 
   // Restore credentials to Rust backend on init
   if (lastfmStore.credentials) {
-    void getApiClient().lastfmSetCredentials(lastfmStore.credentials).then((result: Result<unknown, string>) => {
-      if (result.status === 'error') {
-        logger.error('Failed to restore credentials to backend:', result.error)
-      } else {
+    void runAureliaEffect(lastFmSetCredentialsEffect(lastfmStore.credentials))
+      .then(() => {
         logger.debug('Loaded Last.fm credentials from localStorage')
-      }
-    })
+      })
+      .catch(error => {
+        logger.error('Failed to restore credentials to backend:', error)
+      })
   }
 
   let hasScrobbled = false
@@ -84,14 +90,8 @@ export const useLastFm = (): {
 
     try {
       logger.info('Scrobbling track:', { artist, timestamp, track })
-      const result = await getApiClient().lastfmScrobble(artist, track, album ?? undefined, timestamp)
-      if (result.status === 'error') {
-        logger.error('Failed to scrobble track:', result.error)
-        // Reset flag on error so we can retry
-        hasScrobbled = false
-      } else {
-        logger.debug('Successfully scrobbled track')
-      }
+      await runAureliaEffect(lastFmScrobbleEffect(artist, track, album ?? undefined, timestamp))
+      logger.debug('Successfully scrobbled track')
     } catch (error) {
       logger.error('Failed to scrobble track:', error)
       // Reset flag on error so we can retry
@@ -107,11 +107,11 @@ export const useLastFm = (): {
     const track = song.name
     const album = song.album ?? undefined
 
-    const result = await getApiClient().lastfmUpdateNowPlaying(artist, track, album ?? undefined)
-    if (result.status === 'error') {
-      logger.warn('Failed to update now playing:', result.error)
-    } else {
+    try {
+      await runAureliaEffect(lastFmUpdateNowPlayingEffect(artist, track, album ?? undefined))
       logger.debug('Successfully updated now playing')
+    } catch (error) {
+      logger.warn('Failed to update now playing:', error)
     }
   }
 
@@ -160,11 +160,7 @@ export const useLastFm = (): {
   ): Promise<LastFmCredentials> => {
     try {
       logger.info('Authenticating with Last.fm')
-      const result = await getApiClient().lastfmAuthenticate(apiKey, apiSecret, token)
-      if (result.status === 'error') {
-        throw new Error(result.error)
-      }
-      const credentials = result.data
+      const credentials = await runAureliaEffect(lastFmAuthenticateEffect(apiKey, apiSecret, token))
 
       lastfmStore.setCredentials(credentials)
       lastfmStore.setEnabled(true)
@@ -180,10 +176,7 @@ export const useLastFm = (): {
 
   const setCredentials = async (credentials: LastFmCredentials): Promise<void> => {
     try {
-      const result = await getApiClient().lastfmSetCredentials(credentials)
-      if (result.status === 'error') {
-        throw new Error(result.error)
-      }
+      await runAureliaEffect(lastFmSetCredentialsEffect(credentials))
       lastfmStore.setCredentials(credentials)
       lastfmStore.setEnabled(true)
       isEnabled.value = true
@@ -196,10 +189,7 @@ export const useLastFm = (): {
 
   const clearSession = async (): Promise<void> => {
     try {
-      const result = await getApiClient().lastfmClearCredentials()
-      if (result.status === 'error') {
-        throw new Error(result.error)
-      }
+      await runAureliaEffect(lastFmClearCredentialsEffect())
       lastfmStore.clearCredentials()
       isEnabled.value = false
       hasScrobbled = false

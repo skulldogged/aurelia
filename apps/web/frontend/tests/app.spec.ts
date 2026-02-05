@@ -1,15 +1,15 @@
 import { render } from '@testing-library/vue'
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, ref } from 'vue'
+import { ref } from 'vue'
 
 import App from '../src/App.vue'
 
 const stubs = vi.hoisted(() => {
-  const Stub = defineComponent({ template: '<div />' })
-  const LoginStub = defineComponent({ template: '<div data-testid="login">Login</div>' })
-  const MainLayoutStub = defineComponent({
+  const Stub = { template: '<div />' }
+  const LoginStub = { template: '<div data-testid="login">Login</div>' }
+  const MainLayoutStub = {
     template: '<div><slot /><slot name="queue" /><slot name="player" /><slot name="top-bar" /></div>',
-  })
+  }
 
   return { LoginStub, MainLayoutStub, Stub }
 })
@@ -26,17 +26,15 @@ vi.mock('@shared', () => {
     Queue: Stub,
     Login: LoginStub,
     Toaster: Stub,
-    getApiClient: () => ({
-      getSyncState: () => Promise.resolve({
-        status: 'ok',
-        data: {
-          lastSyncTime: null,
-          songCount: 0,
-          artistCount: 0,
-          albumCount: 0,
-        },
+    getSyncStateEffect: vi.fn(),
+    runAureliaEffect: vi.fn(() =>
+      Promise.resolve({
+        lastSyncTime: null,
+        songCount: 0,
+        artistCount: 0,
+        albumCount: 0,
       }),
-    }),
+    ),
     useAccentColorStore: () => ({}),
     useAuth: () => ({
       authStatus: ref('loggedOut'),

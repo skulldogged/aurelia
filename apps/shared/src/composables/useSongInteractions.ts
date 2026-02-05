@@ -3,9 +3,9 @@ import { toast } from 'vue-sonner'
 
 import type { Credentials, Song } from '../lib/api/types'
 
-import { getApiClient } from '../index'
+import { ApiError, runAureliaEffect } from '../effect'
+import { getInstantMixEffect, toggleFavoriteStatusEffect } from '../effect/services/api'
 import { logger } from '../lib/logger'
-import { withCustomState } from '../lib/result'
 import { useLibraryStore, usePlayerStore } from '../stores'
 
 const playSong = (playerStore: ReturnType<typeof usePlayerStore>, song: Song): void => {
@@ -87,28 +87,23 @@ const toggleFavorite = async (
   playerStore.updateSongFavorite(song.id, newFavoriteStatus)
   libraryStore.updateSongFavorite(song.id, newFavoriteStatus)
 
-  await withCustomState<boolean, string>(
-    () => getApiClient().toggleFavoriteStatus(
-      song.id,
-      newFavoriteStatus,
-    ),
-    {
-      onError: error => {
-        // Revert optimistic update on error
-        playerStore.updateSongFavorite(song.id, oldFavoriteStatus)
-        libraryStore.updateSongFavorite(song.id, oldFavoriteStatus)
-        logger.error('Failed to toggle favorite status:', error)
-        toast.error('Failed to update favorite')
-      },
-      onSuccess: newStatus => {
-        logger.debug('Successfully toggled favorite status', { newStatus, songId: song.id })
-        // Ensure final state matches server response
-        playerStore.updateSongFavorite(song.id, newStatus)
-        libraryStore.updateSongFavorite(song.id, newStatus)
-        toast.success(newStatus ? 'Added to favorites' : 'Removed from favorites')
-      },
-    },
-  )
+  try {
+    const newStatus = await runAureliaEffect(toggleFavoriteStatusEffect(song.id, newFavoriteStatus))
+    logger.debug('Successfully toggled favorite status', { newStatus, songId: song.id })
+    // Ensure final state matches server response
+    playerStore.updateSongFavorite(song.id, newStatus)
+    libraryStore.updateSongFavorite(song.id, newStatus)
+    toast.success(newStatus ? 'Added to favorites' : 'Removed from favorites')
+  } catch (cause) {
+    // Revert optimistic update on error
+    playerStore.updateSongFavorite(song.id, oldFavoriteStatus)
+    libraryStore.updateSongFavorite(song.id, oldFavoriteStatus)
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.error('Failed to toggle favorite status:', errorMessage)
+    toast.error('Failed to update favorite')
+  }
 }
 
 const playInstantMix = async (playerStore: ReturnType<typeof usePlayerStore>, song: Song): Promise<void> => {
@@ -118,14 +113,7 @@ const playInstantMix = async (playerStore: ReturnType<typeof usePlayerStore>, so
   }
 
   try {
-    const result = await getApiClient().getInstantMix(song.id)
-    if (result.status === 'error') {
-      logger.error('Failed to get instant mix:', result.error)
-      toast.error('Failed to create instant mix')
-      return
-    }
-
-    const instantMixSongs = result.data
+    const instantMixSongs = await runAureliaEffect(getInstantMixEffect(song.id))
     if (instantMixSongs.length === 0) {
       logger.warn('No songs found in instant mix')
       toast.warning('No similar songs found for instant mix')
@@ -140,8 +128,11 @@ const playInstantMix = async (playerStore: ReturnType<typeof usePlayerStore>, so
     playSongs(playerStore, songsToPlay)
     logger.info(`Started instant mix with ${songsToPlay.length} songs`)
     toast.success(`Started instant mix with ${songsToPlay.length} songs`)
-  } catch (error) {
-    logger.error('Error playing instant mix:', error)
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.error('Error playing instant mix:', errorMessage)
     toast.error('Failed to create instant mix')
   }
 }

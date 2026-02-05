@@ -18,7 +18,8 @@
   } from 'simple-icons'
   import { computed, ref, watch } from 'vue'
 
-  import { getApiClient } from '../../index'
+  import { runAureliaEffect } from '../../effect'
+  import { getAlbumShareUrlsEffect, getArtistShareUrlsEffect, getSongShareUrlsEffect } from '../../effect/services/api'
   import { logger } from '../../lib/logger'
   import { isTauri } from '../../lib/platform'
   import Button from '../ui/Button.vue'
@@ -129,21 +130,15 @@
 
       switch (props.itemType) {
         case 'album': {
-          const result = await getApiClient().getAlbumShareUrls(props.itemId)
-          if (result.status === 'error') throw new Error(result.error)
-          urls = result.data as Record<string, string>
+          urls = await runAureliaEffect(getAlbumShareUrlsEffect(props.itemId))
           break
         }
         case 'artist': {
-          const result = await getApiClient().getArtistShareUrls(props.itemId)
-          if (result.status === 'error') throw new Error(result.error)
-          urls = result.data as Record<string, string>
+          urls = await runAureliaEffect(getArtistShareUrlsEffect(props.itemId))
           break
         }
         case 'song': {
-          const result = await getApiClient().getSongShareUrls(props.itemId)
-          if (result.status === 'error') throw new Error(result.error)
-          urls = result.data as Record<string, string>
+          urls = await runAureliaEffect(getSongShareUrlsEffect(props.itemId))
           break
         }
       }

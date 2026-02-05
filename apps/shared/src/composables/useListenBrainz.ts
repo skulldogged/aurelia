@@ -1,9 +1,15 @@
 import { ref, type Ref, watch } from 'vue'
 
 import type { ListenBrainzCredentials, Song } from '../generated'
-import type { Result } from '../lib/result'
 
-import { getApiClient } from '../index'
+import {
+  listenBrainzClearCredentialsEffect,
+  listenBrainzPlayingNowEffect,
+  listenBrainzSetCredentialsEffect,
+  listenBrainzSubmitListenEffect,
+  listenBrainzValidateTokenEffect,
+} from '../effect/services/api'
+import { runAureliaEffect } from '../effect/runtime'
 import { logger } from '../lib/logger'
 import { useListenBrainzStore, usePlayerStore } from '../stores'
 
@@ -39,11 +45,9 @@ export const useListenBrainz = (): {
   }
 
   if (listenbrainzStore.credentials) {
-    void getApiClient()
-      .listenbrainzSetCredentials(listenbrainzStore.credentials)
-      .then((result: Result<unknown, string>) => {
-        if (result.status === 'error')
-          logger.error('Failed to restore credentials:', result.error)
+    void runAureliaEffect(listenBrainzSetCredentialsEffect(listenbrainzStore.credentials))
+      .catch(error => {
+        logger.error('Failed to restore credentials:', error)
       })
   }
 
@@ -70,18 +74,17 @@ export const useListenBrainz = (): {
     const album = song.album ?? null
     const duration = song.duration ? Math.floor(song.duration) : null
 
-    const result = await getApiClient().listenbrainzSubmitListen({
-      album,
-      artist,
-      duration,
-      track,
-    }, trackStartTimestamp)
-
-    if (result.status === 'error') {
-      logger.error('Failed to submit listen:', result.error)
-      hasScrobbled = false
-    } else {
+    try {
+      await runAureliaEffect(listenBrainzSubmitListenEffect({
+        album,
+        artist,
+        duration,
+        track,
+      }, trackStartTimestamp))
       logger.debug('Successfully submitted listen')
+    } catch (error) {
+      logger.error('Failed to submit listen:', error)
+      hasScrobbled = false
     }
   }
 
@@ -93,9 +96,11 @@ export const useListenBrainz = (): {
     const track = song.name
     const album = song.album ?? undefined
 
-    const result = await getApiClient().listenbrainzPlayingNow(artist, track, album)
-    if (result.status === 'error')
-      logger.warn('Failed to update playing now:', result.error)
+    try {
+      await runAureliaEffect(listenBrainzPlayingNowEffect(artist, track, album))
+    } catch (error) {
+      logger.warn('Failed to update playing now:', error)
+    }
   }
 
   watch(
@@ -129,11 +134,7 @@ export const useListenBrainz = (): {
 
   const validateToken = async (userToken: string): Promise<ListenBrainzCredentials> => {
     try {
-      const result = await getApiClient().listenbrainzValidateToken(userToken)
-      if (result.status === 'error')
-        throw new Error(result.error)
-
-      const credentials = result.data
+      const credentials = await runAureliaEffect(listenBrainzValidateTokenEffect(userToken))
 
       listenbrainzStore.setCredentials(credentials)
       listenbrainzStore.setEnabled(true)
@@ -149,10 +150,7 @@ export const useListenBrainz = (): {
 
   const setCredentials = async (credentials: ListenBrainzCredentials): Promise<void> => {
     try {
-      const result = await getApiClient().listenbrainzSetCredentials(credentials)
-      if (result.status === 'error')
-        throw new Error(result.error)
-
+      await runAureliaEffect(listenBrainzSetCredentialsEffect(credentials))
       listenbrainzStore.setCredentials(credentials)
       listenbrainzStore.setEnabled(true)
       isEnabled.value = true
@@ -164,10 +162,7 @@ export const useListenBrainz = (): {
 
   const clearSession = async (): Promise<void> => {
     try {
-      const result = await getApiClient().listenbrainzClearCredentials()
-      if (result.status === 'error')
-        throw new Error(result.error)
-
+      await runAureliaEffect(listenBrainzClearCredentialsEffect())
       listenbrainzStore.clearCredentials()
       isEnabled.value = false
       hasScrobbled = false

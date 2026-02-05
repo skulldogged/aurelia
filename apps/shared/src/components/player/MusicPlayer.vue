@@ -25,7 +25,9 @@
 
   import { useAudioEngine } from '../../composables/useAudioEngine'
   import { useSwipe } from '../../composables/useSwipe'
-  import { getApiClient, isDesktop } from '../../index'
+  import { runAureliaEffect } from '../../effect'
+  import { getLyricsEffect } from '../../effect/services/api'
+  import { isDesktop } from '../../index'
   import { logger } from '../../lib/logger'
   import { getSongFormatInfo } from '../../lib/utils'
   import { usePlayerStore } from '../../stores'
@@ -101,14 +103,13 @@
       } else {
         if (newSong.artists && newSong.artists.length > 0) {
           try {
-            const result = await getApiClient().getLyrics(
+            const lyrics = await runAureliaEffect(getLyricsEffect(
               newSong.id,
               newSong.artists[0],
               newSong.name,
               undefined,
-            )
-
-            playerStore.setHasLyrics(result.status === 'ok' && !!result.data && result.data.trim() !== '')
+            ))
+            playerStore.setHasLyrics(!!lyrics && lyrics.trim() !== '')
           } catch {
             playerStore.setHasLyrics(false)
           }

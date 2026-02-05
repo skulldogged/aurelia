@@ -4,10 +4,17 @@ import { toast } from 'vue-sonner'
 
 import type { Playlist, PlaylistCreateData, PlaylistUpdateData, Song } from '../lib/api/types'
 
+import { ApiError } from '../effect/errors'
+import {
+  createPlaylistEffect,
+  deletePlaylistEffect,
+  getPlaylistItemsEffect,
+  getPlaylistsEffect,
+  updatePlaylistEffect,
+} from '../effect/services/api'
+import { runAureliaEffect } from '../effect/runtime'
 import { useImageLoader } from '../composables/useImageLoader'
-import { getApiClient } from '../index'
 import { logger } from '../lib/logger'
-import { withCustomState } from '../lib/result'
 import { usePlayerStore } from './player'
 
 const STORAGE_KEYS = {
@@ -21,6 +28,13 @@ export type PlaylistWithMeta = Omit<Playlist, 'songs'> & {
 }
 
 type PlaylistUpdateInput = Partial<PlaylistUpdateData>
+
+const toPlaylistWithMeta = (playlist: Playlist): PlaylistWithMeta => ({
+  ...playlist,
+  createdAt: new Date(playlist.dateCreated || playlist.dateLastSaved || Date.now()),
+  songs:     playlist.songs ?? [],
+  updatedAt: new Date(playlist.dateLastSaved || playlist.dateCreated || Date.now()),
+})
 
 export const usePlaylistStore = defineStore('playlists', () => {
   // State
@@ -56,66 +70,48 @@ export const usePlaylistStore = defineStore('playlists', () => {
 
   // Actions
   const loadPlaylists = async (): Promise<void> => {
-    await withCustomState<Playlist[], string>(
-      () => getApiClient().getPlaylists(),
-      {
-        onError: errorString => {
-          error.value = `Failed to load playlists: ${errorString}`
-          logger.error('Failed to load playlists:', errorString)
-          isLoading.value = false
-        },
-        onStart: () => {
-          isLoading.value = true
-          error.value = null
-          logger.info('Loading playlists...')
-        },
-        onSuccess: loadedPlaylists => {
-          playlists.value = loadedPlaylists.map(p => ({
-            ...p,
-            createdAt: new Date(p.dateCreated || p.dateLastSaved || Date.now()),
-            songs:     p.songs ?? [],
-            updatedAt: new Date(p.dateLastSaved || p.dateCreated || Date.now()),
-          }))
-          isLoading.value = false
-          logger.info(`Playlists loaded successfully: ${playlists.value.length} playlists`)
-          playlists.value.forEach(p => {
-            logger.debug(`Playlist: ${p.name} (ID: ${p.id}, Songs: ${p.childCount || 0})`)
-          })
-        },
-      },
-    )
+    isLoading.value = true
+    error.value = null
+    logger.info('Loading playlists...')
+
+    try {
+      const loadedPlaylists = await runAureliaEffect(getPlaylistsEffect())
+      playlists.value = loadedPlaylists.map(toPlaylistWithMeta)
+      logger.info(`Playlists loaded successfully: ${playlists.value.length} playlists`)
+      playlists.value.forEach(p => {
+        logger.debug(`Playlist: ${p.name} (ID: ${p.id}, Songs: ${p.childCount || 0})`)
+      })
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      error.value = `Failed to load playlists: ${errorMessage}`
+      logger.error('Failed to load playlists:', errorMessage)
+    } finally {
+      isLoading.value = false
+    }
   }
 
   const createPlaylist = async (data: PlaylistCreateData): Promise<null | PlaylistWithMeta> => {
-    let newPlaylist: null | PlaylistWithMeta = null
+    error.value = null
+    logger.info('Creating playlist:', data.name)
 
-    await withCustomState<Playlist, string>(
-      () => getApiClient().createPlaylist(data),
-      {
-        onError: errorString => {
-          error.value = `Failed to create playlist: ${errorString}`
-          logger.error('Failed to create playlist:', errorString)
-          toast.error('Failed to create playlist')
-        },
-        onStart: () => {
-          error.value = null
-          logger.info('Creating playlist:', data.name)
-        },
-        onSuccess: createdPlaylist => {
-          newPlaylist = {
-            ...createdPlaylist,
-            createdAt: new Date(createdPlaylist.dateCreated || createdPlaylist.dateLastSaved || Date.now()),
-            songs:     createdPlaylist.songs ?? [],
-            updatedAt: new Date(createdPlaylist.dateLastSaved || createdPlaylist.dateCreated || Date.now()),
-          }
-          playlists.value.push(newPlaylist)
-          logger.info('Playlist created successfully:', newPlaylist.name)
-          toast.success(`Created playlist "${newPlaylist.name}"`)
-        },
-      },
-    )
-
-    return newPlaylist
+    try {
+      const createdPlaylist = await runAureliaEffect(createPlaylistEffect(data))
+      const newPlaylist = toPlaylistWithMeta(createdPlaylist)
+      playlists.value.push(newPlaylist)
+      logger.info('Playlist created successfully:', newPlaylist.name)
+      toast.success(`Created playlist "${newPlaylist.name}"`)
+      return newPlaylist
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      error.value = `Failed to create playlist: ${errorMessage}`
+      logger.error('Failed to create playlist:', errorMessage)
+      toast.error('Failed to create playlist')
+      return null
+    }
   }
 
   const buildUpdatePayload = (updates: PlaylistUpdateInput): PlaylistUpdateData => ({
@@ -128,80 +124,67 @@ export const usePlaylistStore = defineStore('playlists', () => {
   })
 
   const updatePlaylist = async (id: string, updates: PlaylistUpdateInput): Promise<boolean> => {
-    let success = false
+    error.value = null
+    logger.info('Updating playlist:', id)
 
-    await withCustomState<Playlist, string>(
-      () => getApiClient().updatePlaylist(id, buildUpdatePayload(updates)),
-      {
-        onError: errorString => {
-          error.value = `Failed to update playlist: ${errorString}`
-          logger.error('Failed to update playlist:', errorString)
-        },
-        onStart: () => {
-          error.value = null
-          logger.info('Updating playlist:', id)
-        },
-        onSuccess: updatedPlaylist => {
-          const index = playlists.value.findIndex(p => p.id === id)
-          if (index !== -1) {
-            // Convert date strings to Date objects and normalize field names
-            playlists.value[index] = {
-              ...updatedPlaylist,
-              createdAt: new Date(updatedPlaylist.dateCreated || updatedPlaylist.dateLastSaved || Date.now()),
-              songs:     updatedPlaylist.songs ?? [],
-              updatedAt: new Date(updatedPlaylist.dateLastSaved || updatedPlaylist.dateCreated || Date.now()),
-            }
-          }
-          success = true
-          logger.info('Playlist updated successfully:', updatedPlaylist.name)
-        },
-      },
-    )
-
-    return success
+    try {
+      const updatedPlaylist = await runAureliaEffect(updatePlaylistEffect(id, buildUpdatePayload(updates)))
+      const index = playlists.value.findIndex(p => p.id === id)
+      if (index !== -1) {
+        // Convert date strings to Date objects and normalize field names
+        playlists.value[index] = toPlaylistWithMeta(updatedPlaylist)
+      }
+      logger.info('Playlist updated successfully:', updatedPlaylist.name)
+      return true
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      error.value = `Failed to update playlist: ${errorMessage}`
+      logger.error('Failed to update playlist:', errorMessage)
+      return false
+    }
   }
 
   const deletePlaylist = async (id: string): Promise<boolean> => {
-    let success = false
     const playlistName = playlists.value.find(p => p.id === id)?.name
 
-    await withCustomState<void, string>(
-      () => getApiClient().deletePlaylist(id),
-      {
-        onError: errorString => {
-          error.value = `Failed to delete playlist: ${errorString}`
-          logger.error('Failed to delete playlist:', errorString)
-          toast.error('Failed to delete playlist')
-        },
-        onStart: () => {
-          error.value = null
-          logger.info('Deleting playlist:', id)
-        },
-        onSuccess: async () => {
-          const index = playlists.value.findIndex(p => p.id === id)
-          if (index !== -1) {
-            const deletedName = playlists.value[index].name
-            playlists.value.splice(index, 1)
-            // Clear current playlist if it was deleted
-            if (currentPlaylistId.value === id) {
-              setCurrentPlaylist(null)
-            }
-            logger.info('Playlist deleted successfully:', deletedName)
-            logger.info('Clearing image cache for playlist ID:', id)
-          }
+    error.value = null
+    logger.info('Deleting playlist:', id)
 
-          // Clear the image from frontend cache
-          const imageLoader = useImageLoader()
-          await imageLoader.clearImageFromCache(id, 'Primary')
-          logger.info('Frontend image cache cleared for:', id)
+    try {
+      await runAureliaEffect(deletePlaylistEffect(id))
 
-          success = true
-          toast.success(playlistName ? `Deleted "${playlistName}"` : 'Playlist deleted')
-        },
-      },
-    )
+      const index = playlists.value.findIndex(p => p.id === id)
+      if (index !== -1) {
+        const deletedName = playlists.value[index].name
+        playlists.value.splice(index, 1)
+        // Clear current playlist if it was deleted
+        if (currentPlaylistId.value === id) {
+          setCurrentPlaylist(null)
+        }
+        logger.info('Playlist deleted successfully:', deletedName)
+        logger.info('Clearing image cache for playlist ID:', id)
+      }
 
-    return success
+      // Clear the image from frontend cache (best-effort)
+      const imageLoader = useImageLoader()
+      await imageLoader.clearImageFromCache(id, 'Primary').catch(cacheError => {
+        logger.warn('Failed to clear playlist image from frontend cache:', cacheError)
+      })
+      logger.info('Frontend image cache cleared for:', id)
+
+      toast.success(playlistName ? `Deleted "${playlistName}"` : 'Playlist deleted')
+      return true
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      error.value = `Failed to delete playlist: ${errorMessage}`
+      logger.error('Failed to delete playlist:', errorMessage)
+      toast.error('Failed to delete playlist')
+      return false
+    }
   }
 
   const addSongsToPlaylist = async (playlistId: string, songs: Song[]): Promise<boolean> => {
@@ -292,27 +275,21 @@ export const usePlaylistStore = defineStore('playlists', () => {
   }
 
   const getPlaylistItems = async (playlistId: string): Promise<Song[]> => {
-    let items: Song[] = []
+    error.value = null
+    logger.info('Getting playlist items for:', playlistId)
 
-    await withCustomState<Song[], string>(
-      () => getApiClient().getPlaylistItems(playlistId),
-      {
-        onError: errorString => {
-          error.value = `Failed to get playlist items: ${errorString}`
-          logger.error('Failed to get playlist items:', errorString)
-        },
-        onStart: () => {
-          error.value = null
-          logger.info('Getting playlist items for:', playlistId)
-        },
-        onSuccess: songs => {
-          items = songs
-          logger.info('Retrieved playlist items successfully')
-        },
-      },
-    )
-
-    return items
+    try {
+      const songs = await runAureliaEffect(getPlaylistItemsEffect(playlistId))
+      logger.info('Retrieved playlist items successfully')
+      return songs
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      error.value = `Failed to get playlist items: ${errorMessage}`
+      logger.error('Failed to get playlist items:', errorMessage)
+      return []
+    }
   }
 
   const playPlaylist = async (playlistId: string, shuffle = false): Promise<void> => {

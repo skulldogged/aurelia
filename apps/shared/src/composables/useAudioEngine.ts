@@ -10,7 +10,13 @@ import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'v
 import type { NowPlayingPayload, Song } from '../lib/api/types'
 
 import { type AudioPlayer, type AudioPosition, getAudioPlayer } from '../audio'
-import { getApiClient } from '../index'
+import { runAureliaEffect } from '../effect'
+import {
+  getAudioStreamUrlEffect,
+  mediaSetButtonEnabledEffect,
+  mediaSetPlaybackStatusEffect,
+  mediaUpdateNowPlayingEffect,
+} from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { isDesktop, isTauri } from '../lib/platform'
 import { usePlayerStore } from '../stores'
@@ -109,9 +115,6 @@ export const useAudioEngine = (
     if (!isTauri()) return
 
     try {
-      const client = getApiClient()
-      const mediaUpdateNowPlaying = client.mediaUpdateNowPlaying
-      if (!mediaUpdateNowPlaying) return
       const payload: NowPlayingPayload = {
         album:    song.album ?? null,
         artist:   song.artists?.join(', ') ?? null,
@@ -119,7 +122,7 @@ export const useAudioEngine = (
         duration: song.duration ?? null,
         title:    song.name,
       }
-      await mediaUpdateNowPlaying(payload)
+      await runAureliaEffect(mediaUpdateNowPlayingEffect(payload))
       logger.debug(`Updated OS Now Playing: ${song.name}`)
     } catch (error) {
       logger.error('Failed to update Now Playing:', error)
@@ -131,15 +134,12 @@ export const useAudioEngine = (
     if (!isTauri()) return
 
     try {
-      const client = getApiClient()
-      const mediaSetButtonEnabled = client.mediaSetButtonEnabled
-      if (!mediaSetButtonEnabled) return
       const canGoNext = hasNext.value || playerStore.repeatMode === 'all'
       const canGoPrevious = hasPrevious.value
 
       await Promise.all([
-        mediaSetButtonEnabled('next', canGoNext),
-        mediaSetButtonEnabled('previous', canGoPrevious),
+        runAureliaEffect(mediaSetButtonEnabledEffect('next', canGoNext)),
+        runAureliaEffect(mediaSetButtonEnabledEffect('previous', canGoPrevious)),
       ])
       logger.debug(`Updated media buttons: next=${canGoNext}, previous=${canGoPrevious}`)
     } catch (error) {
@@ -215,17 +215,14 @@ export const useAudioEngine = (
     }
 
     try {
-      const streamResult = await getApiClient().getAudioStreamUrl(
+      const streamUrl = await runAureliaEffect(getAudioStreamUrlEffect(
         next.id,
         props.serverUrl,
         props.token,
         next.container ?? undefined,
-      )
-
-      if (streamResult.status === 'ok') {
-        await audioPlayer.prepareNext(streamResult.data, props.token)
-        logger.debug(`[PrepareNext] Successfully prepared: ${next.name}`)
-      }
+      ))
+      await audioPlayer.prepareNext(streamUrl, props.token)
+      logger.debug(`[PrepareNext] Successfully prepared: ${next.name}`)
     } catch (error) {
       logger.error('[PrepareNext] Failed to prepare next track:', error)
     }
@@ -281,19 +278,14 @@ export const useAudioEngine = (
       playerStore.setAudioReady(false)
       playerStore.setBuffering(true)
 
-      const streamResult = await getApiClient().getAudioStreamUrl(
+      const streamUrl = await runAureliaEffect(getAudioStreamUrlEffect(
         song.id,
         props.serverUrl,
         props.token,
         song.container ?? undefined,
-      )
+      ))
 
-      if (streamResult.status === 'error') {
-        logger.error('Failed to get audio stream URL:', streamResult.error)
-        throw new Error(streamResult.error)
-      }
-
-      const loadResult = await audioPlayer.load(streamResult.data, props.token, {
+      const loadResult = await audioPlayer.load(streamUrl, props.token, {
         album:      song.album ?? null,
         artist:     song.artists?.join(', ') ?? null,
         artworkUrl: song.albumArtUrl ?? null,
@@ -460,8 +452,8 @@ export const useAudioEngine = (
     }
 
     // Sync playback status to OS Now Playing (desktop only)
-    if (isDesktop() && getApiClient().mediaSetPlaybackStatus) {
-      getApiClient().mediaSetPlaybackStatus?.(isPlaying, playerStore.currentTime).catch(() => {})
+    if (isDesktop()) {
+      runAureliaEffect(mediaSetPlaybackStatusEffect(isPlaying, playerStore.currentTime)).catch(() => {})
     }
   })
 

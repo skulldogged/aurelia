@@ -2,7 +2,7 @@
   import type { Song } from '@shared/lib/api/types'
   import type { Credentials } from '@shared/lib/api/types'
 
-  import { getApiClient, isDesktop } from '@shared'
+  import { getSyncStateEffect, isDesktop, quitApplicationEffect, runAureliaEffect } from '@shared'
   // Import from shared package
   import MainLayout from '@shared/components/layout/MainLayout.vue'
   import Equalizer from '@shared/components/player/Equalizer.vue'
@@ -229,9 +229,13 @@
   }
 
   const fetchSyncState = async (): Promise<void> => {
-    const result = await getApiClient().getSyncState()
-    if (result.status === 'ok' && result.data.lastSyncTime)
-      lastSyncTime.value = result.data.lastSyncTime
+    try {
+      const syncState = await runAureliaEffect(getSyncStateEffect())
+      if (syncState.lastSyncTime)
+        lastSyncTime.value = syncState.lastSyncTime
+    } catch {
+      // best-effort sync state fetch
+    }
   }
 
   watch(authStatus, async newStatus => {
@@ -304,7 +308,7 @@
   const confirmExit = async (): Promise<void> => {
     showExitDialog.value = false
     // Exit the app
-    await getApiClient().quitApplication?.()
+    await runAureliaEffect(quitApplicationEffect()).catch(() => {})
   }
 
   const cancelExit = (): void => {

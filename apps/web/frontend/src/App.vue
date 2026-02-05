@@ -5,7 +5,7 @@
   import {
     Equalizer,
     FullscreenPlayer,
-    getApiClient,
+    getSyncStateEffect,
     GlobalSearch,
     Login,
     LyricsSidebar,
@@ -25,6 +25,7 @@
     useThemeStore,
     useTopBar,
     useVisualizerData,
+    runAureliaEffect,
   } from '@shared'
   import Button from '@shared/components/ui/Button.vue'
   import { useLastFm } from '@shared/composables/useLastFm'
@@ -230,9 +231,13 @@
   }
 
   const fetchSyncState = async (): Promise<void> => {
-    const result = await getApiClient().getSyncState()
-    if (result.status === 'ok' && result.data.lastSyncTime)
-      lastSyncTime.value = result.data.lastSyncTime
+    try {
+      const syncState = await runAureliaEffect(getSyncStateEffect())
+      if (syncState.lastSyncTime)
+        lastSyncTime.value = syncState.lastSyncTime
+    } catch {
+      // best-effort sync state fetch
+    }
   }
 
   const handleSyncLibrary = async (): Promise<void> => {

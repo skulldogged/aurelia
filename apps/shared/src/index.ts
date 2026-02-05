@@ -28,6 +28,7 @@ export const setApiClient = (client: ApiClient, platformType: 'desktop' | 'web')
 
 // Unified API client (works on both desktop and web)
 export { apiClient } from './api/apiClient'
+export * from './effect'
 
 // Audio
 export * from './audio'

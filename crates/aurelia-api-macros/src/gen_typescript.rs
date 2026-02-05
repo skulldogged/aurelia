@@ -115,6 +115,7 @@ import type {{ {type_imports} }} from '../generated';
 type Result<T, E = string> = 
   | {{ status: 'ok'; data: T }}
   | {{ status: 'error'; error: E }};
+type QueryValue = string | number | boolean | ReadonlyArray<string | number | boolean> | undefined;
 
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 // Check for Tauri v2 internals using 'in' operator
@@ -136,13 +137,20 @@ async function webRequest<T>(
   method: string,
   endpoint: string,
   body?: unknown,
-  query?: Record<string, string | number | undefined>
+  query?: Record<string, QueryValue>
 ): Promise<Result<T>> {{
   let url = `${{BASE_URL}}/api${{endpoint}}`;
   if (query) {{
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) {{
-      if (value !== undefined) {{
+      if (value === undefined) {{
+        continue;
+      }}
+      if (Array.isArray(value)) {{
+        for (const item of value) {{
+          params.append(key, String(item));
+        }}
+      }} else {{
         params.append(key, String(value));
       }}
     }}

@@ -4,9 +4,9 @@
 
   import type { Song } from '../../lib/api/types'
 
-  import { getApiClient } from '../../index'
+  import { ApiError, runAureliaEffect } from '../../effect'
+  import { getLyricsEffect } from '../../effect/services/api'
   import { logger } from '../../lib/logger'
-  import { withCustomState } from '../../lib/result'
 
   interface LyricLine {
     text: string
@@ -34,8 +34,6 @@
   const activeLineRef = ref<HTMLParagraphElement | null>(null)
   const lyricsContainerRef = ref<HTMLDivElement | null>(null)
   const currentLyricsRequestToken = ref<null | symbol>(null)
-
-  const getLyrics = getApiClient().getLyrics
 
   const areLyricsSynced = computed(() => lyrics.value ? /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyrics.value) : false)
 
@@ -77,36 +75,34 @@
         const requestToken = Symbol('lyrics-request')
         currentLyricsRequestToken.value = requestToken
 
-        await withCustomState<string, string>(
-          () => getLyrics(
+        if (currentLyricsRequestToken.value === requestToken)
+          isLoading.value = true
+
+        try {
+          const lyricsData = await runAureliaEffect(getLyricsEffect(
             newSong.id,
             newSong.artists![0],
             newSong.name,
             undefined,
-          ),
-          {
-            onError: errorString => {
-              if (currentLyricsRequestToken.value !== requestToken) return
-              error.value = errorString
-              logger.error('Failed to fetch lyrics:', errorString)
-              isLoading.value = false
-              emit('lyrics-loaded', false)
-            },
-            onStart: () => {
-              if (currentLyricsRequestToken.value !== requestToken) return
-              isLoading.value = true
-            },
-            onSuccess: lyricsData => {
-              if (currentLyricsRequestToken.value !== requestToken) return
-              lyrics.value = lyricsData
-              if (areLyricsSynced.value && lyricsData) {
-                parsedLyrics.value = parseLrc(lyricsData)
-              }
-              isLoading.value = false
-              emit('lyrics-loaded', !!lyricsData)
-            },
-          },
-        )
+          ))
+          if (currentLyricsRequestToken.value !== requestToken) return
+          lyrics.value = lyricsData
+          if (areLyricsSynced.value && lyricsData) {
+            parsedLyrics.value = parseLrc(lyricsData)
+          }
+          emit('lyrics-loaded', !!lyricsData)
+        } catch (cause) {
+          if (currentLyricsRequestToken.value !== requestToken) return
+          const errorString = cause instanceof ApiError
+            ? cause.message
+            : String(cause)
+          error.value = errorString
+          logger.error('Failed to fetch lyrics:', errorString)
+          emit('lyrics-loaded', false)
+        } finally {
+          if (currentLyricsRequestToken.value !== requestToken) return
+          isLoading.value = false
+        }
       } else {
         error.value = 'Artist not available'
         logger.error('Lyrics loading error: Artist not available')

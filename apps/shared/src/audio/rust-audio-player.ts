@@ -5,7 +5,30 @@
  * Implements the unified AudioPlayer interface.
  */
 
-import { getApiClient } from '../index'
+import { runAureliaEffect } from '../effect'
+import {
+  audioAdvanceGaplessEffect,
+  audioGetAllEqBandsEffect,
+  audioGetEqBandEffect,
+  audioGetPositionEffect,
+  audioGetVolumeEffect,
+  audioInitEffect,
+  audioIsEqEnabledEffect,
+  audioIsFinishedEffect,
+  audioIsPlayingEffect,
+  audioPauseEffect,
+  audioPlayEffect,
+  audioPrepareNextEffect,
+  audioReinitializeEffect,
+  audioResetEqEffect,
+  audioResumeEffect,
+  audioSeekEffect,
+  audioSetEqBandEffect,
+  audioSetEqEnabledEffect,
+  audioSetVolumeEffect,
+  audioStopEffect,
+  mediaClearNowPlayingEffect,
+} from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { isTauri } from '../lib/platform'
 import {
@@ -30,15 +53,13 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   private unlisteners:       (() => void)[] = []
 
   async advanceGapless(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioAdvanceGapless) return false
-
-    const result = await client.audioAdvanceGapless()
-    if (result.status === 'error') {
-      logger.error('Failed to advance gapless:', result.error)
+    try {
+      await runAureliaEffect(audioAdvanceGaplessEffect())
+      return true
+    } catch (cause) {
+      logger.error('Failed to advance gapless:', cause)
       return false
     }
-    return true
   }
 
   async applyEQPreset(presetName: string): Promise<boolean> {
@@ -72,21 +93,17 @@ export class RustAudioPlayerImpl implements AudioPlayer {
     this.trackEndCallbacks = []
 
     // Clear Now Playing
-    const client = getApiClient()
-    if (client.mediaClearNowPlaying) {
-      await client.mediaClearNowPlaying().catch(() => {})
-    }
+    await runAureliaEffect(mediaClearNowPlayingEffect()).catch(() => {})
 
     logger.debug('Rust audio player destroyed')
   }
 
   async getAllEQBands(): Promise<number[]> {
-    const client = getApiClient()
-    if (!client.audioGetAllEqBands) return [0, 0, 0, 0, 0]
-
-    const result = await client.audioGetAllEqBands()
-    if (result.status === 'error') return [0, 0, 0, 0, 0]
-    return result.data
+    try {
+      return await runAureliaEffect(audioGetAllEqBandsEffect())
+    } catch {
+      return [0, 0, 0, 0, 0]
+    }
   }
 
   getAnalyserNode(): AnalyserNode | null {
@@ -105,12 +122,11 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   async getEQBand(bandIndex: number): Promise<number> {
-    const client = getApiClient()
-    if (!client.audioGetEqBand) return 0
-
-    const result = await client.audioGetEqBand(bandIndex)
-    if (result.status === 'error') return 0
-    return result.data
+    try {
+      return await runAureliaEffect(audioGetEqBandEffect(bandIndex))
+    } catch {
+      return 0
+    }
   }
 
   getEQPresets(): EQPreset[] {
@@ -118,33 +134,26 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   async getPosition(): Promise<number> {
-    const client = getApiClient()
-    if (!client.audioGetPosition) return 0
-
-    const result = await client.audioGetPosition()
-    if (result.status === 'error') return 0
-    return result.data
+    try {
+      return await runAureliaEffect(audioGetPositionEffect())
+    } catch {
+      return 0
+    }
   }
 
   async getVolume(): Promise<number> {
-    const client = getApiClient()
-    if (!client.audioGetVolume) return 1.0
-
-    const result = await client.audioGetVolume()
-    if (result.status === 'error') return 1.0
-    return result.data
+    try {
+      return await runAureliaEffect(audioGetVolumeEffect())
+    } catch {
+      return 1.0
+    }
   }
 
   async initialize(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioInit) {
-      logger.warn('Rust audio player not available on this platform')
-      return false
-    }
-
-    const result = await client.audioInit()
-    if (result.status === 'error') {
-      logger.error('Failed to initialize Rust audio player:', result.error)
+    try {
+      await runAureliaEffect(audioInitEffect())
+    } catch (cause) {
+      logger.error('Failed to initialize Rust audio player:', cause)
       return false
     }
 
@@ -160,30 +169,27 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   async isEQEnabled(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioIsEqEnabled) return false
-
-    const result = await client.audioIsEqEnabled()
-    if (result.status === 'error') return false
-    return result.data
+    try {
+      return await runAureliaEffect(audioIsEqEnabledEffect())
+    } catch {
+      return false
+    }
   }
 
   async isFinished(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioIsFinished) return true
-
-    const result = await client.audioIsFinished()
-    if (result.status === 'error') return true
-    return result.data
+    try {
+      return await runAureliaEffect(audioIsFinishedEffect())
+    } catch {
+      return true
+    }
   }
 
   async isPlaying(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioIsPlaying) return false
-
-    const result = await client.audioIsPlaying()
-    if (result.status === 'error') return false
-    return result.data
+    try {
+      return await runAureliaEffect(audioIsPlayingEffect())
+    } catch {
+      return false
+    }
   }
 
   async load(url: string, token: string, metadata?: PlayMetadata): Promise<AudioLoadResult> {
@@ -192,11 +198,7 @@ export class RustAudioPlayerImpl implements AudioPlayer {
         return { duration: 0, success: false }
       }
 
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('audio_play', {
-        token,
-        url,
-      })
+      await runAureliaEffect(audioPlayEffect(url, token))
 
       logger.debug(`Loaded audio: ${metadata?.title || url}`)
       return { duration: 0, success: true }
@@ -239,47 +241,40 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   async pause(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioPause) return false
-
-    const result = await client.audioPause()
-    if (result.status === 'error') {
-      logger.error('Failed to pause audio:', result.error)
+    try {
+      await runAureliaEffect(audioPauseEffect())
+      return true
+    } catch (cause) {
+      logger.error('Failed to pause audio:', cause)
       return false
     }
-    return true
   }
 
   async play(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioResume) return false
-
-    const result = await client.audioResume()
-    if (result.status === 'error') {
-      logger.error('Failed to play audio:', result.error)
+    try {
+      await runAureliaEffect(audioResumeEffect())
+      return true
+    } catch (cause) {
+      logger.error('Failed to play audio:', cause)
       return false
     }
-    return true
   }
 
   async prepareNext(url: string, token: string): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioPrepareNext) return false
-
-    const result = await client.audioPrepareNext(url, token)
-    if (result.status === 'error') {
-      logger.error('Failed to prepare next track:', result.error)
+    try {
+      await runAureliaEffect(audioPrepareNextEffect(url, token))
+      return true
+    } catch (cause) {
+      logger.error('Failed to prepare next track:', cause)
       return false
     }
-    return true
   }
 
   async reinitialize(): Promise<boolean> {
     if (!isTauri()) return false
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('audio_reinit')
+      await runAureliaEffect(audioReinitializeEffect())
       logger.info('Rust audio player reinitialized')
       return true
     } catch (error) {
@@ -289,75 +284,63 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   async resetEQ(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioResetEq) return false
-
-    const result = await client.audioResetEq()
-    if (result.status === 'error') {
-      logger.error('Failed to reset EQ:', result.error)
+    try {
+      await runAureliaEffect(audioResetEqEffect())
+      return true
+    } catch (cause) {
+      logger.error('Failed to reset EQ:', cause)
       return false
     }
-    return true
   }
 
   async seek(positionSecs: number): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioSeek) return false
-
-    const result = await client.audioSeek(positionSecs)
-    if (result.status === 'error') {
-      logger.error('Failed to seek:', result.error)
+    try {
+      await runAureliaEffect(audioSeekEffect(positionSecs))
+      return true
+    } catch (cause) {
+      logger.error('Failed to seek:', cause)
       return false
     }
-    return true
   }
 
   async setEQBand(bandIndex: number, gainDb: number): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioSetEqBand) return false
-
-    const result = await client.audioSetEqBand(bandIndex, gainDb)
-    if (result.status === 'error') {
-      logger.error(`Failed to set EQ band ${bandIndex}:`, result.error)
+    try {
+      await runAureliaEffect(audioSetEqBandEffect(bandIndex, gainDb))
+      return true
+    } catch (cause) {
+      logger.error(`Failed to set EQ band ${bandIndex}:`, cause)
       return false
     }
-    return true
   }
 
   async setEQEnabled(enabled: boolean): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioSetEqEnabled) return false
-
-    const result = await client.audioSetEqEnabled(enabled)
-    if (result.status === 'error') {
-      logger.error('Failed to set EQ enabled:', result.error)
+    try {
+      await runAureliaEffect(audioSetEqEnabledEffect(enabled))
+      return true
+    } catch (cause) {
+      logger.error('Failed to set EQ enabled:', cause)
       return false
     }
-    return true
   }
 
   async setVolume(volume: number): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioSetVolume) return false
-
-    const result = await client.audioSetVolume(volume)
-    if (result.status === 'error') {
-      logger.error('Failed to set volume:', result.error)
+    try {
+      await runAureliaEffect(audioSetVolumeEffect(volume))
+      return true
+    } catch (cause) {
+      logger.error('Failed to set volume:', cause)
       return false
     }
-    return true
   }
 
   async stop(): Promise<boolean> {
-    const client = getApiClient()
-    if (!client.audioStop) return false
-
-    const result = await client.audioStop()
-    if (result.status === 'error') {
-      logger.error('Failed to stop audio:', result.error)
+    try {
+      await runAureliaEffect(audioStopEffect())
+      return true
+    } catch (cause) {
+      logger.error('Failed to stop audio:', cause)
       return false
     }
-    return true
   }
 
   // Private helper methods
