@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 import { toast } from 'vue-sonner'
 
-import type { Album, Artist, Credentials, Song } from '../generated'
+import type { Album, Artist, Song } from '../generated'
 
 import { ApiError } from '../effect/errors'
 import { runAureliaEffect } from '../effect/runtime'
@@ -123,7 +123,7 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
-  const syncLibrary = async (_credentials: Credentials): Promise<void> => {
+  const syncLibrary = async (): Promise<void> => {
     logger.info('Starting library sync...')
     const toastId = toast.loading('Syncing library...')
 
@@ -145,7 +145,7 @@ export const useLibraryStore = defineStore('library', () => {
     }
   }
 
-  const clearCache = async (_credentials: Credentials): Promise<void> => {
+  const clearCache = async (): Promise<void> => {
     logger.info('Starting cache clear...')
     const toastId = toast.loading('Clearing cache...')
 

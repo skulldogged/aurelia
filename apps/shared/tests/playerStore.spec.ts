@@ -36,10 +36,10 @@ describe('player store', () => {
 
     store.setRepeatMode('none')
     store.cycleRepeatMode()
-    expect(store.repeatMode).toBe('one')
+    expect(store.repeatMode).toBe('all')
 
     store.cycleRepeatMode()
-    expect(store.repeatMode).toBe('all')
+    expect(store.repeatMode).toBe('one')
 
     store.cycleRepeatMode()
     expect(store.repeatMode).toBe('none')

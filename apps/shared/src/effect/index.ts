@@ -1,5 +1,12 @@
 export * from './errors'
-export * from './runtime'
+export {
+  AureliaLayer,
+  type AureliaRuntimeContext,
+  disposeAureliaRuntime,
+  provideAureliaLayer,
+  runAureliaEffect,
+  runAureliaEffectExit,
+} from './runtime'
 export * from './services/api'
 export * from './services/logger'
 export * from './services/storage'

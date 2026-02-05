@@ -286,7 +286,7 @@
   const handleSyncLibrary = async (): Promise<void> => {
     if (!credentials.value) return
     isSyncing.value = true
-    await libraryStore.syncLibrary(credentials.value)
+    await libraryStore.syncLibrary()
     await homeStore.refreshHomeData()
     await fetchSyncState()
     isSyncing.value = false
@@ -295,7 +295,7 @@
   const handleClearCache = async (): Promise<void> => {
     if (!credentials.value) return
     isClearing.value = true
-    await libraryStore.clearCache(credentials.value)
+    await libraryStore.clearCache()
     await homeStore.refreshHomeData()
     isClearing.value = false
   }
