@@ -1,8 +1,10 @@
-import { getApiClient } from '../index'
+import type { Result } from '../lib/api/result'
+
+import { ApiError, runAureliaEffect } from '../effect'
+import { clearImageFromCacheEffect, getImageCacheStatsEffect, getImageEffect } from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { LRUCache } from '../lib/lru-cache'
 import { isTauri } from '../lib/platform'
-import { err, ok, type Result } from '../lib/result'
 
 // LRU cache for asset URLs with bounded size to prevent memory leaks
 // 2000 entries covers typical browsing patterns while limiting memory usage
@@ -39,33 +41,42 @@ const getImageUrl = async (
     return assetUrlCache.get(cacheKey)!
   }
 
-  const result = await getApiClient().getImage(itemId, imageType, serverUrl, token, width, quality)
-  if (result.status === 'error' || !result.data) {
-    if (result.status === 'error')
-      logger.warn(`Failed to get image for ${itemId}: ${result.error}`)
+  try {
+    const imagePath = await runAureliaEffect(
+      getImageEffect(itemId, imageType, serverUrl, token, width, quality),
+    )
+    if (!imagePath)
+      return null
 
+    // On web, data is already a URL. On desktop, it's a file path that needs conversion.
+    let assetUrl: string
+    if (isTauri()) {
+      const { convertFileSrc } = await import('@tauri-apps/api/core')
+      assetUrl = convertFileSrc(imagePath)
+    } else {
+      assetUrl = imagePath
+    }
+
+    assetUrlCache.set(cacheKey, assetUrl)
+    return assetUrl
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.warn(`Failed to get image for ${itemId}: ${errorMessage}`)
     return null
   }
-
-  // On web, data is already a URL. On desktop, it's a file path that needs conversion.
-  let assetUrl: string
-  if (isTauri()) {
-    const { convertFileSrc } = await import('@tauri-apps/api/core')
-    assetUrl = convertFileSrc(result.data)
-  } else {
-    assetUrl = result.data
-  }
-
-  assetUrlCache.set(cacheKey, assetUrl)
-
-  return assetUrl
 }
 
 const clearImageFromCache = async (itemId: string, imageType: string = 'Primary'): Promise<void> => {
   // Clear all variations from memory cache using LRU deleteByPrefix
   const prefix = `${itemId}_${imageType}`
   assetUrlCache.deleteByPrefix(prefix)
-  await getApiClient().clearImageFromCache(itemId, imageType)
+  try {
+    await runAureliaEffect(clearImageFromCacheEffect(itemId, imageType))
+  } catch (cause) {
+    logger.warn('Failed to clear image from cache', cause)
+  }
 }
 
 const getImageCacheStats = async (): Promise<Result<{
@@ -73,15 +84,14 @@ const getImageCacheStats = async (): Promise<Result<{
   file_count: number
   total_size: number
 }, string>> => {
-  const statsResult = await getApiClient().getImageCacheStats()
-  if (statsResult.status === 'error')
-    return err(statsResult.error)
-
   try {
-    const stats = JSON.parse(statsResult.data)
-    return ok(stats)
+    const rawStats = await runAureliaEffect(getImageCacheStatsEffect())
+    const stats = JSON.parse(rawStats)
+    return { data: stats, status: 'ok' }
   } catch (error) {
-    return err(`Failed to parse cache stats: ${error}`)
+    if (error instanceof ApiError)
+      return { error: error.message, status: 'error' }
+    return { error: `Failed to parse cache stats: ${error}`, status: 'error' }
   }
 }
 

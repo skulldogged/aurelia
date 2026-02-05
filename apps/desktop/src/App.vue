@@ -2,7 +2,7 @@
   import type { Song } from '@shared/lib/api/types'
   import type { Credentials } from '@shared/lib/api/types'
 
-  import { getApiClient, isDesktop } from '@shared'
+  import { getSyncStateEffect, isDesktop, quitApplicationEffect, runAureliaEffect } from '@shared'
   // Import from shared package
   import MainLayout from '@shared/components/layout/MainLayout.vue'
   import Equalizer from '@shared/components/player/Equalizer.vue'
@@ -229,9 +229,13 @@
   }
 
   const fetchSyncState = async (): Promise<void> => {
-    const result = await getApiClient().getSyncState()
-    if (result.status === 'ok' && result.data.lastSyncTime)
-      lastSyncTime.value = result.data.lastSyncTime
+    try {
+      const syncState = await runAureliaEffect(getSyncStateEffect())
+      if (syncState.lastSyncTime)
+        lastSyncTime.value = syncState.lastSyncTime
+    } catch {
+      // best-effort sync state fetch
+    }
   }
 
   watch(authStatus, async newStatus => {
@@ -282,7 +286,7 @@
   const handleSyncLibrary = async (): Promise<void> => {
     if (!credentials.value) return
     isSyncing.value = true
-    await libraryStore.syncLibrary(credentials.value)
+    await libraryStore.syncLibrary()
     await homeStore.refreshHomeData()
     await fetchSyncState()
     isSyncing.value = false
@@ -291,7 +295,7 @@
   const handleClearCache = async (): Promise<void> => {
     if (!credentials.value) return
     isClearing.value = true
-    await libraryStore.clearCache(credentials.value)
+    await libraryStore.clearCache()
     await homeStore.refreshHomeData()
     isClearing.value = false
   }
@@ -304,7 +308,7 @@
   const confirmExit = async (): Promise<void> => {
     showExitDialog.value = false
     // Exit the app
-    await getApiClient().quitApplication?.()
+    await runAureliaEffect(quitApplicationEffect()).catch(() => {})
   }
 
   const cancelExit = (): void => {
@@ -314,7 +318,10 @@
 
 <template>
   <div id='app' class='h-screen text-foreground'>
-    <div v-if="authStatus === 'pending' || authStatus === 'initializing'" class='size-full flex items-center justify-center'>
+    <div
+      v-if="authStatus === 'pending' || authStatus === 'initializing'"
+      class='size-full flex items-center justify-center'
+    >
       <div class='text-center'>
         <div class='animate-spin size-8 border-4 border-primary border-t-transparent rounded-full mx-auto' />
         <p class='mt-4 text-muted-foreground'>
@@ -322,7 +329,10 @@
         </p>
       </div>
     </div>
-    <div v-else-if="authStatus === 'error'" class='size-full flex items-center justify-center'>
+    <div
+      v-else-if="authStatus === 'error'"
+      class='size-full flex items-center justify-center'
+    >
       <div class='text-center max-w-md mx-auto p-8'>
         <div class='text-red-500 text-6xl mb-4'>
           !

@@ -8,7 +8,8 @@
 import { onUnmounted, ref, type Ref, watch } from 'vue'
 
 import { getAudioPlayer } from '../audio'
-import { getApiClient } from '../index'
+import { runAureliaEffect } from '../effect'
+import { audioSetAnalyzerEnabledEffect } from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { isDesktop } from '../lib/platform'
 
@@ -198,13 +199,8 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
       logger.debug(`setEnabled called: enabled=${enabled}`)
 
       // For desktop, notify backend
-      if (isDesktop()) {
-        const result = await getApiClient().audioSetAnalyzerEnabled(enabled)
-        if (result.status === 'error') {
-          logger.error('Failed to set analyzer enabled:', result.error)
-          return
-        }
-      }
+      if (isDesktop())
+        await runAureliaEffect(audioSetAnalyzerEnabledEffect(enabled))
 
       isEnabled.value = enabled
 
@@ -232,7 +228,7 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
     stopDataSource()
     // Disable analyzer when component unmounts to save CPU
     if (isDesktop()) {
-      getApiClient().audioSetAnalyzerEnabled(false).catch(() => {})
+      runAureliaEffect(audioSetAnalyzerEnabledEffect(false)).catch(() => {})
     }
   })
 

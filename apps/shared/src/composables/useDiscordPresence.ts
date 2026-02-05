@@ -3,13 +3,20 @@ import { onBeforeUnmount, ref, type Ref, watch } from 'vue'
 import type { RpcActivity } from '../generated'
 import type { Song } from '../lib/api/types'
 
-import { getApiClient } from '../index'
+import { runAureliaEffect } from '../effect/runtime'
+import {
+  discordRpcClearActivityEffect,
+  discordRpcIsRunningEffect,
+  discordRpcSetActivityEffect,
+  discordRpcStartEffect,
+  discordRpcStopEffect,
+} from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { isDesktop } from '../lib/platform'
 import { usePlayerStore } from '../stores'
 
 const DISCORD_APP_ID =
-  import.meta.env.VITE_DISCORD_APP_ID
+  (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_DISCORD_APP_ID
   || '1422099270340837419'
 const hasTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
@@ -78,21 +85,12 @@ export const useDiscordPresence = (): {
     }
 
     try {
-      const result = await getApiClient().discordRpcIsRunning()
-      if (result.status === 'error') {
-        logger.error('Failed to check Discord RPC status:', result.error)
-        return false
-      }
-      const running = result.data
+      const running = await runAureliaEffect(discordRpcIsRunningEffect())
       logger.debug('Discord RPC thread status before start:', { running })
 
       if (!running) {
         logger.info('Starting Discord RPC thread with app ID:', DISCORD_APP_ID)
-        const startResult = await getApiClient().discordRpcStart(DISCORD_APP_ID)
-        if (startResult.status === 'error') {
-          logger.error('Failed to start Discord RPC:', startResult.error)
-          return false
-        }
+        await runAureliaEffect(discordRpcStartEffect(DISCORD_APP_ID))
         logger.info('Discord RPC thread started successfully')
         await sleep(500)
       } else {
@@ -109,17 +107,17 @@ export const useDiscordPresence = (): {
   }
 
   const stopThread = async (): Promise<void> => {
-    const clearResult = await getApiClient().discordRpcClearActivity()
-    if (clearResult.status === 'error') {
-      logger.debug('Failed to clear Discord activity on shutdown', clearResult.error)
-    }
+    await runAureliaEffect(discordRpcClearActivityEffect()).catch(error => {
+      logger.debug('Failed to clear Discord activity on shutdown', error)
+    })
 
-    const stopResult = await getApiClient().discordRpcStop()
-    if (stopResult.status === 'error') {
-      logger.debug('Failed to stop Discord RPC thread', stopResult.error)
-    } else {
-      logger.debug('Stopped Discord RPC thread')
-    }
+    await runAureliaEffect(discordRpcStopEffect())
+      .then(() => {
+        logger.debug('Stopped Discord RPC thread')
+      })
+      .catch(error => {
+        logger.debug('Failed to stop Discord RPC thread', error)
+      })
 
     hasStartedThread = false
     lastSignature = ''
@@ -140,9 +138,10 @@ export const useDiscordPresence = (): {
       if (!await ensureThread())
         return
 
-      const clearResult = await getApiClient().discordRpcClearActivity()
-      if (clearResult.status === 'error') {
-        logger.error('Failed to clear Discord activity', clearResult.error)
+      try {
+        await runAureliaEffect(discordRpcClearActivityEffect())
+      } catch (error) {
+        logger.error('Failed to clear Discord activity', error)
         hasStartedThread = false
         return
       }
@@ -220,9 +219,10 @@ export const useDiscordPresence = (): {
       state:         artists,
     })
 
-    const activityResult = await getApiClient().discordRpcSetActivity(activity)
-    if (activityResult.status === 'error') {
-      logger.error('Failed to set Discord activity', activityResult.error)
+    try {
+      await runAureliaEffect(discordRpcSetActivityEffect(activity))
+    } catch (error) {
+      logger.error('Failed to set Discord activity', error)
       hasStartedThread = false
       return
     }

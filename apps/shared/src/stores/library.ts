@@ -2,11 +2,12 @@ import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 import { toast } from 'vue-sonner'
 
-import type { Album, Artist, Credentials, Song } from '../generated'
+import type { Album, Artist, Song } from '../generated'
 
-import { getApiClient } from '../index'
+import { ApiError } from '../effect/errors'
+import { runAureliaEffect } from '../effect/runtime'
+import { clearCacheEffect, getLibraryEffect, syncLibraryEffect } from '../effect/services/api'
 import { logger } from '../lib/logger'
-import { withCustomState } from '../lib/result'
 import { useHomeStore } from './home'
 
 export const useLibraryStore = defineStore('library', () => {
@@ -35,11 +36,10 @@ export const useLibraryStore = defineStore('library', () => {
     const maxRetries = 10
     let retryDelay = 100
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const result = await getApiClient().getLibrary()
-
-      if (result.status === 'ok') {
-        const { albums, artists, songs } = result.data
+    try {
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const libraryData = await runAureliaEffect(getLibraryEffect())
+        const { albums, artists, songs } = libraryData
 
         // Hybrid lazy-load: songs are synced, but albums/artists may be empty
         // (they're fetched on-demand when user visits detail pages)
@@ -108,46 +108,44 @@ export const useLibraryStore = defineStore('library', () => {
         logger.info(
           `loadLibrary: Loaded ${songs.length} songs, ${artists.length} artists, and ${albums.length} albums.`,
         )
-        isLoading.value = false
-        logger.info(`loadLibrary: Completed in ${Date.now() - startTime}ms`)
         return
       }
-
-      error.value = `Failed to load library: ${result.error}`
-      logger.error('Failed to load library:', result.error)
-      isLoading.value = false
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      error.value = `Failed to load library: ${errorMessage}`
+      logger.error('Failed to load library:', errorMessage)
       return
+    } finally {
+      isLoading.value = false
+      logger.info(`loadLibrary: Completed in ${Date.now() - startTime}ms`)
     }
-
-    isLoading.value = false
-    logger.info(`loadLibrary: Completed in ${Date.now() - startTime}ms`)
   }
 
-  const syncLibrary = async (credentials: Credentials): Promise<void> => {
+  const syncLibrary = async (): Promise<void> => {
     logger.info('Starting library sync...')
     const toastId = toast.loading('Syncing library...')
 
-    await withCustomState<void, string>(
-      () => getApiClient().syncLibrary(),
-      {
-        onError: errorString => {
-          const errorMessage = `Failed to sync library: ${errorString}`
-          error.value = errorMessage
-          logger.error('Failed to sync library:', errorString)
-          toast.error('Failed to sync library', { id: toastId })
-        },
-        onSuccess: async () => {
-          // Reset loaded state to force reload
-          isLoaded.value = false
-          await loadLibrary()
-          logger.info('Library sync completed successfully.')
-          toast.success('Library synced successfully', { id: toastId })
-        },
-      },
-    )
+    try {
+      await runAureliaEffect(syncLibraryEffect())
+
+      // Reset loaded state to force reload
+      isLoaded.value = false
+      await loadLibrary()
+      logger.info('Library sync completed successfully.')
+      toast.success('Library synced successfully', { id: toastId })
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      error.value = `Failed to sync library: ${errorMessage}`
+      logger.error('Failed to sync library:', errorMessage)
+      toast.error('Failed to sync library', { id: toastId })
+    }
   }
 
-  const clearCache = async (credentials: Credentials): Promise<void> => {
+  const clearCache = async (): Promise<void> => {
     logger.info('Starting cache clear...')
     const toastId = toast.loading('Clearing cache...')
 
@@ -155,24 +153,22 @@ export const useLibraryStore = defineStore('library', () => {
     const homeStore = useHomeStore()
     homeStore.resetHomeData()
 
-    await withCustomState<void, string>(
-      () => getApiClient().clearCache(),
-      {
-        onError: errorString => {
-          const errorMessage = `Failed to clear cache: ${errorString}`
-          error.value = errorMessage
-          logger.error('Failed to clear cache:', errorString)
-          toast.error('Failed to clear cache', { id: toastId })
-        },
-        onSuccess: async () => {
-          // Reset loaded state to force reload
-          isLoaded.value = false
-          await loadLibrary()
-          logger.info('Cache clear completed successfully.')
-          toast.success('Cache cleared successfully', { id: toastId })
-        },
-      },
-    )
+    try {
+      await runAureliaEffect(clearCacheEffect())
+
+      // Reset loaded state to force reload
+      isLoaded.value = false
+      await loadLibrary()
+      logger.info('Cache clear completed successfully.')
+      toast.success('Cache cleared successfully', { id: toastId })
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : String(cause)
+      error.value = `Failed to clear cache: ${errorMessage}`
+      logger.error('Failed to clear cache:', errorMessage)
+      toast.error('Failed to clear cache', { id: toastId })
+    }
   }
 
   const clearData = (): void => {

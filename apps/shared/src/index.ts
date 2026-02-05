@@ -28,7 +28,6 @@ export const setApiClient = (client: ApiClient, platformType: 'desktop' | 'web')
 
 // Unified API client (works on both desktop and web)
 export { apiClient } from './api/apiClient'
-
 // Audio
 export * from './audio'
 
@@ -36,6 +35,7 @@ export * from './audio'
 export { default as MainLayout } from './components/layout/MainLayout.vue'
 
 export { default as Equalizer } from './components/player/Equalizer.vue'
+
 export { default as FullscreenPlayer } from './components/player/FullscreenPlayer.vue'
 export { default as LyricsSidebar } from './components/player/LyricsSidebar.vue'
 export { default as MusicPlayer } from './components/player/MusicPlayer.vue'
@@ -45,14 +45,15 @@ export { Toaster } from './components/ui/sonner'
 // Composables
 export { useAuth } from './composables/useAuth'
 export { useLibrary } from './composables/useLibrary'
-
 export { useNavigation } from './composables/useNavigation'
 
 export { usePlayerControls } from './composables/usePlayerControls'
+
 export { usePlayerSession } from './composables/usePlayerSession'
 export { useSongInteractions } from './composables/useSongInteractions'
 export { useTopBar } from './composables/useTopBar'
 export { useVisualizerData } from './composables/useVisualizerData'
+export * from './effect'
 // Re-export generated types
 export * from './generated'
 // WebSocket client for web platform

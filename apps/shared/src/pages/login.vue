@@ -2,17 +2,18 @@
   import { Loader2 } from 'lucide-vue-next'
   import { onMounted, ref } from 'vue'
 
-  import type { Credentials } from '../generated'
-
   import Button from '../components/ui/Button.vue'
   import { Input } from '../components/ui/input'
   import Label from '../components/ui/Label.vue'
   import { useSession } from '../composables/useSession'
-  import { getApiClient } from '../index'
+  import { ApiError } from '../effect/errors'
+  import { runAureliaEffect } from '../effect/runtime'
+  import {
+    getSavedCredentialsEffect,
+    loginToJellyfinEffect,
+    saveCredentialsEffect,
+  } from '../effect/services/api'
   import { logger } from '../lib/logger'
-  import { withCustomState } from '../lib/result'
-
-  const apiClient = getApiClient()
   const { initializeSession, sessionState } = useSession()
 
   interface LoginForm {
@@ -38,69 +39,56 @@
     error.value = ''
     loading.value = true
 
-    // First, attempt login
-    await withCustomState(
-      () => apiClient.loginToJellyfin(
+    try {
+      const loginData = await runAureliaEffect(loginToJellyfinEffect(
         form.value.serverUrl,
         form.value.username,
         form.value.password,
         sessionState.value.deviceId,
-      ),
-      {
-        onError: loginError => {
-          error.value = `Login failed: ${loginError}`
-          loading.value = false
-        },
-        onStart: () => {
-          error.value = ''
-          loading.value = true
-        },
-        onSuccess: async loginData => {
-          await withCustomState(
-            () => apiClient.saveCredentials(
-              form.value.serverUrl,
-              form.value.username,
-              loginData.token,
-              loginData.userId,
-            ),
-            {
-              onError: saveError => {
-                error.value = `Login successful but failed to save credentials: ${saveError}`
-                loading.value = false
-              },
-              onSuccess: () => {
-                // Credentials saved successfully
-                emit('login', {
-                  serverUrl: form.value.serverUrl,
-                  token:     loginData.token,
-                  userId:    loginData.userId,
-                  username:  form.value.username,
-                })
-                loading.value = false
-              },
-            },
-          )
-        },
-      },
-    )
+      ))
+
+      try {
+        await runAureliaEffect(saveCredentialsEffect(
+          form.value.serverUrl,
+          form.value.username,
+          loginData.token,
+          loginData.userId,
+        ))
+
+        // Credentials saved successfully
+        emit('login', {
+          serverUrl: form.value.serverUrl,
+          token:     loginData.token,
+          userId:    loginData.userId,
+          username:  form.value.username,
+        })
+      } catch (saveError) {
+        const saveErrorMessage = saveError instanceof ApiError
+          ? saveError.message
+          : String(saveError)
+        error.value = `Login successful but failed to save credentials: ${saveErrorMessage}`
+      }
+    } catch (loginError) {
+      const loginErrorMessage = loginError instanceof ApiError
+        ? loginError.message
+        : String(loginError)
+      error.value = `Login failed: ${loginErrorMessage}`
+    } finally {
+      loading.value = false
+    }
   }
 
   onMounted(async () => {
     await initializeSession()
-    await withCustomState(
-      () => apiClient.getSavedCredentials(),
-      {
-        onError: error => {
-          logger.error('Failed to get saved credentials:', error)
-        },
-        onSuccess: (savedCredentials: Credentials | null) => {
-          if (savedCredentials) {
-            form.value.serverUrl = savedCredentials.serverUrl
-            form.value.username = savedCredentials.username
-          }
-        },
-      },
-    )
+    try {
+      const savedCredentials = await runAureliaEffect(getSavedCredentialsEffect())
+      if (savedCredentials) {
+        form.value.serverUrl = savedCredentials.serverUrl
+        form.value.username = savedCredentials.username
+      }
+    } catch (savedCredentialsError) {
+      logger.error('Failed to get saved credentials:', savedCredentialsError)
+    }
   })
 </script>
 

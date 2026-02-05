@@ -1,6 +1,13 @@
 import { onMounted } from 'vue'
 
-import { getApiClient } from '../index'
+import { runAureliaEffect } from '../effect'
+import {
+  hideMainWindowEffect,
+  quitApplicationEffect,
+  setCloseToTrayEffect,
+  setMinimizeToTrayEffect,
+  showMainWindowEffect,
+} from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { useSystemTrayStore } from '../stores'
 
@@ -15,7 +22,7 @@ export const useSystemTray = (): {
 
   const showMainWindow = async (): Promise<void> => {
     try {
-      await getApiClient().showMainWindow()
+      await runAureliaEffect(showMainWindowEffect())
     } catch (error) {
       logger.error('Failed to show main window:', error)
     }
@@ -23,7 +30,7 @@ export const useSystemTray = (): {
 
   const hideMainWindow = async (): Promise<void> => {
     try {
-      await getApiClient().hideMainWindow()
+      await runAureliaEffect(hideMainWindowEffect())
     } catch (error) {
       logger.error('Failed to hide main window:', error)
     }
@@ -31,7 +38,7 @@ export const useSystemTray = (): {
 
   const quitApplication = async (): Promise<void> => {
     try {
-      await getApiClient().quitApplication()
+      await runAureliaEffect(quitApplicationEffect())
     } catch (error) {
       logger.error('Failed to quit application:', error)
     }
@@ -40,7 +47,7 @@ export const useSystemTray = (): {
   const setMinimizeToTray = async (minimizeToTray: boolean): Promise<void> => {
     try {
       systemTrayStore.setMinimizeToTray(minimizeToTray)
-      await getApiClient().setMinimizeToTray(minimizeToTray)
+      await runAureliaEffect(setMinimizeToTrayEffect(minimizeToTray))
     } catch (error) {
       logger.error('Failed to set minimize to tray:', error)
       // Revert store change on failure
@@ -51,7 +58,7 @@ export const useSystemTray = (): {
   const setCloseToTray = async (closeToTray: boolean): Promise<void> => {
     try {
       systemTrayStore.setCloseToTray(closeToTray)
-      await getApiClient().setCloseToTray(closeToTray)
+      await runAureliaEffect(setCloseToTrayEffect(closeToTray))
     } catch (error) {
       logger.error('Failed to set close to tray:', error)
       // Revert store change on failure

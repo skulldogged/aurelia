@@ -1,7 +1,15 @@
 import { v4 as uuidv4 } from 'uuid'
 import { readonly, ref, type Ref } from 'vue'
 
-import { getApiClient } from '../index'
+import { ApiError } from '../effect/errors'
+import { runAureliaEffect } from '../effect/runtime'
+import {
+  markItemPlayedEffect,
+  registerClientCapabilitiesEffect,
+  reportPlaybackProgressEffect,
+  reportPlaybackStartEffect,
+  reportPlaybackStopEffect,
+} from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { isTauri } from '../lib/platform'
 import { useAuthStore } from '../stores'
@@ -73,22 +81,19 @@ const registerCapabilities = async (authStore: ReturnType<typeof useAuthStore>):
   )
 
   try {
-    const client = getApiClient()
-    if (!client.registerClientCapabilities) return
-    const result = await client.registerClientCapabilities(
+    await runAureliaEffect(registerClientCapabilitiesEffect(
       authStore.serverUrl,
       authStore.token,
       sessionState.value.deviceId,
-    )
-    if (result.status === 'error') {
-      logger.error('Failed to register client capabilities:', result.error)
-      return
-    }
+    ))
 
     sessionState.value.isRegistered = true
     logger.info('Client capabilities registered with Jellyfin')
-  } catch (error) {
-    logger.error('Failed to register client capabilities:', error)
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.error('Failed to register client capabilities:', errorMessage)
   }
 }
 
@@ -101,22 +106,18 @@ const reportPlaybackStart = async (
     return
 
   try {
-    const client = getApiClient()
-    if (!client.reportPlaybackStart) return
-
     // Convert seconds to ticks (10,000,000 ticks per second) and ensure it's an integer
     const positionTicks = positionSeconds !== undefined
       ? Math.floor(positionSeconds * 10_000_000)
       : undefined
 
-    const result = await client.reportPlaybackStart(itemId, positionTicks)
-    if (result.status === 'error') {
-      logger.error('Failed to report playback start:', result.error)
-      return
-    }
+    await runAureliaEffect(reportPlaybackStartEffect(itemId, positionTicks))
     logger.debug('Playback start reported', { itemId, positionSeconds, positionTicks })
-  } catch (error) {
-    logger.error('Failed to report playback start:', error)
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.error('Failed to report playback start:', errorMessage)
   }
 }
 
@@ -131,19 +132,15 @@ const reportPlaybackProgress = async (
     return
 
   try {
-    const client = getApiClient()
-    if (!client.reportPlaybackProgress) return
-
     // Convert seconds to ticks (10,000,000 ticks per second) and ensure it's an integer
     const positionTicks = Math.floor(positionSeconds * 10_000_000)
 
-    const result = await client.reportPlaybackProgress(itemId, positionTicks, isPaused ?? false)
-    if (result.status === 'error') {
-      logger.debug('Failed to report playback progress:', result.error)
-      return
-    }
-  } catch (error) {
-    logger.debug('Failed to report playback progress:', error)
+    await runAureliaEffect(reportPlaybackProgressEffect(itemId, positionTicks, isPaused ?? false))
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.debug('Failed to report playback progress:', errorMessage)
   }
 }
 
@@ -156,25 +153,21 @@ const reportPlaybackStop = async (
     return
 
   try {
-    const client = getApiClient()
-    if (!client.reportPlaybackStop) return
-
     // Convert seconds to ticks (10,000,000 ticks per second) and ensure it's an integer
     const positionTicks = positionSeconds !== undefined
       ? Math.floor(positionSeconds * 10_000_000)
       : 0
 
-    const result = await client.reportPlaybackStop(itemId, positionTicks)
-    if (result.status === 'error') {
-      logger.error('Failed to report playback stop:', result.error)
-      return
-    }
+    await runAureliaEffect(reportPlaybackStopEffect(itemId, positionTicks))
 
     logger.debug('Playback stop reported', { itemId, positionSeconds, positionTicks })
 
     sessionState.value.playSessionId = `play-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
-  } catch (error) {
-    logger.error('Failed to report playback stop:', error)
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.error('Failed to report playback stop:', errorMessage)
   }
 }
 
@@ -186,16 +179,13 @@ const markItemPlayed = async (
     return
 
   try {
-    const client = getApiClient()
-    if (!client.markItemPlayed) return
-    const result = await client.markItemPlayed(itemId)
-    if (result.status === 'error') {
-      logger.error('Failed to mark item as played:', result.error)
-      return
-    }
+    await runAureliaEffect(markItemPlayedEffect(itemId))
     logger.debug('Item marked as played', { itemId })
-  } catch (error) {
-    logger.error('Failed to mark item as played:', error)
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.error('Failed to mark item as played:', errorMessage)
   }
 }
 

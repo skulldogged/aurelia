@@ -25,11 +25,11 @@ describe('usePlayerControls', () => {
     const onSeek = vi.fn()
 
     controls.musicPlayerRef.value = {
-      nextSong: vi.fn(),
+      nextSong:      vi.fn(),
       onSeek,
-      previousSong: vi.fn(),
+      previousSong:  vi.fn(),
       togglePlayPause,
-      toggleRepeat: vi.fn(),
+      toggleRepeat:  vi.fn(),
       toggleShuffle: vi.fn(),
     }
 
@@ -43,8 +43,8 @@ describe('usePlayerControls', () => {
   it('closes other panels when toggling queue', () => {
     const controls = usePlayerControls()
 
-    // Open equalizer, then toggle queue to ensure other panels close
     controls.toggleEqualizer()
+    controls.toggleLyrics()
     controls.toggleQueue()
 
     expect(controls.isQueueOpen.value).toBe(true)

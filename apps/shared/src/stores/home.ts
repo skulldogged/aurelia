@@ -1,11 +1,32 @@
+import { Effect, Schedule } from 'effect'
 import { defineStore } from 'pinia'
 import { computed, readonly, ref } from 'vue'
 
 import type { Album, Song } from '../lib/api/types'
 
-import { getApiClient } from '../index'
+import { ApiError } from '../effect/errors'
+import { runAureliaEffect } from '../effect/runtime'
+import { getHomeViewDataEffect } from '../effect/services/api'
 import { getAuthLogout } from '../lib/auth-interceptor'
 import { logger } from '../lib/logger'
+
+const HOME_DATA_MAX_RETRIES = 3
+const HOME_DATA_RETRY_DELAY_MS = 200
+
+const isWaitingForLibraryError = (errorMessage: string): boolean =>
+  errorMessage.includes('Library not loaded')
+
+const normalizeHomeData = (raw: Record<string, unknown>): {
+  featuredAlbums: Album[]
+  randomAlbums:   Album[]
+  recentlyAdded:  Album[]
+  recentlyPlayed: Song[]
+} => ({
+  featuredAlbums: (raw.featuredAlbums ?? raw.featured_albums ?? []) as Album[],
+  randomAlbums:   (raw.randomAlbums ?? raw.random_albums ?? []) as Album[],
+  recentlyAdded:  (raw.recentlyAdded ?? raw.recently_added ?? []) as Album[],
+  recentlyPlayed: (raw.recentlyPlayed ?? raw.recently_played ?? []) as Song[],
+})
 
 export const useHomeStore = defineStore('home', () => {
   // State
@@ -63,82 +84,78 @@ export const useHomeStore = defineStore('home', () => {
     error.value = null
     logger.info(`Loading home data stage: ${stage}...`)
 
-    const maxRetries = 3 // Reduce retries for progressive loading
-    let retryDelay = 200
+    let attemptCount = 0
 
-    for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const apiClient = getApiClient()
-      const result = await apiClient.getHomeViewData()
+    try {
+      const data = await runAureliaEffect(
+        getHomeViewDataEffect().pipe(
+          Effect.tapError(apiError =>
+            Effect.sync(() => {
+              attemptCount += 1
+              if (
+                isWaitingForLibraryError(apiError.message)
+                && attemptCount < HOME_DATA_MAX_RETRIES
+              ) {
+                const retryDelay = HOME_DATA_RETRY_DELAY_MS * 2 ** (attemptCount - 1)
+                logger.warn(
+                  `Home data not ready yet (attempt ${attemptCount}/${HOME_DATA_MAX_RETRIES}). ` +
+                  `Retrying in ${retryDelay}ms`,
+                )
+              }
+            }),
+          ),
+          Effect.retry({
+            schedule: Schedule.exponential(HOME_DATA_RETRY_DELAY_MS),
+            times:    HOME_DATA_MAX_RETRIES - 1,
+            while:    apiError => isWaitingForLibraryError(apiError.message),
+          }),
+          Effect.map(result => normalizeHomeData(result as Record<string, unknown>)),
+        ),
+      )
 
-      if (result.status === 'ok') {
-        // Normalize data - support both camelCase (web) and snake_case (desktop) property names
-        const raw = result.data as Record<string, unknown>
-        const data = {
-          featuredAlbums: (raw.featuredAlbums ?? raw.featured_albums ?? []) as Album[],
-          randomAlbums:   (raw.randomAlbums ?? raw.random_albums ?? []) as Album[],
-          recentlyAdded:  (raw.recentlyAdded ?? raw.recently_added ?? []) as Album[],
-          recentlyPlayed: (raw.recentlyPlayed ?? raw.recently_played ?? []) as Song[],
-        }
+      // Store full data but only expose progressive amounts
+      recentlyPlayed.value = data.recentlyPlayed
+      recentlyAdded.value = data.recentlyAdded
+      randomAlbums.value = data.randomAlbums
+      featuredAlbums.value = data.featuredAlbums
 
-        // Store full data but only expose progressive amounts
-        recentlyPlayed.value = data.recentlyPlayed
-        recentlyAdded.value = data.recentlyAdded
-        randomAlbums.value = data.randomAlbums
-        featuredAlbums.value = data.featuredAlbums
-
-        // Track if we have more data for progressive loading
-        hasMoreData.value = {
-          featuredAlbums: false, // Featured albums are typically limited already
-          randomAlbums:   (data.randomAlbums?.length || 0) > getStageLimit('randomAlbums', stage),
-          recentlyAdded:  (data.recentlyAdded?.length || 0) > getStageLimit('recentlyAdded', stage),
-          recentlyPlayed: (data.recentlyPlayed?.length || 0) > getStageLimit('recentlyPlayed', stage),
-        }
-
-        loadingStage.value = stage
-        isLoaded.value = true
-
-        logger.info(
-          `Home data stage '${stage}' loaded: ${recentlyPlayed.value.length} recently played, ` +
-          `${recentlyAdded.value.length} recently added, ` +
-          `${randomAlbums.value.length} random, ${featuredAlbums.value.length} featured`,
-        )
-
-        isLoading.value = false
-        return
+      // Track if we have more data for progressive loading
+      hasMoreData.value = {
+        featuredAlbums: false, // Featured albums are typically limited already
+        randomAlbums:   (data.randomAlbums?.length || 0) > getStageLimit('randomAlbums', stage),
+        recentlyAdded:  (data.recentlyAdded?.length || 0) > getStageLimit('recentlyAdded', stage),
+        recentlyPlayed: (data.recentlyPlayed?.length || 0) > getStageLimit('recentlyPlayed', stage),
       }
 
-      const errorMessage = result.error ?? 'Failed to load home data'
-      const isWaitingForLibrary = errorMessage.includes('Library not loaded')
+      loadingStage.value = stage
+      isLoaded.value = true
 
-      if (!isWaitingForLibrary) {
-        error.value = errorMessage
-        logger.error('Failed to load home data:', errorMessage)
-        if (errorMessage.toLowerCase().includes('unauthorized')) {
-          const logout = getAuthLogout()
-          if (logout)
-            logout()
-        }
-        isLoading.value = false
-        return
-      }
+      logger.info(
+        `Home data stage '${stage}' loaded: ${recentlyPlayed.value.length} recently played, ` +
+        `${recentlyAdded.value.length} recently added, ` +
+        `${randomAlbums.value.length} random, ${featuredAlbums.value.length} featured`,
+      )
+    } catch (cause) {
+      const errorMessage = cause instanceof ApiError
+        ? cause.message
+        : 'Failed to load home data'
 
-      const attemptNumber = attempt + 1
-
-      if (attemptNumber >= maxRetries) {
+      if (isWaitingForLibraryError(errorMessage)) {
         error.value = 'Library not loaded yet. Please try again shortly.'
         logger.error('Max retries reached while waiting for library to load for home data')
-        isLoading.value = false
         return
       }
 
-      logger.warn(
-        `Home data not ready yet (attempt ${attemptNumber}/${maxRetries}). Retrying in ${retryDelay}ms`,
-      )
-      await new Promise(resolve => setTimeout(resolve, retryDelay))
-      retryDelay *= 2
+      error.value = errorMessage
+      logger.error('Failed to load home data:', errorMessage)
+      if (errorMessage.toLowerCase().includes('unauthorized')) {
+        const logout = getAuthLogout()
+        if (logout)
+          logout()
+      }
+    } finally {
+      isLoading.value = false
     }
-
-    isLoading.value = false
   }
 
   // Helper function to get stage limits

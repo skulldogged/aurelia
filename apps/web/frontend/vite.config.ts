@@ -51,8 +51,8 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    globals: true,
-    include: [
+    globals:     true,
+    include:     [
       'tests/**/*.spec.ts',
       'tests/**/*.test.ts',
       'src/**/*.spec.ts',

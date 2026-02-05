@@ -2,10 +2,11 @@ import { readonly, ref, type Ref } from 'vue'
 
 import type { Credentials } from '../generated'
 
-import { getApiClient } from '../index'
+import { ApiError } from '../effect/errors'
+import { runAureliaEffect } from '../effect/runtime'
+import { getSavedCredentialsEffect } from '../effect/services/api'
 import { getAuthLogout, setAuthLogout } from '../lib/auth-interceptor'
 import { logger } from '../lib/logger'
-import { withCustomState } from '../lib/result'
 import { useAuthStore } from '../stores'
 
 export interface AuthError {
@@ -103,33 +104,33 @@ const error = ref<AuthError | null>(null)
 const verifyStoredCredentials = async (authStore: ReturnType<typeof useAuthStore>): Promise<void> => {
   logger.debug('Verifying stored credentials...')
 
-  await withCustomState<Credentials | null, string>(
-    () => getApiClient().getSavedCredentials(),
-    {
-      onError: errorString => {
-        logger.error('Failed to verify credentials:', errorString)
-        // If verification fails, logout
-        logout(authStore)
-      },
-      onSuccess: savedCredentials => {
-        logger.debug('Verified credentials:', savedCredentials)
+  try {
+    const savedCredentials = await runAureliaEffect(getSavedCredentialsEffect())
 
-        if (savedCredentials && savedCredentials.token) {
-          // Credentials still valid, sync with backend state
-          credentials.value = savedCredentials
-          authStore.setCredentials(savedCredentials)
-          authStatus.value = 'loggedIn'
-          // Sync localStorage in case backend has different creds
-          saveCredentialsToStorage(savedCredentials)
-          logger.info('Credentials verified successfully')
-        } else {
-          // Backend has no credentials, logout
-          logger.debug('Backend has no credentials, logging out')
-          logout(authStore)
-        }
-      },
-    },
-  )
+    logger.debug('Verified credentials:', savedCredentials)
+
+    if (savedCredentials && savedCredentials.token) {
+      // Credentials still valid, sync with backend state
+      credentials.value = savedCredentials
+      authStore.setCredentials(savedCredentials)
+      authStatus.value = 'loggedIn'
+      // Sync localStorage in case backend has different creds
+      saveCredentialsToStorage(savedCredentials)
+      logger.info('Credentials verified successfully')
+      return
+    }
+
+    // Backend has no credentials, logout
+    logger.debug('Backend has no credentials, logging out')
+    logout(authStore)
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.error('Failed to verify credentials:', errorMessage)
+    // If verification fails, logout
+    logout(authStore)
+  }
 }
 
 const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promise<void> => {
@@ -137,40 +138,39 @@ const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promi
   // Immediately set to pending to indicate we're actively checking
   authStatus.value = 'pending'
 
-  await withCustomState<Credentials | null, string>(
-    () => getApiClient().getSavedCredentials(),
-    {
-      onError: errorString => {
-        logger.error('Failed to load saved credentials:', errorString)
-        error.value = categorizeAuthError(errorString)
-        authStatus.value = 'error'
-      },
-      onSuccess: savedCredentials => {
-        logger.debug('Got saved credentials:', savedCredentials)
+  try {
+    const savedCredentials = await runAureliaEffect(getSavedCredentialsEffect())
+    logger.debug('Got saved credentials:', savedCredentials)
 
-        if (savedCredentials && savedCredentials.token) {
-          logger.debug('Found saved credentials:', savedCredentials)
-          credentials.value = savedCredentials
-          authStore.setCredentials(savedCredentials)
-          authStatus.value = 'loggedIn'
-          error.value = null
-          // Sync to localStorage for fast load on next visit
-          saveCredentialsToStorage(savedCredentials)
-          logger.info('Authentication successful - credentials loaded from disk')
-          logger.debug('Auth store populated:', {
-            hasToken:  !!authStore.token,
-            serverUrl: authStore.serverUrl,
-            userId:    authStore.userId,
-            username:  authStore.username,
-          })
-        } else {
-          logger.debug('No saved credentials found')
-          authStatus.value = 'loggedOut'
-          error.value = null
-        }
-      },
-    },
-  )
+    if (savedCredentials && savedCredentials.token) {
+      logger.debug('Found saved credentials:', savedCredentials)
+      credentials.value = savedCredentials
+      authStore.setCredentials(savedCredentials)
+      authStatus.value = 'loggedIn'
+      error.value = null
+      // Sync to localStorage for fast load on next visit
+      saveCredentialsToStorage(savedCredentials)
+      logger.info('Authentication successful - credentials loaded from disk')
+      logger.debug('Auth store populated:', {
+        hasToken:  !!authStore.token,
+        serverUrl: authStore.serverUrl,
+        userId:    authStore.userId,
+        username:  authStore.username,
+      })
+      return
+    }
+
+    logger.debug('No saved credentials found')
+    authStatus.value = 'loggedOut'
+    error.value = null
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError
+      ? cause.message
+      : String(cause)
+    logger.error('Failed to load saved credentials:', errorMessage)
+    error.value = categorizeAuthError(errorMessage)
+    authStatus.value = 'error'
+  }
 }
 
 const login = (authStore: ReturnType<typeof useAuthStore>, loginCredentials: Credentials): void => {

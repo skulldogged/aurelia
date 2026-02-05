@@ -4,7 +4,8 @@
 
   import { useLastFm } from '../../composables/useLastFm'
   import { useListenBrainz } from '../../composables/useListenBrainz'
-  import { getApiClient } from '../../index'
+  import { ApiError, runAureliaEffect } from '../../effect'
+  import { lastFmStartAuthServerEffect } from '../../effect/services/api'
   import { logger } from '../../lib/logger'
   import { isTauri } from '../../lib/platform'
   import { useLastFmStore, useListenBrainzStore } from '../../stores'
@@ -82,17 +83,7 @@
         }
       })
 
-      const styles = getComputedStyle(document.documentElement)
-      const primaryColor = styles.getPropertyValue('--accent').trim() || '#667eea'
-      const backgroundColor = styles.getPropertyValue('--background').trim() || '#1a1b26'
-      const textColor = styles.getPropertyValue('--foreground').trim() || '#cdd6f4'
-
-      const result = await getApiClient().lastfmStartAuthServer()
-      if (result.status === 'error') {
-        lastfmError.value = result.error
-        isWaitingForCallback.value = false
-        return
-      }
+      await runAureliaEffect(lastFmStartAuthServerEffect())
 
       logger.info('Started Last.fm callback server')
 
@@ -112,7 +103,11 @@
       }, 300000)
     } catch (err) {
       isWaitingForCallback.value = false
-      lastfmError.value = err instanceof Error ? err.message : 'Failed to start authentication'
+      if (err instanceof ApiError) {
+        lastfmError.value = err.message
+      } else {
+        lastfmError.value = err instanceof Error ? err.message : 'Failed to start authentication'
+      }
     }
   }
 
