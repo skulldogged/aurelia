@@ -49,6 +49,12 @@ describe('usePlayerControls', () => {
 
     expect(controls.isQueueOpen.value).toBe(true)
     expect(controls.isEqualizerOpen.value).toBe(false)
+
+    // Open lyrics, then toggle queue again to ensure lyrics closes too
+    controls.toggleLyrics()
+    controls.toggleQueue()
+
+    expect(controls.isQueueOpen.value).toBe(true)
     expect(controls.isLyricsOpen.value).toBe(false)
   })
 })

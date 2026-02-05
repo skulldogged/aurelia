@@ -262,7 +262,7 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const cycleRepeatMode = (): void => {
-    const modes: Array<'all' | 'none' | 'one'> = ['none', 'one', 'all']
+    const modes: Array<'all' | 'none' | 'one'> = ['none', 'all', 'one']
     const currentModeIndex = modes.indexOf(repeatMode.value)
     repeatMode.value = modes[(currentModeIndex + 1) % modes.length]
     setStoredValue(STORAGE_KEYS.REPEAT_MODE, repeatMode.value)

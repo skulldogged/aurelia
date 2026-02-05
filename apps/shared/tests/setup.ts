@@ -52,6 +52,10 @@ beforeEach(() => {
   sessionStorageMock.clear()
 })
 
+import { ensureTestStorage } from '@/test-utils/storage'
+
+ensureTestStorage()
+
 afterEach(() => {
   localStorageMock.clear()
   sessionStorageMock.clear()
