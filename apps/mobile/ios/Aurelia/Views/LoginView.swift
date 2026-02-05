@@ -6,50 +6,81 @@ struct LoginView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 32) {
-                Spacer()
+            GeometryReader { proxy in
+                let isWide = AureliaLayout.isWide(proxy.size.width)
+                ScrollView {
+                    if isWide {
+                        HStack(alignment: .center, spacing: AureliaSpacing.xxl) {
+                            branding
+                                .frame(maxWidth: 320)
 
-                // App branding
-                VStack(spacing: 8) {
-                    Image(systemName: "music.note.house.fill")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.tint)
-                    Text("Aurelia")
-                        .font(.largeTitle.bold())
-                    Text("A Jellyfin Music Client")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                            formCard
+                                .frame(maxWidth: 420)
+                        }
+                        .frame(maxWidth: 900)
+                        .padding(.horizontal, AureliaSpacing.xxl)
+                        .padding(.vertical, AureliaSpacing.xl)
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        VStack(spacing: AureliaSpacing.xl) {
+                            branding
+                            formCard
+                        }
+                        .padding(.horizontal, AureliaSpacing.l)
+                        .padding(.vertical, AureliaSpacing.xl)
+                        .frame(maxWidth: .infinity)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .navigationTitle("Sign In")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .aureliaScreen()
+        .onChange(of: viewModel.token) {
+            if viewModel.token != nil {
+                appViewModel.checkSession()
+            }
+        }
+    }
 
-                // Login form
-                VStack(spacing: 16) {
-                    TextField("Server URL", text: $viewModel.serverUrl)
-                        .textContentType(.URL)
-                        .keyboardType(.URL)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+    private var branding: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "music.note.house.fill")
+                .font(.system(size: 64))
+                .foregroundStyle(.tint)
+            Text("Aurelia")
+                .font(.largeTitle.bold())
+            Text("A Jellyfin Music Client")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
 
-                    TextField("Username", text: $viewModel.username)
-                        .textContentType(.username)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+    private var formCard: some View {
+        GlassCard(cornerRadius: AureliaRadius.l, padding: AureliaSpacing.l) {
+            VStack(spacing: AureliaSpacing.m) {
+                TextField("Server URL", text: $viewModel.serverUrl)
+                    .textContentType(.URL)
+                    .keyboardType(.URL)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
 
-                    SecureField("Password", text: $viewModel.password)
-                        .textContentType(.password)
-                }
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal)
+                TextField("Username", text: $viewModel.username)
+                    .textContentType(.username)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
 
-                // Error message
+                SecureField("Password", text: $viewModel.password)
+                    .textContentType(.password)
+
                 if let error = viewModel.error {
                     Text(error)
                         .font(.callout)
                         .foregroundStyle(.red)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal)
                 }
 
-                // Submit button
                 Button {
                     viewModel.submit()
                 } label: {
@@ -64,17 +95,8 @@ struct LoginView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(viewModel.isSubmitting)
-                .padding(.horizontal)
-
-                Spacer()
             }
-            .navigationTitle("Sign In")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .onChange(of: viewModel.token) {
-            if viewModel.token != nil {
-                appViewModel.checkSession()
-            }
+            .textFieldStyle(.roundedBorder)
         }
     }
 }

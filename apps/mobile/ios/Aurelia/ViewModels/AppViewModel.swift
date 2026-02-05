@@ -13,8 +13,14 @@ final class AppViewModel: @unchecked Sendable {
     }
 
     func checkSession() {
-        isLoggedIn = sessionStore.hasValidSession
-        isLoading = false
+        isLoading = true
+        Task.detached { [sessionStore] in
+            let isValid = await sessionStore.hasValidSession
+            await MainActor.run {
+                self.isLoggedIn = isValid
+                self.isLoading = false
+            }
+        }
     }
 
     func logout() {

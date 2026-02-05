@@ -23,6 +23,7 @@ final class AudioPlayerController: @unchecked Sendable {
     private var lastToken: String = ""
     private var seekOffsetMs: Int64 = 0
     private var timeObserver: Any?
+    private var audioSessionConfigured = false
     private let logger = Logger(subsystem: "com.aurelia.app", category: "AudioPlayer")
 
     private static let seekableContainers: Set<String> = ["flac", "mp3", "aac", "ogg"]
@@ -30,7 +31,6 @@ final class AudioPlayerController: @unchecked Sendable {
     init() {
         player = AVQueuePlayer()
         player.allowsExternalPlayback = false
-        configureAudioSession()
         setupRemoteTransportControls()
         setupNotifications()
         setupTimeObserver()
@@ -53,6 +53,12 @@ final class AudioPlayerController: @unchecked Sendable {
         } catch {
             logger.error("Failed to configure audio session: \(error)")
         }
+    }
+
+    private func ensureAudioSession() {
+        guard !audioSessionConfigured else { return }
+        audioSessionConfigured = true
+        configureAudioSession()
     }
 
     // MARK: - Remote Controls (Lock Screen / Control Center)
@@ -124,6 +130,7 @@ final class AudioPlayerController: @unchecked Sendable {
     // MARK: - Queue Management
 
     func setQueue(_ songs: [Song], serverUrl: String, token: String, startIndex: Int = 0, autoPlay: Bool = true) {
+        ensureAudioSession()
         songQueue = songs
         songByMediaId.removeAll()
         songs.forEach { songByMediaId[$0.id] = $0 }
@@ -175,6 +182,7 @@ final class AudioPlayerController: @unchecked Sendable {
 
     func playQueueItem(_ index: Int) {
         guard index >= 0, index < songQueue.count else { return }
+        ensureAudioSession()
         seekOffsetMs = 0
 
         // Rebuild queue from the target index
@@ -204,6 +212,7 @@ final class AudioPlayerController: @unchecked Sendable {
     }
 
     func resume() {
+        ensureAudioSession()
         player.play()
         updateSnapshot()
         updateNowPlayingInfo()
@@ -393,8 +402,17 @@ final class AudioPlayerController: @unchecked Sendable {
         if let artUrlString = song.albumArtUrl, let artUrl = URL(string: artUrlString) {
             let targetSongId = song.id
             Task.detached { [targetSongId] in
-                guard let (data, _) = try? await URLSession.shared.data(from: artUrl),
-                      let image = UIImage(data: data) else { return }
+                let cached = await ImageCache.shared.cachedImage(for: artUrl)
+                let image: UIImage?
+                if let cached {
+                    image = cached
+                } else {
+                    guard let (data, _) = try? await URLSession.shared.data(from: artUrl),
+                          let fetched = UIImage(data: data) else { return }
+                    await ImageCache.shared.store(fetched, for: artUrl)
+                    image = fetched
+                }
+                guard let image else { return }
                 let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
                 await MainActor.run { [weak self] in
                     guard let self, self.snapshot.currentSongId == targetSongId else { return }
@@ -432,4 +450,3 @@ final class AudioPlayerController: @unchecked Sendable {
         return seekableContainers.contains(container)
     }
 }
-

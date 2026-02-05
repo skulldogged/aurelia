@@ -60,6 +60,7 @@ final class SettingsViewModel: @unchecked Sendable {
                     self.loadSyncState()
                     self.isSyncing = false
                     self.syncSuccess = true
+                    self.sessionStore.markLibraryRefreshed()
                 }
             } catch {
                 if await !AuthInterceptor.shared.handlePotentialAuthError(error) {
@@ -90,6 +91,7 @@ final class SettingsViewModel: @unchecked Sendable {
                     self.isClearing = false
                     self.clearSuccess = true
                     self.lastSyncTime = nil
+                    ImageCache.shared.clear()
                 }
             } catch {
                 await MainActor.run {

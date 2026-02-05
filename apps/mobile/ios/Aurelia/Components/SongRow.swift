@@ -2,6 +2,7 @@ import SwiftUI
 import AureliaCore
 
 struct SongRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let song: Song
     var isPlaying: Bool = false
     var showTrackNumber: Bool = false
@@ -51,8 +52,12 @@ struct SongRow: View {
                         .monospacedDigit()
                 }
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
             .contentShape(Rectangle())
+            .background(
+                RoundedRectangle(cornerRadius: AureliaRadius.m, style: .continuous)
+                    .fill(isPlaying ? AureliaPalette.tint(for: colorScheme).opacity(0.12) : Color.clear)
+            )
         }
         .buttonStyle(.plain)
     }

@@ -1,50 +1,33 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @Environment(AudioPlayerController.self) private var playerController
-    @State private var selectedTab: Tab = .home
-    @State private var showPlayer = false
-
-    enum Tab: Hashable {
-        case home, songs, albums, artists, search, settings
-    }
+    @Binding var selectedTab: MainDestination
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            TabView(selection: $selectedTab) {
-                SwiftUI.Tab("Home", systemImage: "house.fill", value: Tab.home) {
-                    HomeView()
-                }
-
-                SwiftUI.Tab("Songs", systemImage: "music.note", value: Tab.songs) {
-                    LibraryView()
-                }
-
-                SwiftUI.Tab("Albums", systemImage: "square.stack.fill", value: Tab.albums) {
-                    AlbumsView()
-                }
-
-                SwiftUI.Tab("Artists", systemImage: "music.mic", value: Tab.artists) {
-                    ArtistsView()
-                }
-
-                SwiftUI.Tab("Search", systemImage: "magnifyingglass", value: Tab.search) {
-                    SearchView()
-                }
-
-                SwiftUI.Tab("Settings", systemImage: "gearshape.fill", value: Tab.settings) {
-                    SettingsView()
-                }
+        TabView(selection: $selectedTab) {
+            SwiftUI.Tab("Home", systemImage: MainDestination.home.systemImage, value: MainDestination.home) {
+                HomeView()
             }
 
-            // Mini Player overlay
-            if playerController.snapshot.currentSongId != nil {
-                MiniPlayerView(onTap: { showPlayer = true })
-                    .padding(.bottom, 49) // Tab bar height
+            SwiftUI.Tab("Songs", systemImage: MainDestination.songs.systemImage, value: MainDestination.songs) {
+                LibraryView()
             }
-        }
-        .sheet(isPresented: $showPlayer) {
-            PlayerView()
+
+            SwiftUI.Tab("Albums", systemImage: MainDestination.albums.systemImage, value: MainDestination.albums) {
+                AlbumsView()
+            }
+
+            SwiftUI.Tab("Artists", systemImage: MainDestination.artists.systemImage, value: MainDestination.artists) {
+                ArtistsView()
+            }
+
+            SwiftUI.Tab("Search", systemImage: MainDestination.search.systemImage, value: MainDestination.search) {
+                SearchView()
+            }
+
+            SwiftUI.Tab("Settings", systemImage: MainDestination.settings.systemImage, value: MainDestination.settings) {
+                SettingsView()
+            }
         }
     }
 }

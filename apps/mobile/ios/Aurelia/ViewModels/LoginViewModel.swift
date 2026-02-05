@@ -28,15 +28,12 @@ final class LoginViewModel: @unchecked Sendable {
         isSubmitting = true
         error = nil
 
-        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-
-        Task.detached { [serverUrl = self.serverUrl, username = self.username, password = self.password, deviceId = deviceId] in
+        Task.detached { [serverUrl = self.serverUrl, username = self.username, password = self.password] in
             do {
                 let response = try authenticate(
                     serverUrl: serverUrl,
                     username: username,
-                    password: password,
-                    deviceId: deviceId
+                    password: password
                 )
                 let sessionStore = await SessionStore.shared
                 await sessionStore

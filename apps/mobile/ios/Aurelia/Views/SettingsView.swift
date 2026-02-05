@@ -8,7 +8,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                // Sync Section
                 Section("Library Sync") {
                     HStack {
                         Text("Last Synced")
@@ -34,7 +33,6 @@ struct SettingsView: View {
                     .disabled(viewModel.isSyncing)
                 }
 
-                // Cache Section
                 Section("Cache") {
                     Button(role: .destructive) {
                         viewModel.clearLocalCache()
@@ -53,7 +51,6 @@ struct SettingsView: View {
                     .disabled(viewModel.isClearing)
                 }
 
-                // Account Section
                 Section("Account") {
                     if let serverUrl = SessionStore.shared.serverUrl {
                         HStack {
@@ -71,7 +68,6 @@ struct SettingsView: View {
                     }
                 }
 
-                // About Section
                 Section("About") {
                     HStack {
                         Text("Version")
@@ -81,6 +77,9 @@ struct SettingsView: View {
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .listRowBackground(Rectangle().fill(.ultraThinMaterial))
             .navigationTitle("Settings")
             .confirmationDialog("Sign Out", isPresented: $showLogoutConfirmation) {
                 Button("Sign Out", role: .destructive) {
@@ -91,5 +90,6 @@ struct SettingsView: View {
                 Text("Are you sure you want to sign out?")
             }
         }
+        .aureliaScreen()
     }
 }

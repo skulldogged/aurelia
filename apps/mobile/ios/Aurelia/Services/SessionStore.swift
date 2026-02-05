@@ -8,6 +8,7 @@ final class SessionStore: @unchecked Sendable {
     static let shared = SessionStore()
 
     private let logger = Logger(subsystem: "com.aurelia.app", category: "SessionStore")
+    private let libraryRefreshKey = "lastLibraryRefresh"
 
     private init() {
         // AppDataDir is now computed dynamically to handle iOS container path changes
@@ -62,6 +63,39 @@ final class SessionStore: @unchecked Sendable {
             logger.error("Failed to load credentials: \(error)")
             return nil
         }
+    }
+
+    func getSyncState() -> SyncState? {
+        guard let appDataDir = getAppDataDir(), !appDataDir.isEmpty else { return nil }
+        do {
+            return try AureliaCore.getSyncState(appDataDir: appDataDir)
+        } catch {
+            logger.error("Failed to load sync state: \(error)")
+            return nil
+        }
+    }
+
+    func lastSyncDate() -> Date? {
+        guard let syncState = getSyncState(), !syncState.lastSyncTime.isEmpty else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: syncState.lastSyncTime) ?? ISO8601DateFormatter().date(from: syncState.lastSyncTime)
+    }
+
+    func markLibraryRefreshed() {
+        UserDefaults.standard.set(Date(), forKey: libraryRefreshKey)
+    }
+
+    func lastLibraryRefreshDate() -> Date? {
+        UserDefaults.standard.object(forKey: libraryRefreshKey) as? Date
+    }
+
+    func shouldRefreshLibrary(maxAge: TimeInterval = 6 * 60 * 60) -> Bool {
+        let lastSync = lastSyncDate()
+        let lastRefresh = lastLibraryRefreshDate()
+        let referenceDate = [lastSync, lastRefresh].compactMap { $0 }.max()
+        guard let referenceDate else { return true }
+        return Date().timeIntervalSince(referenceDate) > maxAge
     }
 
     var serverUrl: String? { getCredentials()?.serverUrl }

@@ -8,38 +8,90 @@ struct ArtistsView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if isLoading && artists.isEmpty {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error, artists.isEmpty {
-                    ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
-                } else if artists.isEmpty {
-                    ContentUnavailableView("No Artists", systemImage: "music.mic", description: Text("Your library has no artists"))
-                } else {
-                    List(artists, id: \.id) { artist in
-                        NavigationLink(value: ArtistRoute(id: artist.id, name: artist.name)) {
-                            HStack(spacing: 12) {
-                                AsyncImage(url: artist.artUrl.flatMap { URL(string: $0) }) { image in
-                                    image.resizable().scaledToFill()
-                                } placeholder: {
-                                    Image(systemName: "music.mic")
-                                        .foregroundStyle(.secondary)
-                                }
-                                .frame(width: 48, height: 48)
-                                .clipShape(Circle())
+            GeometryReader { proxy in
+                let isWide = AureliaLayout.isWide(proxy.size.width)
+                let columns = [
+                    GridItem(.adaptive(minimum: isWide ? 200 : 160), spacing: AureliaSpacing.m)
+                ]
 
-                                VStack(alignment: .leading) {
-                                    Text(artist.name)
-                                        .font(.body)
-                                    Text("\(artist.songCount) songs")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                Group {
+                    if isLoading && artists.isEmpty {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if let error, artists.isEmpty {
+                        ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
+                    } else if artists.isEmpty {
+                        ContentUnavailableView("No Artists", systemImage: "music.mic", description: Text("Your library has no artists"))
+                    } else {
+                        if isWide {
+                            ScrollView {
+                                LazyVGrid(columns: columns, spacing: AureliaSpacing.m) {
+                                    ForEach(artists, id: \.id) { artist in
+                                        NavigationLink(value: ArtistRoute(id: artist.id, name: artist.name)) {
+                                            GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.m, showsShadow: false) {
+                                                VStack(alignment: .leading, spacing: 10) {
+                                                    HStack(spacing: 12) {
+                                                        AsyncImage(url: artist.artUrl.flatMap { URL(string: $0) }) { image in
+                                                            image.resizable().scaledToFill()
+                                                        } placeholder: {
+                                                            Image(systemName: "music.mic")
+                                                                .foregroundStyle(.secondary)
+                                                        }
+                                                        .frame(width: 56, height: 56)
+                                                        .clipShape(Circle())
+
+                                                        VStack(alignment: .leading, spacing: 4) {
+                                                            Text(artist.name)
+                                                                .font(.body)
+                                                                .lineLimit(1)
+                                                            Text("\(artist.songCount) songs")
+                                                                .font(.caption)
+                                                                .foregroundStyle(.secondary)
+                                                        }
+                                                        Spacer()
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
                                 }
+                                .padding(.horizontal, AureliaSpacing.xl)
+                                .padding(.vertical, AureliaSpacing.l)
                             }
+                        } else {
+                            List(artists, id: \.id) { artist in
+                                GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s, showsShadow: false) {
+                                    NavigationLink(value: ArtistRoute(id: artist.id, name: artist.name)) {
+                                        HStack(spacing: 12) {
+                                            AsyncImage(url: artist.artUrl.flatMap { URL(string: $0) }) { image in
+                                                image.resizable().scaledToFill()
+                                            } placeholder: {
+                                                Image(systemName: "music.mic")
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .frame(width: 48, height: 48)
+                                            .clipShape(Circle())
+
+                                            VStack(alignment: .leading) {
+                                                Text(artist.name)
+                                                    .font(.body)
+                                                Text("\(artist.songCount) songs")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 6, leading: AureliaSpacing.m, bottom: 6, trailing: AureliaSpacing.m))
+                            }
+                            .listStyle(.plain)
+                            .scrollContentBackground(.hidden)
                         }
                     }
-                    .listStyle(.plain)
                 }
             }
             .navigationTitle("Artists")
@@ -48,6 +100,7 @@ struct ArtistsView: View {
             }
             .onAppear { loadArtists() }
         }
+        .aureliaScreen()
     }
 
     private func loadArtists() {
@@ -60,7 +113,6 @@ struct ArtistsView: View {
             let appDataDir = await sessionStore.getAppDataDir() ?? ""
             do {
                 let songs = try loadCachedSongs(appDataDir: appDataDir)
-                // Group by first artist
                 var artistMap: [String: (name: String, artUrl: String?, count: Int)] = [:]
                 for song in songs {
                     guard let artistId = song.artistIds?.first, !artistId.isEmpty else { continue }

@@ -23,13 +23,16 @@ final class LibraryViewModel: @unchecked Sendable {
         error = nil
 
         let appDataDir = sessionStore.getAppDataDir() ?? ""
+        let shouldRefresh = sessionStore.shouldRefreshLibrary()
 
         Task.detached { [self] in
             // Load cached first
+            var loadedCache = false
             if !appDataDir.isEmpty {
                 do {
                     let cached = try loadCachedSongs(appDataDir: appDataDir)
                     if !cached.isEmpty {
+                        loadedCache = true
                         await MainActor.run {
                             self.songs = cached
                             self.isLoading = false
@@ -38,6 +41,10 @@ final class LibraryViewModel: @unchecked Sendable {
                 } catch {
                     self.logger.warning("Failed to load cached songs: \(error)")
                 }
+            }
+
+            if loadedCache && !shouldRefresh {
+                return
             }
 
             // Fetch fresh
@@ -51,6 +58,7 @@ final class LibraryViewModel: @unchecked Sendable {
                 await MainActor.run {
                     self.songs = freshSongs
                     self.isLoading = false
+                    self.sessionStore.markLibraryRefreshed()
                 }
             } catch {
                 if await !AuthInterceptor.shared.handlePotentialAuthError(error) {

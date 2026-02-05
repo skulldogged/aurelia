@@ -1,8 +1,12 @@
 import SwiftUI
+import UIKit
 
 struct AlbumArtView: View {
     let url: String?
     var size: ArtSize = .medium
+    var customDimension: CGFloat? = nil
+    @State private var loadedImage: UIImage? = nil
+    @State private var isLoading = false
 
     enum ArtSize {
         case small, medium, large, extraLarge
@@ -24,38 +28,77 @@ struct AlbumArtView: View {
             case .extraLarge: 16
             }
         }
+
+        func cornerRadius(for dimension: CGFloat?) -> CGFloat {
+            let baseRadius = cornerRadius
+            let baseDimension = self.dimension
+            guard let dimension else { return baseRadius }
+            let ratio = baseRadius / baseDimension
+            return max(6, dimension * ratio)
+        }
     }
 
     var body: some View {
-        AsyncImage(url: url.flatMap { URL(string: $0) }) { phase in
-            switch phase {
-            case .success(let image):
-                image
+        let dimension = customDimension ?? size.dimension
+        let radius = size.cornerRadius(for: dimension)
+        Group {
+            if let loadedImage {
+                Image(uiImage: loadedImage)
                     .resizable()
                     .scaledToFill()
-            case .failure:
-                placeholder
-            case .empty:
+            } else if isLoading {
                 placeholder
                     .overlay { ProgressView() }
-            @unknown default:
+            } else {
                 placeholder
             }
         }
-        .frame(width: size.dimension, height: size.dimension)
-        .clipShape(RoundedRectangle(cornerRadius: size.cornerRadius))
+        .frame(width: dimension, height: dimension)
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
         .background(
-            RoundedRectangle(cornerRadius: size.cornerRadius)
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .fill(.quaternary)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .task(id: url) {
+            await loadImage()
+        }
     }
 
     private var placeholder: some View {
         ZStack {
             Color(.systemGray5)
             Image(systemName: "music.note")
-                .font(.system(size: size.dimension * 0.3))
+                .font(.system(size: (customDimension ?? size.dimension) * 0.3))
                 .foregroundStyle(.secondary)
         }
+    }
+
+    @MainActor
+    private func loadImage() async {
+        loadedImage = nil
+        guard let urlString = url, let imageUrl = URL(string: urlString) else { return }
+
+        isLoading = true
+        if let cached = await ImageCache.shared.cachedImage(for: imageUrl) {
+            loadedImage = cached
+            isLoading = false
+            return
+        }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: imageUrl)
+            if let image = UIImage(data: data) {
+                ImageCache.shared.store(image, for: imageUrl)
+                loadedImage = image
+            }
+        } catch {
+            // Ignore errors, keep placeholder
+        }
+
+        isLoading = false
     }
 }

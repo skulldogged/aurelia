@@ -10,170 +10,45 @@ struct PlayerView: View {
     var body: some View {
         NavigationStack {
             GeometryReader { geometry in
+                let isWide = AureliaLayout.isWide(geometry.size.width)
+                let maxArt: CGFloat = isWide ? 320 : 340
+                let artInset: CGFloat = isWide ? 160 : 64
+                let artSize = max(CGFloat(200), min(maxArt, geometry.size.width - artInset))
+
                 ScrollView {
-                    VStack(spacing: 24) {
-                        // Album Art
-                        AlbumArtView(url: viewModel.albumArtUrl, size: .extraLarge)
-                            .frame(width: {
-                                let size = max(0, min(geometry.size.width - 64, 340))
-                                return size
-                            }(), height: {
-                                let size = max(0, min(geometry.size.width - 64, 340))
-                                return size
-                            }())
-                            .shadow(radius: 20)
+                    if isWide {
+                        HStack(alignment: .top, spacing: AureliaSpacing.xl) {
+                            primaryColumn(artSize: artSize)
+                                .frame(maxWidth: 360)
 
-                        // Song Info
-                        VStack(spacing: 4) {
-                            Text(viewModel.title)
-                                .font(.title2.bold())
-                                .lineLimit(1)
-
-                            Text(viewModel.artist)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-
-                            if let formatInfo = viewModel.formatInfo {
-                                Text(formatInfo)
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                            }
-                        }
-                        .padding(.horizontal)
-
-                        // Progress Slider
-                        VStack(spacing: 4) {
-                            Slider(
-                                value: Binding(
-                                    get: { isDragging ? dragPosition : Double(viewModel.positionMs) },
-                                    set: { newValue in
-                                        dragPosition = newValue
-                                        isDragging = true
-                                    }
-                                ),
-                                in: 0...max(Double(viewModel.durationMs), 1),
-                                onEditingChanged: { editing in
-                                    if !editing {
-                                        viewModel.seekTo(Int64(dragPosition), playerController: playerController)
-                                        isDragging = false
-                                    }
+                            VStack(alignment: .leading, spacing: AureliaSpacing.l) {
+                                if viewModel.showLyrics, let _ = viewModel.lyrics {
+                                    lyricsCard
                                 }
-                            )
-                            .tint(.primary)
 
-                            HStack {
-                                Text(TimeFormatter.formatDuration(isDragging ? Int64(dragPosition) : viewModel.positionMs))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                                Spacer()
-                                Text(TimeFormatter.formatDuration(viewModel.durationMs))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                            }
-                        }
-                        .padding(.horizontal)
-
-                        // Playback Controls
-                        HStack(spacing: 32) {
-                            // Shuffle
-                            Button {
-                                viewModel.toggleShuffle(playerController: playerController)
-                            } label: {
-                                Image(systemName: "shuffle")
-                                    .font(.title3)
-                                    .foregroundStyle(viewModel.isShuffled ? .primary : .secondary)
-                            }
-
-                            // Previous
-                            Button {
-                                viewModel.skipPrevious(playerController: playerController)
-                            } label: {
-                                Image(systemName: "backward.fill")
-                                    .font(.title)
-                            }
-
-                            // Play/Pause
-                            Button {
-                                viewModel.togglePlayPause(playerController: playerController)
-                            } label: {
-                                Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                                    .font(.system(size: 56))
-                            }
-
-                            // Next
-                            Button {
-                                viewModel.skipNext(playerController: playerController)
-                            } label: {
-                                Image(systemName: "forward.fill")
-                                    .font(.title)
-                            }
-
-                            // Repeat
-                            Button {
-                                viewModel.cycleRepeatMode(playerController: playerController)
-                            } label: {
-                                Image(systemName: viewModel.repeatMode == .one ? "repeat.1" : "repeat")
-                                    .font(.title3)
-                                    .foregroundStyle(viewModel.repeatMode == .none ? .secondary : .primary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-
-                        // Secondary Controls
-                        HStack(spacing: 24) {
-                            // Favorite
-                            Button {
-                                viewModel.toggleFavorite()
-                            } label: {
-                                Image(systemName: viewModel.isFavorite ? "heart.fill" : "heart")
-                                    .foregroundStyle(viewModel.isFavorite ? .red : .secondary)
-                            }
-                            .disabled(viewModel.isFavoriteLoading)
-
-                            // Lyrics toggle
-                            Button {
-                                viewModel.toggleLyrics()
-                            } label: {
-                                Image(systemName: "text.quote")
-                                    .foregroundStyle(viewModel.showLyrics ? .primary : .secondary)
-                            }
-                        }
-                        .font(.title3)
-                        .buttonStyle(.plain)
-
-                        // Lyrics
-                        if viewModel.showLyrics, let lyrics = viewModel.lyrics {
-                            LyricsView(lyrics: lyrics, positionMs: viewModel.positionMs)
-                                .frame(maxHeight: 300)
-                                .padding(.horizontal)
-                        }
-
-                        // Queue
-                        if !viewModel.queue.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Queue")
-                                    .font(.headline)
-                                    .padding(.horizontal)
-
-                                LazyVStack(spacing: 0) {
-                                    ForEach(Array(viewModel.queue.enumerated()), id: \.element.id) { index, song in
-                                        SongRow(
-                                            song: song,
-                                            isPlaying: index == viewModel.currentQueueIndex
-                                        ) {
-                                            viewModel.playQueueItem(index, playerController: playerController)
-                                        }
-                                        Divider()
-                                    }
+                                if !viewModel.queue.isEmpty {
+                                    queueCard
                                 }
-                                .padding(.horizontal)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .padding(.horizontal, AureliaSpacing.xl)
+                        .padding(.vertical, AureliaSpacing.l)
+                    } else {
+                        VStack(spacing: AureliaSpacing.l) {
+                            primaryColumn(artSize: artSize)
+
+                            if viewModel.showLyrics, let _ = viewModel.lyrics {
+                                lyricsCard
+                            }
+
+                            if !viewModel.queue.isEmpty {
+                                queueCard
                             }
                         }
+                        .padding(.horizontal, AureliaSpacing.m)
+                        .padding(.vertical, AureliaSpacing.l)
                     }
-                    .padding(.vertical, 32)
                 }
             }
             .toolbar {
@@ -199,6 +74,7 @@ struct PlayerView: View {
                 }
             }
         }
+        .aureliaScreen()
         .onChange(of: playerController.snapshot) { _, snapshot in
             viewModel.updateFrom(snapshot, playerController: playerController)
         }
@@ -206,9 +82,172 @@ struct PlayerView: View {
             viewModel.updateFrom(playerController.snapshot, playerController: playerController)
         }
     }
-}
 
-// MARK: - Lyrics View
+    private func primaryColumn(artSize: CGFloat) -> some View {
+        VStack(spacing: AureliaSpacing.l) {
+            AlbumArtView(url: viewModel.albumArtUrl, size: .extraLarge, customDimension: artSize)
+                .shadow(radius: 18)
+
+            GlassCard(cornerRadius: AureliaRadius.l, padding: AureliaSpacing.l) {
+                VStack(spacing: AureliaSpacing.m) {
+                    songInfo
+                    progressSection
+                    playbackControls
+                    secondaryControls
+                }
+            }
+        }
+    }
+
+    private var songInfo: some View {
+        VStack(spacing: 4) {
+            Text(viewModel.title)
+                .font(.title2.bold())
+                .lineLimit(1)
+
+            Text(viewModel.artist)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if let formatInfo = viewModel.formatInfo {
+                Text(formatInfo)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private var progressSection: some View {
+        VStack(spacing: 4) {
+            Slider(
+                value: Binding(
+                    get: { isDragging ? dragPosition : Double(viewModel.positionMs) },
+                    set: { newValue in
+                        dragPosition = newValue
+                        isDragging = true
+                    }
+                ),
+                in: 0...max(Double(viewModel.durationMs), 1),
+                onEditingChanged: { editing in
+                    if !editing {
+                        viewModel.seekTo(Int64(dragPosition), playerController: playerController)
+                        isDragging = false
+                    }
+                }
+            )
+            .tint(.primary)
+
+            HStack {
+                Text(TimeFormatter.formatDuration(isDragging ? Int64(dragPosition) : viewModel.positionMs))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                Spacer()
+                Text(TimeFormatter.formatDuration(viewModel.durationMs))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    private var playbackControls: some View {
+        HStack(spacing: 32) {
+            Button {
+                viewModel.toggleShuffle(playerController: playerController)
+            } label: {
+                Image(systemName: "shuffle")
+                    .font(.title3)
+                    .foregroundStyle(viewModel.isShuffled ? .primary : .secondary)
+            }
+
+            Button {
+                viewModel.skipPrevious(playerController: playerController)
+            } label: {
+                Image(systemName: "backward.fill")
+                    .font(.title)
+            }
+
+            Button {
+                viewModel.togglePlayPause(playerController: playerController)
+            } label: {
+                Image(systemName: viewModel.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 56))
+            }
+
+            Button {
+                viewModel.skipNext(playerController: playerController)
+            } label: {
+                Image(systemName: "forward.fill")
+                    .font(.title)
+            }
+
+            Button {
+                viewModel.cycleRepeatMode(playerController: playerController)
+            } label: {
+                Image(systemName: viewModel.repeatMode == .one ? "repeat.1" : "repeat")
+                    .font(.title3)
+                    .foregroundStyle(viewModel.repeatMode == .none ? .secondary : .primary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var secondaryControls: some View {
+        HStack(spacing: 24) {
+            Button {
+                viewModel.toggleFavorite()
+            } label: {
+                Image(systemName: viewModel.isFavorite ? "heart.fill" : "heart")
+                    .foregroundStyle(viewModel.isFavorite ? .red : .secondary)
+            }
+            .disabled(viewModel.isFavoriteLoading)
+
+            Button {
+                viewModel.toggleLyrics()
+            } label: {
+                Image(systemName: "text.quote")
+                    .foregroundStyle(viewModel.showLyrics ? .primary : .secondary)
+            }
+        }
+        .font(.title3)
+        .buttonStyle(.plain)
+    }
+
+    private var lyricsCard: some View {
+        GlassCard(cornerRadius: AureliaRadius.l, padding: AureliaSpacing.m) {
+            if let lyrics = viewModel.lyrics {
+                LyricsView(lyrics: lyrics, positionMs: viewModel.positionMs)
+                    .frame(maxHeight: 320)
+            }
+        }
+    }
+
+    private var queueCard: some View {
+        GlassCard(cornerRadius: AureliaRadius.l, padding: AureliaSpacing.m) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Queue")
+                    .font(.headline)
+
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(viewModel.queue.enumerated()), id: \.element.id) { index, song in
+                        SongRow(
+                            song: song,
+                            isPlaying: index == viewModel.currentQueueIndex
+                        ) {
+                            viewModel.playQueueItem(index, playerController: playerController)
+                        }
+                        if index != viewModel.queue.count - 1 {
+                            Divider()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 struct LyricsView: View {
     let lyrics: Lyrics
@@ -243,4 +282,3 @@ struct LyricsView: View {
         return currentTime >= lineTime && currentTime < nextTime
     }
 }
-
