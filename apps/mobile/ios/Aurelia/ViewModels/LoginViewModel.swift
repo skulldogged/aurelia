@@ -32,7 +32,7 @@ final class LoginViewModel: @unchecked Sendable {
 
         Task.detached { [serverUrl = self.serverUrl, username = self.username, password = self.password, deviceId = deviceId] in
             do {
-                let response = try authenticate(
+                let response = try await authenticate(
                     serverUrl: serverUrl,
                     username: username,
                     password: password,

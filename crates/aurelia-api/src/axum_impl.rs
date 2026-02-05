@@ -1121,3 +1121,23 @@ impl Api for AxumApiImpl {
         Err(AppError::General("Desktop-only feature".to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{clear_lastfm_secret, load_lastfm_secret, save_lastfm_secret};
+    use tempfile::tempdir;
+
+    #[test]
+    fn lastfm_secret_roundtrip() {
+        let dir = tempdir().expect("temp dir");
+        let path = dir.path();
+
+        assert!(load_lastfm_secret(path).is_none());
+
+        save_lastfm_secret(path, "secret").expect("save");
+        assert_eq!(load_lastfm_secret(path).as_deref(), Some("secret"));
+
+        clear_lastfm_secret(path).expect("clear");
+        assert!(load_lastfm_secret(path).is_none());
+    }
+}

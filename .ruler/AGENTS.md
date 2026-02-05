@@ -10,6 +10,7 @@ Ship reliable updates to this actively evolving music player supporting Desktop 
 - **Shared Code**: `apps/shared/` - Vue code shared between desktop and web frontends (stores, composables, UI components)
 - **Rust Core**: `crates/aurelia-core/` (shared logic), `crates/aurelia-api/` (API abstraction)
 - **Run Commands**: `bun run dev`, `bun run build`, `bun run dev:android`
+- **Testing Guide**: `TESTING.md` (authoritative commands for all apps)
 
 ## Golden Rules
 

@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@intellectronica/ruler": "^0.3.23",
@@ -43,15 +45,23 @@
   },
   "devDependencies": {
     "@catppuccin/tailwindcss": "^1.0.0",
+    "@pinia/testing": "^0.1.7",
     "@tailwindcss/vite": "^4.1.18",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@testing-library/vue": "^8.1.0",
     "@tauri-apps/cli": "^2.9.6",
     "@vitejs/plugin-vue": "^6.0.3",
+    "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.23",
+    "happy-dom": "^16.8.1",
+    "msw": "^2.11.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "unplugin-vue-router": "^0.19.2",
     "vite": "^7.3.1",
+    "vitest": "^3.1.1",
     "vue-tsc": "^3.2.2"
   },
   "trustedDependencies": [

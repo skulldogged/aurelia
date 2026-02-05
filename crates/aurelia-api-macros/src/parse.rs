@@ -165,3 +165,65 @@ fn is_option_type(ty: &Type) -> bool {
 
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_api_trait;
+    use crate::ir::HttpMethod;
+    use syn::ItemTrait;
+
+    #[test]
+    fn parses_path_and_query_params() {
+        let input: ItemTrait = syn::parse_str(
+            r#"
+            #[aurelia_api]
+            pub trait Api {
+                #[api(GET "/songs/{song_id}")]
+                async fn get_song(&self, song_id: String, include: Option<String>) -> ApiResult<()>;
+            }
+            "#,
+        )
+        .expect("parse");
+
+        let api = parse_api_trait(&input).expect("api");
+        let method = &api.methods[0];
+        assert_eq!(method.http_method, HttpMethod::Get);
+        assert_eq!(method.path, "/songs/{song_id}");
+        assert_eq!(method.path_params.len(), 1);
+        assert_eq!(method.query_params.len(), 1);
+        assert!(method.query_params[0].optional);
+    }
+
+    #[test]
+    fn parses_desktop_only_flag() {
+        let input: ItemTrait = syn::parse_str(
+            r#"
+            #[aurelia_api]
+            pub trait Api {
+                #[api(POST "/audio/play", desktop_only)]
+                async fn audio_play(&self, url: String) -> ApiResult<()>;
+            }
+            "#,
+        )
+        .expect("parse");
+
+        let api = parse_api_trait(&input).expect("api");
+        let method = &api.methods[0];
+        assert!(method.desktop_only);
+    }
+
+    #[test]
+    fn missing_api_attribute_is_error() {
+        let input: ItemTrait = syn::parse_str(
+            r#"
+            pub trait Api {
+                async fn missing(&self) -> ApiResult<()>;
+            }
+            "#,
+        )
+        .expect("parse");
+
+        let result = parse_api_trait(&input);
+        assert!(result.is_err());
+    }
+}
