@@ -26,7 +26,7 @@ vi.mock('@shared', () => ({
       status: 'ok',
     }),
   }),
-  isDesktop: true,
+  isDesktop: () => true,
 }))
 
 vi.mock('@shared/components/layout/MainLayout.vue', () => ({

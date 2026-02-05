@@ -4,7 +4,6 @@ use crate::ir::{ApiDefinition, ApiMethod, BodyParam, HttpMethod, PathParam, Quer
 use syn::{Attribute, FnArg, Ident, ItemTrait, Pat, TraitItem, TraitItemFn, Type, parse::Parse};
 
 pub fn parse_api_trait(input: &ItemTrait) -> syn::Result<ApiDefinition> {
-    let trait_name = input.ident.clone();
     let mut methods = Vec::new();
 
     for item in &input.items {
@@ -15,7 +14,6 @@ pub fn parse_api_trait(input: &ItemTrait) -> syn::Result<ApiDefinition> {
     }
 
     Ok(ApiDefinition {
-        trait_name,
         methods,
     })
 }
@@ -80,7 +78,6 @@ fn parse_api_method(method: &TraitItemFn) -> syn::Result<ApiMethod> {
         path_params,
         query_params,
         body_param,
-        return_type: method.sig.output.clone(),
         desktop_only,
     })
 }

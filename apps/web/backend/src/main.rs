@@ -32,16 +32,6 @@ struct ServerState {
 #[serde(tag = "type", content = "data")]
 enum WsMessage {
     SyncState(aurelia_core::models::SyncStateInfo),
-    PlaybackProgress(PlaybackProgress),
-    LibraryUpdate,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct PlaybackProgress {
-    item_id: String,
-    position: f64,
-    duration: f64,
-    is_playing: bool,
 }
 
 #[tokio::main]
