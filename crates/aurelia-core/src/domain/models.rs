@@ -127,3 +127,40 @@ impl SyncDelta {
             + self.albums_to_update.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{SyncDelta, SyncProgress};
+
+    #[test]
+    fn sync_progress_defaults_and_helpers() {
+        let default = SyncProgress::default();
+        assert_eq!(default.stage, "Starting");
+        assert_eq!(default.current, 0);
+        assert_eq!(default.total, 0);
+        assert!(!default.is_complete);
+
+        let in_progress = SyncProgress::new("Fetching", 2, 10);
+        assert_eq!(in_progress.stage, "Fetching");
+        assert_eq!(in_progress.current, 2);
+        assert_eq!(in_progress.total, 10);
+        assert!(!in_progress.is_complete);
+
+        let done = SyncProgress::complete();
+        assert!(done.is_complete);
+        assert_eq!(done.stage, "Complete");
+    }
+
+    #[test]
+    fn sync_delta_counts_changes() {
+        let mut delta = SyncDelta::default();
+        assert!(delta.is_empty());
+
+        delta.songs_to_add.push("s1".to_string());
+        delta.albums_to_remove.push("a1".to_string());
+        delta.artists_to_update.push("r1".to_string());
+
+        assert!(!delta.is_empty());
+        assert_eq!(delta.total_changes(), 3);
+    }
+}

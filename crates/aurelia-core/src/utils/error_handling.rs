@@ -126,3 +126,74 @@ pub fn error_to_user_message(err: &AppError) -> String {
         AppError::UniFfi(msg) => msg.clone(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::AppError;
+    use httpmock::Method::GET;
+    use httpmock::MockServer;
+
+    #[tokio::test]
+    async fn handle_http_response_returns_body_on_error() {
+        let server = MockServer::start();
+        let mock = server.mock(|when, then| {
+            when.method(GET).path("/fail");
+            then.status(400).body("Bad request");
+        });
+
+        let response = reqwest::get(server.url("/fail")).await.unwrap();
+        let err = handle_http_response(response).await.unwrap_err();
+
+        mock.assert();
+        match err {
+            AppError::Http { status, detail } => {
+                assert_eq!(status, 400);
+                assert_eq!(detail, "Bad request");
+            }
+            other => panic!("expected AppError::Http, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn get_json_from_response_parses_payload() {
+        let server = MockServer::start();
+        let mock = server.mock(|when, then| {
+            when.method(GET).path("/ok");
+            then.status(200).json_body(serde_json::json!({
+                "name": "Aurelia",
+                "version": 1
+            }));
+        });
+
+        let response = reqwest::get(server.url("/ok")).await.unwrap();
+        let payload: serde_json::Value = get_json_from_response(response).await.unwrap();
+
+        mock.assert();
+        assert_eq!(payload["name"], "Aurelia");
+        assert_eq!(payload["version"], 1);
+    }
+
+    #[test]
+    fn error_to_user_message_formats_http() {
+        let err = AppError::Http {
+            status: 500,
+            detail: "Server down".to_string(),
+        };
+        assert_eq!(
+            error_to_user_message(&err),
+            "Server error (500): Server down"
+        );
+    }
+
+    #[test]
+    fn handle_cache_error_wraps_message() {
+        let err = handle_cache_error::<()>(Err("boom"));
+        match err {
+            Err(AppError::Database(msg)) => {
+                assert!(msg.contains("Cache operation failed"));
+            }
+            other => panic!("expected database error, got {other:?}"),
+        }
+    }
+}

@@ -24,10 +24,22 @@
 
 ## Testing
 
-| Platform | Framework | Location | Run Command |
-|----------|-----------|----------|-------------|
-| Rust | `cargo test` | `crates/aurelia-core/src/**` (inline `#[cfg(test)]`) | `cargo test -p aurelia-core` |
-| Desktop | Vitest (if configured) | `apps/desktop/src/**/*.test.ts` | `cd apps/desktop && bun test` |
-| Android | JUnit + Compose | `apps/mobile/android/app/src/test/` | `cd apps/mobile/android && ./gradlew test` |
+**Authoritative guide**: `TESTING.md` in repo root.
 
-**Note**: Test coverage is currently minimal. When adding tests, co-locate them with the code being tested.
+| Scope | Framework | Location | Run Command |
+|-------|-----------|----------|-------------|
+| All JS/TS | Vitest | `apps/**/tests` + `apps/**/src` | `bun run test:js` |
+| Shared UI | Vitest + Vue Test Utils | `apps/shared/tests/` | `cd apps/shared && bun test` |
+| Web Frontend | Vitest + Testing Library | `apps/web/frontend/tests/` | `cd apps/web/frontend && bun test` |
+| Desktop | Vitest + Testing Library | `apps/desktop/tests/` | `cd apps/desktop && bun test` |
+| Rust Core | `cargo test` | `crates/aurelia-core/src/**` | `cargo test -p aurelia-core` |
+| Rust API | `cargo test` | `crates/aurelia-api/src/**` | `cargo test -p aurelia-api` |
+| Rust Macros | `cargo test` | `crates/aurelia-api-macros/src/**` | `cargo test -p aurelia-api-macros` |
+| Web Backend | `cargo test` | `apps/web/backend/tests/` | `cargo test -p aurelia-web-backend` |
+| Android (unit) | JUnit | `apps/mobile/android/app/src/test/` | `bun run test:android` |
+| Android (UI) | Compose UI | `apps/mobile/android/app/src/androidTest/` | `bun run test:android:ui` |
+| iOS | Swift Package | `apps/mobile/ios/AureliaCore/Tests/` | `bun run test:ios` |
+
+**Notes**
+1. Use `bun run test` for the standard combined test suite.
+2. When adding tests, co-locate them with the code being tested.

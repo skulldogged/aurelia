@@ -49,7 +49,7 @@ final class LibraryViewModel: @unchecked Sendable {
 
             // Fetch fresh
             do {
-                let freshSongs = try fetchSongs(
+                let freshSongs = try await fetchSongs(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     userId: creds.userId,

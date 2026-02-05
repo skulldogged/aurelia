@@ -135,6 +135,47 @@ pub fn build_mobile_stream_url(
     client.get_mobile_audio_stream_url(&item_id, container.as_deref())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{build_mobile_stream_url, build_stream_url};
+
+    #[test]
+    fn build_stream_url_uses_static_for_seekable() {
+        let url = build_stream_url(
+            "http://localhost:8096".to_string(),
+            "token".to_string(),
+            "song123".to_string(),
+            Some("flac".to_string()),
+        );
+        assert!(url.contains("/Audio/song123/stream"));
+        assert!(url.contains("static=true"));
+    }
+
+    #[test]
+    fn build_stream_url_transcodes_non_seekable() {
+        let url = build_stream_url(
+            "http://localhost:8096".to_string(),
+            "token".to_string(),
+            "song123".to_string(),
+            Some("alac".to_string()),
+        );
+        assert!(url.contains("/Audio/song123/stream.aac"));
+        assert!(!url.contains("static=true"));
+    }
+
+    #[test]
+    fn build_mobile_stream_url_uses_universal_for_non_seekable() {
+        let url = build_mobile_stream_url(
+            "http://localhost:8096".to_string(),
+            "token".to_string(),
+            "song123".to_string(),
+            Some("alac".to_string()),
+        );
+        assert!(url.contains("/Audio/song123/universal"));
+        assert!(url.contains("transcodingProtocol=http"));
+    }
+}
+
 #[uniffi::export]
 pub fn save_credentials(
     app_data_dir: String,

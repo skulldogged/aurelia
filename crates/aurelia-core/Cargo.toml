@@ -56,3 +56,9 @@ rustfft = { version = "6.2", optional = true }
 discord-rich-presence = { version = "1", optional = true }
 souvlaki = { git = "https://github.com/skulldogged/souvlaki", optional = true }
 raw-window-handle = { version = "0.6", optional = true }
+
+[dev-dependencies]
+httpmock = "0.7"
+serial_test = "3.2"
+tempfile = "3.12"
+tokio = { version = "1.43", features = ["macros", "rt-multi-thread"] }

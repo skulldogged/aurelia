@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: ./build-rust.sh [--release]
 #
 # Prerequisites:
-#   rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+#   rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin x86_64-apple-darwin
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -28,6 +28,16 @@ cargo build -p "$CORE_CRATE" --target aarch64-apple-ios $CARGO_FLAGS
 
 echo "==> Building aurelia-core for iOS simulator (aarch64-apple-ios-sim)..."
 cargo build -p "$CORE_CRATE" --target aarch64-apple-ios-sim $CARGO_FLAGS
+
+# Build macOS target for SwiftPM tests (host architecture)
+HOST_ARCH="$(uname -m)"
+if [[ "$HOST_ARCH" == "arm64" ]]; then
+    MACOS_TARGET="aarch64-apple-darwin"
+else
+    MACOS_TARGET="x86_64-apple-darwin"
+fi
+echo "==> Building aurelia-core for macOS ($MACOS_TARGET)..."
+MACOSX_DEPLOYMENT_TARGET=13.0 cargo build -p "$CORE_CRATE" --target "$MACOS_TARGET" $CARGO_FLAGS
 
 # Generate Swift bindings from the host build
 echo "==> Building aurelia-core for host (binding generation)..."
@@ -58,21 +68,26 @@ rm -rf "$FRAMEWORK_DIR"
 
 DEVICE_LIB="$TARGET_DIR/aarch64-apple-ios/$PROFILE/libaurelia_core.a"
 SIM_LIB="$TARGET_DIR/aarch64-apple-ios-sim/$PROFILE/libaurelia_core.a"
+MACOS_LIB="$TARGET_DIR/$MACOS_TARGET/$PROFILE/libaurelia_core.a"
 
 # Create temporary directories for headers
 DEVICE_HEADERS=$(mktemp -d)
 SIM_HEADERS=$(mktemp -d)
+MACOS_HEADERS=$(mktemp -d)
 cp "$HEADER_FILE" "$DEVICE_HEADERS/"
 cp "$MODULEMAP_FILE" "$DEVICE_HEADERS/module.modulemap"
 cp "$HEADER_FILE" "$SIM_HEADERS/"
 cp "$MODULEMAP_FILE" "$SIM_HEADERS/module.modulemap"
+cp "$HEADER_FILE" "$MACOS_HEADERS/"
+cp "$MODULEMAP_FILE" "$MACOS_HEADERS/module.modulemap"
 
 xcodebuild -create-xcframework \
     -library "$DEVICE_LIB" -headers "$DEVICE_HEADERS" \
     -library "$SIM_LIB" -headers "$SIM_HEADERS" \
+    -library "$MACOS_LIB" -headers "$MACOS_HEADERS" \
     -output "$FRAMEWORK_DIR"
 
-rm -rf "$DEVICE_HEADERS" "$SIM_HEADERS"
+rm -rf "$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS"
 
 echo "==> Done! XCFramework at: $FRAMEWORK_DIR"
-echo "    Swift bindings at: $SOURCES_DIR/aurelia_core.swift"
+echo "    Swift bindings at: $SOURCES_DIR/AureliaCore.swift"

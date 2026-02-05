@@ -427,3 +427,87 @@ pub mod albums {
         Ok(())
     }
 }
+
+#[cfg(test)]
+pub fn reset_for_tests() -> Result<()> {
+    let db = get()?;
+    let write_txn = db
+        .begin_write()
+        .map_err(|e| anyhow!("Failed to begin write transaction: {}", e))?;
+    {
+        let mut songs = write_txn
+            .open_table(schema::SONGS)
+            .map_err(|e| anyhow!("Failed to open songs table: {}", e))?;
+        clear_table(&mut songs)?;
+
+        let mut artists = write_txn
+            .open_table(schema::ARTISTS)
+            .map_err(|e| anyhow!("Failed to open artists table: {}", e))?;
+        clear_table(&mut artists)?;
+
+        let mut albums = write_txn
+            .open_table(schema::ALBUMS)
+            .map_err(|e| anyhow!("Failed to open albums table: {}", e))?;
+        clear_table(&mut albums)?;
+
+        let mut playlists = write_txn
+            .open_table(schema::PLAYLISTS)
+            .map_err(|e| anyhow!("Failed to open playlists table: {}", e))?;
+        clear_table(&mut playlists)?;
+
+        let mut favorites = write_txn
+            .open_table(schema::FAVORITES)
+            .map_err(|e| anyhow!("Failed to open favorites table: {}", e))?;
+        clear_table(&mut favorites)?;
+
+        let mut sync_state = write_txn
+            .open_table(schema::SYNC_STATE)
+            .map_err(|e| anyhow!("Failed to open sync state table: {}", e))?;
+        clear_table(&mut sync_state)?;
+
+        let mut credentials = write_txn
+            .open_table(schema::CREDENTIALS)
+            .map_err(|e| anyhow!("Failed to open credentials table: {}", e))?;
+        clear_table(&mut credentials)?;
+
+        let mut songs_by_album = write_txn
+            .open_table(schema::SONGS_BY_ALBUM)
+            .map_err(|e| anyhow!("Failed to open songs_by_album table: {}", e))?;
+        clear_composite_table_for_tests(&mut songs_by_album)?;
+
+        let mut songs_by_artist = write_txn
+            .open_table(schema::SONGS_BY_ARTIST)
+            .map_err(|e| anyhow!("Failed to open songs_by_artist table: {}", e))?;
+        clear_composite_table_for_tests(&mut songs_by_artist)?;
+
+        let mut albums_by_artist = write_txn
+            .open_table(schema::ALBUMS_BY_ARTIST)
+            .map_err(|e| anyhow!("Failed to open albums_by_artist table: {}", e))?;
+        clear_composite_table_for_tests(&mut albums_by_artist)?;
+    }
+    write_txn
+        .commit()
+        .map_err(|e| anyhow!("Failed to commit write transaction: {}", e))?;
+    Ok(())
+}
+
+#[cfg(test)]
+fn clear_composite_table_for_tests(
+    table: &mut redb::Table<(&str, &str), ()>,
+) -> Result<()> {
+    let mut keys = Vec::new();
+    for result in table
+        .iter()
+        .map_err(|e| anyhow!("Failed to iterate over composite table: {}", e))?
+    {
+        let (key, _) = result.map_err(|e| anyhow!("Failed to read composite table item: {}", e))?;
+        let (k1, k2) = key.value();
+        keys.push((k1.to_string(), k2.to_string()));
+    }
+    for (k1, k2) in keys {
+        table
+            .remove((k1.as_str(), k2.as_str()))
+            .map_err(|e| anyhow!("Failed to remove composite table item: {}", e))?;
+    }
+    Ok(())
+}

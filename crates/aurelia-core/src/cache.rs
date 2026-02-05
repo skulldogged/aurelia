@@ -103,3 +103,90 @@ pub fn clear_credentials(app_data_dir: PathBuf) -> Result<()> {
     write_txn.commit()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{Album, Artist, Credentials, Song};
+    use once_cell::sync::OnceCell;
+    use serial_test::serial;
+    use tempfile::TempDir;
+
+    fn init_db() -> PathBuf {
+        static TEST_DIR: OnceCell<TempDir> = OnceCell::new();
+        let dir = TEST_DIR.get_or_init(|| TempDir::new().expect("temp dir"));
+        let path = dir.path().to_path_buf();
+        db::init(&path).expect("db init");
+        db::reset_for_tests().expect("db reset");
+        path
+    }
+
+    fn song(id: &str) -> Song {
+        Song {
+            id: id.to_string(),
+            name: format!("Song {id}"),
+            item_type: "Audio".to_string(),
+            album: None,
+            album_id: None,
+            artists: None,
+            artist_ids: None,
+            path: None,
+            duration: None,
+            album_art_url: None,
+            year: None,
+            play_count: None,
+            is_favorite: None,
+            disc_number: None,
+            track_number: None,
+            container: None,
+            bit_rate: None,
+            sample_rate: None,
+            codec: None,
+            genres: None,
+            premiere_date: None,
+            date_played: None,
+            date_created: None,
+            date_modified: None,
+            album_artists: None,
+            lyrics: None,
+            image_tags: None,
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn sync_and_load_songs() {
+        let app_dir = init_db();
+        let songs = vec![song("s1"), song("s2")];
+        let artists: Vec<Artist> = Vec::new();
+        let albums: Vec<Album> = Vec::new();
+
+        sync_library(app_dir.clone(), &songs, &artists, &albums).expect("sync");
+        let loaded = get_songs(app_dir).expect("load");
+        assert_eq!(loaded.len(), 2);
+    }
+
+    #[test]
+    #[serial]
+    fn save_and_clear_credentials() {
+        let app_dir = init_db();
+        let creds = Credentials {
+            server_url: "http://localhost:8096".to_string(),
+            username: "user".to_string(),
+            token: "token".to_string(),
+            user_id: "user-id".to_string(),
+        };
+
+        save_credentials(app_dir.clone(), &creds).expect("save");
+        let loaded = load_credentials(app_dir.clone()).expect("load");
+        let loaded = loaded.expect("credentials present");
+        assert_eq!(loaded.server_url, creds.server_url);
+        assert_eq!(loaded.username, creds.username);
+        assert_eq!(loaded.token, creds.token);
+        assert_eq!(loaded.user_id, creds.user_id);
+
+        clear_credentials(app_dir.clone()).expect("clear");
+        let cleared = load_credentials(app_dir).expect("load after clear");
+        assert!(cleared.is_none());
+    }
+}

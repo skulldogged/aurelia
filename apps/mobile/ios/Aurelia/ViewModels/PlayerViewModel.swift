@@ -141,7 +141,7 @@ final class PlayerViewModel: @unchecked Sendable {
                 let token = await self.sessionStore.token ?? ""
                 let itemId = songId ?? ""
 
-                let lrcContent = getLyrics(
+                let lrcContent = await getLyrics(
                     serverUrl: serverUrl,
                     token: token,
                     itemId: itemId,
@@ -174,7 +174,7 @@ final class PlayerViewModel: @unchecked Sendable {
 
         Task.detached { [self, isFav = self.isFavorite] in
             do {
-                let newState = try AureliaCore.toggleFavorite(
+                let newState = try await AureliaCore.toggleFavorite(
                     serverUrl: serverUrl,
                     token: token,
                     userId: userId,
@@ -204,7 +204,7 @@ final class PlayerViewModel: @unchecked Sendable {
 
         Task.detached {
             do {
-                try markItemPlayed(
+                try await markItemPlayed(
                     serverUrl: serverUrl,
                     token: token,
                     userId: userId,

@@ -30,3 +30,36 @@ pub fn jellyfin_to_lrc(lyrics: &JellyfinLyrics) -> Result<String, std::fmt::Erro
 
     Ok(lrc_content)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::jellyfin_to_lrc;
+    use crate::models::{JellyfinLyricLine, JellyfinLyrics};
+
+    #[test]
+    fn converts_jellyfin_timestamps_to_lrc() {
+        let lyrics = JellyfinLyrics {
+            lyrics: vec![
+                JellyfinLyricLine {
+                    text: "Intro".to_string(),
+                    timestamp: Some(0.0),
+                },
+                JellyfinLyricLine {
+                    text: "Verse".to_string(),
+                    timestamp: Some(12_340_000.0),
+                },
+                JellyfinLyricLine {
+                    text: "No timestamp".to_string(),
+                    timestamp: None,
+                },
+            ],
+        };
+
+        let rendered = jellyfin_to_lrc(&lyrics).expect("lrc render");
+        let lines: Vec<&str> = rendered.lines().collect();
+
+        assert_eq!(lines[0], "[00:00.000] Intro");
+        assert_eq!(lines[1], "[00:01.234] Verse");
+        assert_eq!(lines[2], "No timestamp");
+    }
+}

@@ -64,7 +64,7 @@ final class HomeViewModel: @unchecked Sendable {
 
             // Fetch fresh data
             do {
-                let songs = try fetchSongs(
+                let songs = try await fetchSongs(
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     userId: creds.userId,

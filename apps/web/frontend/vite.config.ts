@@ -49,4 +49,15 @@ export default defineConfig({
     },
     strictPort: true,
   },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    include: [
+      'tests/**/*.spec.ts',
+      'tests/**/*.test.ts',
+      'src/**/*.spec.ts',
+      'src/**/*.test.ts',
+    ],
+    setupFiles: ['./tests/setup.ts'],
+  },
 })
