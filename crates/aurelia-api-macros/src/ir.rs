@@ -4,11 +4,10 @@
 //! These structures are the input for all code generators.
 
 use proc_macro2::Ident;
-use syn::{ReturnType, Type};
+use syn::Type;
 
 /// A complete API definition parsed from a trait
 pub struct ApiDefinition {
-    pub trait_name: Ident,
     pub methods: Vec<ApiMethod>,
 }
 
@@ -20,7 +19,6 @@ pub struct ApiMethod {
     pub path_params: Vec<PathParam>,
     pub query_params: Vec<QueryParam>,
     pub body_param: Option<BodyParam>,
-    pub return_type: ReturnType,
     pub desktop_only: bool,
 }
 

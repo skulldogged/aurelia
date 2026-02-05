@@ -1,15 +1,15 @@
 import { render } from '@testing-library/vue'
 import { describe, expect, it, vi } from 'vitest'
-import { defineComponent, ref } from 'vue'
+import { ref } from 'vue'
 
 import App from '../src/App.vue'
 
 const stubs = vi.hoisted(() => {
-  const Stub = defineComponent({ template: '<div />' })
-  const LoginStub = defineComponent({ template: '<div data-testid="login">Login</div>' })
-  const MainLayoutStub = defineComponent({
+  const Stub = { template: '<div />' }
+  const LoginStub = { template: '<div data-testid="login">Login</div>' }
+  const MainLayoutStub = {
     template: '<div><slot /><slot name="queue" /><slot name="player" /><slot name="top-bar" /></div>',
-  })
+  }
 
   return { LoginStub, MainLayoutStub, Stub }
 })

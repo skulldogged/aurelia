@@ -24,7 +24,8 @@
     "test:web": "bun --cwd apps/web/frontend test"
   },
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "apps/web/*"
   ],
   "devDependencies": {
     "@eslint/js": "^9.39.2",

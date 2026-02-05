@@ -15,8 +15,8 @@
     }
   },
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "bun run ../../scripts/run-vitest.ts",
+    "test:watch": "bun run ../../scripts/run-vitest.ts --watch"
   },
   "dependencies": {
     "@tanstack/vue-virtual": "^3.13.18",
