@@ -1,11 +1,11 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.1
 
 import PackageDescription
 
 let package = Package(
     name: "AureliaCore",
     platforms: [
-        .iOS(.v26),
+        .iOS("26.0"),
         .macOS(.v13),
     ],
     products: [
