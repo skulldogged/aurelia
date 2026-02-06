@@ -5,9 +5,10 @@ struct CachedImageView: View {
     let url: URL?
     var contentMode: ContentMode = .fill
     var placeholderColor: Color = Color(.systemGray5)
+    var targetSize: CGSize? = nil
 
     @State private var loadedImage: UIImage? = nil
-    @State private var isLoading = false
+    @State private var loadedKey: String? = nil
 
     var body: some View {
         Group {
@@ -15,40 +16,37 @@ struct CachedImageView: View {
                 Image(uiImage: loadedImage)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
-            } else if isLoading {
-                placeholderColor
-                    .overlay { ProgressView() }
             } else {
                 placeholderColor
             }
         }
-        .task(id: url) {
+        .task(id: requestKey()) {
             await loadImage()
         }
     }
 
     @MainActor
     private func loadImage() async {
-        loadedImage = nil
-        guard let url else { return }
-
-        isLoading = true
-        if let cached = await ImageCache.shared.cachedImage(for: url) {
-            loadedImage = cached
-            isLoading = false
+        guard let requestKey = requestKey(), let url else {
+            loadedImage = nil
+            loadedKey = nil
             return
         }
 
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            if let image = UIImage(data: data) {
-                ImageCache.shared.store(image, for: url)
-                loadedImage = image
-            }
-        } catch {
-            // Ignore errors
+        if loadedKey != requestKey {
+            loadedImage = nil
+            loadedKey = requestKey
+        } else if loadedImage != nil {
+            return
         }
 
-        isLoading = false
+        loadedImage = await ImageCache.shared.fetchImage(for: url, targetSize: targetSize)
+    }
+
+    private func requestKey() -> String? {
+        guard let url else { return nil }
+        let width = Int((targetSize?.width ?? 0).rounded(.up))
+        let height = Int((targetSize?.height ?? 0).rounded(.up))
+        return "\(url.absoluteString)#\(width)x\(height)"
     }
 }

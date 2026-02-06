@@ -42,23 +42,6 @@ const devDesktop = async (): Promise<void> => {
   await run('bun', ['run', 'tauri', 'dev'], { cwd: join(ROOT, 'apps/desktop') })
 }
 
-const devAndroid = async (): Promise<void> => {
-  await bindings()
-  await run('cargo', [
-    'ndk', '-t', 'arm64-v8a', '-t', 'x86_64', '-o',
-    'apps/mobile/android/app/src/main/jniLibs',
-    'build', '-p', 'aurelia-core', '--release',
-  ])
-  await run('cargo', [
-    'run', '-p', 'uniffi-bindgen', '--', 'generate',
-    '--library', 'target/debug/aurelia_core.dll',
-    '--language', 'kotlin',
-    '--out-dir', 'apps/mobile/android/app/src/main/java',
-    '--no-format',
-  ])
-  await run('./gradlew', ['assembleDebug'], { cwd: join(ROOT, 'apps/mobile/android') })
-}
-
 const buildWeb = async (): Promise<void> => {
   await bindings()
   await run('bun', ['run', 'build'], { cwd: join(ROOT, 'apps/web/frontend') })
@@ -71,30 +54,13 @@ const buildDesktop = async (): Promise<void> => {
   await run('bun', ['run', 'tauri', 'build'], { cwd: join(ROOT, 'apps/desktop') })
 }
 
-const buildAndroid = async (): Promise<void> => {
-  await bindings()
-  await run('cargo', [
-    'ndk', '-t', 'arm64-v8a', '-t', 'x86_64', '-o',
-    'apps/mobile/android/app/src/main/jniLibs',
-    'build', '-p', 'aurelia-core', '--release',
-  ])
-  await run('cargo', [
-    'run', '-p', 'uniffi-bindgen', '--', 'generate',
-    '--library', 'target/debug/aurelia_core.dll',
-    '--language', 'kotlin',
-    '--out-dir', 'apps/mobile/android/app/src/main/java',
-    '--no-format',
-  ])
-  await run('./gradlew', ['assembleRelease'], { cwd: join(ROOT, 'apps/mobile/android') })
-}
-
 const commands = {
-  build: { android: buildAndroid, desktop: buildDesktop, web: buildWeb },
-  dev:   { android: devAndroid, desktop: devDesktop, web: devWeb },
+  build: { desktop: buildDesktop, web: buildWeb },
+  dev:   { desktop: devDesktop, web: devWeb },
 }
 
 if (!commands[COMMAND]?.[PLATFORM]) {
-  console.log('Usage: bun run dev|build --platform=web|desktop|android')
+  console.log('Usage: bun run dev|build --platform=web|desktop')
   process.exit(1)
 }
 

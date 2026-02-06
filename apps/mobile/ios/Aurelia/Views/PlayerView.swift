@@ -8,12 +8,14 @@ struct PlayerView: View {
     @State private var dragPosition: Double = 0
 
     var body: some View {
-        NavigationStack {
-            GeometryReader { geometry in
-                let isWide = AureliaLayout.isWide(geometry.size.width)
-                let maxArt: CGFloat = isWide ? 320 : 340
-                let artInset: CGFloat = isWide ? 160 : 64
-                let artSize = max(CGFloat(200), min(maxArt, geometry.size.width - artInset))
+        GeometryReader { geometry in
+            let isWide = AureliaLayout.isWide(geometry.size.width)
+            let maxArt: CGFloat = isWide ? 320 : 340
+            let artInset: CGFloat = isWide ? 160 : 64
+            let artSize = max(CGFloat(200), min(maxArt, geometry.size.width - artInset))
+
+            ZStack {
+                PlayerBackdropView(albumArtUrl: viewModel.albumArtUrl)
 
                 ScrollView {
                     if isWide {
@@ -33,7 +35,8 @@ struct PlayerView: View {
                             .frame(maxWidth: .infinity)
                         }
                         .padding(.horizontal, AureliaSpacing.xl)
-                        .padding(.vertical, AureliaSpacing.l)
+                        .padding(.top, AureliaSpacing.l)
+                        .padding(.bottom, AureliaSpacing.l)
                     } else {
                         VStack(spacing: AureliaSpacing.l) {
                             primaryColumn(artSize: artSize)
@@ -47,34 +50,15 @@ struct PlayerView: View {
                             }
                         }
                         .padding(.horizontal, AureliaSpacing.m)
-                        .padding(.vertical, AureliaSpacing.l)
+                        .padding(.top, AureliaSpacing.l)
+                        .padding(.bottom, AureliaSpacing.l)
                     }
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.down")
-                    }
-                }
-
-                ToolbarItem(placement: .principal) {
-                    VStack(spacing: 0) {
-                        Text("Now Playing")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        if let albumName = viewModel.currentAlbumName {
-                            Text(albumName)
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
+            .safeAreaInset(edge: .top) {
+                topBar
             }
         }
-        .aureliaScreen()
         .onChange(of: playerController.snapshot) { _, snapshot in
             viewModel.updateFrom(snapshot, playerController: playerController)
         }
@@ -247,6 +231,70 @@ struct PlayerView: View {
             }
         }
     }
+
+    private var topBar: some View {
+        HStack(spacing: AureliaSpacing.s) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.headline.weight(.semibold))
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            VStack(spacing: 0) {
+                Text("Now Playing")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let albumName = viewModel.currentAlbumName {
+                    Text(albumName)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            Color.clear.frame(width: 36, height: 36)
+        }
+        .padding(.horizontal, AureliaSpacing.m)
+        .padding(.top, AureliaSpacing.s)
+        .padding(.bottom, AureliaSpacing.xs)
+    }
+}
+
+private struct PlayerBackdropView: View {
+    let albumArtUrl: String?
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(.secondarySystemBackground),
+                    Color(.systemBackground)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            if let albumArtUrl, let url = URL(string: albumArtUrl) {
+                CachedImageView(
+                    url: url,
+                    contentMode: .fill,
+                    placeholderColor: .clear,
+                    targetSize: CGSize(width: 700, height: 700)
+                )
+                .blur(radius: 36)
+                .opacity(0.28)
+                .ignoresSafeArea()
+            }
+        }
+        .ignoresSafeArea()
+    }
 }
 
 struct LyricsView: View {
@@ -256,15 +304,15 @@ struct LyricsView: View {
     var body: some View {
         ScrollView {
             if let synced = lyrics.synced {
+                let activeIndex = activeLineIndex(in: synced)
                 LazyVStack(spacing: 8) {
                     ForEach(Array(synced.enumerated()), id: \.offset) { index, line in
-                        let isActive = isLineActive(index: index, synced: synced)
+                        let isActive = index == activeIndex
                         Text(line.line)
                             .font(.body)
                             .fontWeight(isActive ? .bold : .regular)
                             .foregroundStyle(isActive ? .primary : .secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .animation(.easeInOut(duration: 0.3), value: isActive)
                     }
                 }
             } else if let plain = lyrics.plain {
@@ -275,10 +323,23 @@ struct LyricsView: View {
         }
     }
 
-    private func isLineActive(index: Int, synced: [SyncedLine]) -> Bool {
+    private func activeLineIndex(in synced: [SyncedLine]) -> Int? {
+        guard !synced.isEmpty else { return nil }
         let currentTime = Double(positionMs) / 1000.0
-        let lineTime = synced[index].time
-        let nextTime = index + 1 < synced.count ? synced[index + 1].time : Double.infinity
-        return currentTime >= lineTime && currentTime < nextTime
+        var low = 0
+        var high = synced.count - 1
+        var bestIndex: Int?
+
+        while low <= high {
+            let mid = (low + high) / 2
+            if synced[mid].time <= currentTime {
+                bestIndex = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+
+        return bestIndex
     }
 }

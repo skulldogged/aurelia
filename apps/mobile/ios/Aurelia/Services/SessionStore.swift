@@ -9,6 +9,8 @@ final class SessionStore: @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.aurelia.app", category: "SessionStore")
     private let libraryRefreshKey = "lastLibraryRefresh"
+    private let ioQueue = DispatchQueue(label: "com.aurelia.sessionstore.io", qos: .userInitiated)
+    private var cachedCredentials: Credentials?
 
     private init() {
         // AppDataDir is now computed dynamically to handle iOS container path changes
@@ -50,19 +52,40 @@ final class SessionStore: @unchecked Sendable {
                 userId: userId
             )
             try saveCredentials(appDataDir: appDataDir, credentials: credentials)
+            cachedCredentials = credentials
         } catch {
             logger.error("Failed to save credentials: \(error)")
         }
     }
 
     func getCredentials() -> Credentials? {
+        if let cachedCredentials { return cachedCredentials }
         guard let appDataDir = getAppDataDir(), !appDataDir.isEmpty else { return nil }
         do {
-            return try loadCredentials(appDataDir: appDataDir)
+            let credentials = try loadCredentials(appDataDir: appDataDir)
+            cachedCredentials = credentials
+            return credentials
         } catch {
             logger.error("Failed to load credentials: \(error)")
             return nil
         }
+    }
+
+    func getCredentialsAsync() async -> Credentials? {
+        if let cachedCredentials { return cachedCredentials }
+        guard let appDataDir = getAppDataDir(), !appDataDir.isEmpty else { return nil }
+
+        let credentials = await withCheckedContinuation { continuation in
+            ioQueue.async {
+                do {
+                    continuation.resume(returning: try loadCredentials(appDataDir: appDataDir))
+                } catch {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+        cachedCredentials = credentials
+        return credentials
     }
 
     func getSyncState() -> SyncState? {
@@ -98,6 +121,36 @@ final class SessionStore: @unchecked Sendable {
         return Date().timeIntervalSince(referenceDate) > maxAge
     }
 
+    func shouldRefreshLibraryAsync(maxAge: TimeInterval = 6 * 60 * 60) async -> Bool {
+        let lastRefresh = lastLibraryRefreshDate()
+        guard let appDataDir = getAppDataDir(), !appDataDir.isEmpty else {
+            return true
+        }
+
+        let lastSync: Date? = await withCheckedContinuation { continuation in
+            ioQueue.async {
+                do {
+                    let syncState = try AureliaCore.getSyncState(appDataDir: appDataDir)
+                    guard !syncState.lastSyncTime.isEmpty else {
+                        continuation.resume(returning: nil)
+                        return
+                    }
+                    let formatter = ISO8601DateFormatter()
+                    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                    let parsed = formatter.date(from: syncState.lastSyncTime)
+                        ?? ISO8601DateFormatter().date(from: syncState.lastSyncTime)
+                    continuation.resume(returning: parsed)
+                } catch {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+
+        let referenceDate = [lastSync, lastRefresh].compactMap { $0 }.max()
+        guard let referenceDate else { return true }
+        return Date().timeIntervalSince(referenceDate) > maxAge
+    }
+
     var serverUrl: String? { getCredentials()?.serverUrl }
     var userId: String? { getCredentials()?.userId }
     var token: String? { getCredentials()?.token }
@@ -106,6 +159,7 @@ final class SessionStore: @unchecked Sendable {
         if let appDataDir = getAppDataDir(), !appDataDir.isEmpty {
             do {
                 try clearCredentials(appDataDir: appDataDir)
+                cachedCredentials = nil
             } catch {
                 logger.error("Failed to clear credentials: \(error)")
             }
@@ -115,6 +169,11 @@ final class SessionStore: @unchecked Sendable {
     /// Returns true if a valid session exists with all required fields.
     var hasValidSession: Bool {
         guard let creds = getCredentials() else { return false }
+        return !creds.serverUrl.isEmpty && !creds.userId.isEmpty && !creds.token.isEmpty
+    }
+
+    func hasValidSessionAsync() async -> Bool {
+        guard let creds = await getCredentialsAsync() else { return false }
         return !creds.serverUrl.isEmpty && !creds.userId.isEmpty && !creds.token.isEmpty
     }
 }

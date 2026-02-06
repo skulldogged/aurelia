@@ -17,16 +17,19 @@ final class AudioPlayerController: @unchecked Sendable {
 
     private var player: AVQueuePlayer
     private var songQueue: [Song] = []
-    private var songByMediaId: [String: Song] = [:]
     private var currentIndex: Int = -1
     private var lastServerUrl: String = ""
     private var lastToken: String = ""
     private var seekOffsetMs: Int64 = 0
+    private var loadedQueueRange: ClosedRange<Int>?
     private var timeObserver: Any?
     private var audioSessionConfigured = false
+    private let audioSessionQueue = DispatchQueue(label: "com.aurelia.audio-session", qos: .userInitiated)
     private let logger = Logger(subsystem: "com.aurelia.app", category: "AudioPlayer")
 
     private static let seekableContainers: Set<String> = ["flac", "mp3", "aac", "ogg"]
+    private static let maxPreloadedItems = 10
+    private static let initialPreloadedItems = 3
 
     init() {
         player = AVQueuePlayer()
@@ -58,7 +61,9 @@ final class AudioPlayerController: @unchecked Sendable {
     private func ensureAudioSession() {
         guard !audioSessionConfigured else { return }
         audioSessionConfigured = true
-        configureAudioSession()
+        audioSessionQueue.async { [weak self] in
+            self?.configureAudioSession()
+        }
     }
 
     // MARK: - Remote Controls (Lock Screen / Control Center)
@@ -132,27 +137,28 @@ final class AudioPlayerController: @unchecked Sendable {
     func setQueue(_ songs: [Song], serverUrl: String, token: String, startIndex: Int = 0, autoPlay: Bool = true) {
         ensureAudioSession()
         songQueue = songs
-        songByMediaId.removeAll()
-        songs.forEach { songByMediaId[$0.id] = $0 }
         lastServerUrl = serverUrl
         lastToken = token
         seekOffsetMs = 0
-        currentIndex = startIndex
 
-        player.removeAllItems()
-
-        // Build and insert items starting from startIndex
-        for i in startIndex..<songs.count {
-            let url = buildStreamUrl(for: songs[i])
-            if let playerItem = makePlayerItem(url: url) {
-                player.insert(playerItem, after: nil)
-            }
+        guard let safeStart = normalizedStartIndex(startIndex, queueCount: songs.count) else {
+            player.removeAllItems()
+            loadedQueueRange = nil
+            currentIndex = -1
+            updateSnapshot()
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            return
         }
+
+        rebuildPlayerQueue(startingAt: safeStart, preloadItemCount: Self.initialPreloadedItems)
 
         if autoPlay {
             player.play()
+        } else {
+            player.pause()
         }
 
+        scheduleDeferredPreload()
         updateSnapshot()
         updateNowPlayingInfo()
     }
@@ -161,22 +167,29 @@ final class AudioPlayerController: @unchecked Sendable {
     func getCurrentQueueIndex() -> Int { currentIndex }
 
     func addToQueue(_ song: Song, serverUrl: String, token: String) {
-        songByMediaId[song.id] = song
+        lastServerUrl = serverUrl
+        lastToken = token
         songQueue.append(song)
-        let url = buildStreamUrl(for: song, serverUrl: serverUrl, token: token)
-        if let item = makePlayerItem(url: url) {
-            player.insert(item, after: nil)
+
+        if loadedQueueRange != nil {
+            preloadUpcomingItems()
         }
     }
 
     func playNext(_ song: Song, serverUrl: String, token: String) {
-        songByMediaId[song.id] = song
-        let insertIndex = currentIndex + 1
+        lastServerUrl = serverUrl
+        lastToken = token
+        let insertIndex = min(currentIndex + 1, songQueue.count)
         songQueue.insert(song, at: min(insertIndex, songQueue.count))
-        let url = buildStreamUrl(for: song, serverUrl: serverUrl, token: token)
-        if let item = makePlayerItem(url: url) {
-            // Insert after the currently playing item
-            player.insert(item, after: player.currentItem)
+
+        if currentIndex >= 0, currentIndex < songQueue.count {
+            let wasPlaying = player.rate > 0
+            rebuildPlayerQueue(startingAt: currentIndex)
+            if wasPlaying {
+                player.play()
+            }
+            updateSnapshot()
+            updateNowPlayingInfo()
         }
     }
 
@@ -185,16 +198,9 @@ final class AudioPlayerController: @unchecked Sendable {
         ensureAudioSession()
         seekOffsetMs = 0
 
-        // Rebuild queue from the target index
-        player.removeAllItems()
-        currentIndex = index
-        for i in index..<songQueue.count {
-            let url = buildStreamUrl(for: songQueue[i])
-            if let item = makePlayerItem(url: url) {
-                player.insert(item, after: nil)
-            }
-        }
+        rebuildPlayerQueue(startingAt: index, preloadItemCount: Self.initialPreloadedItems)
         player.play()
+        scheduleDeferredPreload()
         updateSnapshot()
         updateNowPlayingInfo()
     }
@@ -222,6 +228,7 @@ final class AudioPlayerController: @unchecked Sendable {
         player.pause()
         player.removeAllItems()
         songQueue.removeAll()
+        loadedQueueRange = nil
         currentIndex = -1
         seekOffsetMs = 0
         updateSnapshot()
@@ -249,19 +256,10 @@ final class AudioPlayerController: @unchecked Sendable {
 
             seekOffsetMs = targetPosition
 
-            // Rebuild from current index with the new URL for the current item
-            player.removeAllItems()
-            if let seekItem = makePlayerItem(url: seekUrl) {
-                player.insert(seekItem, after: nil)
+            rebuildPlayerQueue(startingAt: currentIndex, firstItemOverrideUrl: seekUrl)
+            if wasPlaying {
+                player.play()
             }
-            // Re-add subsequent items
-            for i in (currentIndex + 1)..<songQueue.count {
-                let url = buildStreamUrl(for: songQueue[i])
-                if let item = makePlayerItem(url: url) {
-                    player.insert(item, after: nil)
-                }
-            }
-            if wasPlaying { player.play() }
         } else {
             let time = CMTime(seconds: Double(targetPosition) / 1000.0, preferredTimescale: 600)
             player.seek(to: time)
@@ -274,8 +272,17 @@ final class AudioPlayerController: @unchecked Sendable {
     func skipNext() {
         guard currentIndex + 1 < songQueue.count else { return }
         seekOffsetMs = 0
+        if loadedQueueRange?.contains(currentIndex + 1) != true {
+            rebuildPlayerQueue(startingAt: currentIndex)
+        }
         currentIndex += 1
         player.advanceToNextItem()
+        if let range = loadedQueueRange {
+            loadedQueueRange = currentIndex...max(currentIndex, range.upperBound)
+        } else {
+            loadedQueueRange = currentIndex...currentIndex
+        }
+        preloadUpcomingItems()
         updateSnapshot()
         updateNowPlayingInfo()
     }
@@ -297,12 +304,17 @@ final class AudioPlayerController: @unchecked Sendable {
         snapshot.isShuffled.toggle()
         // When shuffle is toggled, we keep the current song but randomize the rest
         if snapshot.isShuffled, currentIndex >= 0, currentIndex < songQueue.count {
+            let wasPlaying = player.rate > 0
             let current = songQueue[currentIndex]
             var remaining = songQueue
             remaining.remove(at: currentIndex)
             remaining.shuffle()
             songQueue = [current] + remaining
             currentIndex = 0
+            rebuildPlayerQueue(startingAt: currentIndex)
+            if wasPlaying {
+                player.play()
+            }
         }
         updateSnapshot()
     }
@@ -330,6 +342,12 @@ final class AudioPlayerController: @unchecked Sendable {
 
         if currentIndex + 1 < songQueue.count {
             currentIndex += 1
+            if let range = loadedQueueRange {
+                loadedQueueRange = currentIndex...max(currentIndex, range.upperBound)
+            } else {
+                loadedQueueRange = currentIndex...currentIndex
+            }
+            preloadUpcomingItems()
             updateSnapshot()
             updateNowPlayingInfo()
         } else if snapshot.repeatMode == .all && !songQueue.isEmpty {
@@ -402,16 +420,10 @@ final class AudioPlayerController: @unchecked Sendable {
         if let artUrlString = song.albumArtUrl, let artUrl = URL(string: artUrlString) {
             let targetSongId = song.id
             Task.detached { [targetSongId] in
-                let cached = await ImageCache.shared.cachedImage(for: artUrl)
-                let image: UIImage?
-                if let cached {
-                    image = cached
-                } else {
-                    guard let (data, _) = try? await URLSession.shared.data(from: artUrl),
-                          let fetched = UIImage(data: data) else { return }
-                    await ImageCache.shared.store(fetched, for: artUrl)
-                    image = fetched
-                }
+                let image = await ImageCache.shared.fetchImage(
+                    for: artUrl,
+                    targetSize: CGSize(width: 512, height: 512)
+                )
                 guard let image else { return }
                 let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
                 await MainActor.run { [weak self] in
@@ -427,6 +439,74 @@ final class AudioPlayerController: @unchecked Sendable {
     }
 
     // MARK: - URL Building
+
+    private func normalizedStartIndex(_ index: Int, queueCount: Int) -> Int? {
+        guard queueCount > 0 else { return nil }
+        return min(max(index, 0), queueCount - 1)
+    }
+
+    private func rebuildPlayerQueue(startingAt index: Int, firstItemOverrideUrl: String? = nil, preloadItemCount: Int = AudioPlayerController.maxPreloadedItems) {
+        guard let safeStart = normalizedStartIndex(index, queueCount: songQueue.count) else {
+            player.removeAllItems()
+            loadedQueueRange = nil
+            currentIndex = -1
+            return
+        }
+
+        player.removeAllItems()
+        currentIndex = safeStart
+
+        let preloadCount = max(1, min(preloadItemCount, Self.maxPreloadedItems))
+        let endIndex = min(songQueue.count - 1, safeStart + preloadCount - 1)
+        for queueIndex in safeStart...endIndex {
+            let url: String
+            if queueIndex == safeStart, let firstItemOverrideUrl {
+                url = firstItemOverrideUrl
+            } else {
+                url = buildStreamUrl(for: songQueue[queueIndex])
+            }
+            if let playerItem = makePlayerItem(url: url) {
+                player.insert(playerItem, after: nil)
+            }
+        }
+        loadedQueueRange = safeStart...endIndex
+    }
+
+    private func preloadUpcomingItems() {
+        guard currentIndex >= 0, currentIndex < songQueue.count else {
+            loadedQueueRange = nil
+            return
+        }
+
+        guard var range = loadedQueueRange else {
+            rebuildPlayerQueue(startingAt: currentIndex)
+            return
+        }
+
+        if range.lowerBound != currentIndex {
+            range = currentIndex...max(currentIndex, range.upperBound)
+        }
+
+        let desiredEnd = min(songQueue.count - 1, currentIndex + Self.maxPreloadedItems - 1)
+        var nextIndex = range.upperBound + 1
+
+        while nextIndex <= desiredEnd {
+            let url = buildStreamUrl(for: songQueue[nextIndex])
+            if let item = makePlayerItem(url: url) {
+                player.insert(item, after: nil)
+            }
+            range = currentIndex...nextIndex
+            nextIndex += 1
+        }
+
+        loadedQueueRange = range
+    }
+    
+    private func scheduleDeferredPreload() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+            self?.preloadUpcomingItems()
+        }
+    }
 
     private func buildStreamUrl(for song: Song, serverUrl: String? = nil, token: String? = nil) -> String {
         buildMobileStreamUrl(

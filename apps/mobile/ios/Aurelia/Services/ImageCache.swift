@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import CryptoKit
+import ImageIO
 import os
 
 final class ImageCache {
@@ -8,41 +9,145 @@ final class ImageCache {
 
     private let memoryCache = NSCache<NSString, UIImage>()
     private let fileManager = FileManager.default
-    private let ioQueue = DispatchQueue(label: "com.aurelia.imagecache")
+    private let ioQueue = DispatchQueue(label: "com.aurelia.imagecache", qos: .utility)
     private let logger = Logger(subsystem: "com.aurelia.app", category: "ImageCache")
+    private let defaultMaxPixelSize = 1024
+    private let inFlightLock = NSLock()
+    private var inFlight: [String: InFlightTask] = [:]
 
     private init() {
-        memoryCache.countLimit = 200
+        memoryCache.countLimit = 300
+        memoryCache.totalCostLimit = 120 * 1024 * 1024
     }
 
-    func cachedImage(for url: URL) async -> UIImage? {
-        let key = cacheKey(for: url)
-        if let image = memoryCache.object(forKey: key) {
+    func cachedImage(for url: URL, targetSize: CGSize? = nil, scale: CGFloat = 2.0) async -> UIImage? {
+        let variant = cacheVariant(for: url, targetSize: targetSize, scale: scale)
+        if let image = memoryCache.object(forKey: variant.memoryKey) {
             return image
         }
 
-        return await withCheckedContinuation { continuation in
-            ioQueue.async {
-                guard let diskURL = self.diskURL(for: url),
-                      let data = try? Data(contentsOf: diskURL),
-                      let image = UIImage(data: data) else {
-                    continuation.resume(returning: nil)
-                    return
+        guard let diskURL = diskURL(for: url),
+              let data = await readData(from: diskURL),
+              let image = await decodeImageAsync(from: data, maxPixelSize: variant.maxPixelSize) else {
+            return nil
+        }
+
+        memoryCache.setObject(image, forKey: variant.memoryKey, cost: image.memoryCost)
+        return image
+    }
+
+    func fetchImage(for url: URL, targetSize: CGSize? = nil, scale: CGFloat = 2.0) async -> UIImage? {
+        let variant = cacheVariant(for: url, targetSize: targetSize, scale: scale)
+        if let cached = await cachedImage(for: url, targetSize: targetSize, scale: scale) {
+            return cached
+        }
+        let key = variant.memoryKey as String
+        if let existing = inFlightTask(for: key) {
+            return await existing.task.value
+        }
+
+        let created = InFlightTask(id: UUID(), task: Task { [weak self] in
+            guard let self else { return nil }
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard !data.isEmpty else { return nil }
+                guard let image = await self.decodeImageAsync(from: data, maxPixelSize: variant.maxPixelSize) else {
+                    return nil
                 }
 
-                self.memoryCache.setObject(image, forKey: key)
-                continuation.resume(returning: image)
+                self.memoryCache.setObject(image, forKey: variant.memoryKey, cost: image.memoryCost)
+                self.storeDataAsync(data, for: url)
+                return image
+            } catch {
+                self.logger.debug("Image fetch failed: \(error)")
+                return nil
+            }
+        })
+
+        let taskToAwait = upsertInFlightTask(created, for: key)
+        let image = await taskToAwait.task.value
+        clearInFlightTaskIfMatching(id: taskToAwait.id, for: key)
+        return image
+    }
+
+    private func inFlightTask(for key: String) -> InFlightTask? {
+        inFlightLock.lock()
+        defer { inFlightLock.unlock() }
+        return inFlight[key]
+    }
+
+    private func upsertInFlightTask(_ candidate: InFlightTask, for key: String) -> InFlightTask {
+        inFlightLock.lock()
+        defer { inFlightLock.unlock() }
+        if let existing = inFlight[key] {
+            return existing
+        }
+        inFlight[key] = candidate
+        return candidate
+    }
+
+    private func clearInFlightTaskIfMatching(id: UUID, for key: String) {
+        inFlightLock.lock()
+        defer { inFlightLock.unlock() }
+        guard inFlight[key]?.id == id else { return }
+        inFlight.removeValue(forKey: key)
+    }
+
+    func store(_ image: UIImage, for url: URL) async {
+        let variant = cacheVariant(for: url, targetSize: nil, scale: 2.0)
+        memoryCache.setObject(image, forKey: variant.memoryKey, cost: image.memoryCost)
+        guard let data = image.jpegData(compressionQuality: 0.86) ?? image.pngData() else { return }
+        await storeData(data, for: url)
+    }
+
+    func clear() {
+        memoryCache.removeAllObjects()
+        ioQueue.async {
+            guard let appDataDir = SessionStore.shared.getAppDataDir(), !appDataDir.isEmpty else { return }
+            let dir = URL(fileURLWithPath: appDataDir).appendingPathComponent("image-cache", isDirectory: true)
+            try? self.fileManager.removeItem(at: dir)
+        }
+    }
+
+    private func storeData(_ data: Data, for url: URL) async {
+        guard let diskURL = diskURL(for: url) else { return }
+
+        await withCheckedContinuation { continuation in
+            ioQueue.async {
+                do {
+                    let directory = diskURL.deletingLastPathComponent()
+                    if !self.fileManager.fileExists(atPath: directory.path) {
+                        try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+                    }
+                    try data.write(to: diskURL, options: .atomic)
+                } catch {
+                    self.logger.error("Failed to write image cache: \(error)")
+                }
+                continuation.resume(returning: ())
             }
         }
     }
 
-    func store(_ image: UIImage, for url: URL) {
-        let key = cacheKey(for: url)
-        memoryCache.setObject(image, forKey: key)
+    private func readData(from url: URL) async -> Data? {
+        await withCheckedContinuation { continuation in
+            ioQueue.async {
+                continuation.resume(returning: try? Data(contentsOf: url, options: .mappedIfSafe))
+            }
+        }
+    }
 
-        ioQueue.async {
+    private func decodeImageAsync(from data: Data, maxPixelSize: Int) async -> UIImage? {
+        await withCheckedContinuation { continuation in
+            ioQueue.async {
+                continuation.resume(returning: self.decodeImage(from: data, maxPixelSize: maxPixelSize))
+            }
+        }
+    }
+
+    private func storeDataAsync(_ data: Data, for url: URL) {
+        ioQueue.async { [weak self] in
+            guard let self else { return }
             guard let diskURL = self.diskURL(for: url) else { return }
-            guard let data = image.pngData() else { return }
             do {
                 let directory = diskURL.deletingLastPathComponent()
                 if !self.fileManager.fileExists(atPath: directory.path) {
@@ -55,13 +160,39 @@ final class ImageCache {
         }
     }
 
-    func clear() {
-        memoryCache.removeAllObjects()
-        ioQueue.async {
-            guard let appDataDir = SessionStore.shared.getAppDataDir(), !appDataDir.isEmpty else { return }
-            let dir = URL(fileURLWithPath: appDataDir).appendingPathComponent("image-cache", isDirectory: true)
-            try? self.fileManager.removeItem(at: dir)
+    private func decodeImage(from data: Data, maxPixelSize: Int) -> UIImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
+            return nil
         }
+
+        let thumbnailOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceShouldCache: true,
+        ]
+
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
+    }
+
+    private func cacheVariant(for url: URL, targetSize: CGSize?, scale: CGFloat) -> (memoryKey: NSString, maxPixelSize: Int) {
+        let maxPixelSize = maxPixelSize(for: targetSize, scale: scale)
+        let baseKey = cacheKey(for: url) as String
+        return (NSString(string: "\(baseKey)#\(maxPixelSize)"), maxPixelSize)
+    }
+
+    private func maxPixelSize(for targetSize: CGSize?, scale: CGFloat) -> Int {
+        guard let targetSize, targetSize.width > 0, targetSize.height > 0 else {
+            return defaultMaxPixelSize
+        }
+        let longestSide = max(targetSize.width, targetSize.height)
+        let pixels = Int((longestSide * max(scale, 1)).rounded(.up))
+        return min(max(pixels, 64), 4096)
     }
 
     private func cacheKey(for url: URL) -> NSString {
@@ -72,7 +203,7 @@ final class ImageCache {
         guard let appDataDir = SessionStore.shared.getAppDataDir(), !appDataDir.isEmpty else { return nil }
         let hash = sha256(url.absoluteString)
         let dir = URL(fileURLWithPath: appDataDir).appendingPathComponent("image-cache", isDirectory: true)
-        return dir.appendingPathComponent("\(hash).png")
+        return dir.appendingPathComponent("\(hash).bin")
     }
 
     private func sha256(_ input: String) -> String {
@@ -80,4 +211,16 @@ final class ImageCache {
         let digest = SHA256.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
     }
+}
+
+private extension UIImage {
+    var memoryCost: Int {
+        guard let cgImage else { return 1 }
+        return cgImage.bytesPerRow * cgImage.height
+    }
+}
+
+private struct InFlightTask {
+    let id: UUID
+    let task: Task<UIImage?, Never>
 }

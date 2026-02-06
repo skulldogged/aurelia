@@ -143,7 +143,7 @@ struct FeaturedHeroView: View {
         }
         .padding(AureliaSpacing.l)
         .frame(height: cardHeight)
-        .background(featuredBackground(for: album))
+        .background(featuredBackground(for: album, cardHeight: cardHeight))
         .clipShape(RoundedRectangle(cornerRadius: AureliaRadius.l, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: AureliaRadius.l, style: .continuous)
@@ -151,10 +151,15 @@ struct FeaturedHeroView: View {
         )
     }
 
-    private func featuredBackground(for album: FeaturedAlbum) -> some View {
-        ZStack {
-            CachedImageView(url: album.albumArtUrl.flatMap { URL(string: $0) }, contentMode: .fill)
-                .blur(radius: 28)
+    private func featuredBackground(for album: FeaturedAlbum, cardHeight: CGFloat) -> some View {
+        let target = max(cardHeight * 2.2, 420)
+        return ZStack {
+            CachedImageView(
+                url: album.albumArtUrl.flatMap { URL(string: $0) },
+                contentMode: .fill,
+                targetSize: CGSize(width: target, height: target)
+            )
+                .blur(radius: 18)
                 .scaleEffect(1.2)
                 .saturation(0.8)
                 .brightness(-0.1)

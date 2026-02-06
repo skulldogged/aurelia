@@ -23,12 +23,17 @@ struct ArtistDetailView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         // Artist header
-                        AsyncImage(url: artist?.imageUrl.flatMap { URL(string: $0) }) { image in
-                            image.resizable().scaledToFill()
-                        } placeholder: {
-                            Image(systemName: "music.mic")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.secondary)
+                        ZStack {
+                            CachedImageView(
+                                url: artist?.imageUrl.flatMap { URL(string: $0) },
+                                contentMode: .fill,
+                                targetSize: CGSize(width: 160, height: 160)
+                            )
+                            if artist?.imageUrl == nil {
+                                Image(systemName: "music.mic")
+                                    .font(.system(size: 48))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .frame(width: 160, height: 160)
                         .clipShape(Circle())

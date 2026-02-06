@@ -22,6 +22,9 @@ if [[ "${1:-}" == "--release" ]]; then
 fi
 
 TARGET_DIR="$PROJECT_ROOT/target"
+# Keep all cargo outputs deterministic for this script so generated Swift bindings
+# and XCFramework slices always come from the same build artifacts.
+export CARGO_TARGET_DIR="$TARGET_DIR"
 
 echo "==> Building aurelia-core for iOS device (aarch64-apple-ios)..."
 cargo build -p "$CORE_CRATE" --target aarch64-apple-ios $CARGO_FLAGS

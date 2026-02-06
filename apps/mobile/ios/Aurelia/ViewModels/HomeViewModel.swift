@@ -21,33 +21,61 @@ final class HomeViewModel: @unchecked Sendable {
     private var hasLoadedInitialData = false
     private var allSongs: [Song] = []
     private var songIdByTitleArtist: [String: String] = [:]
+    
+    private struct HomeSections {
+        let mostPlayed: [Song]
+        let recentlyPlayed: [Song]
+        let recentlyAddedAlbums: [AlbumItem]
+        let randomAlbums: [AlbumItem]
+        let featuredAlbums: [FeaturedAlbum]
+    }
+    
+    private struct HomeSectionLimits: Sendable {
+        let mostPlayed: Int
+        let recentlyPlayed: Int
+        let albumSection: Int
+        let featuredAlbums: Int
+    }
 
     func loadHomeData() {
         guard !hasLoadedInitialData else { return }
-        guard let creds = sessionStore.getCredentials(),
-              !creds.serverUrl.isEmpty, !creds.token.isEmpty, !creds.userId.isEmpty else {
-            error = "Missing session data"
-            return
-        }
 
         isLoading = true
         error = nil
 
-        let appDataDir = sessionStore.getAppDataDir() ?? ""
-        let shouldRefresh = sessionStore.shouldRefreshLibrary()
+        let sectionLimits = HomeSectionLimits(
+            mostPlayed: UIConstants.mostPlayedLimit,
+            recentlyPlayed: UIConstants.recentlyPlayedLimit,
+            albumSection: UIConstants.albumSectionLimit,
+            featuredAlbums: UIConstants.featuredAlbumsLimit
+        )
 
-        // Load cached data first
         Task.detached { [self] in
+            guard let creds = await sessionStore.getCredentialsAsync(),
+                  !creds.serverUrl.isEmpty, !creds.token.isEmpty, !creds.userId.isEmpty else {
+                await MainActor.run {
+                    self.isLoading = false
+                    self.error = "Missing session data"
+                }
+                return
+            }
+
+            let appDataDir = await MainActor.run { sessionStore.getAppDataDir() ?? "" }
+            let shouldRefresh = await sessionStore.shouldRefreshLibraryAsync()
+
+            // Load cached data first
             var loadedCache = false
             if !appDataDir.isEmpty {
                 do {
                     let cached = try loadCachedSongs(appDataDir: appDataDir)
                     if !cached.isEmpty {
                         loadedCache = true
+                        let sections = Self.computeHomeSections(cached, limits: sectionLimits)
+                        let songIdCache = Self.buildSongIdCache(cached)
                         await MainActor.run {
                             self.allSongs = cached
-                            self.songIdByTitleArtist = Self.buildSongIdCache(cached)
-                            self.processHomeData(cached)
+                            self.songIdByTitleArtist = songIdCache
+                            self.applyHomeSections(sections)
                         }
                     }
                 } catch {
@@ -70,10 +98,12 @@ final class HomeViewModel: @unchecked Sendable {
                     userId: creds.userId,
                     appDataDir: appDataDir
                 )
+                let sections = Self.computeHomeSections(songs, limits: sectionLimits)
+                let songIdCache = Self.buildSongIdCache(songs)
                 await MainActor.run {
                     self.allSongs = songs
-                    self.songIdByTitleArtist = Self.buildSongIdCache(songs)
-                    self.processHomeData(songs)
+                    self.songIdByTitleArtist = songIdCache
+                    self.applyHomeSections(sections)
                     self.hasLoadedInitialData = true
                     self.sessionStore.markLibraryRefreshed()
                 }
@@ -88,26 +118,36 @@ final class HomeViewModel: @unchecked Sendable {
         }
     }
 
-    private func processHomeData(_ songs: [Song]) {
+    @MainActor
+    private func applyHomeSections(_ sections: HomeSections) {
+        mostPlayed = sections.mostPlayed
+        recentlyPlayed = sections.recentlyPlayed
+        recentlyAddedAlbums = sections.recentlyAddedAlbums
+        randomAlbums = sections.randomAlbums
+        featuredAlbums = sections.featuredAlbums
+        isLoading = false
+    }
+    
+    nonisolated private static func computeHomeSections(_ songs: [Song], limits: HomeSectionLimits) -> HomeSections {
         // Most played
-        mostPlayed = songs
+        let mostPlayed = songs
             .filter { ($0.playCount ?? 0) > 0 }
             .sorted { ($0.playCount ?? 0) > ($1.playCount ?? 0) }
-            .prefix(UIConstants.mostPlayedLimit)
+            .prefix(limits.mostPlayed)
             .map { $0 }
 
         // Recently played
-        recentlyPlayed = songs
+        let recentlyPlayed = songs
             .filter { $0.datePlayed != nil && !$0.datePlayed!.isEmpty }
             .sorted { ($0.datePlayed ?? "") > ($1.datePlayed ?? "") }
-            .prefix(UIConstants.recentlyPlayedLimit)
+            .prefix(limits.recentlyPlayed)
             .map { $0 }
 
         // Group by album
         let albumsMap = Dictionary(grouping: songs.filter { $0.albumId != nil && !$0.albumId!.isEmpty }) { $0.albumId! }
 
         // Recently added albums
-        recentlyAddedAlbums = albumsMap
+        let recentlyAddedAlbums = albumsMap
             .map { (albumId, albumSongs) -> (AlbumItem, String) in
                 let firstSong = albumSongs.max(by: { ($0.dateCreated ?? "") < ($1.dateCreated ?? "") }) ?? albumSongs[0]
                 return (
@@ -122,11 +162,11 @@ final class HomeViewModel: @unchecked Sendable {
                 )
             }
             .sorted { $0.1 > $1.1 }
-            .prefix(UIConstants.albumSectionLimit)
+            .prefix(limits.albumSection)
             .map(\.0)
 
         // Random albums
-        randomAlbums = albumsMap
+        let randomAlbums = albumsMap
             .map { (albumId, albumSongs) -> AlbumItem in
                 let firstSong = albumSongs[0]
                 return AlbumItem(
@@ -138,11 +178,11 @@ final class HomeViewModel: @unchecked Sendable {
                 )
             }
             .shuffled()
-            .prefix(UIConstants.albumSectionLimit)
+            .prefix(limits.albumSection)
             .map { $0 }
 
         // Featured albums
-        featuredAlbums = albumsMap
+        let featuredAlbums = albumsMap
             .filter { $0.value.contains { $0.albumArtUrl != nil && !$0.albumArtUrl!.isEmpty } }
             .map { (albumId, albumSongs) -> FeaturedAlbum in
                 let firstSong = albumSongs[0]
@@ -155,10 +195,16 @@ final class HomeViewModel: @unchecked Sendable {
                 )
             }
             .shuffled()
-            .prefix(UIConstants.featuredAlbumsLimit)
+            .prefix(limits.featuredAlbums)
             .map { $0 }
-
-        isLoading = false
+        
+        return HomeSections(
+            mostPlayed: mostPlayed,
+            recentlyPlayed: recentlyPlayed,
+            recentlyAddedAlbums: recentlyAddedAlbums,
+            randomAlbums: randomAlbums,
+            featuredAlbums: featuredAlbums
+        )
     }
 
     // MARK: - Playback
@@ -202,7 +248,7 @@ final class HomeViewModel: @unchecked Sendable {
 
     // MARK: - Helpers
 
-    private static func buildSongIdCache(_ songs: [Song]) -> [String: String] {
+    nonisolated private static func buildSongIdCache(_ songs: [Song]) -> [String: String] {
         var cache: [String: String] = [:]
         for song in songs {
             let key = "\(song.name)_\(song.artists?.first ?? "")"

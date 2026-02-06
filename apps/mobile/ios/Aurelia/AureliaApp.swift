@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct AureliaApp: App {
     @State private var appViewModel = AppViewModel()
-    @State private var playerController = AudioPlayerController()
+    @State private var playerController: AudioPlayerController?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some Scene {
@@ -15,20 +15,30 @@ struct AureliaApp: App {
                         ProgressView()
                     }
                 } else if appViewModel.isLoggedIn {
-                    MainView()
+                    if let playerController {
+                        MainView()
+                            .environment(playerController)
+                    } else {
+                        ZStack {
+                            AureliaBackground()
+                            ProgressView()
+                        }
+                        .task {
+                            let controller = AudioPlayerController()
+                            playerController = controller
+                            UIApplication.shared.beginReceivingRemoteControlEvents()
+                        }
+                    }
                 } else {
                     LoginView()
                 }
             }
             .environment(appViewModel)
-            .environment(playerController)
             .tint(AureliaPalette.tint(for: colorScheme))
             .onAppear {
-                // Enable remote control events for Lock Screen / Control Center
-                UIApplication.shared.beginReceivingRemoteControlEvents()
-                
                 AuthInterceptor.shared.setLogoutCallback { [appViewModel] in
                     Task { @MainActor in
+                        self.playerController = nil
                         appViewModel.logout()
                     }
                 }

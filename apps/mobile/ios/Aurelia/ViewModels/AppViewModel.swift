@@ -15,7 +15,7 @@ final class AppViewModel: @unchecked Sendable {
     func checkSession() {
         isLoading = true
         Task.detached { [sessionStore] in
-            let isValid = await sessionStore.hasValidSession
+            let isValid = await sessionStore.hasValidSessionAsync()
             await MainActor.run {
                 self.isLoggedIn = isValid
                 self.isLoading = false

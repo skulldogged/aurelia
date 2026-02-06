@@ -218,7 +218,7 @@ pub fn clear_cache(app_data_dir: String) -> Result<(), error::AppError> {
     cache::clear_cache(app_dir).map_err(|err| error::AppError::Database(err.to_string()))
 }
 
-#[uniffi::export]
+#[uniffi::export(async_runtime = "tokio")]
 pub async fn get_lyrics(
     _server_url: String, // Kept for API compatibility, though currently unused for LRCLIB
     _token: String,

@@ -31,12 +31,11 @@ struct ArtistsView: View {
                                             GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.m, showsShadow: false) {
                                                 VStack(alignment: .leading, spacing: 10) {
                                                     HStack(spacing: 12) {
-                                                        AsyncImage(url: artist.artUrl.flatMap { URL(string: $0) }) { image in
-                                                            image.resizable().scaledToFill()
-                                                        } placeholder: {
-                                                            Image(systemName: "music.mic")
-                                                                .foregroundStyle(.secondary)
-                                                        }
+                                                        CachedImageView(
+                                                            url: artist.artUrl.flatMap { URL(string: $0) },
+                                                            contentMode: .fill,
+                                                            targetSize: CGSize(width: 56, height: 56)
+                                                        )
                                                         .frame(width: 56, height: 56)
                                                         .clipShape(Circle())
 
@@ -64,12 +63,11 @@ struct ArtistsView: View {
                                 GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s, showsShadow: false) {
                                     NavigationLink(value: ArtistRoute(id: artist.id, name: artist.name)) {
                                         HStack(spacing: 12) {
-                                            AsyncImage(url: artist.artUrl.flatMap { URL(string: $0) }) { image in
-                                                image.resizable().scaledToFill()
-                                            } placeholder: {
-                                                Image(systemName: "music.mic")
-                                                    .foregroundStyle(.secondary)
-                                            }
+                                            CachedImageView(
+                                                url: artist.artUrl.flatMap { URL(string: $0) },
+                                                contentMode: .fill,
+                                                targetSize: CGSize(width: 48, height: 48)
+                                            )
                                             .frame(width: 48, height: 48)
                                             .clipShape(Circle())
 

@@ -49,42 +49,50 @@ final class PlayerViewModel: @unchecked Sendable {
     func updateFrom(_ snapshot: PlayerSnapshot, playerController: AudioPlayerController) {
         let previousSongId = currentSongId
         let newSongId = snapshot.currentSongId
+        let didChangeSong = newSongId != previousSongId
+        let shouldRefreshQueue = queue.isEmpty || didChangeSong || snapshot.isShuffled != isShuffled
 
-        // Update favorite cache from queue
-        for song in playerController.getQueue() {
-            if favoriteCache[song.id] == nil {
+        if shouldRefreshQueue {
+            let latestQueue = playerController.getQueue()
+            if queueSignature(for: latestQueue) != queueSignature(for: queue) {
+                queue = latestQueue
+            }
+
+            // Update favorite cache from queue only when queue changes.
+            for song in latestQueue where favoriteCache[song.id] == nil {
                 favoriteCache[song.id] = song.isFavorite ?? false
             }
         }
 
-        title = snapshot.title
-        artist = snapshot.artist
-        albumArtUrl = snapshot.albumArtUrl
-        isPlaying = snapshot.isPlaying
-        isBuffering = snapshot.isBuffering
-        positionMs = snapshot.positionMs
-        durationMs = snapshot.durationMs
-        queue = playerController.getQueue()
-        currentQueueIndex = playerController.getCurrentQueueIndex()
-        isShuffled = snapshot.isShuffled
-        repeatMode = snapshot.repeatMode
-        currentSongId = newSongId
-        currentAlbumId = snapshot.currentAlbumId
-        currentArtistId = snapshot.currentArtistId
-        currentAlbumName = snapshot.currentAlbumName
-        isFavorite = newSongId.flatMap { favoriteCache[$0] } ?? false
-        playbackSpeed = snapshot.playbackSpeed
-        codec = snapshot.codec
-        bitRate = snapshot.bitRate
-        sampleRate = snapshot.sampleRate
+        let latestQueueIndex = playerController.getCurrentQueueIndex()
+
+        setIfChanged(\.title, snapshot.title)
+        setIfChanged(\.artist, snapshot.artist)
+        setIfChanged(\.albumArtUrl, snapshot.albumArtUrl)
+        setIfChanged(\.isPlaying, snapshot.isPlaying)
+        setIfChanged(\.isBuffering, snapshot.isBuffering)
+        setIfChanged(\.positionMs, snapshot.positionMs)
+        setIfChanged(\.durationMs, snapshot.durationMs)
+        setIfChanged(\.currentQueueIndex, latestQueueIndex)
+        setIfChanged(\.isShuffled, snapshot.isShuffled)
+        setIfChanged(\.repeatMode, snapshot.repeatMode)
+        setIfChanged(\.currentSongId, newSongId)
+        setIfChanged(\.currentAlbumId, snapshot.currentAlbumId)
+        setIfChanged(\.currentArtistId, snapshot.currentArtistId)
+        setIfChanged(\.currentAlbumName, snapshot.currentAlbumName)
+        setIfChanged(\.isFavorite, newSongId.flatMap { favoriteCache[$0] } ?? false)
+        setIfChanged(\.playbackSpeed, snapshot.playbackSpeed)
+        setIfChanged(\.codec, snapshot.codec)
+        setIfChanged(\.bitRate, snapshot.bitRate)
+        setIfChanged(\.sampleRate, snapshot.sampleRate)
 
         // Mark previous song as played on track change
-        if let previousSongId, let newSongId, newSongId != previousSongId {
+        if let previousSongId, didChangeSong, newSongId != nil {
             markSongAsPlayed(previousSongId)
         }
 
         // Fetch lyrics for new song
-        if let newSongId, !newSongId.isEmpty, newSongId != lastFetchedSongId {
+        if let newSongId, !newSongId.isEmpty, didChangeSong, newSongId != lastFetchedSongId {
             lastFetchedSongId = newSongId
             fetchLyrics(songId: newSongId, artist: snapshot.artist, title: snapshot.title)
         }
@@ -196,6 +204,19 @@ final class PlayerViewModel: @unchecked Sendable {
     }
 
     // MARK: - Scrobble
+
+    private func setIfChanged<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<PlayerViewModel, T>, _ value: T) {
+        if self[keyPath: keyPath] != value {
+            self[keyPath: keyPath] = value
+        }
+    }
+
+    private func queueSignature(for queue: [Song]) -> String {
+        guard let first = queue.first?.id, let last = queue.last?.id else {
+            return "empty:\(queue.count)"
+        }
+        return "\(queue.count):\(first):\(last)"
+    }
 
     private func markSongAsPlayed(_ songId: String) {
         guard let serverUrl = sessionStore.serverUrl,

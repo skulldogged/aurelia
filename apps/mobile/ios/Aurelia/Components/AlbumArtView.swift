@@ -6,7 +6,7 @@ struct AlbumArtView: View {
     var size: ArtSize = .medium
     var customDimension: CGFloat? = nil
     @State private var loadedImage: UIImage? = nil
-    @State private var isLoading = false
+    @State private var loadedKey: String? = nil
 
     enum ArtSize {
         case small, medium, large, extraLarge
@@ -46,9 +46,6 @@ struct AlbumArtView: View {
                 Image(uiImage: loadedImage)
                     .resizable()
                     .scaledToFill()
-            } else if isLoading {
-                placeholder
-                    .overlay { ProgressView() }
             } else {
                 placeholder
             }
@@ -63,8 +60,8 @@ struct AlbumArtView: View {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
-        .task(id: url) {
-            await loadImage()
+        .task(id: requestKey(for: dimension)) {
+            await loadImage(targetDimension: dimension)
         }
     }
 
@@ -78,27 +75,30 @@ struct AlbumArtView: View {
     }
 
     @MainActor
-    private func loadImage() async {
-        loadedImage = nil
-        guard let urlString = url, let imageUrl = URL(string: urlString) else { return }
-
-        isLoading = true
-        if let cached = await ImageCache.shared.cachedImage(for: imageUrl) {
-            loadedImage = cached
-            isLoading = false
+    private func loadImage(targetDimension: CGFloat) async {
+        guard let requestKey = requestKey(for: targetDimension),
+              let urlString = url,
+              let imageUrl = URL(string: urlString) else {
+            loadedImage = nil
+            loadedKey = nil
             return
         }
 
-        do {
-            let (data, _) = try await URLSession.shared.data(from: imageUrl)
-            if let image = UIImage(data: data) {
-                ImageCache.shared.store(image, for: imageUrl)
-                loadedImage = image
-            }
-        } catch {
-            // Ignore errors, keep placeholder
+        if loadedKey != requestKey {
+            loadedImage = nil
+            loadedKey = requestKey
+        } else if loadedImage != nil {
+            return
         }
 
-        isLoading = false
+        loadedImage = await ImageCache.shared.fetchImage(
+            for: imageUrl,
+            targetSize: CGSize(width: targetDimension, height: targetDimension)
+        )
+    }
+
+    private func requestKey(for targetDimension: CGFloat) -> String? {
+        guard let url else { return nil }
+        return "\(url)#\(Int(targetDimension.rounded(.up)))"
     }
 }

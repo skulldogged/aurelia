@@ -28,12 +28,15 @@ final class LoginViewModel: @unchecked Sendable {
         isSubmitting = true
         error = nil
 
-        Task.detached { [serverUrl = self.serverUrl, username = self.username, password = self.password] in
+        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "aurelia-ios-\(UUID().uuidString)"
+
+        Task.detached { [serverUrl = self.serverUrl, username = self.username, password = self.password, deviceId] in
             do {
                 let response = try await authenticate(
                     serverUrl: serverUrl,
                     username: username,
-                    password: password
+                    password: password,
+                    deviceId: deviceId
                 )
                 let sessionStore = await SessionStore.shared
                 await sessionStore

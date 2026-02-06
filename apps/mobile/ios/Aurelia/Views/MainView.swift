@@ -10,22 +10,15 @@ struct MainView: View {
     var body: some View {
         Group {
             if sizeClass == .regular {
-                MainSplitView(selection: $selection)
+                MainSplitView(selection: $selection, showPlayer: $showPlayer)
             } else {
                 MainTabView(selectedTab: $selection)
+                    .miniPlayerInset(showPlayer: $showPlayer)
             }
         }
         .tint(AureliaPalette.tint(for: colorScheme))
-        .safeAreaInset(edge: .bottom) {
-            if playerController.snapshot.currentSongId != nil {
-                MiniPlayerView(onTap: { showPlayer = true })
-                    .padding(.horizontal, AureliaSpacing.m)
-                    .padding(.top, AureliaSpacing.s)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: playerController.snapshot.currentSongId)
-        .sheet(isPresented: $showPlayer) {
+        .fullScreenCover(isPresented: $showPlayer) {
             PlayerView()
         }
     }
@@ -33,6 +26,7 @@ struct MainView: View {
 
 struct MainSplitView: View {
     @Binding var selection: MainDestination
+    @Binding var showPlayer: Bool
 
     var body: some View {
         NavigationSplitView {
@@ -47,6 +41,7 @@ struct MainSplitView: View {
             .navigationTitle("Aurelia")
         } detail: {
             selection.destinationView()
+                .miniPlayerInset(showPlayer: $showPlayer)
         }
         .navigationSplitViewStyle(.balanced)
     }
@@ -60,5 +55,27 @@ struct MainSplitView: View {
                 }
             }
         )
+    }
+}
+
+private struct MiniPlayerInsetModifier: ViewModifier {
+    @Environment(AudioPlayerController.self) private var playerController
+    @Binding var showPlayer: Bool
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom) {
+            if playerController.snapshot.currentSongId != nil {
+                MiniPlayerView(onTap: { showPlayer = true })
+                    .padding(.horizontal, AureliaSpacing.m)
+                    .padding(.top, AureliaSpacing.s)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+    }
+}
+
+private extension View {
+    func miniPlayerInset(showPlayer: Binding<Bool>) -> some View {
+        modifier(MiniPlayerInsetModifier(showPlayer: showPlayer))
     }
 }
