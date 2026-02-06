@@ -3,6 +3,7 @@
 //! This module provides the Axum-specific implementation of the Api trait
 //! for the web backend.
 
+use crate::shared::{lastfm_secret, session_reporting};
 use crate::{
     Album, Api, ApiResult, AppError, Artist, Credentials, HomeViewData, LastFmCredentials,
     LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData, PlaylistUpdateData, RpcActivity,
@@ -14,45 +15,9 @@ use aurelia_core::lastfm_core::{
 };
 use aurelia_core::listenbrainz_core::ListenBrainzState;
 use aurelia_core::listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen};
-use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LastFmSecretStore {
-    api_secret: String,
-}
-
-fn lastfm_secret_path(app_dir: &Path) -> PathBuf {
-    app_dir.join("lastfm_secret.json")
-}
-
-fn load_lastfm_secret(app_dir: &Path) -> Option<String> {
-    let path = lastfm_secret_path(app_dir);
-    let contents = std::fs::read_to_string(path).ok()?;
-    let store: LastFmSecretStore = serde_json::from_str(&contents).ok()?;
-    Some(store.api_secret)
-}
-
-fn save_lastfm_secret(app_dir: &Path, api_secret: &str) -> ApiResult<()> {
-    let path = lastfm_secret_path(app_dir);
-    let payload = serde_json::to_string(&LastFmSecretStore {
-        api_secret: api_secret.to_string(),
-    })
-    .map_err(|e| AppError::Serialization(e.to_string()))?;
-    std::fs::write(path, payload).map_err(|e| AppError::FileSystem(e.to_string()))?;
-    Ok(())
-}
-
-fn clear_lastfm_secret(app_dir: &Path) -> ApiResult<()> {
-    let path = lastfm_secret_path(app_dir);
-    if path.exists() {
-        std::fs::remove_file(path).map_err(|e| AppError::FileSystem(e.to_string()))?;
-    }
-    Ok(())
-}
 
 /// Application state for Axum
 #[derive(Clone)]
@@ -75,95 +40,6 @@ pub struct AxumApiImpl {
 impl AxumApiImpl {
     pub fn new(state: Arc<AppState>) -> Self {
         Self { state }
-    }
-
-    // Helper for playback reporting
-    async fn report_playback_impl(
-        &self,
-        item_id: String,
-        position_ticks: Option<i64>,
-        event_name: Option<String>,
-        is_paused: Option<bool>,
-    ) -> ApiResult<()> {
-        // Need credentials
-        let creds = get_credentials(&self.state)?
-            .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-        let server_url = creds.server_url;
-        let token = creds.token;
-
-        use reqwest::Client;
-
-        let client = Client::new();
-        let auth_header = format!("MediaBrowser Token=\"{}\"", token);
-
-        // Determine endpoint and payload based on event type
-        let (endpoint, request_body) = match event_name.as_deref() {
-            Some("start") => {
-                let url = format!("{}/Sessions/Playing", server_url.trim_end_matches('/'));
-                let mut body = json!({
-                    "ItemId": item_id,
-                    "CanSeek": true,
-                    "IsPaused": false,
-                    "IsMuted": false
-                });
-                if let Some(pos) = position_ticks {
-                    body["PositionTicks"] = json!(pos);
-                }
-                (url, body)
-            }
-            Some("stop") => {
-                let url = format!(
-                    "{}/Sessions/Playing/Stopped",
-                    server_url.trim_end_matches('/')
-                );
-                let mut body = json!({
-                    "ItemId": item_id,
-                    "IsPaused": false,
-                    "IsMuted": false
-                });
-                if let Some(pos) = position_ticks {
-                    body["PositionTicks"] = json!(pos);
-                }
-                (url, body)
-            }
-            _ => {
-                // Default to progress report
-                let url = format!(
-                    "{}/Sessions/Playing/Progress",
-                    server_url.trim_end_matches('/')
-                );
-                let mut body = json!({
-                    "ItemId": item_id,
-                    "IsMuted": false
-                });
-                if let Some(pos) = position_ticks {
-                    body["PositionTicks"] = json!(pos);
-                }
-                if let Some(event) = &event_name {
-                    body["EventName"] = json!(event);
-                }
-                body["IsPaused"] = json!(is_paused.unwrap_or(false));
-                (url, body)
-            }
-        };
-
-        let response = client
-            .post(&endpoint)
-            .header("Authorization", auth_header)
-            .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
-            .await
-            .map_err(|e| AppError::Network(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(AppError::Network(format!(
-                "Failed to report playback: HTTP {}",
-                response.status()
-            )));
-        }
-
-        Ok(())
     }
 }
 
@@ -220,80 +96,7 @@ impl Api for AxumApiImpl {
     async fn get_library(&self) -> ApiResult<LibraryData> {
         let songs =
             aurelia_core::load_cached_songs(self.state.app_data_dir.to_string_lossy().to_string())?;
-
-        // Derive albums and artists from songs
-        let mut album_map: HashMap<String, Vec<Song>> = HashMap::new();
-        let mut artist_map: HashMap<String, Artist> = HashMap::new();
-
-        for song in &songs {
-            if let Some(album_id) = &song.album_id {
-                album_map
-                    .entry(album_id.clone())
-                    .or_default()
-                    .push(song.clone());
-            }
-
-            if let Some(artist_ids) = &song.artist_ids {
-                for (i, artist_id) in artist_ids.iter().enumerate() {
-                    if !artist_map.contains_key(artist_id) {
-                        let name = song
-                            .artists
-                            .as_ref()
-                            .and_then(|a| a.get(i))
-                            .cloned()
-                            .unwrap_or_else(|| "Unknown Artist".to_string());
-                        artist_map.insert(
-                            artist_id.clone(),
-                            Artist {
-                                name,
-                                id: artist_id.clone(),
-                                image_tags: None,
-                                image_url: None,
-                                overview: None,
-                                provider_ids: None,
-                                community_rating: None,
-                                song_count: None,
-                                date_modified: None,
-                                songs: None,
-                            },
-                        );
-                    }
-                }
-            }
-        }
-
-        let albums: Vec<Album> = album_map
-            .iter()
-            .filter_map(|(album_id, album_songs)| {
-                let first_song = album_songs
-                    .iter()
-                    .max_by_key(|s| s.date_created.as_deref().unwrap_or(""))?;
-                Some(Album {
-                    id: Some(album_id.clone()),
-                    name: first_song
-                        .album
-                        .clone()
-                        .unwrap_or_else(|| "Unknown Album".to_string()),
-                    artist: first_song.artists.as_ref()?.first()?.clone(),
-                    artist_id: first_song.artist_ids.as_ref()?.first().cloned(),
-                    album_art_url: first_song.album_art_url.clone(),
-                    song_count: album_songs.len() as i64,
-                    songs: None,
-                    image_tags: None,
-                    provider_ids: None,
-                    date_created: first_song.date_created.clone(),
-                    date_modified: None,
-                })
-            })
-            .collect();
-
-        let artists: Vec<Artist> = artist_map.into_values().collect();
-
-        Ok(LibraryData {
-            albums,
-            artists,
-            songs,
-        })
+        Ok(aurelia_core::domain::services::derive_library_data(&songs))
     }
 
     async fn sync_library(&self) -> ApiResult<()> {
@@ -539,68 +342,13 @@ impl Api for AxumApiImpl {
         )
         .await
         .unwrap_or_default();
-
-        // Build albums with song counts
-        let mut albums: Vec<Album> = Vec::new();
-        let mut album_ids: HashMap<String, usize> = HashMap::new();
-
-        // First pass: count songs per album and collect album info
-        for song in &all_songs {
-            if let Some(album_id) = &song.album_id {
-                let count = album_ids.entry(album_id.clone()).or_insert(0);
-                *count += 1;
-            }
-        }
-
-        // Second pass: build album list with correct song counts
-        let mut seen_albums: HashMap<String, bool> = HashMap::new();
-        for song in &all_songs {
-            if let Some(album_id) = &song.album_id
-                && !seen_albums.contains_key(album_id)
-            {
-                seen_albums.insert(album_id.clone(), true);
-                let song_count = album_ids.get(album_id).copied().unwrap_or(0) as i64;
-                albums.push(Album {
-                    id: Some(album_id.clone()),
-                    name: song.album.clone().unwrap_or_default(),
-                    artist: song
-                        .artists
-                        .as_ref()
-                        .and_then(|a| a.first())
-                        .cloned()
-                        .unwrap_or_default(),
-                    artist_id: song.artist_ids.as_ref().and_then(|a| a.first()).cloned(),
-                    album_art_url: song.album_art_url.clone(),
-                    song_count,
-                    songs: None,
-                    image_tags: None,
-                    provider_ids: None,
-                    date_created: song.date_created.clone(),
-                    date_modified: None,
-                });
-            }
-        }
-
-        // Derive recently added albums (sort by newest song date in each album)
-        let mut recently_added = albums.clone();
-        recently_added.sort_by(|a, b| b.date_created.cmp(&a.date_created));
-        recently_added.truncate(20);
-
-        // Shuffle albums for random selection
-        use rand::seq::SliceRandom;
         let mut rng = rand::rng();
-        albums.shuffle(&mut rng);
-        let random_albums: Vec<Album> = albums.iter().take(20).cloned().collect();
-
-        // Featured albums (same as random for now)
-        let featured_albums = random_albums.clone();
-
-        Ok(HomeViewData {
+        Ok(aurelia_core::domain::services::derive_home_view_data(
+            &all_songs,
             recently_played,
-            recently_added,
-            random_albums,
-            featured_albums,
-        })
+            aurelia_core::domain::services::HomeViewLimits::default(),
+            &mut rng,
+        ))
     }
 
     async fn get_recently_played(&self) -> ApiResult<Vec<Song>> {
@@ -691,6 +439,23 @@ impl Api for AxumApiImpl {
         .await)
     }
 
+    async fn get_parsed_lyrics(
+        &self,
+        _id: String,
+        artist: String,
+        title: String,
+        _path: Option<String>,
+    ) -> ApiResult<aurelia_core::models::ParsedLyrics> {
+        Ok(aurelia_core::get_parsed_lyrics(
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            artist,
+            title,
+        )
+        .await)
+    }
+
     // ─── Cache ───────────────────────────────────────────────────
 
     async fn clear_cache(&self) -> ApiResult<()> {
@@ -705,68 +470,7 @@ impl Api for AxumApiImpl {
         token: String,
         device_id: String,
     ) -> ApiResult<()> {
-        use reqwest::Client;
-
-        let capabilities_url = format!(
-            "{}/Sessions/Capabilities/Full",
-            server_url.trim_end_matches('/')
-        );
-
-        // Build capabilities payload
-        let request_body = json!({
-            "capabilities": {
-                "PlayableMediaTypes": ["Audio"],
-                "SupportedCommands": ["PlayNow", "PlayNext", "SetVolume", "ToggleMute"],
-                "SupportsMediaControl": true,
-                "SupportsPersistentIdentifier": true,
-                "DeviceProfile": {
-                    "Name": "Aurelia Audio Profile",
-                    "Id": device_id,
-                    "MaxStreamingBitrate": 140000000,
-                    "MaxStaticBitrate": 140000000,
-                    "MusicStreamingTranscodingBitrate": 384000,
-                    "MaxStaticMusicBitrate": 4000000,
-                    "DirectPlayProfiles": [
-                        {"Container": "mp3", "AudioCodec": "mp3", "Type": "Audio"},
-                        {"Container": "flac", "AudioCodec": "flac", "Type": "Audio"},
-                        {"Container": "ogg", "AudioCodec": "vorbis", "Type": "Audio"}
-                    ],
-                    "TranscodingProfiles": [
-                        {"Container": "mp3", "AudioCodec": "mp3", "Type": "Audio", "Context": "Streaming"}
-                    ],
-                    "ContainerProfiles": [],
-                    "CodecProfiles": [],
-                    "SubtitleProfiles": [{"Format": "srt", "Method": "External"}],
-                    "ResponseProfiles": [
-                        {"Type": "Audio", "MimeType": "audio/mp3"}
-                    ]
-                }
-            }
-        });
-
-        let client = Client::new();
-        let response = client
-            .post(&capabilities_url)
-            .header("Authorization", format!("MediaBrowser Token=\"{}\"", token))
-            .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
-            .await
-            .map_err(|e| AppError::Network(e.to_string()))?;
-
-        if !response.status().is_success() {
-            let status = response.status();
-            let body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "No response body".to_string());
-            return Err(AppError::Network(format!(
-                "Failed to register capabilities: HTTP {} - {}",
-                status, body
-            )));
-        }
-
-        Ok(())
+        session_reporting::register_client_capabilities(server_url, token, device_id).await
     }
 
     async fn report_playback_start(
@@ -774,8 +478,15 @@ impl Api for AxumApiImpl {
         item_id: String,
         position_ticks: Option<i64>,
     ) -> ApiResult<()> {
-        self.report_playback_impl(item_id, position_ticks, Some("start".to_string()), None)
-            .await
+        let creds = get_credentials(&self.state)?
+            .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
+        session_reporting::report_playback_start(
+            creds.server_url,
+            creds.token,
+            item_id,
+            position_ticks,
+        )
+        .await
     }
 
     async fn report_playback_progress(
@@ -784,16 +495,26 @@ impl Api for AxumApiImpl {
         position_ticks: i64,
         is_paused: bool,
     ) -> ApiResult<()> {
-        self.report_playback_impl(item_id, Some(position_ticks), None, Some(is_paused))
-            .await
+        let creds = get_credentials(&self.state)?
+            .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
+        session_reporting::report_playback_progress(
+            creds.server_url,
+            creds.token,
+            item_id,
+            position_ticks,
+            is_paused,
+        )
+        .await
     }
 
     async fn report_playback_stop(&self, item_id: String, position_ticks: i64) -> ApiResult<()> {
-        self.report_playback_impl(
+        let creds = get_credentials(&self.state)?
+            .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
+        session_reporting::report_playback_stop(
+            creds.server_url,
+            creds.token,
             item_id,
-            Some(position_ticks),
-            Some("stop".to_string()),
-            None,
+            position_ticks,
         )
         .await
     }
@@ -1035,7 +756,7 @@ impl Api for AxumApiImpl {
         let state = self.state.lastfm_state.as_ref();
         lastfm_set_credentials(credentials, state).map_err(AppError::General)?;
 
-        if let Some(api_secret) = load_lastfm_secret(&self.state.app_data_dir) {
+        if let Some(api_secret) = lastfm_secret::load(&self.state.app_data_dir) {
             let _ = lastfm_set_api_secret(api_secret, state);
         }
 
@@ -1045,7 +766,7 @@ impl Api for AxumApiImpl {
     async fn lastfm_clear_credentials(&self) -> ApiResult<()> {
         let state = self.state.lastfm_state.as_ref();
         lastfm_clear_credentials(state).map_err(AppError::General)?;
-        let _ = clear_lastfm_secret(&self.state.app_data_dir);
+        let _ = lastfm_secret::clear(&self.state.app_data_dir);
         Ok(())
     }
 
@@ -1071,7 +792,7 @@ impl Api for AxumApiImpl {
             .await
             .map_err(AppError::General)?;
 
-        let _ = save_lastfm_secret(&self.state.app_data_dir, &api_secret);
+        let _ = lastfm_secret::save(&self.state.app_data_dir, &api_secret);
 
         Ok(credentials)
     }
@@ -1119,25 +840,5 @@ impl Api for AxumApiImpl {
 
     async fn set_close_to_tray(&self, _close_to_tray: bool) -> ApiResult<()> {
         Err(AppError::General("Desktop-only feature".to_string()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{clear_lastfm_secret, load_lastfm_secret, save_lastfm_secret};
-    use tempfile::tempdir;
-
-    #[test]
-    fn lastfm_secret_roundtrip() {
-        let dir = tempdir().expect("temp dir");
-        let path = dir.path();
-
-        assert!(load_lastfm_secret(path).is_none());
-
-        save_lastfm_secret(path, "secret").expect("save");
-        assert_eq!(load_lastfm_secret(path).as_deref(), Some("secret"));
-
-        clear_lastfm_secret(path).expect("clear");
-        assert!(load_lastfm_secret(path).is_none());
     }
 }

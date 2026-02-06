@@ -4,16 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.data.model.Lyrics
+import com.aurelia.app.data.model.SyncedLine
+import com.aurelia.app.data.model.SyncedWord
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.PlayerSnapshot
 import com.aurelia.app.storage.SessionStore
-import com.aurelia.app.utils.LyricsUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import uniffi.aurelia_core.getLyrics as uniffiGetLyrics
+import uniffi.aurelia_core.getParsedLyrics as uniffiGetParsedLyrics
 import uniffi.aurelia_core.markItemPlayed as uniffiMarkItemPlayed
 import uniffi.aurelia_core.toggleFavorite as uniffiToggleFavorite
 
@@ -84,8 +85,8 @@ class PlayerViewModel(
                 val token = sessionStore.getToken() ?: ""
                 val itemId = songId ?: ""
 
-                val lrcContent = uniffiGetLyrics(serverUrl, token, itemId, artist, title)
-                val lyrics = LyricsUtils.parseLyrics(lrcContent)
+                val lyrics =
+                    uniffiGetParsedLyrics(serverUrl, token, itemId, artist, title).toUiLyrics()
 
                 // Ensure we are still playing the same song
                 if (songId == mutableState.value.currentSongId) {
@@ -153,6 +154,33 @@ class PlayerViewModel(
             bitRate = snapshot.bitRate,
             sampleRate = snapshot.sampleRate,
         )
+
+    private fun uniffi.aurelia_core.ParsedLyrics.toUiLyrics(): Lyrics {
+        val syncedLines =
+            synced
+                .takeIf { it.isNotEmpty() }
+                ?.map { line ->
+                    SyncedLine(
+                        time = line.timeMs.toInt(),
+                        line = line.line,
+                        words =
+                            line.words?.map { word ->
+                                SyncedWord(
+                                    time = word.timeMs.toInt(),
+                                    word = word.word,
+                                )
+                            },
+                    )
+                }
+
+        val plainLines = plain.takeIf { it.isNotEmpty() }
+
+        return Lyrics(
+            plain = plainLines,
+            synced = syncedLines,
+            areFromRemote = areFromRemote,
+        )
+    }
 
     fun playQueueItem(index: Int) {
         playerController.playQueueItem(index)

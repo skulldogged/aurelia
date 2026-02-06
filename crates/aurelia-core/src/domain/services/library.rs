@@ -656,8 +656,7 @@ mod tests {
             .apply_delta(&delta, &remote_songs, &remote_artists, &remote_albums)
             .expect("apply");
 
-        let (song_count, artist_count, album_count) =
-            service.get_library_stats().expect("stats");
+        let (song_count, artist_count, album_count) = service.get_library_stats().expect("stats");
 
         assert_eq!(report.full_sync, false);
         assert_eq!(song_count, 3);

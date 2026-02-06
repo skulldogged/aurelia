@@ -172,6 +172,15 @@ pub trait Api {
         path: Option<String>,
     ) -> ApiResult<String>;
 
+    #[api(POST "/lyrics/parsed")]
+    async fn get_parsed_lyrics(
+        &self,
+        id: String,
+        artist: String,
+        title: String,
+        path: Option<String>,
+    ) -> ApiResult<ParsedLyrics>;
+
     // ─── Cache ───────────────────────────────────────────────────
     #[api(POST "/cache/clear")]
     async fn clear_cache(&self) -> ApiResult<()>;

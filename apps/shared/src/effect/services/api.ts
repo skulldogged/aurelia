@@ -13,6 +13,7 @@ import type {
   Playlist,
   PlaylistCreateData,
   PlaylistUpdateData,
+  ParsedLyrics,
   RpcActivity,
   Song,
   SyncStateInfo,
@@ -73,6 +74,16 @@ export const getLyricsEffect = (
   path?: string,
 ): Effect.Effect<string, ApiError> =>
   runApiRequest<string>('getLyrics', () => getApiClient().getLyrics(id, artist, title, path))
+
+export const getParsedLyricsEffect = (
+  id: string,
+  artist: string,
+  title: string,
+  path?: string,
+): Effect.Effect<ParsedLyrics, ApiError> =>
+  runApiRequest<ParsedLyrics>('getParsedLyrics', () =>
+    getApiClient().getParsedLyrics(id, artist, title, path),
+  )
 
 export const getImageEffect = (
   itemId: string,

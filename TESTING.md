@@ -10,6 +10,10 @@ This repository has tests across Rust, shared Vue/TS, web + desktop apps, and mo
 - `bun run test:android` — Android JVM unit tests
 - `bun run test:android:ui` — Android instrumentation tests (requires device/emulator)
 - `bun run test:ios` — iOS Swift package tests (builds XCFramework)
+- `bun run bindings:generate` — regenerate shared + Android bindings (no iOS)
+- `bun run bindings:generate:full` — regenerate shared + Android + iOS bindings
+- `bun run bindings:verify` — fail if generated artifacts are stale (no iOS)
+- `bun run bindings:verify:full` — fail if generated artifacts are stale (includes iOS)
 
 ## JS/TS (Shared + Web + Desktop)
 

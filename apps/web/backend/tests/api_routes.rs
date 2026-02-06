@@ -7,8 +7,8 @@ use aurelia_core::listenbrainz_core::ListenBrainzState;
 use axum::body::Body;
 use axum::http::Request;
 use http_body_util::BodyExt;
-use tempfile::TempDir;
 use serial_test::serial;
+use tempfile::TempDir;
 use tower::ServiceExt;
 
 fn setup_state() -> Arc<AppState> {
@@ -27,11 +27,7 @@ fn setup_state() -> Arc<AppState> {
 }
 
 async fn parse_json(response: axum::response::Response) -> serde_json::Value {
-    let collected = response
-        .into_body()
-        .collect()
-        .await
-        .expect("body");
+    let collected = response.into_body().collect().await.expect("body");
     serde_json::from_slice(&collected.to_bytes()).expect("json")
 }
 
@@ -100,9 +96,8 @@ async fn get_audio_stream_url_respects_container() {
     let app = build_router().with_state(app_state);
 
     let server_url = "http%3A%2F%2Flocalhost%3A8096";
-    let uri = format!(
-        "/audio/song123/stream-url?serverUrl={server_url}&token=token&container=flac"
-    );
+    let uri =
+        format!("/audio/song123/stream-url?serverUrl={server_url}&token=token&container=flac");
 
     let response = app
         .oneshot(

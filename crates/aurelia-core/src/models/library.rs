@@ -2,7 +2,7 @@ use crate::models::{Album, Artist, Song};
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-#[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[derive(Serialize, Deserialize, Type, Clone, Debug, uniffi::Record)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct LibraryData {
@@ -11,10 +11,22 @@ pub struct LibraryData {
     pub songs: Vec<Song>,
 }
 
-#[derive(Serialize, Deserialize, Type, Clone, Debug)]
+#[derive(Serialize, Deserialize, Type, Clone, Debug, uniffi::Record)]
 #[specta(rename_all = "camelCase")]
 #[serde(rename_all = "camelCase")]
 pub struct HomeViewData {
+    pub recently_played: Vec<Song>,
+    pub recently_added: Vec<Album>,
+    pub random_albums: Vec<Album>,
+    pub featured_albums: Vec<Album>,
+}
+
+/// Home view sections used by mobile clients.
+#[derive(Serialize, Deserialize, Type, Clone, Debug, uniffi::Record)]
+#[specta(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
+pub struct MobileHomeData {
+    pub most_played: Vec<Song>,
     pub recently_played: Vec<Song>,
     pub recently_added: Vec<Album>,
     pub random_albums: Vec<Album>,

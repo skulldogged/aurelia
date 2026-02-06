@@ -13,9 +13,7 @@ pub fn parse_api_trait(input: &ItemTrait) -> syn::Result<ApiDefinition> {
         }
     }
 
-    Ok(ApiDefinition {
-        methods,
-    })
+    Ok(ApiDefinition { methods })
 }
 
 fn parse_api_method(method: &TraitItemFn) -> syn::Result<ApiMethod> {

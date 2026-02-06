@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 pub mod error_handling;
 pub mod lyrics;
+pub mod lyrics_parser;
 
 /// Application constants
 pub mod constants {
@@ -149,8 +150,8 @@ pub mod pagination {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_jellyfin_url, supports_seeking};
     use super::pagination::{apply_pagination, validate_pagination};
+    use super::{build_jellyfin_url, supports_seeking};
 
     #[test]
     fn supports_seeking_is_case_insensitive() {

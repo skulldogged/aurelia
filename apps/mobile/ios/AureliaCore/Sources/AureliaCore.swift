@@ -959,6 +959,187 @@ public func FfiConverterTypeCredentials_lower(_ value: Credentials) -> RustBuffe
 }
 
 
+public struct HomeViewData: Equatable, Hashable {
+    public var recentlyPlayed: [Song]
+    public var recentlyAdded: [Album]
+    public var randomAlbums: [Album]
+    public var featuredAlbums: [Album]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(recentlyPlayed: [Song], recentlyAdded: [Album], randomAlbums: [Album], featuredAlbums: [Album]) {
+        self.recentlyPlayed = recentlyPlayed
+        self.recentlyAdded = recentlyAdded
+        self.randomAlbums = randomAlbums
+        self.featuredAlbums = featuredAlbums
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension HomeViewData: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeHomeViewData: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HomeViewData {
+        return
+            try HomeViewData(
+                recentlyPlayed: FfiConverterSequenceTypeSong.read(from: &buf), 
+                recentlyAdded: FfiConverterSequenceTypeAlbum.read(from: &buf), 
+                randomAlbums: FfiConverterSequenceTypeAlbum.read(from: &buf), 
+                featuredAlbums: FfiConverterSequenceTypeAlbum.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: HomeViewData, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeSong.write(value.recentlyPlayed, into: &buf)
+        FfiConverterSequenceTypeAlbum.write(value.recentlyAdded, into: &buf)
+        FfiConverterSequenceTypeAlbum.write(value.randomAlbums, into: &buf)
+        FfiConverterSequenceTypeAlbum.write(value.featuredAlbums, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeHomeViewData_lift(_ buf: RustBuffer) throws -> HomeViewData {
+    return try FfiConverterTypeHomeViewData.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeHomeViewData_lower(_ value: HomeViewData) -> RustBuffer {
+    return FfiConverterTypeHomeViewData.lower(value)
+}
+
+
+/**
+ * Limits used when deriving home sections from a song list.
+ */
+public struct HomeViewLimits: Equatable, Hashable {
+    public var featuredAlbums: UInt32
+    public var randomAlbums: UInt32
+    public var recentlyAddedAlbums: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(featuredAlbums: UInt32, randomAlbums: UInt32, recentlyAddedAlbums: UInt32) {
+        self.featuredAlbums = featuredAlbums
+        self.randomAlbums = randomAlbums
+        self.recentlyAddedAlbums = recentlyAddedAlbums
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension HomeViewLimits: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeHomeViewLimits: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HomeViewLimits {
+        return
+            try HomeViewLimits(
+                featuredAlbums: FfiConverterUInt32.read(from: &buf), 
+                randomAlbums: FfiConverterUInt32.read(from: &buf), 
+                recentlyAddedAlbums: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: HomeViewLimits, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.featuredAlbums, into: &buf)
+        FfiConverterUInt32.write(value.randomAlbums, into: &buf)
+        FfiConverterUInt32.write(value.recentlyAddedAlbums, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeHomeViewLimits_lift(_ buf: RustBuffer) throws -> HomeViewLimits {
+    return try FfiConverterTypeHomeViewLimits.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeHomeViewLimits_lower(_ value: HomeViewLimits) -> RustBuffer {
+    return FfiConverterTypeHomeViewLimits.lower(value)
+}
+
+
+public struct LibraryData: Equatable, Hashable {
+    public var albums: [Album]
+    public var artists: [Artist]
+    public var songs: [Song]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(albums: [Album], artists: [Artist], songs: [Song]) {
+        self.albums = albums
+        self.artists = artists
+        self.songs = songs
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension LibraryData: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeLibraryData: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LibraryData {
+        return
+            try LibraryData(
+                albums: FfiConverterSequenceTypeAlbum.read(from: &buf), 
+                artists: FfiConverterSequenceTypeArtist.read(from: &buf), 
+                songs: FfiConverterSequenceTypeSong.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: LibraryData, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeAlbum.write(value.albums, into: &buf)
+        FfiConverterSequenceTypeArtist.write(value.artists, into: &buf)
+        FfiConverterSequenceTypeSong.write(value.songs, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLibraryData_lift(_ buf: RustBuffer) throws -> LibraryData {
+    return try FfiConverterTypeLibraryData.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeLibraryData_lower(_ value: LibraryData) -> RustBuffer {
+    return FfiConverterTypeLibraryData.lower(value)
+}
+
+
 /**
  * Response from successful Jellyfin login
  */
@@ -1029,6 +1210,140 @@ public func FfiConverterTypeLoginResponse_lower(_ value: LoginResponse) -> RustB
 
 
 /**
+ * Home view sections used by mobile clients.
+ */
+public struct MobileHomeData: Equatable, Hashable {
+    public var mostPlayed: [Song]
+    public var recentlyPlayed: [Song]
+    public var recentlyAdded: [Album]
+    public var randomAlbums: [Album]
+    public var featuredAlbums: [Album]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(mostPlayed: [Song], recentlyPlayed: [Song], recentlyAdded: [Album], randomAlbums: [Album], featuredAlbums: [Album]) {
+        self.mostPlayed = mostPlayed
+        self.recentlyPlayed = recentlyPlayed
+        self.recentlyAdded = recentlyAdded
+        self.randomAlbums = randomAlbums
+        self.featuredAlbums = featuredAlbums
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension MobileHomeData: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMobileHomeData: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MobileHomeData {
+        return
+            try MobileHomeData(
+                mostPlayed: FfiConverterSequenceTypeSong.read(from: &buf), 
+                recentlyPlayed: FfiConverterSequenceTypeSong.read(from: &buf), 
+                recentlyAdded: FfiConverterSequenceTypeAlbum.read(from: &buf), 
+                randomAlbums: FfiConverterSequenceTypeAlbum.read(from: &buf), 
+                featuredAlbums: FfiConverterSequenceTypeAlbum.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MobileHomeData, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeSong.write(value.mostPlayed, into: &buf)
+        FfiConverterSequenceTypeSong.write(value.recentlyPlayed, into: &buf)
+        FfiConverterSequenceTypeAlbum.write(value.recentlyAdded, into: &buf)
+        FfiConverterSequenceTypeAlbum.write(value.randomAlbums, into: &buf)
+        FfiConverterSequenceTypeAlbum.write(value.featuredAlbums, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMobileHomeData_lift(_ buf: RustBuffer) throws -> MobileHomeData {
+    return try FfiConverterTypeMobileHomeData.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMobileHomeData_lower(_ value: MobileHomeData) -> RustBuffer {
+    return FfiConverterTypeMobileHomeData.lower(value)
+}
+
+
+/**
+ * Limits used when deriving mobile home sections from a song list.
+ */
+public struct MobileHomeViewLimits: Equatable, Hashable {
+    public var mostPlayed: UInt32
+    public var recentlyPlayed: UInt32
+    public var albumSection: UInt32
+    public var featuredAlbums: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(mostPlayed: UInt32, recentlyPlayed: UInt32, albumSection: UInt32, featuredAlbums: UInt32) {
+        self.mostPlayed = mostPlayed
+        self.recentlyPlayed = recentlyPlayed
+        self.albumSection = albumSection
+        self.featuredAlbums = featuredAlbums
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension MobileHomeViewLimits: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeMobileHomeViewLimits: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MobileHomeViewLimits {
+        return
+            try MobileHomeViewLimits(
+                mostPlayed: FfiConverterUInt32.read(from: &buf), 
+                recentlyPlayed: FfiConverterUInt32.read(from: &buf), 
+                albumSection: FfiConverterUInt32.read(from: &buf), 
+                featuredAlbums: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: MobileHomeViewLimits, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.mostPlayed, into: &buf)
+        FfiConverterUInt32.write(value.recentlyPlayed, into: &buf)
+        FfiConverterUInt32.write(value.albumSection, into: &buf)
+        FfiConverterUInt32.write(value.featuredAlbums, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMobileHomeViewLimits_lift(_ buf: RustBuffer) throws -> MobileHomeViewLimits {
+    return try FfiConverterTypeMobileHomeViewLimits.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeMobileHomeViewLimits_lower(_ value: MobileHomeViewLimits) -> RustBuffer {
+    return FfiConverterTypeMobileHomeViewLimits.lower(value)
+}
+
+
+/**
  * Generic name-ID pair used for artists and other entities
  */
 public struct NameIdPair: Equatable, Hashable {
@@ -1094,6 +1409,185 @@ public func FfiConverterTypeNameIdPair_lift(_ buf: RustBuffer) throws -> NameIdP
 #endif
 public func FfiConverterTypeNameIdPair_lower(_ value: NameIdPair) -> RustBuffer {
     return FfiConverterTypeNameIdPair.lower(value)
+}
+
+
+/**
+ * Parsed lyrics payload returned by shared parser.
+ */
+public struct ParsedLyrics: Equatable, Hashable {
+    public var plain: [String]
+    public var synced: [ParsedLyricsLine]
+    public var areFromRemote: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(plain: [String], synced: [ParsedLyricsLine], areFromRemote: Bool) {
+        self.plain = plain
+        self.synced = synced
+        self.areFromRemote = areFromRemote
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ParsedLyrics: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParsedLyrics: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyrics {
+        return
+            try ParsedLyrics(
+                plain: FfiConverterSequenceString.read(from: &buf), 
+                synced: FfiConverterSequenceTypeParsedLyricsLine.read(from: &buf), 
+                areFromRemote: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ParsedLyrics, into buf: inout [UInt8]) {
+        FfiConverterSequenceString.write(value.plain, into: &buf)
+        FfiConverterSequenceTypeParsedLyricsLine.write(value.synced, into: &buf)
+        FfiConverterBool.write(value.areFromRemote, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyrics_lift(_ buf: RustBuffer) throws -> ParsedLyrics {
+    return try FfiConverterTypeParsedLyrics.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyrics_lower(_ value: ParsedLyrics) -> RustBuffer {
+    return FfiConverterTypeParsedLyrics.lower(value)
+}
+
+
+/**
+ * Line-level synchronized lyric entry.
+ */
+public struct ParsedLyricsLine: Equatable, Hashable {
+    public var timeMs: Int64
+    public var line: String
+    public var words: [ParsedLyricsWord]?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(timeMs: Int64, line: String, words: [ParsedLyricsWord]?) {
+        self.timeMs = timeMs
+        self.line = line
+        self.words = words
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ParsedLyricsLine: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyricsLine {
+        return
+            try ParsedLyricsLine(
+                timeMs: FfiConverterInt64.read(from: &buf), 
+                line: FfiConverterString.read(from: &buf), 
+                words: FfiConverterOptionSequenceTypeParsedLyricsWord.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ParsedLyricsLine, into buf: inout [UInt8]) {
+        FfiConverterInt64.write(value.timeMs, into: &buf)
+        FfiConverterString.write(value.line, into: &buf)
+        FfiConverterOptionSequenceTypeParsedLyricsWord.write(value.words, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyricsLine_lift(_ buf: RustBuffer) throws -> ParsedLyricsLine {
+    return try FfiConverterTypeParsedLyricsLine.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyricsLine_lower(_ value: ParsedLyricsLine) -> RustBuffer {
+    return FfiConverterTypeParsedLyricsLine.lower(value)
+}
+
+
+/**
+ * Word-level synchronized lyric entry.
+ */
+public struct ParsedLyricsWord: Equatable, Hashable {
+    public var timeMs: Int64
+    public var word: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(timeMs: Int64, word: String) {
+        self.timeMs = timeMs
+        self.word = word
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ParsedLyricsWord: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParsedLyricsWord: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyricsWord {
+        return
+            try ParsedLyricsWord(
+                timeMs: FfiConverterInt64.read(from: &buf), 
+                word: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ParsedLyricsWord, into buf: inout [UInt8]) {
+        FfiConverterInt64.write(value.timeMs, into: &buf)
+        FfiConverterString.write(value.word, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyricsWord_lift(_ buf: RustBuffer) throws -> ParsedLyricsWord {
+    return try FfiConverterTypeParsedLyricsWord.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyricsWord_lower(_ value: ParsedLyricsWord) -> RustBuffer {
+    return FfiConverterTypeParsedLyricsWord.lower(value)
 }
 
 
@@ -2553,6 +3047,30 @@ fileprivate struct FfiConverterOptionSequenceTypeNameIdPair: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionSequenceTypeParsedLyricsWord: FfiConverterRustBuffer {
+    typealias SwiftType = [ParsedLyricsWord]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceTypeParsedLyricsWord.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceTypeParsedLyricsWord.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionSequenceTypeSong: FfiConverterRustBuffer {
     typealias SwiftType = [Song]?
 
@@ -2650,6 +3168,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeAlbum: FfiConverterRustBuffer {
+    typealias SwiftType = [Album]
+
+    public static func write(_ value: [Album], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeAlbum.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Album] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Album]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeAlbum.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeArtist: FfiConverterRustBuffer {
     typealias SwiftType = [Artist]
 
@@ -2692,6 +3235,56 @@ fileprivate struct FfiConverterSequenceTypeNameIdPair: FfiConverterRustBuffer {
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeNameIdPair.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeParsedLyricsLine: FfiConverterRustBuffer {
+    typealias SwiftType = [ParsedLyricsLine]
+
+    public static func write(_ value: [ParsedLyricsLine], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeParsedLyricsLine.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsLine] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ParsedLyricsLine]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeParsedLyricsLine.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeParsedLyricsWord: FfiConverterRustBuffer {
+    typealias SwiftType = [ParsedLyricsWord]
+
+    public static func write(_ value: [ParsedLyricsWord], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeParsedLyricsWord.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsWord] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ParsedLyricsWord]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeParsedLyricsWord.read(from: &buf))
         }
         return seq
     }
@@ -2946,6 +3539,20 @@ public func deletePlaylist(serverUrl: String, token: String, playlistId: String)
         )
 }
 /**
+ * Derive mobile home sections from an in-memory song list.
+ */
+public func deriveMobileHomeData(songs: [Song], mostPlayedLimit: Int64, recentlyPlayedLimit: Int64, albumSectionLimit: Int64, featuredAlbumsLimit: Int64) -> MobileHomeData  {
+    return try!  FfiConverterTypeMobileHomeData_lift(try! rustCall() {
+    uniffi_aurelia_core_fn_func_derive_mobile_home_data(
+        FfiConverterSequenceTypeSong.lower(songs),
+        FfiConverterInt64.lower(mostPlayedLimit),
+        FfiConverterInt64.lower(recentlyPlayedLimit),
+        FfiConverterInt64.lower(albumSectionLimit),
+        FfiConverterInt64.lower(featuredAlbumsLimit),$0
+    )
+})
+}
+/**
  * Fetch a single album from server and cache it
  */
 public func fetchAlbum(serverUrl: String, token: String, userId: String, albumId: String, appDataDir: String)async throws  -> Album  {
@@ -3058,6 +3665,21 @@ public func getLyrics(serverUrl: String, token: String, itemId: String, artist: 
             completeFunc: ffi_aurelia_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_aurelia_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterString.lift,
+            errorHandler: nil
+            
+        )
+}
+public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String)async  -> ParsedLyrics  {
+    return
+        try!  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title)
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_aurelia_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_aurelia_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeParsedLyrics_lift,
             errorHandler: nil
             
         )
@@ -3292,6 +3914,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_delete_playlist() != 65389) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_aurelia_core_checksum_func_derive_mobile_home_data() != 22516) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_aurelia_core_checksum_func_fetch_album() != 8785) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3317,6 +3942,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_lyrics() != 52693) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 17830) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_playlist_items() != 51827) {

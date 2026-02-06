@@ -62,6 +62,25 @@ pub fn load_cached_songs(app_data_dir: String) -> Result<Vec<models::Song>, erro
     cache::get_songs(app_dir).map_err(|err| error::AppError::Database(err.to_string()))
 }
 
+/// Derive mobile home sections from an in-memory song list.
+#[uniffi::export]
+pub fn derive_mobile_home_data(
+    songs: Vec<models::Song>,
+    most_played_limit: i64,
+    recently_played_limit: i64,
+    album_section_limit: i64,
+    featured_albums_limit: i64,
+) -> models::MobileHomeData {
+    let limits = domain::services::MobileHomeViewLimits {
+        most_played: most_played_limit.max(0) as u32,
+        recently_played: recently_played_limit.max(0) as u32,
+        album_section: album_section_limit.max(0) as u32,
+        featured_albums: featured_albums_limit.max(0) as u32,
+    };
+    let mut rng = rand::rng();
+    domain::services::derive_mobile_home_data(&songs, limits, &mut rng)
+}
+
 #[uniffi::export]
 pub fn cache_songs(app_data_dir: String, songs: Vec<models::Song>) -> Result<(), error::AppError> {
     if app_data_dir.is_empty() {
@@ -231,6 +250,18 @@ pub async fn get_lyrics(
         Ok(results) => services::LrcLibClient::get_best_lyrics(&results).unwrap_or_default(),
         Err(_) => String::new(),
     }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn get_parsed_lyrics(
+    server_url: String,
+    token: String,
+    item_id: String,
+    artist: String,
+    title: String,
+) -> models::ParsedLyrics {
+    let lyrics = get_lyrics(server_url, token, item_id, artist, title).await;
+    utils::lyrics_parser::parse_lrc_lyrics(&lyrics)
 }
 
 #[uniffi::export(async_runtime = "tokio")]

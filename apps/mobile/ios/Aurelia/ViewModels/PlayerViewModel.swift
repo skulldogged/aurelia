@@ -149,14 +149,14 @@ final class PlayerViewModel: @unchecked Sendable {
                 let token = await self.sessionStore.token ?? ""
                 let itemId = songId ?? ""
 
-                let lrcContent = await getLyrics(
+                let parsedLyrics = await getParsedLyrics(
                     serverUrl: serverUrl,
                     token: token,
                     itemId: itemId,
                     artist: artist,
                     title: title
                 )
-                let parsed = await LyricsParser.parse(lrcContent)
+                let parsed = LyricsParser.fromParsed(parsedLyrics)
 
                 await MainActor.run {
                     if songId == self.currentSongId {

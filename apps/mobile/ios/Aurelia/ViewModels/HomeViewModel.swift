@@ -21,6 +21,7 @@ final class HomeViewModel: @unchecked Sendable {
     private var hasLoadedInitialData = false
     private var allSongs: [Song] = []
     private var songIdByTitleArtist: [String: String] = [:]
+    private static let useSharedHomeDerivation = true
     
     private struct HomeSections {
         let mostPlayed: [Song]
@@ -129,6 +130,48 @@ final class HomeViewModel: @unchecked Sendable {
     }
     
     nonisolated private static func computeHomeSections(_ songs: [Song], limits: HomeSectionLimits) -> HomeSections {
+        if useSharedHomeDerivation {
+            let derived = deriveMobileHomeData(
+                songs: songs,
+                mostPlayedLimit: Int64(limits.mostPlayed),
+                recentlyPlayedLimit: Int64(limits.recentlyPlayed),
+                albumSectionLimit: Int64(limits.albumSection),
+                featuredAlbumsLimit: Int64(limits.featuredAlbums)
+            )
+
+            return HomeSections(
+                mostPlayed: derived.mostPlayed,
+                recentlyPlayed: derived.recentlyPlayed,
+                recentlyAddedAlbums: derived.recentlyAdded.map {
+                    AlbumItem(
+                        id: $0.id ?? "",
+                        name: $0.name,
+                        artist: $0.artist,
+                        albumArtUrl: $0.albumArtUrl,
+                        songCount: Int($0.songCount)
+                    )
+                },
+                randomAlbums: derived.randomAlbums.map {
+                    AlbumItem(
+                        id: $0.id ?? "",
+                        name: $0.name,
+                        artist: $0.artist,
+                        albumArtUrl: $0.albumArtUrl,
+                        songCount: Int($0.songCount)
+                    )
+                },
+                featuredAlbums: derived.featuredAlbums.map {
+                    FeaturedAlbum(
+                        id: $0.id ?? "",
+                        name: $0.name,
+                        artist: $0.artist,
+                        albumArtUrl: $0.albumArtUrl,
+                        songCount: Int($0.songCount)
+                    )
+                }
+            )
+        }
+
         // Most played
         let mostPlayed = songs
             .filter { ($0.playCount ?? 0) > 0 }

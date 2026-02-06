@@ -29,3 +29,6 @@ pub mod axum_impl;
 
 // Error handling
 pub mod error;
+
+// Shared implementation helpers
+pub mod shared;

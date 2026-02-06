@@ -492,9 +492,7 @@ pub fn reset_for_tests() -> Result<()> {
 }
 
 #[cfg(test)]
-fn clear_composite_table_for_tests(
-    table: &mut redb::Table<(&str, &str), ()>,
-) -> Result<()> {
+fn clear_composite_table_for_tests(table: &mut redb::Table<(&str, &str), ()>) -> Result<()> {
     let mut keys = Vec::new();
     for result in table
         .iter()

@@ -31,6 +31,7 @@ once_cell = "1.21.3"
 postcard = { version = "1.0", features = ["use-std"] }
 progenitor-client = "0.11"
 rand = "0.9"
+regex = "1.11"
 redb = "3.1"
 reqwest = { version = "0.12", default-features = false, features = [
   "blocking",

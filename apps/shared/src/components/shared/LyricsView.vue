@@ -2,10 +2,10 @@
   import { AlertTriangle, Loader2 } from 'lucide-vue-next'
   import { computed, nextTick, ref, watch } from 'vue'
 
-  import type { Song } from '../../lib/api/types'
+  import type { ParsedLyrics, Song } from '../../lib/api/types'
 
   import { ApiError, runAureliaEffect } from '../../effect'
-  import { getLyricsEffect } from '../../effect/services/api'
+  import { getLyricsEffect, getParsedLyricsEffect } from '../../effect/services/api'
   import { logger } from '../../lib/logger'
 
   interface LyricLine {
@@ -29,38 +29,28 @@
 
   const isLoading = ref(false)
   const lyrics = ref<null | string>(null)
+  const parsedLyricsResponse = ref<null | ParsedLyrics>(null)
   const error = ref<null | string>(null)
-  const parsedLyrics = ref<LyricLine[]>([])
   const activeLineRef = ref<HTMLParagraphElement | null>(null)
   const lyricsContainerRef = ref<HTMLDivElement | null>(null)
   const currentLyricsRequestToken = ref<null | symbol>(null)
 
-  const areLyricsSynced = computed(() => lyrics.value ? /\[\d{2}:\d{2}\.\d{2,3}\]/.test(lyrics.value) : false)
+  const parsedLyrics = computed<LyricLine[]>(() =>
+    parsedLyricsResponse.value?.synced?.map(line => ({
+      text: line.line,
+      time: line.timeMs / 1000,
+    })) ?? [],
+  )
+  const areLyricsSynced = computed(() => parsedLyrics.value.length > 0)
+  const hasLyrics = computed(() => {
+    const hasFallback = !!lyrics.value
+    const hasParsedPlain = (parsedLyricsResponse.value?.plain?.length ?? 0) > 0
+    return hasFallback || hasParsedPlain || areLyricsSynced.value
+  })
 
   const handleLineClick = (time: number): void => {
     if (props.duration > 0)
       emit('seek', time)
-  }
-
-  const parseLrc = (lrc: string): LyricLine[] => {
-    const lines = lrc.split('\n')
-    const result: LyricLine[] = []
-    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/
-
-    for (const line of lines) {
-      const match = line.match(timeRegex)
-      if (match) {
-        const minutes = parseInt(match[1], 10)
-        const seconds = parseInt(match[2], 10)
-        const milliseconds = parseInt(match[3].padEnd(3, '0'), 10)
-        const time = minutes * 60 + seconds + milliseconds / 1000
-        const text = line.replace(timeRegex, '').trim()
-        if (text)
-          result.push({ text, time })
-      }
-    }
-
-    return result
   }
 
   watch(() => props.song?.id, async (newId, oldId) => {
@@ -68,8 +58,8 @@
     const newSong = props.song
     if (newSong) {
       lyrics.value = null
+      parsedLyricsResponse.value = null
       error.value = null
-      parsedLyrics.value = []
 
       if (newSong.artists && newSong.artists.length > 0) {
         const requestToken = Symbol('lyrics-request')
@@ -79,6 +69,25 @@
           isLoading.value = true
 
         try {
+          try {
+            const parsedData = await runAureliaEffect(getParsedLyricsEffect(
+              newSong.id,
+              newSong.artists![0],
+              newSong.name,
+              undefined,
+            ))
+            if (currentLyricsRequestToken.value !== requestToken) return
+            parsedLyricsResponse.value = parsedData
+
+            const hasParsedLyrics = (parsedData.synced?.length ?? 0) > 0 || (parsedData.plain?.length ?? 0) > 0
+            if (hasParsedLyrics) {
+              emit('lyrics-loaded', true)
+              return
+            }
+          } catch {
+            // Fallback to raw endpoint for older backends.
+          }
+
           const lyricsData = await runAureliaEffect(getLyricsEffect(
             newSong.id,
             newSong.artists![0],
@@ -87,9 +96,6 @@
           ))
           if (currentLyricsRequestToken.value !== requestToken) return
           lyrics.value = lyricsData
-          if (areLyricsSynced.value && lyricsData) {
-            parsedLyrics.value = parseLrc(lyricsData)
-          }
           emit('lyrics-loaded', !!lyricsData)
         } catch (cause) {
           if (currentLyricsRequestToken.value !== requestToken) return
@@ -114,7 +120,11 @@
   }, { immediate: true })
 
   const plainLyrics = computed(() => {
-    if (!lyrics.value) return []
+    if ((parsedLyricsResponse.value?.plain?.length ?? 0) > 0)
+      return parsedLyricsResponse.value!.plain
+
+    if (!lyrics.value)
+      return []
 
     return lyrics.value
       .replace(/\[.*?\]/g, '')
@@ -225,7 +235,7 @@
       </div>
     </div>
     <div
-      v-else-if='lyrics && areLyricsSynced'
+      v-else-if='hasLyrics && areLyricsSynced'
       ref='lyricsContainerRef'
       :class="['lyrics-container grow overflow-y-auto', { 'sidebar': isInSidebar }]"
     >
@@ -247,7 +257,7 @@
       </div>
     </div>
     <div
-      v-else-if='lyrics'
+      v-else-if='hasLyrics'
       :class="['lyrics-container grow overflow-y-auto', { 'sidebar': isInSidebar }]"
     >
       <div class='lyrics-content lyrics-content--static'>

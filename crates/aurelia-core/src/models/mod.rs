@@ -7,10 +7,12 @@ pub mod auth;
 pub mod jellyfin;
 pub mod library;
 pub mod lrclib;
+pub mod lyrics;
 pub mod music;
 
 pub use auth::*;
 pub use jellyfin::*;
 pub use library::*;
 pub use lrclib::*;
+pub use lyrics::*;
 pub use music::*;

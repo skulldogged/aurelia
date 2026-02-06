@@ -5,6 +5,10 @@
   "description": "Aurelia music player - Desktop and Web applications",
   "type": "module",
   "scripts": {
+    "bindings:generate": "scripts/generate-bindings.sh --skip-ios",
+    "bindings:generate:full": "scripts/generate-bindings.sh --ios",
+    "bindings:verify": "scripts/verify-generated.sh --skip-ios",
+    "bindings:verify:full": "scripts/verify-generated.sh --ios",
     "dev": "bun run scripts/aurelia.ts dev",
     "dev:web": "bun run scripts/aurelia.ts dev --platform=web",
     "dev:desktop": "bun run scripts/aurelia.ts dev --platform=desktop",

@@ -2,8 +2,10 @@ use aurelia_core::error::AppError;
 use aurelia_core::listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen};
 use aurelia_core::models::auth::Credentials;
 use aurelia_core::models::library::{
-    HomeViewData, LastFmCredentials, LibraryData, NowPlayingPayload, RpcActivity, SyncStateInfo,
+    HomeViewData, LastFmCredentials, LibraryData, MobileHomeData, NowPlayingPayload, RpcActivity,
+    SyncStateInfo,
 };
+use aurelia_core::models::lyrics::{ParsedLyrics, ParsedLyricsLine, ParsedLyricsWord};
 use aurelia_core::models::music::{
     Album, Artist, NameIdPair, Playlist, PlaylistCreateData, PlaylistUpdateData, Song, UserData,
 };
@@ -62,8 +64,24 @@ pub fn generate_typescript_bindings(out_dir: &Path) -> Result<(), Box<dyn std::e
             specta_typescript::export::<HomeViewData>(&config)?,
         ),
         (
+            "mobileHomeData",
+            specta_typescript::export::<MobileHomeData>(&config)?,
+        ),
+        (
             "syncStateInfo",
             specta_typescript::export::<SyncStateInfo>(&config)?,
+        ),
+        (
+            "parsedLyricsWord",
+            specta_typescript::export::<ParsedLyricsWord>(&config)?,
+        ),
+        (
+            "parsedLyricsLine",
+            specta_typescript::export::<ParsedLyricsLine>(&config)?,
+        ),
+        (
+            "parsedLyrics",
+            specta_typescript::export::<ParsedLyrics>(&config)?,
         ),
         // Error type
         ("appError", specta_typescript::export::<AppError>(&config)?),

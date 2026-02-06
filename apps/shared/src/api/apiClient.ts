@@ -342,6 +342,14 @@ export const apiClient = {
     return webRequest('POST', `/lyrics`, { id: id, artist: artist, title: title, path: path }, undefined);
   },
 
+  // getParsedLyrics
+  getParsedLyrics: async (id: string, artist: string, title: string, path?: string): Promise<Result<any>> => {
+    if (isTauri) {
+      return tauriCommand('get_parsed_lyrics', { id, artist, title, path });
+    }
+    return webRequest('POST', `/lyrics/parsed`, { id: id, artist: artist, title: title, path: path }, undefined);
+  },
+
   // clearCache
   clearCache: async (): Promise<Result<any>> => {
     if (isTauri) {

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.aurelia_core.AppException
 import uniffi.aurelia_core.Song
+import uniffi.aurelia_core.deriveMobileHomeData
 import uniffi.aurelia_core.fetchSongs
 import uniffi.aurelia_core.loadCachedSongs
 
@@ -30,6 +31,7 @@ class HomeViewModel(
 
   // All songs cache for queue building
   private var allSongs: List<Song> = emptyList()
+  private val useSharedHomeDerivation = true
 
   // Cache for song ID lookup
   private var songIdByTitleArtist: Map<Pair<String, String>, String> = emptyMap()
@@ -93,6 +95,37 @@ class HomeViewModel(
   }
 
   private fun processHomeData(songs: List<Song>) {
+    if (useSharedHomeDerivation) {
+      processHomeDataWithSharedDerivation(songs)
+      return
+    }
+
+    processHomeDataLegacy(songs)
+  }
+
+  private fun processHomeDataWithSharedDerivation(songs: List<Song>) {
+    val derived =
+      deriveMobileHomeData(
+        songs = songs,
+        mostPlayedLimit = UiConstants.MOST_PLAYED_LIMIT.toLong(),
+        recentlyPlayedLimit = UiConstants.RECENTLY_PLAYED_LIMIT.toLong(),
+        albumSectionLimit = UiConstants.ALBUM_SECTION_LIMIT.toLong(),
+        featuredAlbumsLimit = UiConstants.FEATURED_ALBUMS_LIMIT.toLong(),
+      )
+
+    mutableState.update {
+      it.copy(
+        isLoading = false,
+        featuredAlbums = derived.featuredAlbums.map(::toFeaturedAlbum),
+        mostPlayed = derived.mostPlayed,
+        recentlyPlayed = derived.recentlyPlayed,
+        recentlyAddedAlbums = derived.recentlyAdded.map(::toAlbumItem),
+        randomAlbums = derived.randomAlbums.map(::toAlbumItem),
+      )
+    }
+  }
+
+  private fun processHomeDataLegacy(songs: List<Song>) {
     // Most played - top 10 by playCount
     val mostPlayed =
       songs
@@ -175,6 +208,24 @@ class HomeViewModel(
       )
     }
   }
+
+  private fun toAlbumItem(album: uniffi.aurelia_core.Album): AlbumItem =
+    AlbumItem(
+      id = album.id ?: "",
+      name = album.name,
+      artist = album.artist,
+      albumArtUrl = album.albumArtUrl,
+      songCount = album.songCount.toInt(),
+    )
+
+  private fun toFeaturedAlbum(album: uniffi.aurelia_core.Album): FeaturedAlbum =
+    FeaturedAlbum(
+      id = album.id ?: "",
+      name = album.name,
+      artist = album.artist,
+      albumArtUrl = album.albumArtUrl,
+      songCount = album.songCount.toInt(),
+    )
 
   fun nextFeaturedAlbum() {
     val current = mutableState.value

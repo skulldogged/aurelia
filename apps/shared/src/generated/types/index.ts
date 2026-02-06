@@ -401,10 +401,33 @@ export type LibraryData = { albums: Album[]; artists: Artist[]; songs: Song[] }
 // HomeViewData depends on: Song, Album
 export type HomeViewData = { recentlyPlayed: Song[]; recentlyAdded: Album[]; randomAlbums: Album[]; featuredAlbums: Album[] }
 
+// MobileHomeData depends on: Song, Album
+/**
+ * Home view sections used by mobile clients.
+ */
+export type MobileHomeData = { mostPlayed: Song[]; recentlyPlayed: Song[]; recentlyAdded: Album[]; randomAlbums: Album[]; featuredAlbums: Album[] }
+
 /**
  * Sync state information for UI display
  */
 export type SyncStateInfo = { lastSyncTime: string | null; songCount: number; artistCount: number; albumCount: number }
+
+/**
+ * Word-level synchronized lyric entry.
+ */
+export type ParsedLyricsWord = { timeMs: number; word: string }
+
+// ParsedLyricsLine depends on: ParsedLyricsWord
+/**
+ * Line-level synchronized lyric entry.
+ */
+export type ParsedLyricsLine = { timeMs: number; line: string; words: ParsedLyricsWord[] | null }
+
+// ParsedLyrics depends on: ParsedLyricsLine
+/**
+ * Parsed lyrics payload returned by shared parser.
+ */
+export type ParsedLyrics = { plain: string[]; synced: ParsedLyricsLine[]; areFromRemote: boolean }
 
 /**
  * Application-specific error type using thiserror

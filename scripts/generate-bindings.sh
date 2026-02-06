@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+
+RUN_IOS="auto"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-ios)
+      RUN_IOS="false"
+      shift
+      ;;
+    --ios)
+      RUN_IOS="true"
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      echo "Usage: scripts/generate-bindings.sh [--skip-ios|--ios]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT_DIR/target}"
+
+if [[ "$RUN_IOS" == "auto" ]]; then
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    RUN_IOS="true"
+  else
+    RUN_IOS="false"
+  fi
+fi
+
+if [[ "$RUN_IOS" == "true" && "$(uname -s)" != "Darwin" ]]; then
+  echo "iOS generation requires macOS. Re-run with --skip-ios on this platform." >&2
+  exit 1
+fi
+
+echo "==> Building aurelia-core and uniffi-bindgen"
+cargo build -p aurelia-core
+cargo build -p uniffi-bindgen
+
+echo "==> Regenerating shared TypeScript bindings"
+cargo run -p uniffi-bindgen -- all --out-dir apps/shared/src/generated
+
+echo "==> Regenerating macro-generated API client/types"
+cargo check -p aurelia-api --features web
+
+HOST_LIB=""
+for candidate in \
+  "$CARGO_TARGET_DIR/debug/libaurelia_core.dylib" \
+  "$CARGO_TARGET_DIR/debug/libaurelia_core.so" \
+  "$CARGO_TARGET_DIR/debug/aurelia_core.dll"; do
+  if [[ -f "$candidate" ]]; then
+    HOST_LIB="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$HOST_LIB" ]]; then
+  echo "Could not find host aurelia-core dynamic library in $CARGO_TARGET_DIR/debug" >&2
+  exit 1
+fi
+
+echo "==> Regenerating Android Kotlin UniFFI bindings"
+cargo run -p uniffi-bindgen -- generate \
+  --library "$HOST_LIB" \
+  --language kotlin \
+  --config apps/mobile/android/app/src/main/java/uniffi/aurelia_core/uniffi.toml \
+  --out-dir apps/mobile/android/app/src/main/java \
+  --no-format
+
+if [[ "$RUN_IOS" == "true" ]]; then
+  echo "==> Regenerating iOS Swift bindings/XCFramework"
+  (cd apps/mobile/ios && ./build-rust.sh)
+
+  echo "==> Verifying iOS Swift package"
+  swift build --package-path apps/mobile/ios/AureliaCore
+else
+  echo "==> Skipping iOS generation"
+fi
+
+echo "==> Binding generation complete"

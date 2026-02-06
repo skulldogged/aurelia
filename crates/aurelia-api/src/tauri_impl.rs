@@ -2,6 +2,7 @@
 //!
 //! This module provides the Tauri-specific implementation of the Api trait.
 
+use crate::shared::{lastfm_secret, session_reporting};
 use crate::{
     Album, Api, ApiResult, AppError, Artist, Credentials, HomeViewData, LastFmCredentials,
     LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData, PlaylistUpdateData, RpcActivity,
@@ -18,48 +19,12 @@ use aurelia_core::listenbrainz_core::{
 };
 use aurelia_core::media_controls::MediaControlsState;
 use aurelia_core::tray_settings;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use std::path::{Path, PathBuf};
 use std::thread;
 use tauri::Emitter;
 use tauri::{AppHandle, Manager};
-
-#[derive(Debug, Serialize, Deserialize)]
-struct LastFmSecretStore {
-    api_secret: String,
-}
-
-fn lastfm_secret_path(app_dir: &Path) -> PathBuf {
-    app_dir.join("lastfm_secret.json")
-}
-
-fn load_lastfm_secret(app_dir: &Path) -> Option<String> {
-    let path = lastfm_secret_path(app_dir);
-    let contents = std::fs::read_to_string(path).ok()?;
-    let store: LastFmSecretStore = serde_json::from_str(&contents).ok()?;
-    Some(store.api_secret)
-}
-
-fn save_lastfm_secret(app_dir: &Path, api_secret: &str) -> ApiResult<()> {
-    let path = lastfm_secret_path(app_dir);
-    let payload = serde_json::to_string(&LastFmSecretStore {
-        api_secret: api_secret.to_string(),
-    })
-    .map_err(|e| AppError::Serialization(e.to_string()))?;
-    std::fs::write(path, payload).map_err(|e| AppError::FileSystem(e.to_string()))?;
-    Ok(())
-}
-
-fn clear_lastfm_secret(app_dir: &Path) -> ApiResult<()> {
-    let path = lastfm_secret_path(app_dir);
-    if path.exists() {
-        std::fs::remove_file(path).map_err(|e| AppError::FileSystem(e.to_string()))?;
-    }
-    Ok(())
-}
 
 fn extract_lastfm_token(request: &str) -> Option<String> {
     let line = request.lines().next()?;
@@ -230,80 +195,7 @@ impl Api for TauriApiImpl {
     async fn get_library(&self) -> ApiResult<LibraryData> {
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
         let songs = app_state.songs.lock().unwrap().clone();
-
-        // Derive albums and artists from songs
-        let mut album_map: HashMap<String, Vec<Song>> = HashMap::new();
-        let mut artist_map: HashMap<String, Artist> = HashMap::new();
-
-        for song in &songs {
-            if let Some(album_id) = &song.album_id {
-                album_map
-                    .entry(album_id.clone())
-                    .or_default()
-                    .push(song.clone());
-            }
-
-            if let Some(artist_ids) = &song.artist_ids {
-                for (i, artist_id) in artist_ids.iter().enumerate() {
-                    if !artist_map.contains_key(artist_id) {
-                        let name = song
-                            .artists
-                            .as_ref()
-                            .and_then(|a| a.get(i))
-                            .cloned()
-                            .unwrap_or_else(|| "Unknown Artist".to_string());
-                        artist_map.insert(
-                            artist_id.clone(),
-                            Artist {
-                                name,
-                                id: artist_id.clone(),
-                                image_tags: None,
-                                image_url: None,
-                                overview: None,
-                                provider_ids: None,
-                                community_rating: None,
-                                song_count: None,
-                                date_modified: None,
-                                songs: None,
-                            },
-                        );
-                    }
-                }
-            }
-        }
-
-        let albums: Vec<Album> = album_map
-            .iter()
-            .filter_map(|(album_id, album_songs)| {
-                let first_song = album_songs
-                    .iter()
-                    .max_by_key(|s| s.date_created.as_deref().unwrap_or(""))?;
-                Some(Album {
-                    id: Some(album_id.clone()),
-                    name: first_song
-                        .album
-                        .clone()
-                        .unwrap_or_else(|| "Unknown Album".to_string()),
-                    artist: first_song.artists.as_ref()?.first()?.clone(),
-                    artist_id: first_song.artist_ids.as_ref()?.first().cloned(),
-                    album_art_url: first_song.album_art_url.clone(),
-                    song_count: album_songs.len() as i64,
-                    songs: None,
-                    image_tags: None,
-                    provider_ids: None,
-                    date_created: first_song.date_created.clone(),
-                    date_modified: None,
-                })
-            })
-            .collect();
-
-        let artists: Vec<Artist> = artist_map.into_values().collect();
-
-        Ok(LibraryData {
-            albums,
-            artists,
-            songs,
-        })
+        Ok(aurelia_core::domain::services::derive_library_data(&songs))
     }
 
     async fn sync_library(&self) -> ApiResult<()> {
@@ -422,12 +314,13 @@ impl Api for TauriApiImpl {
     ) -> ApiResult<()> {
         let creds = get_credentials(&self.app)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-        let client =
-            aurelia_core::services::JellyfinClient::with_auth(creds.server_url, creds.token);
-        client
-            .report_playback_start(&item_id, position_ticks)
-            .await
-            .map_err(|e| AppError::General(e.to_string()))
+        session_reporting::report_playback_start(
+            creds.server_url,
+            creds.token,
+            item_id,
+            position_ticks,
+        )
+        .await
     }
 
     async fn report_playback_progress(
@@ -438,23 +331,26 @@ impl Api for TauriApiImpl {
     ) -> ApiResult<()> {
         let creds = get_credentials(&self.app)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-        let client =
-            aurelia_core::services::JellyfinClient::with_auth(creds.server_url, creds.token);
-        client
-            .report_playback_progress(&item_id, Some(position_ticks), None, Some(is_paused))
-            .await
-            .map_err(|e| AppError::General(e.to_string()))
+        session_reporting::report_playback_progress(
+            creds.server_url,
+            creds.token,
+            item_id,
+            position_ticks,
+            is_paused,
+        )
+        .await
     }
 
     async fn report_playback_stop(&self, item_id: String, position_ticks: i64) -> ApiResult<()> {
         let creds = get_credentials(&self.app)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-        let client =
-            aurelia_core::services::JellyfinClient::with_auth(creds.server_url, creds.token);
-        client
-            .report_playback_stop(&item_id, Some(position_ticks))
-            .await
-            .map_err(|e| AppError::General(e.to_string()))
+        session_reporting::report_playback_stop(
+            creds.server_url,
+            creds.token,
+            item_id,
+            position_ticks,
+        )
+        .await
     }
 
     async fn mark_item_played(&self, item_id: String) -> ApiResult<()> {
@@ -650,66 +546,13 @@ impl Api for TauriApiImpl {
         .await
         .unwrap_or_default();
 
-        // Build albums with song counts
-        use rand::seq::SliceRandom;
         let mut rng = rand::rng();
-        let mut albums: Vec<Album> = Vec::new();
-        let mut album_song_counts: HashMap<String, usize> = HashMap::new();
-
-        // First pass: count songs per album
-        for song in &all_songs {
-            if let Some(album_id) = &song.album_id {
-                let count = album_song_counts.entry(album_id.clone()).or_insert(0);
-                *count += 1;
-            }
-        }
-
-        // Second pass: build album list with correct song counts
-        let mut seen_albums: HashMap<String, bool> = HashMap::new();
-        for song in &all_songs {
-            if let Some(album_id) = &song.album_id
-                && !seen_albums.contains_key(album_id)
-            {
-                seen_albums.insert(album_id.clone(), true);
-                let song_count = album_song_counts.get(album_id).copied().unwrap_or(0) as i64;
-                albums.push(Album {
-                    id: Some(album_id.clone()),
-                    name: song.album.clone().unwrap_or_default(),
-                    artist: song
-                        .artists
-                        .as_ref()
-                        .and_then(|a| a.first())
-                        .cloned()
-                        .unwrap_or_default(),
-                    artist_id: song.artist_ids.as_ref().and_then(|a| a.first()).cloned(),
-                    album_art_url: song.album_art_url.clone(),
-                    song_count,
-                    songs: None,
-                    image_tags: None,
-                    provider_ids: None,
-                    date_created: song.date_created.clone(),
-                    date_modified: None,
-                });
-            }
-        }
-
-        // Derive recently added albums (sort by newest song date in each album)
-        let mut recently_added = albums.clone();
-        recently_added.sort_by(|a, b| b.date_created.cmp(&a.date_created));
-        recently_added.truncate(20);
-
-        albums.shuffle(&mut rng);
-        let random_albums: Vec<Album> = albums.iter().take(20).cloned().collect();
-
-        // Featured albums (same as random for now)
-        let featured_albums = random_albums.clone();
-
-        Ok(HomeViewData {
+        Ok(aurelia_core::domain::services::derive_home_view_data(
+            &all_songs,
             recently_played,
-            recently_added,
-            random_albums,
-            featured_albums,
-        })
+            aurelia_core::domain::services::HomeViewLimits::default(),
+            &mut rng,
+        ))
     }
 
     async fn get_recently_played(&self) -> ApiResult<Vec<Song>> {
@@ -807,89 +650,7 @@ impl Api for TauriApiImpl {
         token: String,
         device_id: String,
     ) -> ApiResult<()> {
-        use aurelia_core::models::jellyfin::{
-            ClientCapabilities, DeviceProfile, DirectPlayProfile, SubtitleProfile,
-            TranscodingProfile,
-        };
-
-        // Create default device profile for audio
-        let device_profile = DeviceProfile {
-            name: Some("Aurelia Audio Profile".to_string()),
-            id: Some(device_id.clone()),
-            max_streaming_bitrate: Some(140000000),
-            max_static_bitrate: Some(140000000),
-            music_streaming_transcoding_bitrate: Some(384000),
-            max_static_music_bitrate: Some(4000000),
-            direct_play_profiles: vec![
-                DirectPlayProfile {
-                    container: "mp3".to_string(),
-                    audio_codec: Some("mp3".to_string()),
-                    video_codec: None,
-                    profile_type: "Audio".to_string(),
-                },
-                DirectPlayProfile {
-                    container: "flac".to_string(),
-                    audio_codec: Some("flac".to_string()),
-                    video_codec: None,
-                    profile_type: "Audio".to_string(),
-                },
-                DirectPlayProfile {
-                    container: "ogg".to_string(),
-                    audio_codec: Some("vorbis".to_string()),
-                    video_codec: None,
-                    profile_type: "Audio".to_string(),
-                },
-            ],
-            transcoding_profiles: vec![TranscodingProfile {
-                container: "mp3".to_string(),
-                profile_type: "Audio".to_string(),
-                video_codec: None,
-                audio_codec: Some("mp3".to_string()),
-                protocol: "http".to_string(),
-                estimate_content_length: None,
-                enable_mpegts_m2_ts_mode: None,
-                transcode_seek_info: None,
-                copy_timestamps: None,
-                context: Some("Streaming".to_string()),
-                enable_subtitles_in_manifest: None,
-                max_audio_channels: None,
-                min_segments: None,
-                segment_length: None,
-                break_on_non_key_frames: None,
-                conditions: vec![],
-                enable_audio_vbr_encoding: None,
-            }],
-            container_profiles: vec![],
-            codec_profiles: vec![],
-            subtitle_profiles: vec![SubtitleProfile {
-                format: "srt".to_string(),
-                method: "External".to_string(),
-                didl_mode: None,
-                language: None,
-                container: None,
-            }],
-        };
-
-        let capabilities = ClientCapabilities {
-            playable_media_types: vec!["Audio".to_string()],
-            supported_commands: vec![
-                "PlayNow".to_string(),
-                "PlayNext".to_string(),
-                "SetVolume".to_string(),
-                "ToggleMute".to_string(),
-            ],
-            supports_media_control: true,
-            supports_persistent_identifier: true,
-            device_profile,
-            app_store_url: None,
-            icon_url: None,
-        };
-
-        let client = aurelia_core::services::JellyfinClient::with_auth(server_url, token);
-        client
-            .register_capabilities(&capabilities)
-            .await
-            .map_err(|e| AppError::General(e.to_string()))
+        session_reporting::register_client_capabilities(server_url, token, device_id).await
     }
 
     async fn clear_image_cache(&self) -> ApiResult<()> {
@@ -941,6 +702,23 @@ impl Api for TauriApiImpl {
         _path: Option<String>,
     ) -> ApiResult<String> {
         Ok(aurelia_core::get_lyrics(
+            "".to_string(),
+            "".to_string(),
+            "".to_string(),
+            artist,
+            title,
+        )
+        .await)
+    }
+
+    async fn get_parsed_lyrics(
+        &self,
+        _id: String,
+        artist: String,
+        title: String,
+        _path: Option<String>,
+    ) -> ApiResult<aurelia_core::models::ParsedLyrics> {
+        Ok(aurelia_core::get_parsed_lyrics(
             "".to_string(),
             "".to_string(),
             "".to_string(),
@@ -1331,7 +1109,7 @@ impl Api for TauriApiImpl {
         lastfm_set_credentials(credentials, &state).map_err(AppError::General)?;
 
         if let Ok(app_dir) = self.app.path().app_data_dir()
-            && let Some(api_secret) = load_lastfm_secret(&app_dir)
+            && let Some(api_secret) = lastfm_secret::load(&app_dir)
         {
             let _ = lastfm_set_api_secret(api_secret, &state);
         }
@@ -1344,7 +1122,7 @@ impl Api for TauriApiImpl {
         lastfm_clear_credentials(&state).map_err(AppError::General)?;
 
         if let Ok(app_dir) = self.app.path().app_data_dir() {
-            let _ = clear_lastfm_secret(&app_dir);
+            let _ = lastfm_secret::clear(&app_dir);
         }
 
         Ok(())
@@ -1391,7 +1169,7 @@ impl Api for TauriApiImpl {
             .map_err(AppError::General)?;
 
         if let Ok(app_dir) = self.app.path().app_data_dir() {
-            let _ = save_lastfm_secret(&app_dir, &api_secret);
+            let _ = lastfm_secret::save(&app_dir, &api_secret);
         }
 
         Ok(credentials)
