@@ -89,33 +89,41 @@ struct AlbumDetailView: View {
 
     private var albumSongs: some View {
         GlassCard(cornerRadius: AureliaRadius.l, padding: AureliaSpacing.m) {
-            LazyVStack(spacing: 0) {
-                let groupedSongs = groupSongsByDisc(songs)
-                ForEach(groupedSongs) { group in
-                    if group.showDiscHeader {
-                        HStack {
-                            Text("Disc \(group.discNumber)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.vertical, 6)
-                                .padding(.horizontal, 12)
-                                .background(.ultraThinMaterial, in: Capsule())
-                            Spacer()
+            if songs.isEmpty {
+                Text("No songs available for this album yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, AureliaSpacing.l)
+            } else {
+                LazyVStack(spacing: 0) {
+                    let groupedSongs = groupSongsByDisc(songs)
+                    ForEach(groupedSongs) { group in
+                        if group.showDiscHeader {
+                            HStack {
+                                Text("Disc \(group.discNumber)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 12)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                Spacer()
+                            }
+                            .padding(.vertical, 6)
                         }
-                        .padding(.vertical, 6)
-                    }
 
-                    ForEach(Array(group.songs.enumerated()), id: \.element.id) { index, song in
-                        let globalIndex = songs.firstIndex(where: { $0.id == song.id }) ?? 0
-                        SongRow(
-                            song: song,
-                            isPlaying: song.id == playerController.snapshot.currentSongId,
-                            showTrackNumber: true
-                        ) {
-                            playSongs(startIndex: globalIndex)
-                        }
-                        if index != group.songs.count - 1 {
-                            Divider()
+                        ForEach(Array(group.songs.enumerated()), id: \.element.id) { index, song in
+                            let globalIndex = songs.firstIndex(where: { $0.id == song.id }) ?? 0
+                            SongRow(
+                                song: song,
+                                isPlaying: song.id == playerController.snapshot.currentSongId,
+                                showTrackNumber: true
+                            ) {
+                                playSongs(startIndex: globalIndex)
+                            }
+                            if index != group.songs.count - 1 {
+                                Divider()
+                            }
                         }
                     }
                 }
@@ -124,17 +132,33 @@ struct AlbumDetailView: View {
     }
 
     private func groupSongsByDisc(_ songs: [Song]) -> [DiscGroup] {
-        let sorted = songs.sorted(by: {
-            ($0.trackNumber ?? 0) < ($1.trackNumber ?? 0)
-        })
+        let sorted = Self.sortSongs(songs)
+        let grouped = Dictionary(grouping: sorted) { Int($0.discNumber ?? 1) }
+        let discs = grouped.keys.sorted()
+        let showDiscHeader = discs.count > 1
 
-        return [
-            DiscGroup(
-                discNumber: 1,
-                songs: sorted,
-                showDiscHeader: false
-            )
-        ]
+        return discs.compactMap { disc in
+            guard let discSongs = grouped[disc] else { return nil }
+            return DiscGroup(discNumber: disc, songs: discSongs, showDiscHeader: showDiscHeader)
+        }
+    }
+
+    private nonisolated static func sortSongs(_ songs: [Song]) -> [Song] {
+        songs.sorted { lhs, rhs in
+            let lhsDisc = Int(lhs.discNumber ?? 1)
+            let rhsDisc = Int(rhs.discNumber ?? 1)
+            if lhsDisc != rhsDisc {
+                return lhsDisc < rhsDisc
+            }
+
+            let lhsTrack = Int(lhs.trackNumber ?? Int32.max)
+            let rhsTrack = Int(rhs.trackNumber ?? Int32.max)
+            if lhsTrack != rhsTrack {
+                return lhsTrack < rhsTrack
+            }
+
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
     }
 
     private func loadAlbum() {
@@ -148,10 +172,23 @@ struct AlbumDetailView: View {
         Task.detached {
             let appDataDir = await sessionStore.getAppDataDir() ?? ""
 
+            if let cachedSongs = try? loadCachedSongs(appDataDir: appDataDir) {
+                let albumSongs = Self.sortSongs(cachedSongs.filter { $0.albumId == self.albumId })
+                if !albumSongs.isEmpty {
+                    await MainActor.run {
+                        self.songs = albumSongs
+                        self.isLoading = false
+                    }
+                }
+            }
+
             if let cached = try? getCachedAlbum(appDataDir: appDataDir, albumId: self.albumId) {
                 await MainActor.run {
                     self.album = cached
-                    self.songs = cached.songs ?? []
+                    let embeddedSongs = Self.sortSongs(cached.songs ?? [])
+                    if !embeddedSongs.isEmpty {
+                        self.songs = embeddedSongs
+                    }
                     self.isLoading = false
                 }
             }
@@ -166,15 +203,17 @@ struct AlbumDetailView: View {
                 )
                 await MainActor.run {
                     self.album = fetched
-                    self.songs = (fetched.songs ?? []).sorted(by: {
-                        ($0.trackNumber ?? 0) < ($1.trackNumber ?? 0)
-                    })
+                    let embeddedSongs = Self.sortSongs(fetched.songs ?? [])
+                    if !embeddedSongs.isEmpty {
+                        self.songs = embeddedSongs
+                    }
                     self.isLoading = false
+                    self.error = nil
                 }
             } catch {
                 if await !AuthInterceptor.shared.handlePotentialAuthError(error) {
                     await MainActor.run {
-                        if self.songs.isEmpty {
+                        if self.songs.isEmpty && self.album == nil {
                             self.error = error.localizedDescription
                         }
                         self.isLoading = false

@@ -114,6 +114,13 @@ struct ArtistDetailView: View {
                                 .padding(.horizontal)
                             }
                         }
+
+                        if songs.isEmpty && albums.isEmpty {
+                            Text("No songs available for this artist yet.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 8)
+                        }
                     }
                     .padding(.vertical)
                 }
@@ -138,22 +145,30 @@ struct ArtistDetailView: View {
         Task.detached {
             let appDataDir = await sessionStore.getAppDataDir() ?? ""
 
-            // Load songs for this artist from cache
-            if let allSongs = try? loadCachedSongs(appDataDir: appDataDir) {
-                let artistSongs = allSongs.filter { $0.artistIds?.contains(self.artistId) ?? false }
-                let albumsMap = Dictionary(grouping: artistSongs.filter { $0.albumId != nil }) { $0.albumId! }
-                let albumItems = albumsMap.map { (id, songs) -> AlbumItem in
-                    let first = songs[0]
-                    return AlbumItem(id: id, name: first.album ?? "Unknown", artist: first.artists?.first ?? "", albumArtUrl: first.albumArtUrl, songCount: songs.count)
+            if let cachedArtist = try? getCachedArtist(appDataDir: appDataDir, artistId: self.artistId) {
+                await MainActor.run {
+                    self.artist = cachedArtist
+                    self.isLoading = false
                 }
+            }
+
+            // Load songs for this artist from cache first
+            if let allSongs = try? loadCachedSongs(appDataDir: appDataDir) {
+                let artistSongs = Self.songsForArtist(
+                    from: allSongs,
+                    artistId: self.artistId,
+                    artistName: self.artistName
+                )
+                let albumItems = Self.albumItems(from: artistSongs, fallbackArtistName: self.artistName)
 
                 await MainActor.run {
                     self.songs = artistSongs
                     self.albums = albumItems
+                    self.isLoading = false
                 }
             }
 
-            // Fetch artist details
+            // Fetch freshest artist metadata in background
             do {
                 let fetched = try await fetchArtist(
                     serverUrl: creds.serverUrl,
@@ -165,15 +180,96 @@ struct ArtistDetailView: View {
                 await MainActor.run {
                     self.artist = fetched
                     self.isLoading = false
+                    self.error = nil
                 }
             } catch {
                 if await !AuthInterceptor.shared.handlePotentialAuthError(error) {
                     await MainActor.run {
                         self.isLoading = false
-                        if self.songs.isEmpty { self.error = error.localizedDescription }
+                        if self.songs.isEmpty && self.artist == nil {
+                            self.error = error.localizedDescription
+                        }
                     }
                 }
             }
+        }
+    }
+
+    private nonisolated static func songsForArtist(from allSongs: [Song], artistId: String, artistName: String) -> [Song] {
+        let byId = allSongs.filter { song in
+            guard let ids = song.artistIds else { return false }
+            return ids.contains(where: { splitValues($0).contains(artistId) })
+        }
+        if !byId.isEmpty {
+            return sortSongs(byId)
+        }
+
+        let normalizedArtistName = artistName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedArtistName.isEmpty {
+            return []
+        }
+
+        let byName = allSongs.filter { song in
+            (song.artists ?? []).contains(where: { rawValue in
+                splitValues(rawValue).contains(where: {
+                    $0.localizedCaseInsensitiveCompare(normalizedArtistName) == .orderedSame
+                })
+            })
+        }
+        return sortSongs(byName)
+    }
+
+    private nonisolated static func albumItems(from songs: [Song], fallbackArtistName: String) -> [AlbumItem] {
+        let grouped = Dictionary(grouping: songs.filter { song in
+            if let albumId = song.albumId {
+                return !albumId.isEmpty
+            }
+            return false
+        }) { $0.albumId! }
+
+        return grouped.map { albumId, albumSongs in
+            let first = albumSongs[0]
+            return AlbumItem(
+                id: albumId,
+                name: first.album ?? "Unknown Album",
+                artist: first.artists?.first ?? fallbackArtistName,
+                albumArtUrl: first.albumArtUrl,
+                songCount: albumSongs.count
+            )
+        }
+        .sorted { lhs, rhs in
+            lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    private nonisolated static func splitValues(_ rawValue: String) -> [String] {
+        rawValue
+            .split(whereSeparator: { $0 == "\u{001F}" || $0 == "|" || $0 == ";" })
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private nonisolated static func sortSongs(_ songs: [Song]) -> [Song] {
+        songs.sorted { lhs, rhs in
+            let lhsAlbum = lhs.album ?? ""
+            let rhsAlbum = rhs.album ?? ""
+            if lhsAlbum != rhsAlbum {
+                return lhsAlbum.localizedCaseInsensitiveCompare(rhsAlbum) == .orderedAscending
+            }
+
+            let lhsDisc = Int(lhs.discNumber ?? 1)
+            let rhsDisc = Int(rhs.discNumber ?? 1)
+            if lhsDisc != rhsDisc {
+                return lhsDisc < rhsDisc
+            }
+
+            let lhsTrack = Int(lhs.trackNumber ?? Int32.max)
+            let rhsTrack = Int(rhs.trackNumber ?? Int32.max)
+            if lhsTrack != rhsTrack {
+                return lhsTrack < rhsTrack
+            }
+
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
         }
     }
 
