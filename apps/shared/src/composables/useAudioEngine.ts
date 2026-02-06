@@ -51,25 +51,17 @@ export const useAudioEngine = (
   const lastTrackEndedId = ref<null | string>(null)
 
   const hasNext = computed(() =>
-    playerStore.playlist.length > 1
-    && playerStore.currentIndex > -1
-    && playerStore.currentIndex < playerStore.playlist.length - 1,
+    playerStore.canGoNext(),
   )
 
   const hasPrevious = computed(() =>
-    playerStore.playlist.length > 1 && playerStore.currentIndex > 0,
+    playerStore.canGoPrevious(),
   )
 
   const nextSongInQueue = computed(() => {
-    if (!hasNext.value) return null
-
-    let nextIndex
-    if (playerStore.isShuffled)
-      nextIndex = Math.floor(Math.random() * playerStore.playlist.length)
-    else
-      nextIndex = playerStore.currentIndex + 1
-
-    return playerStore.playlist[nextIndex]
+    const nextIndex = playerStore.getNextSongIndex(playerStore.repeatMode === 'all')
+    if (nextIndex === -1) return null
+    return playerStore.playlist[nextIndex] ?? null
   })
 
   // Setup media control event listeners (desktop only)
@@ -97,7 +89,7 @@ export const useAudioEngine = (
       }),
       await listen('media:previous', () => {
         logger.debug('Media key: Previous')
-        if (playerStore.currentIndex > 0) {
+        if (playerStore.canGoPrevious()) {
           playerStore.previousSong()
         }
       }),
@@ -228,12 +220,7 @@ export const useAudioEngine = (
     }
   }
 
-  const nextSong = (): void =>
-    hasNext.value
-      ? playerStore.nextSong()
-      : playerStore.repeatMode === 'all'
-        ? playSongAtIndex(0)
-        : void(0)
+  const nextSong = (): void => playerStore.nextSong()
 
   const playSongAtIndex = (index: number): void => {
     if (index < 0 || index >= playerStore.playlist.length) return

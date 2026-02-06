@@ -210,12 +210,18 @@ struct MiniPlayerView: View {
         } label: {
             Image(systemName: snapshot.isPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: 16, weight: .bold))
-                .frame(width: 32, height: 32)
-                .background(.white.opacity(colorScheme == .dark ? 0.18 : 0.30), in: Circle())
-                .overlay(
+                .frame(width: 44, height: 44)
+                .background {
+                    Circle()
+                        .fill(.white.opacity(colorScheme == .dark ? 0.18 : 0.30))
+                        .frame(width: 32, height: 32)
+                }
+                .overlay {
                     Circle()
                         .stroke(Color.white.opacity(colorScheme == .dark ? 0.20 : 0.35), lineWidth: 1)
-                )
+                        .frame(width: 32, height: 32)
+                }
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -230,7 +236,8 @@ struct MiniPlayerView: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 17, weight: .semibold))
-                .frame(width: 26, height: 26)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
                 .foregroundStyle(tint ?? (isActive ? .primary : .secondary))
                 .opacity(isEnabled ? 1 : 0.4)
         }
@@ -263,6 +270,7 @@ struct MiniPlayerView: View {
               let userId = sessionStore.userId else { return }
 
         let isCurrentlyFavorite = isFavorite
+        let targetFavoriteState = !isCurrentlyFavorite
         isFavoriteLoading = true
 
         Task.detached {
@@ -272,7 +280,7 @@ struct MiniPlayerView: View {
                     token: token,
                     userId: userId,
                     itemId: songId,
-                    isFavorite: isCurrentlyFavorite
+                    isFavorite: targetFavoriteState
                 )
                 await MainActor.run {
                     favoriteCache[songId] = newState
@@ -288,4 +296,5 @@ struct MiniPlayerView: View {
             }
         }
     }
+
 }

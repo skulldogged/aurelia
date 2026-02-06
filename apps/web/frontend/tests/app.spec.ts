@@ -78,6 +78,8 @@ vi.mock('@shared', () => {
       isQueueOpen:            ref(false),
       musicPlayerRef:         ref(null),
       playerStore:            {
+        canGoNext:       vi.fn(() => false),
+        canGoPrevious:   vi.fn(() => false),
         currentIndex:    -1,
         currentSong:     null,
         currentTime:     0,

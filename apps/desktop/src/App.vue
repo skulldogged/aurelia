@@ -180,12 +180,8 @@
   const progress = computed(() => playerStore.progress)
   const repeatMode = computed(() => playerStore.repeatMode)
 
-  const hasNext = computed(() =>
-    playlist.value.length > 1
-    && playerStore.currentIndex > -1
-    && playerStore.currentIndex < playlist.value.length - 1,
-  )
-  const hasPrevious = computed(() => playlist.value.length > 1 && playerStore.currentIndex > 0)
+  const hasNext = computed(() => playerStore.canGoNext())
+  const hasPrevious = computed(() => playerStore.canGoPrevious())
 
   const playerState = computed(() => ({
     currentSong:     currentSong.value,

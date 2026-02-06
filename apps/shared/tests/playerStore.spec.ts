@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { usePlayerStore } from '../src/stores/player'
 
+const mockSong = (id: string): any => ({
+  id,
+  name: `Song ${id}`,
+})
+
 describe('player store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -43,5 +48,29 @@ describe('player store', () => {
 
     store.cycleRepeatMode()
     expect(store.repeatMode).toBe('none')
+  })
+
+  it('uses stable shuffled traversal and restores linear navigation when disabled', () => {
+    const store = usePlayerStore()
+    const songs = ['1', '2', '3', '4'].map(mockSong)
+
+    store.setPlaylist(songs)
+    store.setCurrentIndex(0)
+
+    store.toggleShuffle()
+    expect(store.isShuffled).toBe(true)
+
+    const visited = [store.currentIndex]
+    while (store.canGoNext()) {
+      store.nextSong()
+      visited.push(store.currentIndex)
+    }
+    expect(new Set(visited).size).toBe(songs.length)
+
+    store.setCurrentIndex(2)
+    store.toggleShuffle()
+    expect(store.isShuffled).toBe(false)
+    expect(store.getPreviousSongIndex()).toBe(1)
+    expect(store.getNextSongIndex()).toBe(3)
   })
 })

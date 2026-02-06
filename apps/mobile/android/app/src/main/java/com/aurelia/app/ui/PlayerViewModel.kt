@@ -217,6 +217,7 @@ class PlayerViewModel(
         val serverUrl = sessionStore.getServerUrl() ?: return
         val token = sessionStore.getToken() ?: return
         val userId = sessionStore.getUserId() ?: return
+        val targetFavoriteState = !currentState.isFavorite
 
         mutableState.update { it.copy(isFavoriteLoading = true) }
 
@@ -228,7 +229,7 @@ class PlayerViewModel(
                         token = token,
                         userId = userId,
                         itemId = songId,
-                        isFavorite = currentState.isFavorite,
+                        isFavorite = targetFavoriteState,
                     )
                 favoriteCache[songId] = newFavoriteState
                 mutableState.update {

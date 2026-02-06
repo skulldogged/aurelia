@@ -103,13 +103,6 @@ const getStoredEQBands = (): EQBand[] => {
   return DEFAULT_EQ_BANDS
 }
 
-const getRandomIndex = (array: unknown[], excludeIndex: number): number => {
-  const availableIndices = array
-    .map((_, i) => i)
-    .filter(i => i !== excludeIndex)
-  return availableIndices[Math.floor(Math.random() * availableIndices.length)] ?? 0
-}
-
 // Session state helpers
 const getStoredSession = (): { currentIndex: number; currentSong: null | Song; playlist: Song[] } => {
   try {
@@ -192,6 +185,8 @@ export const usePlayerStore = defineStore('player', () => {
   const currentSong = ref<null | Song>(storedSession.currentSong)
   const playlist = ref<Song[]>(storedSession.playlist)
   const currentIndex = ref(storedSession.currentIndex)
+  const shuffleOrder = ref<number[]>([])
+  const shuffleOrderPosition = ref(-1)
   const audioReady = ref(!!storedSession.currentSong)
   const isBuffering = ref(false)
   const needsReload = ref(false) // Set when audio stream dies and needs to be recreated
@@ -201,6 +196,121 @@ export const usePlayerStore = defineStore('player', () => {
   const formattedCurrentTime = computed(() => formatTime(currentTime.value))
 
   const formattedDuration = computed(() => formatTime(duration.value))
+
+  const shuffleIndicesInPlace = (indices: number[]): void => {
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[indices[i], indices[j]] = [indices[j], indices[i]]
+    }
+  }
+
+  const clearShuffleOrder = (): void => {
+    if (shuffleOrder.value.length === 0 && shuffleOrderPosition.value === -1) {
+      return
+    }
+    shuffleOrder.value = []
+    shuffleOrderPosition.value = -1
+  }
+
+  const rebuildShuffleOrder = (): void => {
+    if (!isShuffled.value || playlist.value.length === 0 || currentIndex.value < 0 || currentIndex.value >= playlist.value.length) {
+      clearShuffleOrder()
+      return
+    }
+
+    const remaining = playlist.value
+      .map((_, index) => index)
+      .filter(index => index !== currentIndex.value)
+    shuffleIndicesInPlace(remaining)
+    shuffleOrder.value = [currentIndex.value, ...remaining]
+    shuffleOrderPosition.value = 0
+  }
+
+  const syncShufflePositionWithCurrentIndex = (): void => {
+    if (!isShuffled.value) {
+      clearShuffleOrder()
+      return
+    }
+
+    if (playlist.value.length === 0 || currentIndex.value < 0 || currentIndex.value >= playlist.value.length) {
+      clearShuffleOrder()
+      return
+    }
+
+    const normalizedOrder: number[] = []
+    const seen = new Set<number>()
+    for (const index of shuffleOrder.value) {
+      if (index >= 0 && index < playlist.value.length && !seen.has(index)) {
+        normalizedOrder.push(index)
+        seen.add(index)
+      }
+    }
+
+    const missing = playlist.value
+      .map((_, index) => index)
+      .filter(index => !seen.has(index))
+    shuffleIndicesInPlace(missing)
+    const nextOrder = [...normalizedOrder, ...missing]
+    const orderChanged = nextOrder.length !== shuffleOrder.value.length
+      || nextOrder.some((index, idx) => index !== shuffleOrder.value[idx])
+    if (orderChanged) {
+      shuffleOrder.value = nextOrder
+    }
+
+    const position = shuffleOrder.value.indexOf(currentIndex.value)
+    if (position === -1) {
+      rebuildShuffleOrder()
+      return
+    }
+    shuffleOrderPosition.value = position
+  }
+
+  const getNextSongIndex = (includeRepeat = false): number => {
+    if (playlist.value.length === 0 || currentIndex.value < 0 || currentIndex.value >= playlist.value.length) {
+      return -1
+    }
+
+    if (isShuffled.value) {
+      const nextPosition = shuffleOrderPosition.value + 1
+      if (nextPosition < shuffleOrder.value.length) {
+        return shuffleOrder.value[nextPosition] ?? -1
+      }
+      return includeRepeat ? (shuffleOrder.value[0] ?? -1) : -1
+    }
+
+    const nextIndex = currentIndex.value + 1
+    if (nextIndex < playlist.value.length) {
+      return nextIndex
+    }
+    return includeRepeat ? 0 : -1
+  }
+
+  const getPreviousSongIndex = (includeRepeat = false): number => {
+    if (playlist.value.length === 0 || currentIndex.value < 0 || currentIndex.value >= playlist.value.length) {
+      return -1
+    }
+
+    if (isShuffled.value) {
+      const previousPosition = shuffleOrderPosition.value - 1
+      if (previousPosition >= 0) {
+        return shuffleOrder.value[previousPosition] ?? -1
+      }
+      return includeRepeat ? (shuffleOrder.value[shuffleOrder.value.length - 1] ?? -1) : -1
+    }
+
+    const previousIndex = currentIndex.value - 1
+    if (previousIndex >= 0) {
+      return previousIndex
+    }
+    return includeRepeat ? playlist.value.length - 1 : -1
+  }
+
+  const canGoNext = (): boolean => getNextSongIndex(false) !== -1
+  const canGoPrevious = (): boolean => getPreviousSongIndex(false) !== -1
+
+  if (isShuffled.value) {
+    rebuildShuffleOrder()
+  }
 
   const play = (): void => {
     isPlaying.value = true
@@ -254,6 +364,11 @@ export const usePlayerStore = defineStore('player', () => {
   const toggleShuffle = (): void => {
     isShuffled.value = !isShuffled.value
     setStoredValue(STORAGE_KEYS.IS_SHUFFLED, isShuffled.value)
+    if (isShuffled.value) {
+      rebuildShuffleOrder()
+    } else {
+      clearShuffleOrder()
+    }
   }
 
   const setRepeatMode = (mode: 'all' | 'none' | 'one'): void => {
@@ -313,6 +428,11 @@ export const usePlayerStore = defineStore('player', () => {
 
   const setPlaylist = (songs: Song[]): void => {
     playlist.value = songs
+    if (isShuffled.value) {
+      rebuildShuffleOrder()
+    } else {
+      clearShuffleOrder()
+    }
     // Persist session state - playlist saved with debounce to avoid expensive serialization
     saveSessionState(currentSong.value, playlist.value, currentIndex.value)
     savePlaylistDebounced(songs)
@@ -334,6 +454,9 @@ export const usePlayerStore = defineStore('player', () => {
       currentTime.value = 0
       duration.value = 0
     }
+    if (isShuffled.value) {
+      syncShufflePositionWithCurrentIndex()
+    }
     // Persist session state (playlist is saved separately with debounce)
     saveSessionState(currentSong.value, playlist.value, currentIndex.value)
   }
@@ -350,11 +473,8 @@ export const usePlayerStore = defineStore('player', () => {
     logger.debug(
       `[Store] nextSong called. playlist.length=${playlist.value.length}, currentIndex=${currentIndex.value}`,
     )
-    if (playlist.value.length === 0) return
-
-    const nextIndex = isShuffled.value
-      ? getRandomIndex(playlist.value, currentIndex.value)
-      : (currentIndex.value + 1) % playlist.value.length
+    const nextIndex = getNextSongIndex(repeatMode.value === 'all')
+    if (nextIndex === -1) return
 
     logger.debug(`[Store] nextSong: setting index to ${nextIndex}`)
     setCurrentIndex(nextIndex)
@@ -362,12 +482,8 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const previousSong = (): void => {
-    if (playlist.value.length === 0) return
-
-    const prevIndex = isShuffled.value
-      ? getRandomIndex(playlist.value, currentIndex.value)
-      : currentIndex.value <= 0 ? playlist.value.length - 1 : currentIndex.value - 1
-
+    const prevIndex = getPreviousSongIndex(false)
+    if (prevIndex === -1) return
     setCurrentIndex(prevIndex)
   }
 
@@ -392,6 +508,7 @@ export const usePlayerStore = defineStore('player', () => {
     currentTime.value = 0
     duration.value = 0
     isShuffled.value = false
+    clearShuffleOrder()
     repeatMode.value = 'none'
     hasPrevious.value = false
     hasNext.value = false
@@ -435,6 +552,8 @@ export const usePlayerStore = defineStore('player', () => {
 
   return {
     audioReady,
+    canGoNext,
+    canGoPrevious,
     currentIndex,
     currentSong,
     currentTime,
@@ -444,6 +563,8 @@ export const usePlayerStore = defineStore('player', () => {
     eqEnabled,
     formattedCurrentTime,
     formattedDuration,
+    getNextSongIndex,
+    getPreviousSongIndex,
     hasLyrics,
     hasNext,
     hasPrevious,

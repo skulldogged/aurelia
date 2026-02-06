@@ -1,5 +1,6 @@
 import SwiftUI
 import AureliaCore
+import UIKit
 
 struct PlayerView: View {
     private enum Panel {
@@ -11,6 +12,7 @@ struct PlayerView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AudioPlayerController.self) private var playerController
     @Environment(\.dismiss) private var dismiss
+    var onClose: (() -> Void)? = nil
 
     @State private var viewModel = PlayerViewModel()
     @State private var isDragging = false
@@ -21,6 +23,7 @@ struct PlayerView: View {
         GeometryReader { geometry in
             let isWide = UIDevice.current.userInterfaceIdiom == .pad || AureliaLayout.isWide(geometry.size.width)
             let horizontalInset: CGFloat = isWide ? AureliaSpacing.xxl : AureliaSpacing.m
+            let topSafeInset = max(geometry.safeAreaInsets.top, statusBarTopInset)
             let panelVisible = activePanel != .none
             let contentWidth = max(geometry.size.width - (horizontalInset * 2), 320)
             let preferredPlayerWidth = min(CGFloat(520), contentWidth)
@@ -92,7 +95,7 @@ struct PlayerView: View {
                 PlayerBackdropView(albumArtUrl: viewModel.albumArtUrl)
             }
             .overlay(alignment: .top) {
-                topBar
+                topBar(topSafeInset: topSafeInset)
             }
         }
         .onChange(of: playerController.snapshot) { _, snapshot in
@@ -324,10 +327,14 @@ struct PlayerView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var topBar: some View {
+    private func topBar(topSafeInset: CGFloat) -> some View {
         HStack(spacing: AureliaSpacing.s) {
             Button {
-                dismiss()
+                if let onClose {
+                    onClose()
+                } else {
+                    dismiss()
+                }
             } label: {
                 Image(systemName: "chevron.down")
                     .font(.headline.weight(.semibold))
@@ -342,7 +349,7 @@ struct PlayerView: View {
             Color.clear.frame(width: 36, height: 36)
         }
         .padding(.horizontal, AureliaSpacing.m)
-        .padding(.top, AureliaSpacing.s)
+        .padding(.top, topSafeInset + AureliaSpacing.s)
         .padding(.bottom, AureliaSpacing.s)
         .background(
             LinearGradient(
@@ -351,6 +358,14 @@ struct PlayerView: View {
                 endPoint: .bottom
             )
         )
+    }
+
+    private var statusBarTopInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .map { $0.safeAreaInsets.top }
+            .max() ?? 0
     }
 
     private func iconControl(
@@ -496,12 +511,11 @@ private struct PlayerBackdropView: View {
                     targetSize: CGSize(width: 1200, height: 1200)
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-                .ignoresSafeArea()
                 .blur(radius: 48)
                 .saturation(colorScheme == .dark ? 0.95 : 0.72)
                 .scaleEffect(1.14)
                 .opacity(colorScheme == .dark ? 0.32 : 0.40)
+                .mask(Rectangle())
             }
 
             LinearGradient(

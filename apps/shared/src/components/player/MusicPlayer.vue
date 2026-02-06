@@ -85,12 +85,8 @@
   const isVolumePopupVisible = ref(false)
   const emptyUint8Array = new Uint8Array(0)
 
-  const hasPrevious = computed(() => playerStore.playlist.length > 1 && playerStore.currentIndex > 0)
-  const hasNext = computed(() =>
-    playerStore.playlist.length > 1
-    && playerStore.currentIndex > -1
-    && playerStore.currentIndex < playerStore.playlist.length - 1,
-  )
+  const hasPrevious = computed(() => playerStore.canGoPrevious())
+  const hasNext = computed(() => playerStore.canGoNext())
 
   const hasLyrics = computed(() => playerStore.hasLyrics)
 

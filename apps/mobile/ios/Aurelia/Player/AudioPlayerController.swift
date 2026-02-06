@@ -17,6 +17,7 @@ final class AudioPlayerController: @unchecked Sendable {
 
     private var player: AVQueuePlayer
     private var songQueue: [Song] = []
+    private var queueBeforeShuffle: [Song]?
     private var currentIndex: Int = -1
     private var lastServerUrl: String = ""
     private var lastToken: String = ""
@@ -137,6 +138,7 @@ final class AudioPlayerController: @unchecked Sendable {
     func setQueue(_ songs: [Song], serverUrl: String, token: String, startIndex: Int = 0, autoPlay: Bool = true) {
         ensureAudioSession()
         songQueue = songs
+        queueBeforeShuffle = snapshot.isShuffled ? songs : nil
         lastServerUrl = serverUrl
         lastToken = token
         seekOffsetMs = 0
@@ -151,6 +153,9 @@ final class AudioPlayerController: @unchecked Sendable {
         }
 
         rebuildPlayerQueue(startingAt: safeStart, preloadItemCount: Self.initialPreloadedItems)
+        if snapshot.isShuffled {
+            shuffleUpcomingQueueInPlace()
+        }
 
         if autoPlay {
             player.play()
@@ -170,6 +175,7 @@ final class AudioPlayerController: @unchecked Sendable {
         lastServerUrl = serverUrl
         lastToken = token
         songQueue.append(song)
+        queueBeforeShuffle?.append(song)
 
         if loadedQueueRange != nil {
             preloadUpcomingItems()
@@ -181,6 +187,18 @@ final class AudioPlayerController: @unchecked Sendable {
         lastToken = token
         let insertIndex = min(currentIndex + 1, songQueue.count)
         songQueue.insert(song, at: min(insertIndex, songQueue.count))
+        if var baseQueue = queueBeforeShuffle {
+            if currentIndex >= 0,
+               currentIndex < songQueue.count,
+               let currentSongId = songQueue[safe: currentIndex]?.id,
+               let baseCurrentIndex = baseQueue.firstIndex(where: { $0.id == currentSongId }) {
+                let baseInsertIndex = min(baseCurrentIndex + 1, baseQueue.count)
+                baseQueue.insert(song, at: baseInsertIndex)
+            } else {
+                baseQueue.append(song)
+            }
+            queueBeforeShuffle = baseQueue
+        }
 
         if currentIndex >= 0, currentIndex < songQueue.count {
             let wasPlaying = player.rate > 0
@@ -228,6 +246,7 @@ final class AudioPlayerController: @unchecked Sendable {
         player.pause()
         player.removeAllItems()
         songQueue.removeAll()
+        queueBeforeShuffle = nil
         loadedQueueRange = nil
         currentIndex = -1
         seekOffsetMs = 0
@@ -302,21 +321,20 @@ final class AudioPlayerController: @unchecked Sendable {
 
     func toggleShuffle() {
         snapshot.isShuffled.toggle()
-        // When shuffle is toggled, we keep the current song but randomize the rest
-        if snapshot.isShuffled, currentIndex >= 0, currentIndex < songQueue.count {
-            let wasPlaying = player.rate > 0
-            let current = songQueue[currentIndex]
-            var remaining = songQueue
-            remaining.remove(at: currentIndex)
-            remaining.shuffle()
-            songQueue = [current] + remaining
-            currentIndex = 0
-            rebuildPlayerQueue(startingAt: currentIndex)
-            if wasPlaying {
-                player.play()
+
+        if snapshot.isShuffled {
+            queueBeforeShuffle = songQueue
+            // Match platform-native behavior: keep current playback uninterrupted.
+            if currentIndex >= 0, currentIndex < songQueue.count {
+                shuffleUpcomingQueueInPlace()
             }
+        } else {
+            restoreQueueAfterShuffle()
+            queueBeforeShuffle = nil
         }
+
         updateSnapshot()
+        updateNowPlayingInfo()
     }
 
     func cycleRepeatMode() {
@@ -525,8 +543,145 @@ final class AudioPlayerController: @unchecked Sendable {
         return AVPlayerItem(url: itemUrl)
     }
 
+    private func shuffleUpcomingQueueInPlace() {
+        guard currentIndex >= 0, currentIndex < songQueue.count else { return }
+        guard let currentItem = player.currentItem else {
+            rebuildPlayerQueue(startingAt: currentIndex)
+            return
+        }
+
+        let upcomingStart = currentIndex + 1
+        guard upcomingStart < songQueue.count else {
+            loadedQueueRange = currentIndex...currentIndex
+            return
+        }
+
+        let playedAndCurrent = Array(songQueue.prefix(upcomingStart))
+        var upcoming = Array(songQueue.suffix(from: upcomingStart))
+        upcoming.shuffle()
+        songQueue = playedAndCurrent + upcoming
+
+        // Keep the current AVPlayerItem alive, replace only queued upcoming items.
+        for item in player.items() where item !== currentItem {
+            player.remove(item)
+        }
+
+        let endIndex = min(songQueue.count - 1, currentIndex + Self.maxPreloadedItems - 1)
+        if upcomingStart <= endIndex {
+            for queueIndex in upcomingStart...endIndex {
+                let url = buildStreamUrl(for: songQueue[queueIndex])
+                if let item = makePlayerItem(url: url) {
+                    player.insert(item, after: nil)
+                }
+            }
+            loadedQueueRange = currentIndex...endIndex
+        } else {
+            loadedQueueRange = currentIndex...currentIndex
+        }
+
+        scheduleDeferredPreload()
+    }
+
+    private func restoreQueueAfterShuffle() {
+        guard currentIndex >= 0, currentIndex < songQueue.count else { return }
+        guard let originalQueue = queueBeforeShuffle else { return }
+        let currentSong = songQueue[currentIndex]
+        let currentOccurrence = occurrenceCount(
+            songId: currentSong.id,
+            in: songQueue,
+            through: currentIndex
+        )
+
+        guard let currentItem = player.currentItem else {
+            let restoredQueue = mergedQueuePreservingAdditions(base: originalQueue, current: songQueue)
+            songQueue = restoredQueue
+            if let restoredIndex = indexOfOccurrence(songId: currentSong.id, occurrence: currentOccurrence, in: restoredQueue) {
+                currentIndex = restoredIndex
+            } else if let fallbackIndex = restoredQueue.firstIndex(where: { $0.id == currentSong.id }) {
+                currentIndex = fallbackIndex
+            } else {
+                currentIndex = restoredQueue.isEmpty ? -1 : min(currentIndex, restoredQueue.count - 1)
+            }
+            return
+        }
+
+        let restoredQueue = mergedQueuePreservingAdditions(base: originalQueue, current: songQueue)
+        guard !restoredQueue.isEmpty else { return }
+
+        songQueue = restoredQueue
+        if let restoredIndex = indexOfOccurrence(songId: currentSong.id, occurrence: currentOccurrence, in: restoredQueue) {
+            currentIndex = restoredIndex
+        } else if let fallbackIndex = restoredQueue.firstIndex(where: { $0.id == currentSong.id }) {
+            currentIndex = fallbackIndex
+        } else {
+            currentIndex = min(currentIndex, restoredQueue.count - 1)
+        }
+
+        for item in player.items() where item !== currentItem {
+            player.remove(item)
+        }
+
+        let upcomingStart = currentIndex + 1
+        let endIndex = min(songQueue.count - 1, currentIndex + Self.maxPreloadedItems - 1)
+        if upcomingStart <= endIndex {
+            for queueIndex in upcomingStart...endIndex {
+                let url = buildStreamUrl(for: songQueue[queueIndex])
+                if let item = makePlayerItem(url: url) {
+                    player.insert(item, after: nil)
+                }
+            }
+            loadedQueueRange = currentIndex...endIndex
+        } else {
+            loadedQueueRange = currentIndex...currentIndex
+        }
+
+        scheduleDeferredPreload()
+    }
+
+    private func mergedQueuePreservingAdditions(base: [Song], current: [Song]) -> [Song] {
+        var merged = base
+        var remainingById: [String: Int] = [:]
+        for song in base {
+            remainingById[song.id, default: 0] += 1
+        }
+
+        for song in current {
+            let remaining = remainingById[song.id, default: 0]
+            if remaining > 0 {
+                remainingById[song.id] = remaining - 1
+            } else {
+                merged.append(song)
+            }
+        }
+
+        return merged
+    }
+
+    private func occurrenceCount(songId: String, in queue: [Song], through index: Int) -> Int {
+        guard !queue.isEmpty else { return 1 }
+        let upperBound = min(max(index, 0), queue.count - 1)
+        return max(1, queue[0...upperBound].filter { $0.id == songId }.count)
+    }
+
+    private func indexOfOccurrence(songId: String, occurrence: Int, in queue: [Song]) -> Int? {
+        var seen = 0
+        for (index, song) in queue.enumerated() where song.id == songId {
+            seen += 1
+            if seen == occurrence {
+                return index
+            }
+        }
+        return nil
+    }
+
     private static func isContainerSeekable(_ container: String?) -> Bool {
         guard let container = container?.lowercased() else { return false }
         return seekableContainers.contains(container)
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

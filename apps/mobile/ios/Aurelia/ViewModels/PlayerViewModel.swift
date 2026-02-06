@@ -156,7 +156,7 @@ final class PlayerViewModel: @unchecked Sendable {
                     artist: artist,
                     title: title
                 )
-                let parsed = LyricsParser.fromParsed(parsedLyrics)
+            let parsed = await LyricsParser.fromParsed(parsedLyrics)
 
                 await MainActor.run {
                     if songId == self.currentSongId {
@@ -177,17 +177,18 @@ final class PlayerViewModel: @unchecked Sendable {
         guard let serverUrl = sessionStore.serverUrl,
               let token = sessionStore.token,
               let userId = sessionStore.userId else { return }
+        let targetFavoriteState = !isFavorite
 
         isFavoriteLoading = true
 
-        Task.detached { [self, isFav = self.isFavorite] in
+        Task.detached { [self, targetFavoriteState] in
             do {
                 let newState = try await AureliaCore.toggleFavorite(
                     serverUrl: serverUrl,
                     token: token,
                     userId: userId,
                     itemId: songId,
-                    isFavorite: isFav
+                    isFavorite: targetFavoriteState
                 )
                 await MainActor.run {
                     self.favoriteCache[songId] = newState
