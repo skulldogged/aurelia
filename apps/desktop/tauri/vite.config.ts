@@ -26,7 +26,7 @@ export default defineConfig(async () => ({
       routesFolder: [
         {
           path: '',
-          src:  '../shared/src/pages',
+          src:  '../../shared/src/pages',
         },
       ],
     }),
@@ -37,7 +37,7 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       '@':       path.resolve(__dirname, './src'),
-      '@shared': path.resolve(__dirname, '../shared/src'),
+      '@shared': path.resolve(__dirname, '../../shared/src'),
     },
   },
   server: {

@@ -120,73 +120,73 @@ declare module 'vue-router/auto-routes' {
    * @internal
    */
   export interface _RouteFileInfoMap {
-    '../shared/src/pages/index.vue': {
+    '../../shared/src/pages/index.vue': {
       routes:
         | '/'
       views:
         | never
     }
-    '../shared/src/pages/albums/index.vue': {
+    '../../shared/src/pages/albums/index.vue': {
       routes:
         | '/albums/'
       views:
         | never
     }
-    '../shared/src/pages/albums/[id].vue': {
+    '../../shared/src/pages/albums/[id].vue': {
       routes:
         | '/albums/[id]'
       views:
         | never
     }
-    '../shared/src/pages/artists/index.vue': {
+    '../../shared/src/pages/artists/index.vue': {
       routes:
         | '/artists/'
       views:
         | never
     }
-    '../shared/src/pages/artists/[id].vue': {
+    '../../shared/src/pages/artists/[id].vue': {
       routes:
         | '/artists/[id]'
       views:
         | never
     }
-    '../shared/src/pages/login.vue': {
+    '../../shared/src/pages/login.vue': {
       routes:
         | '/login'
       views:
         | never
     }
-    '../shared/src/pages/playlists/index.vue': {
+    '../../shared/src/pages/playlists/index.vue': {
       routes:
         | '/playlists/'
       views:
         | never
     }
-    '../shared/src/pages/playlists/[id].vue': {
+    '../../shared/src/pages/playlists/[id].vue': {
       routes:
         | '/playlists/[id]'
       views:
         | never
     }
-    '../shared/src/pages/playlists/[id].edit.vue': {
+    '../../shared/src/pages/playlists/[id].edit.vue': {
       routes:
         | '/playlists/[id].edit'
       views:
         | never
     }
-    '../shared/src/pages/playlists/create.vue': {
+    '../../shared/src/pages/playlists/create.vue': {
       routes:
         | '/playlists/create'
       views:
         | never
     }
-    '../shared/src/pages/settings.vue': {
+    '../../shared/src/pages/settings.vue': {
       routes:
         | '/settings'
       views:
         | never
     }
-    '../shared/src/pages/songs/index.vue': {
+    '../../shared/src/pages/songs/index.vue': {
       routes:
         | '/songs/'
       views:

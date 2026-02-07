@@ -6,7 +6,7 @@ let package = Package(
     name: "AureliaCore",
     platforms: [
         .iOS("26.0"),
-        .macOS(.v13),
+        .macOS("26.0"),
     ],
     products: [
         .library(

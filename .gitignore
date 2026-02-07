@@ -6,6 +6,7 @@ dist/
 dist-ssr/
 build/
 target/
+**/tsconfig.tsbuildinfo
 
 # Logs
 *.log
@@ -60,6 +61,9 @@ apps/mobile/ios/AureliaCore/Sources/aurelia_coreFFI.h
 apps/mobile/ios/AureliaCore/Sources/aurelia_coreFFI.modulemap
 
 # Tauri generated schemas
+apps/desktop/tauri/src-tauri/gen/schemas/
+
+# Legacy root-level Tauri workspace artifacts (deprecated)
 src-tauri/gen/schemas/
 
 # START Ruler Generated Files

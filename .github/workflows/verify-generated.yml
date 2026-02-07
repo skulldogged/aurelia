@@ -18,6 +18,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify repository structure
+        run: ./scripts/verify-structure.sh
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -70,6 +73,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify repository structure
+        run: ./scripts/verify-structure.sh
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

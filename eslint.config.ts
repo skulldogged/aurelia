@@ -174,7 +174,7 @@ export default defineConfig(
 
   // Desktop-specific: Generated bindings file rules
   {
-    files: ['apps/desktop/src/lib/api/bindings.ts'],
+    files: ['apps/desktop/tauri/src/lib/api/bindings.ts'],
     rules: {
       '@stylistic/max-len':                               'off',
       '@typescript-eslint/explicit-function-return-type': 'off',

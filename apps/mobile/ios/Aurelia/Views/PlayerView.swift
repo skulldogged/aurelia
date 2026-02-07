@@ -235,10 +235,9 @@ struct PlayerView: View {
                 viewModel.togglePlayPause(playerController: playerController)
             } label: {
                 Image(systemName: viewModel.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.system(size: 34, weight: .bold))
                     .frame(width: 68, height: 68)
-                    .foregroundStyle(Color.black.opacity(0.9))
-                    .background(Color.white, in: Circle())
+                    .foregroundStyle(.white)
             }
             .buttonStyle(.plain)
 

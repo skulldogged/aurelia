@@ -1,46 +1,30 @@
 # Building Aurelia
 
-This guide covers building the Aurelia from source for development and production.
+This guide covers development and production builds for the monorepo.
 
 ## Prerequisites
 
-### Required Tools
+### Required tools
 
-1. **Bun** (v1.0+)
-    - Install from [bun.sh](https://bun.sh)
-    - Used for package management and running scripts
-    - **Do not use npm, pnpm, or yarn**
-      - this project exclusively uses Bun. All other package managers are UNTESTED.
+1. Bun (v1+)
+2. Rust stable toolchain
+3. Node.js 20+
 
-2. **Rust** (stable toolchain)
-    - Install via [rustup](https://rustup.rs/)
-    - Tauri requires Rust 1.70 or later
-    - Verify: `rustc --version`
+### Platform dependencies
 
-3. **Node.js** (v20+)
-    - Required by Bun and Vite
-    - Download from [nodejs.org](https://nodejs.org/)
+#### Windows (Tauri)
 
-### Platform-Specific Dependencies
-
-#### Windows
-- **Visual Studio C++ Build Tools**
-  - Download [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/)
-  - Select "Desktop development with C++" workload
-  - Includes MSVC and Windows SDK
-
-- **WebView2**
-  - Pre-installed on Windows 10/11 (1809+)
-  - Tauri uses it for rendering
+- Visual Studio C++ Build Tools (Desktop development with C++)
+- WebView2 runtime
 
 #### macOS
+
 ```bash
 xcode-select --install
 ```
 
-Required for Rust compilation and Tauri builds.
-
 #### Linux (Debian/Ubuntu)
+
 ```bash
 sudo apt update
 sudo apt install -y \
@@ -56,6 +40,7 @@ sudo apt install -y \
 ```
 
 #### Linux (Fedora)
+
 ```bash
 sudo dnf install -y \
   webkit2gtk4.0-devel \
@@ -67,291 +52,140 @@ sudo dnf install -y \
   librsvg2-devel
 ```
 
-#### Linux (Arch)
-```bash
-sudo pacman -Syu
-sudo pacman -S --needed \
-  webkit2gtk \
-  base-devel \
-  curl \
-  wget \
-  file \
-  openssl \
-  appmenu-gtk-module \
-  gtk3 \
-  libappindicator-gtk3 \
-  librsvg \
-  libvips
-```
-
-## Initial Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/pupbrained/aurelia.git
-   cd jellyfin-music-player
-   ```
-
-2. **Install dependencies**
-   ```bash
-   bun install
-   ```
-
-3. **(Optional) Custom Discord App ID**
-   
-   Discord Rich Presence works out of the box with the official app ID. If you want to use your own Discord application for testing:
-   
-   **Windows (PowerShell):**
-   ```powershell
-   $env:VITE_DISCORD_APP_ID = "your-discord-app-id"
-   ```
-   
-   **macOS/Linux:**
-   ```bash
-   export VITE_DISCORD_APP_ID="your-discord-app-id"
-   ```
-   
-   Create your own application at the [Discord Developer Portal](https://discord.com/developers/applications).
-
-## Development Build
-
-### Run in Development Mode
+## Initial setup
 
 ```bash
-cargo tauri dev
+git clone https://github.com/pupbrained/aurelia.git
+cd aurelia
+bun install
 ```
 
-This starts:
-- Vite dev server with hot module replacement (HMR)
-- Tauri development window
-- Rust backend with hot reload
+## Development builds (repo root)
 
-The app will open automatically. Frontend changes reload instantly; Rust changes trigger a rebuild.
-
-## Production Build
-
-### Build for Your Platform
+### Web
 
 ```bash
-cargo tauri build
+bun run dev:web
 ```
 
-This will:
-1. Run TypeScript type checking (`vue-tsc --noEmit`)
-2. Build optimized frontend bundle with Vite
-3. Compile Rust backend in release mode
-4. Package the application
+Runs:
+- Axum backend (`apps/web/backend`)
+- Vite frontend (`apps/web/frontend`)
 
-**Build artifacts** are located in:
-- **Windows:** `src-tauri/target/release/bundle/msi/` or `src-tauri/target/release/bundle/nsis/`
-- **macOS:** `src-tauri/target/release/bundle/dmg/` and `.app`
-- **Linux:** `src-tauri/target/release/bundle/deb/`, `appimage/`, or `rpm/`
+### Desktop (Tauri)
 
-### Build Configuration
+```bash
+bun run dev:desktop:tauri
+```
 
-Tauri build settings are in `src-tauri/tauri.conf.json`:
-- App name, version, and identifiers
-- Bundle targets (MSI, NSIS, DMG, AppImage, etc.)
-- Window configuration
-- Security and capability settings
+Runs the Tauri desktop app from:
+- frontend: `apps/desktop/tauri`
+- Rust backend: `apps/desktop/tauri/src-tauri`
 
-## Code Quality Checks
+### Desktop (native macOS SwiftUI)
+
+```bash
+bun run dev:desktop:macos
+```
+
+This command:
+- Ensures required Rust/UniFFI artifacts are built
+- Generates `apps/desktop/macos/AureliaMac.xcodeproj` with XcodeGen
+- Opens the project in Xcode
+
+## Production builds (repo root)
+
+### Web
+
+```bash
+bun run build:web
+```
+
+Outputs:
+- Frontend bundle: `apps/web/frontend/dist`
+- Backend binary: Cargo release output for `apps/web/backend`
+
+### Desktop (Tauri)
+
+```bash
+bun run build:desktop:tauri
+```
+
+Tauri bundles are under:
+- `apps/desktop/tauri/src-tauri/target/release/bundle`
+
+### Desktop (native macOS)
+
+```bash
+bun run build:desktop:macos
+```
+
+Builds `AureliaMac` via `xcodebuild`.
+
+## Code quality and checks
 
 ### Linting
 
-Run ESLint to check code style:
-
 ```bash
 bunx eslint .
-```
-
-Auto-fix issues:
-
-```bash
 bunx eslint --fix .
 ```
 
-### Type Checking
-
-Verify TypeScript types:
+### Type checking and builds
 
 ```bash
 bun run build
 ```
 
-This runs `vue-tsc --noEmit` before building.
-
-### Rust Formatting & Linting
+### Rust checks
 
 ```bash
-cd src-tauri
-cargo fmt --check  # Check formatting
-cargo fmt          # Apply formatting
-cargo clippy       # Run linter
+cargo fmt --check
+cargo clippy --workspace
+cargo test --workspace
+```
+
+## Generated code and bindings
+
+```bash
+bun run bindings:generate
+bun run bindings:generate:full
+bun run bindings:verify
+bun run bindings:verify:full
 ```
 
 ## Troubleshooting
 
-### "Command not found: tauri"
+### Dependency or lockfile drift
 
-Ensure `@tauri-apps/cli` is installed:
+Use root lockfile workflow:
 
 ```bash
 bun install
+bun run verify:structure
 ```
 
-Run via the script:
+### Clean Rust build artifacts
 
 ```bash
-cargo tauri dev
+cargo clean
 ```
 
-### Build Fails with Rust Errors
-
-1. Update Rust: `rustup update stable`
-2. Clean build cache: `cd src-tauri && cargo clean`
-3. Rebuild: `cargo tauri build`
-
-### Frontend Build Errors
-
-1. Remove `node_modules`: `rm -rf node_modules`
-2. Clear Bun cache: `bun pm cache rm`
-3. Reinstall: `bun install`
-
-### WebView2 Missing (Windows)
-
-Download and install the [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/#download-section).
-
-### Permission Errors (macOS)
-
-If the built `.app` won't open due to security:
+For Tauri-only cleaning:
 
 ```bash
-xattr -cr src-tauri/target/release/bundle/macos/Jellyfin\ Music\ Player.app
+cd apps/desktop/tauri/src-tauri
+cargo clean
 ```
 
-### Linux AppImage Won't Run
-
-Make it executable:
+### Linux AppImage permissions
 
 ```bash
-chmod +x src-tauri/target/release/bundle/appimage/*.AppImage
+chmod +x apps/desktop/tauri/src-tauri/target/release/bundle/appimage/*.AppImage
 ```
 
-## Advanced Build Options
-
-### Custom Build Profiles
-
-Create different Cargo profiles in `src-tauri/Cargo.toml`:
-
-```toml
-[profile.release-small]
-inherits = "release"
-opt-level = "z"
-lto = true
-codegen-units = 1
-```
-
-Build with:
+### macOS quarantine issues
 
 ```bash
-cargo build --profile release-small
+xattr -cr apps/desktop/tauri/src-tauri/target/release/bundle/macos/*.app
 ```
-
-### Cross-Compilation
-
-Tauri supports cross-compilation with additional setup. See the [Tauri cross-compilation guide](https://tauri.app/v2/guides/building/cross-platform/).
-
-### Environment Variables
-
-| Variable | Purpose | Default |
-|----------|---------|---------|
-| `VITE_DISCORD_APP_ID` | Override Discord app ID (optional) | Official app ID |
-| `TAURI_PRIVATE_KEY` | Code signing (production) | Not set |
-| `TAURI_KEY_PASSWORD` | Key password (production) | Not set |
-
-## CI/CD Integration
-
-For automated builds, see the Tauri [GitHub Actions guide](https://tauri.app/v2/guides/distribution/github-actions/).
-
-Example workflow structure:
-1. Install Bun
-2. Install Rust via `actions-rs/toolchain`
-3. Install platform dependencies
-4. Run `bun install`
-5. Run `bun run tauri build`
-6. Upload artifacts
-
-## iOS App
-
-### Prerequisites
-
-- macOS with Xcode 26+ (for iOS 26 SDK and Liquid Glass support)
-- Rust iOS targets:
-  ```bash
-  rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-ios-macabi x86_64-apple-ios-macabi
-  ```
-
-### Build Steps
-
-1. **Build the Rust core and generate Swift UniFFI bindings:**
-   ```bash
-   cd apps/mobile/ios
-   ./build-rust.sh          # debug build
-   ./build-rust.sh --release  # release build
-   ```
-   This compiles `aurelia-core` for iOS device, iOS simulator, Mac Catalyst (`macabi`), and host macOS (for SwiftPM tests), then generates Swift bindings and packages everything into an XCFramework.
-
-2. **Open the Xcode project:**
-   ```bash
-   open apps/mobile/ios/Aurelia.xcodeproj
-   ```
-   > Note: You need to create the Xcode project first via Xcode (File > New > Project > iOS App), then add
-   > the existing Swift source files from `Aurelia/` and the `AureliaCore` local Swift package.
-
-3. **Xcode project setup (first time):**
-   - Set deployment target to **iOS 26**
-   - Add the `AureliaCore` local Swift package (File > Add Package Dependencies > Add Local)
-   - Add `Info.plist` key: `UIBackgroundModes` = `audio` (already in `Info.plist`)
-   - Set bundle identifier to `com.aurelia.app`
-
-4. **Build and run** from Xcode (Cmd+R)
-
-### Architecture
-
-The iOS app mirrors the Android app architecture:
-- **SwiftUI** views with **@Observable** view models (MVVM)
-- **AVPlayer** for audio playback with lock screen / Control Center integration
-- **Shared Rust core** (`aurelia-core`) via UniFFI-generated Swift bindings
-- All Jellyfin API calls go through the Rust core; the iOS app handles UI + media playback
-
-### Project Structure
-
-```
-apps/mobile/ios/
-├── build-rust.sh              # Builds Rust + generates Swift bindings
-├── AureliaCore/               # Swift package wrapping Rust FFI
-│   ├── Package.swift
-│   ├── uniffi.toml
-│   ├── Sources/               # Generated: aurelia_core.swift + FFI headers
-│   └── AureliaCoreFFI.xcframework/  # Generated XCFramework
-├── Aurelia/
-│   ├── AureliaApp.swift       # App entry point
-│   ├── Info.plist             # Background audio capability
-│   ├── Assets.xcassets/
-│   ├── Models/                # App-level data models
-│   ├── ViewModels/            # @Observable view models
-│   ├── Views/                 # SwiftUI screens
-│   ├── Components/            # Reusable UI components
-│   ├── Player/                # AVPlayer + Now Playing integration
-│   └── Services/              # Session store, auth, utilities
-```
-
-## Additional Resources
-
-- [Tauri v2 Documentation](https://tauri.app/v2/)
-- [Vue 3 Documentation](https://vuejs.org/)
-- [Vite Documentation](https://vitejs.dev/)
-- [Bun Documentation](https://bun.sh/docs)
-- [Project README](./README.md)
-- [Agent Instructions](./AGENTS.md)

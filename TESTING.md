@@ -22,7 +22,9 @@ This repository has tests across Rust, shared Vue/TS, web + desktop apps, and mo
 - Web frontend:
   - `bun --cwd apps/web/frontend test`
 - Desktop frontend:
-  - `bun --cwd apps/desktop test`
+  - `bun --cwd apps/desktop/tauri test`
+- Native macOS app:
+  - `swift test --package-path apps/desktop/macos`
 
 Each uses Vitest with the same conventions:
 - Test files live in `tests/` or alongside source as `*.spec.ts`/`*.test.ts`.

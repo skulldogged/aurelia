@@ -8,8 +8,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "test": "bun run ../../scripts/run-vitest.ts",
-    "test:watch": "bun run ../../scripts/run-vitest.ts --watch"
+    "test": "bun run ../../../scripts/run-vitest.ts",
+    "test:watch": "bun run ../../../scripts/run-vitest.ts --watch"
   },
   "dependencies": {
     "@intellectronica/ruler": "^0.3.23",

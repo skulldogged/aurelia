@@ -22,10 +22,10 @@
         "src/*"
       ],
       "@shared": [
-        "../shared/src"
+        "../../shared/src"
       ],
       "@shared/*": [
-        "../shared/src/*"
+        "../../shared/src/*"
       ]
     },
     /* Linting */
@@ -38,9 +38,9 @@
     "src/**/*.tsx",
     "src/**/*.vue",
     "./typed-router.d.ts",
-    "../shared/src/**/*.ts",
-    "../shared/src/**/*.d.ts",
-    "../shared/src/**/*.vue"
+    "../../shared/src/**/*.ts",
+    "../../shared/src/**/*.d.ts",
+    "../../shared/src/**/*.vue"
   ],
 
   "references": [

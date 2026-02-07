@@ -111,7 +111,7 @@ struct MiniPlayerView: View {
                             togglePlayPause()
                         } label: {
                             Image(systemName: snapshot.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.title3)
+                                .font(.system(size: 24, weight: .bold))
                         }
 
                         Button {
@@ -209,18 +209,9 @@ struct MiniPlayerView: View {
             togglePlayPause()
         } label: {
             Image(systemName: snapshot.isPlaying ? "pause.fill" : "play.fill")
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 22, weight: .bold))
                 .frame(width: 44, height: 44)
-                .background {
-                    Circle()
-                        .fill(.white.opacity(colorScheme == .dark ? 0.18 : 0.30))
-                        .frame(width: 32, height: 32)
-                }
-                .overlay {
-                    Circle()
-                        .stroke(Color.white.opacity(colorScheme == .dark ? 0.20 : 0.35), lineWidth: 1)
-                        .frame(width: 32, height: 32)
-                }
+                .foregroundStyle(.primary)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
