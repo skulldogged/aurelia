@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: ./build-rust.sh [--release]
 #
 # Prerequisites:
-#   rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-darwin x86_64-apple-darwin
+#   rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-ios-macabi x86_64-apple-ios-macabi aarch64-apple-darwin x86_64-apple-darwin
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -26,19 +26,43 @@ TARGET_DIR="$PROJECT_ROOT/target"
 # and XCFramework slices always come from the same build artifacts.
 export CARGO_TARGET_DIR="$TARGET_DIR"
 
+ensure_rust_target() {
+    local target="$1"
+    if ! rustup target list --installed | grep -qx "$target"; then
+        echo "==> Installing missing Rust target: $target"
+        rustup target add "$target"
+    fi
+}
+
+IOS_DEVICE_TARGET="aarch64-apple-ios"
+IOS_SIM_TARGET="aarch64-apple-ios-sim"
+CATALYST_TARGETS=("aarch64-apple-ios-macabi" "x86_64-apple-ios-macabi")
+HOST_ARCH="$(uname -m)"
+
+ensure_rust_target "$IOS_DEVICE_TARGET"
+ensure_rust_target "$IOS_SIM_TARGET"
+
 echo "==> Building aurelia-core for iOS device (aarch64-apple-ios)..."
-cargo build -p "$CORE_CRATE" --target aarch64-apple-ios $CARGO_FLAGS
+cargo build -p "$CORE_CRATE" --target "$IOS_DEVICE_TARGET" $CARGO_FLAGS
 
 echo "==> Building aurelia-core for iOS simulator (aarch64-apple-ios-sim)..."
-cargo build -p "$CORE_CRATE" --target aarch64-apple-ios-sim $CARGO_FLAGS
+cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" $CARGO_FLAGS
+
+# Build Mac Catalyst for both Apple Silicon and Intel so Xcode can build
+# "Any Mac" without missing-architecture slice failures.
+for CATALYST_TARGET in "${CATALYST_TARGETS[@]}"; do
+    ensure_rust_target "$CATALYST_TARGET"
+    echo "==> Building aurelia-core for Mac Catalyst ($CATALYST_TARGET)..."
+    IPHONEOS_DEPLOYMENT_TARGET=26.0 cargo build -p "$CORE_CRATE" --target "$CATALYST_TARGET" $CARGO_FLAGS
+done
 
 # Build macOS target for SwiftPM tests (host architecture)
-HOST_ARCH="$(uname -m)"
 if [[ "$HOST_ARCH" == "arm64" ]]; then
     MACOS_TARGET="aarch64-apple-darwin"
 else
     MACOS_TARGET="x86_64-apple-darwin"
 fi
+ensure_rust_target "$MACOS_TARGET"
 echo "==> Building aurelia-core for macOS ($MACOS_TARGET)..."
 MACOSX_DEPLOYMENT_TARGET=13.0 cargo build -p "$CORE_CRATE" --target "$MACOS_TARGET" $CARGO_FLAGS
 
@@ -69,9 +93,17 @@ MODULEMAP_FILE="$SOURCES_DIR/aurelia_coreFFI.modulemap"
 echo "==> Creating XCFramework..."
 rm -rf "$FRAMEWORK_DIR"
 
-DEVICE_LIB="$TARGET_DIR/aarch64-apple-ios/$PROFILE/libaurelia_core.a"
-SIM_LIB="$TARGET_DIR/aarch64-apple-ios-sim/$PROFILE/libaurelia_core.a"
+DEVICE_LIB="$TARGET_DIR/$IOS_DEVICE_TARGET/$PROFILE/libaurelia_core.a"
+SIM_LIB="$TARGET_DIR/$IOS_SIM_TARGET/$PROFILE/libaurelia_core.a"
 MACOS_LIB="$TARGET_DIR/$MACOS_TARGET/$PROFILE/libaurelia_core.a"
+CATALYST_ARM64_LIB="$TARGET_DIR/aarch64-apple-ios-macabi/$PROFILE/libaurelia_core.a"
+CATALYST_X86_64_LIB="$TARGET_DIR/x86_64-apple-ios-macabi/$PROFILE/libaurelia_core.a"
+
+# xcodebuild requires a single library definition per platform variant.
+# Merge arm64 + x86_64 Mac Catalyst static libs into one universal archive.
+CATALYST_UNIVERSAL_DIR=$(mktemp -d)
+CATALYST_LIB="$CATALYST_UNIVERSAL_DIR/libaurelia_core.a"
+lipo -create "$CATALYST_ARM64_LIB" "$CATALYST_X86_64_LIB" -output "$CATALYST_LIB"
 
 # Create temporary directories for headers
 DEVICE_HEADERS=$(mktemp -d)
@@ -84,13 +116,21 @@ cp "$MODULEMAP_FILE" "$SIM_HEADERS/module.modulemap"
 cp "$HEADER_FILE" "$MACOS_HEADERS/"
 cp "$MODULEMAP_FILE" "$MACOS_HEADERS/module.modulemap"
 
+CATALYST_HEADERS=$(mktemp -d)
+cp "$HEADER_FILE" "$CATALYST_HEADERS/"
+cp "$MODULEMAP_FILE" "$CATALYST_HEADERS/module.modulemap"
+
 xcodebuild -create-xcframework \
     -library "$DEVICE_LIB" -headers "$DEVICE_HEADERS" \
     -library "$SIM_LIB" -headers "$SIM_HEADERS" \
+    -library "$CATALYST_LIB" -headers "$CATALYST_HEADERS" \
     -library "$MACOS_LIB" -headers "$MACOS_HEADERS" \
     -output "$FRAMEWORK_DIR"
 
-rm -rf "$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS"
+# Ensure SwiftPM can read module maps copied from mktemp-created header dirs.
+chmod -R a+rX "$FRAMEWORK_DIR"
+
+rm -rf "$DEVICE_HEADERS" "$SIM_HEADERS" "$CATALYST_HEADERS" "$MACOS_HEADERS" "$CATALYST_UNIVERSAL_DIR"
 
 echo "==> Done! XCFramework at: $FRAMEWORK_DIR"
 echo "    Swift bindings at: $SOURCES_DIR/AureliaCore.swift"

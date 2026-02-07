@@ -289,7 +289,7 @@ Example workflow structure:
 - macOS with Xcode 26+ (for iOS 26 SDK and Liquid Glass support)
 - Rust iOS targets:
   ```bash
-  rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+  rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-ios-macabi x86_64-apple-ios-macabi
   ```
 
 ### Build Steps
@@ -300,7 +300,7 @@ Example workflow structure:
    ./build-rust.sh          # debug build
    ./build-rust.sh --release  # release build
    ```
-   This compiles `aurelia-core` for iOS device and simulator targets, generates Swift bindings, and packages everything into an XCFramework.
+   This compiles `aurelia-core` for iOS device, iOS simulator, Mac Catalyst (`macabi`), and host macOS (for SwiftPM tests), then generates Swift bindings and packages everything into an XCFramework.
 
 2. **Open the Xcode project:**
    ```bash
