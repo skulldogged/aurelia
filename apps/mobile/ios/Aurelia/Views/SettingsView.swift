@@ -80,7 +80,7 @@ struct SettingsView: View {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .listRowBackground(Rectangle().fill(.ultraThinMaterial))
-            .navigationTitle("Settings")
+            .aureliaRootTabHeader("Settings")
             .confirmationDialog("Sign Out", isPresented: $showLogoutConfirmation) {
                 Button("Sign Out", role: .destructive) {
                     SessionStore.shared.clear()

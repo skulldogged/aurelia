@@ -51,7 +51,7 @@ struct AlbumsView: View {
                     }
                 }
             }
-            .navigationTitle("Albums")
+            .aureliaRootTabHeader("Albums")
             .navigationDestination(for: AlbumRoute.self) { route in
                 AlbumDetailView(albumId: route.id, albumName: route.name)
             }

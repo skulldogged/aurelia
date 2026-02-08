@@ -5,7 +5,6 @@ Aurelia is a multi-platform Jellyfin music client monorepo.
 ## Applications
 
 - Desktop (Tauri): `/Users/marshall/Projects/aurelia/apps/desktop/tauri`
-- Desktop (native SwiftUI macOS): `/Users/marshall/Projects/aurelia/apps/desktop/macos`
 - Web frontend: `/Users/marshall/Projects/aurelia/apps/web/frontend`
 - Web backend (Axum): `/Users/marshall/Projects/aurelia/apps/web/backend`
 - Shared Vue/TS package: `/Users/marshall/Projects/aurelia/apps/shared`
@@ -45,9 +44,6 @@ bun run dev:web
 
 # Desktop Tauri app
 bun run dev:desktop:tauri
-
-# Native macOS app (opens generated Xcode project)
-bun run dev:desktop:macos
 ```
 
 ## Build Commands (from repo root)
@@ -64,9 +60,6 @@ bun run build:web:release                  # fully optimized Rust release profil
 bun run build:desktop:tauri
 bun run build:desktop:strict               # typecheck + build
 bun run build:desktop:release              # fully optimized Rust release profile
-
-# Native macOS build
-bun run build:desktop:macos
 ```
 
 ## Typecheck Commands (from repo root)
@@ -84,7 +77,6 @@ bun run test
 bun run test:js
 bun run test:rust
 bun run test:desktop
-bun run test:desktop:macos
 bun run test:web
 bun run test:android
 bun run test:ios
@@ -104,7 +96,6 @@ aurelia/
 │   ├── desktop/
 │   │   ├── tauri/
 │   │   │   └── src-tauri
-│   │   └── macos/
 │   └── mobile/
 │       ├── android/
 │       └── ios/

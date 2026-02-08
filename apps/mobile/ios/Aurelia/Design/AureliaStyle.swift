@@ -106,11 +106,37 @@ extension View {
     func aureliaScreen() -> some View {
         self
             .background(AureliaBackground())
+            .navigationBarTitleDisplayMode(.inline)
     }
 
     func aureliaInsetCard(cornerRadius: CGFloat = AureliaRadius.l) -> some View {
         GlassCard(cornerRadius: cornerRadius) {
             self
         }
+    }
+
+    func aureliaRootTabHeader(_ title: String) -> some View {
+        modifier(AureliaRootTabHeaderModifier(title: title))
+    }
+}
+
+private struct AureliaRootTabHeaderModifier: ViewModifier {
+    let title: String
+    @Environment(\.tabBarPlacement) private var tabBarPlacement
+
+    private var resolvedTitle: String {
+        if tabBarPlacement == .sidebar {
+            return title
+        }
+        if tabBarPlacement == .topBar {
+            return ""
+        }
+        return title
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .navigationTitle(resolvedTitle)
+            .navigationBarTitleDisplayMode(.inline)
     }
 }

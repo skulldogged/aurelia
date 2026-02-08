@@ -20,7 +20,6 @@ Common dev commands:
 ```bash
 bun run dev:web
 bun run dev:desktop:tauri
-bun run dev:desktop:macos
 ```
 
 ## Repository structure
@@ -32,7 +31,6 @@ bun run dev:desktop:macos
 - Desktop app:
   - Tauri frontend: `/Users/marshall/Projects/aurelia/apps/desktop/tauri`
   - Tauri Rust backend: `/Users/marshall/Projects/aurelia/apps/desktop/tauri/src-tauri`
-  - Native macOS SwiftUI app: `/Users/marshall/Projects/aurelia/apps/desktop/macos/AureliaMac`
 - Mobile:
   - Android: `/Users/marshall/Projects/aurelia/apps/mobile/android`
   - iOS: `/Users/marshall/Projects/aurelia/apps/mobile/ios`
@@ -56,10 +54,7 @@ cargo fmt --check
 cargo clippy --workspace
 ```
 
-### Swift (native macOS/iOS)
-
-- Keep native macOS code under `apps/desktop/macos/AureliaMac`.
-- Do not reintroduce a parallel SwiftPM `Sources/` app tree.
+### Swift (iOS)
 
 ## Tests
 
@@ -69,7 +64,6 @@ Run relevant suites before opening a PR:
 bun run test:js
 bun run test:rust
 bun run test:desktop
-bun run test:desktop:macos
 bun run test:web
 bun run test:android
 bun run test:ios

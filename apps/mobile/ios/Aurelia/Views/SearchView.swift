@@ -110,7 +110,7 @@ struct SearchView: View {
                     }
                 }
             }
-            .navigationTitle("Search")
+            .aureliaRootTabHeader("Search")
             .searchable(text: $searchText, prompt: "Songs, albums, artists")
             .navigationDestination(for: AlbumRoute.self) { route in
                 AlbumDetailView(albumId: route.id, albumName: route.name)

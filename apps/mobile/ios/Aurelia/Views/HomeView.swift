@@ -47,7 +47,7 @@ struct HomeView: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("Home")
+            .aureliaRootTabHeader("Home")
             .navigationDestination(for: AlbumRoute.self) { route in
                 AlbumDetailView(albumId: route.id, albumName: route.name)
             }
@@ -69,19 +69,17 @@ struct HomeView: View {
                         Button {
                             viewModel.playSongFromList(song.id, songList: songs, playerController: playerController)
                         } label: {
-                            GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    AlbumArtView(url: song.albumArtUrl, size: .medium, customDimension: cardWidth)
-                                    Text(song.name)
-                                        .font(.caption)
-                                        .lineLimit(1)
-                                    Text(song.artists?.first ?? "")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                .frame(width: cardWidth)
+                            VStack(alignment: .leading, spacing: 6) {
+                                AlbumArtView(url: song.albumArtUrl, size: .medium, customDimension: cardWidth)
+                                Text(song.name)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                Text(song.artists?.first ?? "")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
+                            .frame(width: cardWidth)
                         }
                         .buttonStyle(.plain)
                     }
@@ -99,19 +97,17 @@ struct HomeView: View {
                 LazyHStack(spacing: AureliaSpacing.m) {
                     ForEach(albums) { album in
                         NavigationLink(value: AlbumRoute(id: album.id, name: album.name)) {
-                            GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    AlbumArtView(url: album.albumArtUrl, size: .medium, customDimension: cardWidth)
-                                    Text(album.name)
-                                        .font(.caption)
-                                        .lineLimit(1)
-                                    Text(album.artist)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                .frame(width: cardWidth)
+                            VStack(alignment: .leading, spacing: 6) {
+                                AlbumArtView(url: album.albumArtUrl, size: .medium, customDimension: cardWidth)
+                                Text(album.name)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                Text(album.artist)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
                             }
+                            .frame(width: cardWidth)
                         }
                         .buttonStyle(.plain)
                     }

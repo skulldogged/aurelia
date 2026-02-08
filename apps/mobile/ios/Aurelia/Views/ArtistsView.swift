@@ -92,7 +92,7 @@ struct ArtistsView: View {
                     }
                 }
             }
-            .navigationTitle("Artists")
+            .aureliaRootTabHeader("Artists")
             .navigationDestination(for: ArtistRoute.self) { route in
                 ArtistDetailView(artistId: route.id, artistName: route.name)
             }

@@ -44,5 +44,121 @@ struct AureliaApp: App {
                 }
             }
         }
+        .commands {
+            AureliaAppCommands(isEnabled: appViewModel.isLoggedIn)
+        }
+    }
+}
+
+enum AureliaMenuCommand {
+    case goHome
+    case goSongs
+    case goAlbums
+    case goArtists
+    case goSearch
+    case goSettings
+    case openNowPlaying
+    case togglePlayPause
+    case nextTrack
+    case previousTrack
+    case toggleShuffle
+    case cycleRepeatMode
+}
+
+extension Notification.Name {
+    static let aureliaMenuCommand = Notification.Name("AureliaMenuCommand")
+}
+
+func postAureliaMenuCommand(_ command: AureliaMenuCommand) {
+    NotificationCenter.default.post(name: .aureliaMenuCommand, object: command)
+}
+
+private struct AureliaAppCommands: Commands {
+    let isEnabled: Bool
+
+    var body: some Commands {
+        SidebarCommands()
+
+        CommandMenu("Navigate") {
+            Button("Home") {
+                postAureliaMenuCommand(.goHome)
+            }
+            .keyboardShortcut("1", modifiers: .command)
+            .disabled(!isEnabled)
+
+            Button("Songs") {
+                postAureliaMenuCommand(.goSongs)
+            }
+            .keyboardShortcut("2", modifiers: .command)
+            .disabled(!isEnabled)
+
+            Button("Albums") {
+                postAureliaMenuCommand(.goAlbums)
+            }
+            .keyboardShortcut("3", modifiers: .command)
+            .disabled(!isEnabled)
+
+            Button("Artists") {
+                postAureliaMenuCommand(.goArtists)
+            }
+            .keyboardShortcut("4", modifiers: .command)
+            .disabled(!isEnabled)
+
+            Divider()
+
+            Button("Search") {
+                postAureliaMenuCommand(.goSearch)
+            }
+            .keyboardShortcut("f", modifiers: .command)
+            .disabled(!isEnabled)
+
+            Button("Settings") {
+                postAureliaMenuCommand(.goSettings)
+            }
+            .keyboardShortcut(",", modifiers: .command)
+            .disabled(!isEnabled)
+        }
+
+        CommandMenu("Playback") {
+            Button("Now Playing") {
+                postAureliaMenuCommand(.openNowPlaying)
+            }
+            .keyboardShortcut("0", modifiers: .command)
+            .disabled(!isEnabled)
+
+            Divider()
+
+            Button("Play/Pause") {
+                postAureliaMenuCommand(.togglePlayPause)
+            }
+            .keyboardShortcut(.space, modifiers: [])
+            .disabled(!isEnabled)
+
+            Button("Previous Track") {
+                postAureliaMenuCommand(.previousTrack)
+            }
+            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
+            .disabled(!isEnabled)
+
+            Button("Next Track") {
+                postAureliaMenuCommand(.nextTrack)
+            }
+            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
+            .disabled(!isEnabled)
+
+            Divider()
+
+            Button("Toggle Shuffle") {
+                postAureliaMenuCommand(.toggleShuffle)
+            }
+            .keyboardShortcut("s", modifiers: [.command, .shift])
+            .disabled(!isEnabled)
+
+            Button("Cycle Repeat Mode") {
+                postAureliaMenuCommand(.cycleRepeatMode)
+            }
+            .keyboardShortcut("r", modifiers: [.command, .shift])
+            .disabled(!isEnabled)
+        }
     }
 }

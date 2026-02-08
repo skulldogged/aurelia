@@ -52,7 +52,7 @@ struct LibraryView: View {
                     }
                 }
             }
-            .navigationTitle("Songs")
+            .aureliaRootTabHeader("Songs")
             .onAppear { viewModel.loadLibrary() }
         }
         .aureliaScreen()

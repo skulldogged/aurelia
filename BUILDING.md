@@ -82,17 +82,6 @@ Runs the Tauri desktop app from:
 - frontend: `apps/desktop/tauri`
 - Rust backend: `apps/desktop/tauri/src-tauri`
 
-### Desktop (native macOS SwiftUI)
-
-```bash
-bun run dev:desktop:macos
-```
-
-This command:
-- Ensures required Rust/UniFFI artifacts are built
-- Generates `apps/desktop/macos/AureliaMac.xcodeproj` with XcodeGen
-- Opens the project in Xcode
-
 ## Build commands (repo root)
 
 ### Web
@@ -119,14 +108,6 @@ bun run build:desktop:release
 
 Tauri bundles are under:
 - `apps/desktop/tauri/src-tauri/target/release/bundle`
-
-### Desktop (native macOS)
-
-```bash
-bun run build:desktop:macos
-```
-
-Builds `AureliaMac` via `xcodebuild`.
 
 ## Code quality and checks
 

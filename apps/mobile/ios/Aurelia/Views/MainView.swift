@@ -1,31 +1,34 @@
 import SwiftUI
 
 struct MainView: View {
-    @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AudioPlayerController.self) private var playerController
     @State private var selection: MainDestination = .home
     @State private var playerPresentationProgress: CGFloat = 0
+#if !targetEnvironment(macCatalyst)
+    @State private var animatedContentWidth: CGFloat = 0
+    @State private var hasAnimatedContentWidth = false
+#endif
 
     var body: some View {
         GeometryReader { geometry in
             let containerHeight = max(geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom, 1)
 
-            Group {
-                if sizeClass == .regular {
-                    MainSplitView(
-                        selection: $selection,
-                        playerPresentationProgress: $playerPresentationProgress,
-                        onOpenPlayer: { openPlayer(animated: true) }
-                    )
-                } else {
-                    MainTabView(selectedTab: $selection)
-                        .miniPlayerInset(
-                            playerPresentationProgress: $playerPresentationProgress,
-                            onTap: { openPlayer(animated: true) }
-                        )
-                }
-            }
+            #if !targetEnvironment(macCatalyst)
+            let tabView = MainTabView(
+                selectedTab: $selection,
+                animatedContentWidth: $animatedContentWidth,
+                hasAnimatedContentWidth: $hasAnimatedContentWidth
+            )
+            #else
+            let tabView = MainTabView(selectedTab: $selection)
+            #endif
+
+            tabView
+                .miniPlayerInset(
+                    playerPresentationProgress: $playerPresentationProgress,
+                    onTap: { openPlayer(animated: true) }
+                )
             .overlay(alignment: .top) {
                 if playerPresentationProgress > 0.0001 {
                     PlayerView(onClose: { closePlayer(animated: true) })
@@ -46,6 +49,10 @@ struct MainView: View {
         }
         .tint(AureliaPalette.tint(for: colorScheme))
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: playerController.snapshot.currentSongId)
+        .onReceive(NotificationCenter.default.publisher(for: .aureliaMenuCommand)) { notification in
+            guard let command = notification.object as? AureliaMenuCommand else { return }
+            handleMenuCommand(command)
+        }
     }
 
     private func openPlayer(animated: Bool) {
@@ -99,43 +106,39 @@ struct MainView: View {
         let startsNearTop = value.startLocation.y <= 180
         return startsNearTop && height > 0 && abs(height) > abs(width) * 0.8
     }
-}
 
-struct MainSplitView: View {
-    @Binding var selection: MainDestination
-    @Binding var playerPresentationProgress: CGFloat
-    var onOpenPlayer: () -> Void
-
-    var body: some View {
-        NavigationSplitView {
-            List(selection: selectionBinding) {
-                ForEach(MainDestination.allCases) { destination in
-                    NavigationLink(value: destination) {
-                        Label(destination.title, systemImage: destination.systemImage)
-                    }
-                }
+    private func handleMenuCommand(_ command: AureliaMenuCommand) {
+        switch command {
+        case .goHome:
+            selection = .home
+        case .goSongs:
+            selection = .songs
+        case .goAlbums:
+            selection = .albums
+        case .goArtists:
+            selection = .artists
+        case .goSearch:
+            selection = .search
+        case .goSettings:
+            selection = .settings
+        case .openNowPlaying:
+            guard playerController.snapshot.currentSongId != nil else { return }
+            openPlayer(animated: true)
+        case .togglePlayPause:
+            if playerController.snapshot.isPlaying {
+                playerController.pause()
+            } else {
+                playerController.resume()
             }
-            .listStyle(.sidebar)
-            .navigationTitle("Aurelia")
-        } detail: {
-            selection.destinationView()
-                .miniPlayerInset(
-                    playerPresentationProgress: $playerPresentationProgress,
-                    onTap: onOpenPlayer
-                )
+        case .nextTrack:
+            playerController.skipNext()
+        case .previousTrack:
+            playerController.skipPrevious()
+        case .toggleShuffle:
+            playerController.toggleShuffle()
+        case .cycleRepeatMode:
+            playerController.cycleRepeatMode()
         }
-        .navigationSplitViewStyle(.balanced)
-    }
-
-    private var selectionBinding: Binding<MainDestination?> {
-        Binding(
-            get: { selection },
-            set: { newValue in
-                if let newValue {
-                    selection = newValue
-                }
-            }
-        )
     }
 }
 
