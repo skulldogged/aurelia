@@ -55,12 +55,26 @@ bun run dev:desktop:macos
 ```bash
 # Web frontend + backend release build
 bun run build:web
+bun run build:web -- --skip-bindings      # skip binding generation
+bun run build:web -- --force-bindings     # force binding generation
+bun run build:web:strict                   # typecheck + build
+bun run build:web:release                  # fully optimized Rust release profile
 
 # Desktop Tauri build
 bun run build:desktop:tauri
+bun run build:desktop:strict               # typecheck + build
+bun run build:desktop:release              # fully optimized Rust release profile
 
 # Native macOS build
 bun run build:desktop:macos
+```
+
+## Typecheck Commands (from repo root)
+
+```bash
+bun run typecheck
+bun run typecheck:web
+bun run typecheck:desktop
 ```
 
 ## Testing Commands (from repo root)

@@ -93,22 +93,28 @@ This command:
 - Generates `apps/desktop/macos/AureliaMac.xcodeproj` with XcodeGen
 - Opens the project in Xcode
 
-## Production builds (repo root)
+## Build commands (repo root)
 
 ### Web
 
 ```bash
 bun run build:web
+bun run build:web -- --skip-bindings
+bun run build:web -- --force-bindings
+bun run build:web:strict
+bun run build:web:release
 ```
 
 Outputs:
 - Frontend bundle: `apps/web/frontend/dist`
-- Backend binary: Cargo release output for `apps/web/backend`
+- Backend binary: Cargo `local-release` output for `apps/web/backend` (use `build:web:release` for full release profile)
 
 ### Desktop (Tauri)
 
 ```bash
 bun run build:desktop:tauri
+bun run build:desktop:strict
+bun run build:desktop:release
 ```
 
 Tauri bundles are under:
@@ -134,8 +140,13 @@ bunx eslint --fix .
 ### Type checking and builds
 
 ```bash
+bun run typecheck
 bun run build
+bun run build:web:strict
+bun run build:desktop:strict
 ```
+
+CI runs `bun run typecheck` via `.github/workflows/typecheck.yml`.
 
 ### Rust checks
 
@@ -153,6 +164,8 @@ bun run bindings:generate:full
 bun run bindings:verify
 bun run bindings:verify:full
 ```
+
+`bun run build:*` commands auto-cache binding generation and skip it when relevant Rust sources/manifests are unchanged. Use `--force-bindings` to bypass the cache.
 
 ## Troubleshooting
 

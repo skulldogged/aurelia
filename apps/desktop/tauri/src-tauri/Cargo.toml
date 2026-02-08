@@ -10,13 +10,7 @@ name = "aurelia_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-openapiv3 = "2.2"
-prettyplease = "0.2"
-progenitor = "0.11"
-serde_json = "1"
-syn = { version = "2.0", features = ["full"] }
 tauri-build = { version = "2", features = [] }
-toml_edit = "0.23"
 
 [dependencies]
 anyhow = "1.0"
@@ -60,4 +54,3 @@ specta = { version = "=2.0.0-rc.22", features = ["derive", "function"] }
 stream-download = { version = "0.22", features = ["reqwest-rustls"] }
 souvlaki = { git = "https://github.com/skulldogged/souvlaki" }
 raw-window-handle = "0.6"
-

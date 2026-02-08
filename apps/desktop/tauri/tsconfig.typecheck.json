@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": "../../../target/tsbuildinfo/desktop-tauri.tsbuildinfo"
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "./typed-router.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../shared/tsconfig.typecheck.json"
+    }
+  ],
+  "exclude": [
+    "src/bindings.ts"
+  ]
+}

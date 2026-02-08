@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./apps/shared/tsconfig.typecheck.json"
+    },
+    {
+      "path": "./apps/web/frontend/tsconfig.typecheck.json"
+    },
+    {
+      "path": "./apps/desktop/tauri/tsconfig.typecheck.json"
+    }
+  ]
+}

@@ -109,7 +109,6 @@ pub fn generate_string(api_def: &ApiDefinition) -> syn::Result<String> {
         r#"// Auto-generated TypeScript client for Aurelia API
 // Generated from Api trait - DO NOT EDIT MANUALLY
 
-import {{ invoke }} from '@tauri-apps/api/core';
 import type {{ {type_imports} }} from '../generated';
 
 type Result<T, E = string> = 
@@ -120,12 +119,25 @@ type QueryValue = string | number | boolean | ReadonlyArray<string | number | bo
 const BASE_URL = (import.meta as any).env?.VITE_API_URL || '';
 // Check for Tauri v2 internals using 'in' operator
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+let tauriInvokePromise: Promise<
+  (command: string, payload?: Record<string, unknown>) => Promise<unknown>
+> | null = null;
+
+async function getTauriInvoke(): Promise<
+  (command: string, payload?: Record<string, unknown>) => Promise<unknown>
+> {{
+  if (!tauriInvokePromise) {{
+    tauriInvokePromise = import('@tauri-apps/api/core').then(module => module.invoke);
+  }}
+  return tauriInvokePromise;
+}}
 
 async function tauriCommand<T>(
   command: string,
   payload?: Record<string, unknown>
 ): Promise<Result<T>> {{
   try {{
+    const invoke = await getTauriInvoke();
     const data = await invoke(command, payload);
     return {{ status: 'ok', data: data as T }};
   }} catch (error) {{

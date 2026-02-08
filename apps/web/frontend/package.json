@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "build": "vite build",
+    "build:strict": "bun run typecheck && bun run build",
     "preview": "vite preview",
+    "typecheck": "vue-tsc --build tsconfig.typecheck.json --pretty false",
     "test": "bun run ../../../scripts/run-vitest.ts",
     "test:watch": "bun run ../../../scripts/run-vitest.ts --watch"
   },
