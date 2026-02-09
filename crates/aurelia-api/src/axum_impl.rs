@@ -447,7 +447,40 @@ impl Api for AxumApiImpl {
             Some(creds) => (creds.server_url, creds.token),
             None => (String::new(), String::new()),
         };
-        Ok(aurelia_core::get_parsed_lyrics(server_url, token, id, artist, title, path).await)
+        // Web backend runs co-located with media files, no need for remote sidecar fetch
+        Ok(
+            aurelia_core::get_parsed_lyrics(server_url, token, id, artist, title, path, None)
+                .await,
+        )
+    }
+
+    async fn get_sidecar_lyrics(
+        &self,
+        item_id: String,
+    ) -> ApiResult<aurelia_core::models::ParsedLyrics> {
+        let (server_url, token) = match get_credentials(&self.state)? {
+            Some(creds) => (creds.server_url, creds.token),
+            None => {
+                return Err(AppError::Auth("Not authenticated".to_string()));
+            }
+        };
+        aurelia_core::get_sidecar_lyrics(server_url, token, item_id).await
+    }
+
+    async fn get_setting(&self, key: String) -> ApiResult<Option<String>> {
+        aurelia_core::load_setting(self.state.app_data_dir.to_string_lossy().to_string(), key)
+    }
+
+    async fn save_setting(&self, key: String, value: String) -> ApiResult<()> {
+        aurelia_core::save_setting(
+            self.state.app_data_dir.to_string_lossy().to_string(),
+            key,
+            value,
+        )
+    }
+
+    async fn delete_setting(&self, key: String) -> ApiResult<()> {
+        aurelia_core::delete_setting(self.state.app_data_dir.to_string_lossy().to_string(), key)
     }
 
     // ─── Cache ───────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 use crate::db;
 use crate::models::{Album, Artist, Credentials, Song};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use redb::ReadableDatabase;
 use serde_json;
 use std::path::PathBuf;
@@ -99,6 +99,38 @@ pub fn clear_credentials(app_data_dir: PathBuf) -> Result<()> {
     {
         let mut table = write_txn.open_table(crate::db::schema::CREDENTIALS)?;
         table.remove("main")?;
+    }
+    write_txn.commit()?;
+    Ok(())
+}
+
+pub fn save_setting(app_data_dir: PathBuf, key: &str, value: &str) -> Result<()> {
+    init_db(&app_data_dir)?;
+    let database = db::get()?;
+    let write_txn = database.begin_write()?;
+    {
+        let mut table = write_txn.open_table(crate::db::schema::SETTINGS)?;
+        table.insert(key, value)?;
+    }
+    write_txn.commit()?;
+    Ok(())
+}
+
+pub fn load_setting(app_data_dir: PathBuf, key: &str) -> Result<Option<String>> {
+    init_db(&app_data_dir)?;
+    let database = db::get()?;
+    let read_txn = database.begin_read()?;
+    let table = read_txn.open_table(crate::db::schema::SETTINGS)?;
+    Ok(table.get(key)?.map(|guard| guard.value().to_string()))
+}
+
+pub fn delete_setting(app_data_dir: PathBuf, key: &str) -> Result<()> {
+    init_db(&app_data_dir)?;
+    let database = db::get()?;
+    let write_txn = database.begin_write()?;
+    {
+        let mut table = write_txn.open_table(crate::db::schema::SETTINGS)?;
+        let _ = table.remove(key);
     }
     write_txn.commit()?;
     Ok(())

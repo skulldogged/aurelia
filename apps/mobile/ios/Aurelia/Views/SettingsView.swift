@@ -4,6 +4,7 @@ struct SettingsView: View {
     @Environment(AppViewModel.self) private var appViewModel
     @State private var viewModel = SettingsViewModel()
     @State private var showLogoutConfirmation = false
+    @State private var aureliaServerUrl: String = SessionStore.shared.aureliaServerUrl ?? ""
 
     var body: some View {
         NavigationStack {
@@ -81,6 +82,20 @@ struct SettingsView: View {
                 Button("Sign Out", role: .destructive) {
                     showLogoutConfirmation = true
                 }
+            }
+
+            Section {
+                TextField("https://aurelia.example.com", text: $aureliaServerUrl)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .onChange(of: aureliaServerUrl) { _, newValue in
+                        SessionStore.shared.aureliaServerUrl = newValue.isEmpty ? nil : newValue
+                    }
+            } header: {
+                Text("Aurelia Server")
+            } footer: {
+                Text("URL of the Aurelia web server for synced lyrics. Leave empty if not using a server.")
             }
 
             Section("About") {

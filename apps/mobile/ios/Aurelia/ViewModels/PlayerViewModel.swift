@@ -151,13 +151,15 @@ final class PlayerViewModel: @unchecked Sendable {
 
                 self.logger.info("[Lyrics] Fetching lyrics for '\(title)' by '\(artist)' (itemId=\(itemId), serverUrl=\(serverUrl.prefix(30))..., hasToken=\(!token.isEmpty))")
 
+                let aureliaServerUrl = await self.sessionStore.aureliaServerUrl
                 let parsedLyrics = await getParsedLyrics(
                     serverUrl: serverUrl,
                     token: token,
                     itemId: itemId,
                     artist: artist,
                     title: title,
-                    path: nil
+                    path: nil,
+                    aureliaServerUrl: aureliaServerUrl
                 )
 
                 self.logger.info("[Lyrics] Got ParsedLyrics from core: syncedLines=\(parsedLyrics.synced.count), plainLines=\(parsedLyrics.plain.count), areFromRemote=\(parsedLyrics.areFromRemote), hasSections=\(parsedLyrics.sections != nil), hasAgents=\(parsedLyrics.agents != nil), hasSongwriters=\(parsedLyrics.songwriters != nil), language=\(parsedLyrics.language ?? "nil")")

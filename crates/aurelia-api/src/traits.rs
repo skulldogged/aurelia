@@ -181,6 +181,21 @@ pub trait Api {
         path: Option<String>,
     ) -> ApiResult<ParsedLyrics>;
 
+    /// Read sidecar lyrics (.ttml, .lrc, etc.) from the server filesystem for the given Jellyfin item.
+    /// This endpoint is only functional on the web backend where the media files are accessible.
+    #[api(GET "/lyrics/sidecar/{item_id}")]
+    async fn get_sidecar_lyrics(&self, item_id: String) -> ApiResult<ParsedLyrics>;
+
+    // ─── Settings ─────────────────────────────────────────────────
+    #[api(GET "/settings/{key}")]
+    async fn get_setting(&self, key: String) -> ApiResult<Option<String>>;
+
+    #[api(POST "/settings/{key}")]
+    async fn save_setting(&self, key: String, value: String) -> ApiResult<()>;
+
+    #[api(DELETE "/settings/{key}")]
+    async fn delete_setting(&self, key: String) -> ApiResult<()>;
+
     // ─── Cache ───────────────────────────────────────────────────
     #[api(POST "/cache/clear")]
     async fn clear_cache(&self) -> ApiResult<()>;

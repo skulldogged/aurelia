@@ -3838,6 +3838,13 @@ public func deletePlaylist(serverUrl: String, token: String, playlistId: String)
             errorHandler: FfiConverterTypeAppError_lift
         )
 }
+public func deleteSetting(appDataDir: String, key: String)throws   {try rustCallWithError(FfiConverterTypeAppError_lift) {
+    uniffi_aurelia_core_fn_func_delete_setting(
+        FfiConverterString.lower(appDataDir),
+        FfiConverterString.lower(key),$0
+    )
+}
+}
 /**
  * Derive mobile home sections from an in-memory song list.
  */
@@ -3969,11 +3976,11 @@ public func getLyrics(serverUrl: String, token: String, itemId: String, artist: 
             
         )
 }
-public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String, path: String?)async  -> ParsedLyrics  {
+public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String, path: String?, aureliaServerUrl: String?)async  -> ParsedLyrics  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title),FfiConverterOptionString.lower(path)
+                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title),FfiConverterOptionString.lower(path),FfiConverterOptionString.lower(aureliaServerUrl)
                 )
             },
             pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
@@ -4078,6 +4085,14 @@ public func loadCredentials(appDataDir: String)throws  -> Credentials?  {
     )
 })
 }
+public func loadSetting(appDataDir: String, key: String)throws  -> String?  {
+    return try  FfiConverterOptionString.lift(try rustCallWithError(FfiConverterTypeAppError_lift) {
+    uniffi_aurelia_core_fn_func_load_setting(
+        FfiConverterString.lower(appDataDir),
+        FfiConverterString.lower(key),$0
+    )
+})
+}
 public func markItemPlayed(serverUrl: String, token: String, userId: String, itemId: String)async throws   {
     return
         try  await uniffiRustCallAsync(
@@ -4116,6 +4131,14 @@ public func saveCredentials(appDataDir: String, credentials: Credentials)throws 
     uniffi_aurelia_core_fn_func_save_credentials(
         FfiConverterString.lower(appDataDir),
         FfiConverterTypeCredentials_lower(credentials),$0
+    )
+}
+}
+public func saveSetting(appDataDir: String, key: String, value: String)throws   {try rustCallWithError(FfiConverterTypeAppError_lift) {
+    uniffi_aurelia_core_fn_func_save_setting(
+        FfiConverterString.lower(appDataDir),
+        FfiConverterString.lower(key),
+        FfiConverterString.lower(value),$0
     )
 }
 }
@@ -4214,6 +4237,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_delete_playlist() != 65389) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_aurelia_core_checksum_func_delete_setting() != 48470) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_aurelia_core_checksum_func_derive_mobile_home_data() != 22516) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4244,7 +4270,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_get_lyrics() != 56114) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 16323) {
+    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 28744) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_playlist_items() != 51827) {
@@ -4271,6 +4297,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_load_credentials() != 1313) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_aurelia_core_checksum_func_load_setting() != 26154) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_aurelia_core_checksum_func_mark_item_played() != 53251) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -4281,6 +4310,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_save_credentials() != 2487) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_save_setting() != 21497) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285) {

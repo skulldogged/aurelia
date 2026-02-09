@@ -362,6 +362,38 @@ export const apiClient = {
     return webRequest('POST', `/lyrics/parsed`, { id: id, artist: artist, title: title, path: path }, undefined);
   },
 
+  // getSidecarLyrics
+  getSidecarLyrics: async (itemId: string): Promise<Result<any>> => {
+    if (isTauri) {
+      return tauriCommand('get_sidecar_lyrics', { itemId });
+    }
+    return webRequest('GET', `/lyrics/sidecar/${itemId}`, undefined, undefined);
+  },
+
+  // getSetting
+  getSetting: async (key: string): Promise<Result<any>> => {
+    if (isTauri) {
+      return tauriCommand('get_setting', { key });
+    }
+    return webRequest('GET', `/settings/${key}`, undefined, undefined);
+  },
+
+  // saveSetting
+  saveSetting: async (key: string, value: string): Promise<Result<any>> => {
+    if (isTauri) {
+      return tauriCommand('save_setting', { key, value });
+    }
+    return webRequest('POST', `/settings/${key}`, { value: value }, undefined);
+  },
+
+  // deleteSetting
+  deleteSetting: async (key: string): Promise<Result<any>> => {
+    if (isTauri) {
+      return tauriCommand('delete_setting', { key });
+    }
+    return webRequest('DELETE', `/settings/${key}`, undefined, undefined);
+  },
+
   // clearCache
   clearCache: async (): Promise<Result<any>> => {
     if (isTauri) {

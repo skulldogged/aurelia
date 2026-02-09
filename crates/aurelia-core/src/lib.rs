@@ -229,6 +229,46 @@ pub fn clear_credentials(app_data_dir: String) -> Result<(), error::AppError> {
 }
 
 #[uniffi::export]
+pub fn save_setting(
+    app_data_dir: String,
+    key: String,
+    value: String,
+) -> Result<(), error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(());
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::save_setting(app_dir, &key, &value)
+        .map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
+pub fn load_setting(
+    app_data_dir: String,
+    key: String,
+) -> Result<Option<String>, error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(None);
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::load_setting(app_dir, &key)
+        .map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
+pub fn delete_setting(
+    app_data_dir: String,
+    key: String,
+) -> Result<(), error::AppError> {
+    if app_data_dir.is_empty() {
+        return Ok(());
+    }
+    let app_dir = std::path::PathBuf::from(app_data_dir);
+    cache::delete_setting(app_dir, &key)
+        .map_err(|err| error::AppError::Database(err.to_string()))
+}
+
+#[uniffi::export]
 pub fn clear_cache(app_data_dir: String) -> Result<(), error::AppError> {
     if app_data_dir.is_empty() {
         return Ok(());
@@ -273,8 +313,79 @@ pub async fn get_parsed_lyrics(
     artist: String,
     title: String,
     path: Option<String>,
+    aurelia_server_url: Option<String>,
 ) -> models::ParsedLyrics {
-    // 1. Try Jellyfin server first (returns structured data, no re-parsing needed)
+    // 1. Try sidecar lyrics first (richest source: TTML with word-sync, sections, agents)
+
+    // 1a. Try local sidecar files (.ttml, .lrc) next to the audio file
+    let resolved_path = match path {
+        Some(ref p) if !p.is_empty() => Some(p.clone()),
+        _ if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() => {
+            tracing::info!("[Lyrics] No path provided, fetching from Jellyfin item metadata");
+            let client =
+                services::JellyfinClient::with_auth(server_url.clone(), token.clone());
+            match client.get_item_path(&item_id).await {
+                Ok(Some(p)) => {
+                    tracing::info!("[Lyrics] Got path from Jellyfin: {}", p);
+                    Some(p)
+                }
+                Ok(None) => {
+                    tracing::info!("[Lyrics] Jellyfin item has no path");
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!("[Lyrics] Failed to fetch item path: {}", e);
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
+
+    if let Some(ref audio_path) = resolved_path {
+        tracing::info!("[Lyrics] Trying local sidecar files for: {}", audio_path);
+        if let Some(parsed) = try_read_sidecar_lyrics(audio_path) {
+            tracing::info!(
+                "[Lyrics] Local sidecar found: syncedLines={}, hasSections={}, hasWords={}",
+                parsed.synced.len(),
+                parsed.sections.is_some(),
+                parsed.synced.first().is_some_and(|l| l.words.is_some()),
+            );
+            if parsed.is_valid() {
+                return parsed;
+            }
+        } else {
+            tracing::info!("[Lyrics] No local sidecar files found");
+        }
+    }
+
+    // 1b. Try fetching sidecar lyrics from the Aurelia web backend (for remote clients)
+    if let Some(ref aurelia_url) = aurelia_server_url {
+        if !aurelia_url.is_empty() {
+            tracing::info!(
+                "[Lyrics] Trying remote sidecar from Aurelia server: {}",
+                aurelia_url
+            );
+            match fetch_remote_sidecar_lyrics(aurelia_url, &item_id).await {
+                Ok(Some(parsed)) if parsed.is_valid() => {
+                    tracing::info!(
+                        "[Lyrics] Remote sidecar found: syncedLines={}, hasWords={}",
+                        parsed.synced.len(),
+                        parsed.synced.first().is_some_and(|l| l.words.is_some()),
+                    );
+                    return parsed;
+                }
+                Ok(_) => {
+                    tracing::info!("[Lyrics] Remote sidecar returned no valid lyrics");
+                }
+                Err(e) => {
+                    tracing::warn!("[Lyrics] Remote sidecar fetch failed: {}", e);
+                }
+            }
+        }
+    }
+
+    // 2. Try Jellyfin lyrics API
     if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
         tracing::info!(
             "[Lyrics] Trying Jellyfin: itemId={}, serverUrl={}...",
@@ -312,7 +423,7 @@ pub async fn get_parsed_lyrics(
                 if parsed.is_valid() {
                     return parsed;
                 }
-                tracing::warn!("[Lyrics] Jellyfin lyrics parsed but not valid, trying sidecar files");
+                tracing::warn!("[Lyrics] Jellyfin lyrics parsed but not valid");
             }
             Ok(None) => {
                 tracing::info!("[Lyrics] Jellyfin returned no lyrics for itemId={}", item_id);
@@ -330,50 +441,7 @@ pub async fn get_parsed_lyrics(
         );
     }
 
-    // 2. Try reading sidecar lyric files (.ttml, .lrc) next to the audio file
-    //    If path wasn't provided by the caller, try to fetch it from Jellyfin.
-    let resolved_path = match path {
-        Some(ref p) if !p.is_empty() => Some(p.clone()),
-        _ if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() => {
-            tracing::info!("[Lyrics] No path provided, fetching from Jellyfin item metadata");
-            let client =
-                services::JellyfinClient::with_auth(server_url.clone(), token.clone());
-            match client.get_item_path(&item_id).await {
-                Ok(Some(p)) => {
-                    tracing::info!("[Lyrics] Got path from Jellyfin: {}", p);
-                    Some(p)
-                }
-                Ok(None) => {
-                    tracing::info!("[Lyrics] Jellyfin item has no path");
-                    None
-                }
-                Err(e) => {
-                    tracing::warn!("[Lyrics] Failed to fetch item path: {}", e);
-                    None
-                }
-            }
-        }
-        _ => None,
-    };
-
-    if let Some(ref audio_path) = resolved_path {
-        tracing::info!("[Lyrics] Trying sidecar files for: {}", audio_path);
-        if let Some(parsed) = try_read_sidecar_lyrics(audio_path) {
-            tracing::info!(
-                "[Lyrics] Sidecar lyrics found: syncedLines={}, hasSections={}, hasWords={}",
-                parsed.synced.len(),
-                parsed.sections.is_some(),
-                parsed.synced.first().is_some_and(|l| l.words.is_some()),
-            );
-            if parsed.is_valid() {
-                return parsed;
-            }
-        } else {
-            tracing::info!("[Lyrics] No sidecar lyric files found");
-        }
-    }
-
-    // 3. Fall back to LrcLib — parse_lyrics auto-detects TTML vs LRC
+    // 3. Fall back to LrcLib
     tracing::info!("[Lyrics] Falling back to LrcLib for '{}' by '{}'", title, artist);
     let lrclib_client = services::LrcLibClient::new();
     let raw = match lrclib_client.search_lyrics(&artist, &title).await {
@@ -388,6 +456,53 @@ pub async fn get_parsed_lyrics(
         }
     };
     utils::lyrics_parser::parse_lyrics(&raw)
+}
+
+/// Fetch sidecar lyrics for a Jellyfin item from the local filesystem.
+/// Used by the web backend's `/api/lyrics/sidecar/{item_id}` endpoint.
+pub async fn get_sidecar_lyrics(
+    server_url: String,
+    token: String,
+    item_id: String,
+) -> Result<models::ParsedLyrics, error::AppError> {
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    let path = client
+        .get_item_path(&item_id)
+        .await?
+        .ok_or_else(|| error::AppError::General("Item has no filesystem path".to_string()))?;
+
+    try_read_sidecar_lyrics(&path).ok_or_else(|| {
+        error::AppError::General("No sidecar lyrics found for this item".to_string())
+    })
+}
+
+/// Fetch sidecar lyrics from a remote Aurelia web backend.
+async fn fetch_remote_sidecar_lyrics(
+    aurelia_server_url: &str,
+    item_id: &str,
+) -> Result<Option<models::ParsedLyrics>, Box<dyn std::error::Error + Send + Sync>> {
+    let url = format!(
+        "{}/api/lyrics/sidecar/{}",
+        aurelia_server_url.trim_end_matches('/'),
+        item_id
+    );
+    let client = reqwest::Client::new();
+    let resp = client.get(&url).timeout(std::time::Duration::from_secs(10)).send().await?;
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+
+    // The web backend wraps responses in ApiResponse { ok, data, error }
+    let body: serde_json::Value = resp.json().await?;
+    if body.get("ok") == Some(&serde_json::Value::Bool(true)) {
+        if let Some(data) = body.get("data") {
+            let parsed: models::ParsedLyrics = serde_json::from_value(data.clone())?;
+            return Ok(Some(parsed));
+        }
+    }
+
+    Ok(None)
 }
 
 /// Try to read a sidecar lyrics file next to the given audio file path.

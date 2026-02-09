@@ -85,8 +85,9 @@ class PlayerViewModel(
                 val token = sessionStore.getToken() ?: ""
                 val itemId = songId ?: ""
 
+                val aureliaServerUrl = sessionStore.getAureliaServerUrl()
                 val lyrics =
-                    uniffiGetParsedLyrics(serverUrl, token, itemId, artist, title).toUiLyrics()
+                    uniffiGetParsedLyrics(serverUrl, token, itemId, artist, title, null, aureliaServerUrl).toUiLyrics()
 
                 // Ensure we are still playing the same song
                 if (songId == mutableState.value.currentSongId) {

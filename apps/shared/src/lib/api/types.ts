@@ -39,6 +39,10 @@ export interface ApiClient {
   getAudioStreamUrl(itemId: string, serverUrl: string, token: string, container?: string): Promise<Result<any>>
   getLyrics(id: string, artist: string, title: string, path?: string): Promise<Result<any>>
   getParsedLyrics(id: string, artist: string, title: string, path?: string): Promise<Result<any>>
+  getSidecarLyrics(itemId: string): Promise<Result<any>>
+  getSetting(key: string): Promise<Result<any>>
+  saveSetting(key: string, value: string): Promise<Result<any>>
+  deleteSetting(key: string): Promise<Result<any>>
   clearCache(): Promise<Result<any>>
   registerClientCapabilities(serverUrl: string, token: string, deviceId: string): Promise<Result<any>>
   reportPlaybackStart(itemId: string, positionTicks?: number): Promise<Result<any>>

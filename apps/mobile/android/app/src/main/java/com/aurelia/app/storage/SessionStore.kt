@@ -90,6 +90,18 @@ class SessionStore(
 
   fun getToken(): String? = getCredentials()?.token
 
+  fun setAureliaServerUrl(url: String?) {
+    prefs.edit {
+      if (url.isNullOrBlank()) {
+        remove("aureliaServerUrl")
+      } else {
+        putString("aureliaServerUrl", url)
+      }
+    }
+  }
+
+  fun getAureliaServerUrl(): String? = prefs.getString("aureliaServerUrl", null)
+
   fun getDeviceId(): String {
     val savedId = prefs.getString("device_id", null)
     if (savedId != null) return savedId

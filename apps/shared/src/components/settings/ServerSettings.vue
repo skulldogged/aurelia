@@ -1,10 +1,14 @@
 <script setup lang="ts">
+  import { onMounted, ref } from 'vue'
+
   import {
     Link,
     LogOut,
+    Server,
     User,
   } from 'lucide-vue-next'
 
+  import { getApiClient } from '../../api/apiClient'
   import Button from '../ui/Button.vue'
 
   interface Credentials {
@@ -21,6 +25,39 @@
   defineEmits<{
     (e: 'logout'): void
   }>()
+
+  const aureliaServerUrl = ref('')
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null
+
+  onMounted(async () => {
+    try {
+      const result = await getApiClient().getSetting('aurelia_server_url')
+      if (result.ok && result.data) {
+        aureliaServerUrl.value = result.data
+      }
+    } catch {
+      // Setting not found, leave empty
+    }
+  })
+
+  function onAureliaUrlInput(event: Event) {
+    const value = (event.target as HTMLInputElement).value
+    aureliaServerUrl.value = value
+
+    // Debounce save
+    if (saveTimeout) clearTimeout(saveTimeout)
+    saveTimeout = setTimeout(async () => {
+      try {
+        if (value.trim()) {
+          await getApiClient().saveSetting('aurelia_server_url', value.trim())
+        } else {
+          await getApiClient().deleteSetting('aurelia_server_url')
+        }
+      } catch {
+        // Ignore save errors
+      }
+    }, 500)
+  }
 </script>
 
 <template>
@@ -50,7 +87,7 @@
         <div class='space-y-2'>
           <label class='text-sm font-medium text-muted-foreground flex items-center space-x-2'>
             <Link class='size-4' />
-            <span>Server URL</span>
+            <span>Jellyfin Server</span>
           </label>
           <p
             class='
@@ -75,6 +112,28 @@
             {{ credentials?.username || 'Not connected' }}
           </p>
         </div>
+      </div>
+
+      <!-- Aurelia Server URL -->
+      <div class='space-y-2'>
+        <label class='text-sm font-medium text-muted-foreground flex items-center space-x-2'>
+          <Server class='size-4' />
+          <span>Aurelia Server</span>
+        </label>
+        <input
+          :value='aureliaServerUrl'
+          @input='onAureliaUrlInput'
+          type='url'
+          placeholder='https://aurelia.example.com'
+          class='
+            w-full text-sm font-mono bg-background/40 p-3 rounded-lg
+            border border-border/20 outline-none
+            focus:border-primary/50 transition-colors
+          '
+        >
+        <p class='text-xs text-muted-foreground'>
+          URL of your Aurelia web server for synced lyrics from sidecar files. Leave empty if not using one.
+        </p>
       </div>
 
       <!-- Actions -->

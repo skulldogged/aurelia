@@ -93,6 +93,11 @@ pub fn run() {
             // Lyrics
             tauri_commands::get_lyrics,
             tauri_commands::get_parsed_lyrics,
+            tauri_commands::get_sidecar_lyrics,
+            // Settings
+            tauri_commands::get_setting,
+            tauri_commands::save_setting,
+            tauri_commands::delete_setting,
             // Cache
             tauri_commands::clear_cache,
             // Session / Playback

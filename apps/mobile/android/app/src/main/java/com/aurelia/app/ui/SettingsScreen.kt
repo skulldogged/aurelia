@@ -307,6 +307,52 @@ fun SettingsScreen(
             title = "Logged in as",
             subtitle = username,
           )
+          HorizontalDivider(
+            modifier = Modifier.padding(start = 56.dp),
+            color = colors.outline.copy(alpha = 0.2f),
+          )
+
+          var aureliaServerUrl by remember {
+            mutableStateOf(sessionStore.getAureliaServerUrl() ?: "")
+          }
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+          ) {
+            Icon(
+              imageVector = Icons.Filled.Storage,
+              contentDescription = null,
+              tint = colors.onSurfaceVariant,
+              modifier = Modifier.size(24.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Aurelia Server",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = colors.onSurface,
+              )
+              androidx.compose.material3.OutlinedTextField(
+                value = aureliaServerUrl,
+                onValueChange = {
+                  aureliaServerUrl = it
+                  sessionStore.setAureliaServerUrl(it.ifBlank { null })
+                },
+                placeholder = { Text("https://aurelia.example.com") },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.onSurface),
+                modifier = Modifier.fillMaxWidth(),
+              )
+              Text(
+                text = "For synced lyrics from sidecar files",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+              )
+            }
+          }
         }
 
         // Account section

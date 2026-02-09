@@ -719,7 +719,71 @@ impl Api for TauriApiImpl {
             Some(creds) => (creds.server_url, creds.token),
             None => (String::new(), String::new()),
         };
-        Ok(aurelia_core::get_parsed_lyrics(server_url, token, id, artist, title, path).await)
+
+        // Read aurelia_server_url from local settings for remote sidecar lyrics
+        let app_dir = self
+            .app
+            .path()
+            .app_data_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let aurelia_server_url = if !app_dir.is_empty() {
+            aurelia_core::load_setting(app_dir, "aurelia_server_url".to_string())
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
+
+        Ok(
+            aurelia_core::get_parsed_lyrics(
+                server_url,
+                token,
+                id,
+                artist,
+                title,
+                path,
+                aurelia_server_url,
+            )
+            .await,
+        )
+    }
+
+    async fn get_sidecar_lyrics(
+        &self,
+        _item_id: String,
+    ) -> ApiResult<aurelia_core::models::ParsedLyrics> {
+        // Desktop doesn't serve sidecar files — this endpoint is only for the web backend
+        Err(AppError::General(
+            "Sidecar lyrics endpoint is only available on the web backend".to_string(),
+        ))
+    }
+
+    async fn get_setting(&self, key: String) -> ApiResult<Option<String>> {
+        let app_dir = self
+            .app
+            .path()
+            .app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        aurelia_core::load_setting(app_dir.to_string_lossy().to_string(), key)
+    }
+
+    async fn save_setting(&self, key: String, value: String) -> ApiResult<()> {
+        let app_dir = self
+            .app
+            .path()
+            .app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        aurelia_core::save_setting(app_dir.to_string_lossy().to_string(), key, value)
+    }
+
+    async fn delete_setting(&self, key: String) -> ApiResult<()> {
+        let app_dir = self
+            .app
+            .path()
+            .app_data_dir()
+            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        aurelia_core::delete_setting(app_dir.to_string_lossy().to_string(), key)
     }
 
     async fn clear_cache(&self) -> ApiResult<()> {

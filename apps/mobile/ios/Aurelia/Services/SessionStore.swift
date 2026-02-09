@@ -9,6 +9,7 @@ final class SessionStore: @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.aurelia.app", category: "SessionStore")
     private let libraryRefreshKey = "lastLibraryRefresh"
+    private let aureliaServerUrlKey = "aureliaServerUrl"
     private let ioQueue = DispatchQueue(label: "com.aurelia.sessionstore.io", qos: .userInitiated)
     private var cachedCredentials: Credentials?
 
@@ -154,6 +155,13 @@ final class SessionStore: @unchecked Sendable {
     var serverUrl: String? { getCredentials()?.serverUrl }
     var userId: String? { getCredentials()?.userId }
     var token: String? { getCredentials()?.token }
+
+    // MARK: - Aurelia Server URL (for remote sidecar lyrics)
+
+    var aureliaServerUrl: String? {
+        get { UserDefaults.standard.string(forKey: aureliaServerUrlKey) }
+        set { UserDefaults.standard.set(newValue, forKey: aureliaServerUrlKey) }
+    }
 
     func clear() {
         if let appDataDir = getAppDataDir(), !appDataDir.isEmpty {
