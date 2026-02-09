@@ -32,7 +32,7 @@
   onMounted(async () => {
     try {
       const result = await apiClient.getSetting('aurelia_server_url')
-      if (result.ok && result.data) {
+      if (result.status === 'ok' && result.data) {
         aureliaServerUrl.value = result.data
       }
     } catch {
