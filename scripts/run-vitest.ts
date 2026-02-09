@@ -17,7 +17,6 @@ const nodeOptions = (process.env.NODE_OPTIONS ?? '')
   .split(' ')
   .filter(Boolean)
   .filter(option => !option.startsWith('--localstorage-file'))
-  .concat(`--localstorage-file=${storageFile}`)
   .join(' ')
 
 const nodeArgs = [vitestEntry, ...vitestArgs]
