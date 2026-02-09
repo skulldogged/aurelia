@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.data.model.Lyrics
+import com.aurelia.app.data.model.LyricsAgent
+import com.aurelia.app.data.model.LyricsSection
 import com.aurelia.app.data.model.SyncedLine
 import com.aurelia.app.data.model.SyncedWord
 import com.aurelia.app.player.PlayerController
