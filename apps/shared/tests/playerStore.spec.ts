@@ -1,12 +1,14 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+import { type Song } from '../src/lib/api/types'
 import { usePlayerStore } from '../src/stores/player'
 
-const mockSong = (id: string): any => ({
+const mockSong = (id: string): Song => ({
+  artists: [],
   id,
-  name: `Song ${id}`,
-})
+  name:    `Song ${id}`,
+} as unknown as Song)
 
 describe('player store', () => {
   beforeEach(() => {

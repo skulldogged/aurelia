@@ -213,7 +213,12 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const rebuildShuffleOrder = (): void => {
-    if (!isShuffled.value || playlist.value.length === 0 || currentIndex.value < 0 || currentIndex.value >= playlist.value.length) {
+    if (
+      !isShuffled.value
+      || playlist.value.length === 0
+      || currentIndex.value < 0
+      || currentIndex.value >= playlist.value.length
+    ) {
       clearShuffleOrder()
       return
     }

@@ -1,12 +1,11 @@
 <script setup lang="ts">
-  import { onMounted, ref } from 'vue'
-
   import {
     Link,
     LogOut,
     Server,
     User,
   } from 'lucide-vue-next'
+  import { onMounted, ref } from 'vue'
 
   import { apiClient } from '../../api/apiClient'
   import Button from '../ui/Button.vue'
@@ -27,7 +26,7 @@
   }>()
 
   const aureliaServerUrl = ref('')
-  let saveTimeout: ReturnType<typeof setTimeout> | null = null
+  let saveTimeout: null | ReturnType<typeof setTimeout> = null
 
   onMounted(async () => {
     try {
@@ -40,7 +39,7 @@
     }
   })
 
-  function onAureliaUrlInput(event: Event) {
+  const onAureliaUrlInput = (event: Event): void => {
     const value = (event.target as HTMLInputElement).value
     aureliaServerUrl.value = value
 
@@ -121,15 +120,15 @@
           <span>Aurelia Server</span>
         </label>
         <input
-          :value='aureliaServerUrl'
           @input='onAureliaUrlInput'
-          type='url'
-          placeholder='https://aurelia.example.com'
+          :value='aureliaServerUrl'
           class='
             w-full text-sm font-mono bg-background/40 p-3 rounded-lg
             border border-border/20 outline-none
             focus:border-primary/50 transition-colors
           '
+          placeholder='https://aurelia.example.com'
+          type='url'
         >
         <p class='text-xs text-muted-foreground'>
           URL of your Aurelia web server for synced lyrics from sidecar files. Leave empty if not using one.

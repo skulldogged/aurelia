@@ -1,7 +1,6 @@
-import '@testing-library/jest-dom/vitest'
-import { afterEach } from 'vitest'
-
 import { ensureTestStorage } from '@shared/test-utils/storage'
+import { afterEach } from 'vitest'
+import '@testing-library/jest-dom/vitest'
 
 ensureTestStorage()
 

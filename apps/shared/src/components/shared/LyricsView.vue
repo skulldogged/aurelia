@@ -2,28 +2,28 @@
   import { AlertTriangle, Loader2 } from 'lucide-vue-next'
   import { computed, nextTick, ref, watch } from 'vue'
 
-  import type { ParsedLyrics, ParsedLyricsLine, Song } from '../../lib/api/types'
+  import type { ParsedLyrics, Song } from '../../lib/api/types'
 
   import { ApiError, runAureliaEffect } from '../../effect'
   import { getLyricsEffect, getParsedLyricsEffect } from '../../effect/services/api'
   import { logger } from '../../lib/logger'
 
-  interface LyricWord {
-    endTime: number | null
-    time: number
-    word: string
-  }
-
-  interface LyricLine {
-    agentId: string | null
-    endTime: number | null
-    text: string
-    time: number
-    words: LyricWord[] | null
-  }
-
   /** Map agent IDs to their type for quick lookup. */
   type AgentMap = Record<string, string>
+
+  interface LyricLine {
+    agentId: null | string
+    endTime: null | number
+    text:    string
+    time:    number
+    words:   LyricWord[] | null
+  }
+
+  interface LyricWord {
+    endTime: null | number
+    time:    number
+    word:    string
+  }
 
   const props = defineProps<{
     currentTime:  number
@@ -69,12 +69,12 @@
     parsedLyricsResponse.value?.synced?.map(line => ({
       agentId: line.agentId ?? null,
       endTime: line.endTimeMs != null ? line.endTimeMs / 1000 : null,
-      text: line.line,
-      time: line.timeMs / 1000,
-      words: line.words?.map(w => ({
+      text:    line.line,
+      time:    line.timeMs / 1000,
+      words:   line.words?.map(w => ({
         endTime: w.endTimeMs != null ? w.endTimeMs / 1000 : null,
-        time: w.timeMs / 1000,
-        word: w.word,
+        time:    w.timeMs / 1000,
+        word:    w.word,
       })) ?? null,
     })) ?? [],
   )
@@ -91,7 +91,7 @@
   }
 
   /** Check if an agent ID refers to a background/other voice. */
-  const isBackgroundVocal = (agentId: string | null): boolean => {
+  const isBackgroundVocal = (agentId: null | string): boolean => {
     if (!agentId) return false
     return agentMap.value[agentId] === 'other'
   }
@@ -350,8 +350,8 @@
         <template v-for='(line, index) in parsedLyrics' :key='line.time + line.text'>
           <div
             v-if='getSectionLabel(line.time * 1000)'
-            class='section-label'
             :class="{ 'sidebar': isInSidebar }"
+            class='section-label'
           >
             {{ getSectionLabel(line.time * 1000) }}
           </div>
@@ -371,7 +371,6 @@
               <span
                 v-for='(word, wIdx) in line.words'
                 :key='wIdx'
-                class='lyric-word'
                 :class='{
                   "sung": isWordSung(index, wIdx) && wIdx !== activeWordIndex,
                   "filling": wIdx === activeWordIndex,
@@ -379,6 +378,7 @@
                 :style='wIdx === activeWordIndex ? {
                   "--fill": `${wordProgress(index, wIdx) * 100}%`,
                 } : undefined'
+                class='lyric-word'
               >{{ word.word }}</span>
             </template>
             <template v-else>

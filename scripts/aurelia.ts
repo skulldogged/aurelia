@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn, type ChildProcess, type SpawnOptions } from 'child_process'
+import { type ChildProcess, spawn, type SpawnOptions } from 'child_process'
 import { createHash } from 'crypto'
 import { existsSync } from 'fs'
 import { mkdir, readdir, readFile, stat, writeFile } from 'fs/promises'
@@ -41,7 +41,7 @@ const run = (cmd: string, args: string[], opts: SpawnOptions = {}): Promise<void
   })
 
 const runConcurrent = (
-  commands: Array<{ args: string[]; cmd: string; cwd?: string; name: string }>
+  commands: Array<{ args: string[]; cmd: string; cwd?: string; name: string }>,
 ): Promise<void> => new Promise((resolve, reject) => {
   const procs: ChildProcess[] = []
   let settled = false
@@ -57,7 +57,7 @@ const runConcurrent = (
 
   for (const [index, command] of commands.entries()) {
     const proc = spawn(command.cmd, command.args, {
-      cwd: command.cwd ?? ROOT,
+      cwd:   command.cwd ?? ROOT,
       shell: true,
       stdio: 'inherit',
     })
@@ -90,7 +90,7 @@ const runConcurrent = (
 
 interface BindingsState {
   fingerprint: string
-  updatedAt: string
+  updatedAt:   string
 }
 
 const rustBuildProfileArgs = (): string[] => FAST_BUILD ? ['--profile', 'local-release'] : ['--release']
@@ -128,7 +128,7 @@ const readBindingsState = async (): Promise<BindingsState | null> => {
     if (typeof state.fingerprint === 'string') {
       return {
         fingerprint: state.fingerprint,
-        updatedAt: typeof state.updatedAt === 'string' ? state.updatedAt : '',
+        updatedAt:   typeof state.updatedAt === 'string' ? state.updatedAt : '',
       }
     }
   } catch {
@@ -179,7 +179,7 @@ const computeBindingsFingerprint = async (): Promise<string> => {
 const bindings = async (): Promise<void> => {
   if (SKIP_BINDINGS) return
 
-  let fingerprint: string | null = null
+  let fingerprint: null | string = null
   try {
     fingerprint = await computeBindingsFingerprint()
     if (!FORCE_BINDINGS) {
@@ -256,19 +256,21 @@ const buildDesktop = async (): Promise<void> => {
 
 const commands = {
   build: {
-    desktop:       buildDesktop,
+    'desktop':       buildDesktop,
     'desktop-tauri': buildDesktop,
-    web:           buildWeb,
+    'web':           buildWeb,
   },
   dev: {
-    desktop:       devDesktop,
+    'desktop':       devDesktop,
     'desktop-tauri': devDesktop,
-    web:           devWeb,
+    'web':           devWeb,
   },
 }
 
 if (!commands[COMMAND]?.[PLATFORM]) {
-  console.log('Usage: bun run dev|build --platform=web|desktop|desktop-tauri [--skip-bindings] [--force-bindings] [--fast]')
+  console.log(
+    'Usage: bun run dev|build --platform=web|desktop|desktop-tauri [--skip-bindings] [--force-bindings] [--fast]',
+  )
   process.exit(1)
 }
 

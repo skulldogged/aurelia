@@ -1,10 +1,10 @@
 type StorageLike = {
-  getItem: (key: string) => string | null
-  setItem: (key: string, value: string) => void
+  clear:      () => void
+  getItem:    (key: string) => null | string
+  key?:       (index: number) => null | string
+  length?:    number
   removeItem: (key: string) => void
-  clear: () => void
-  key?: (index: number) => string | null
-  length?: number
+  setItem:    (key: string, value: string) => void
 }
 
 const isStorageLike = (value: unknown): value is StorageLike => {
@@ -22,19 +22,19 @@ const createMemoryStorage = (): StorageLike => {
   const store = new Map<string, string>()
 
   return {
+    clear: () => {
+      store.clear()
+    },
     getItem: key => store.has(key) ? store.get(key)! : null,
-    setItem: (key, value) => {
-      store.set(key, String(value))
+    key:     index => Array.from(store.keys())[index] ?? null,
+    get length() {
+      return store.size
     },
     removeItem: key => {
       store.delete(key)
     },
-    clear: () => {
-      store.clear()
-    },
-    key: index => Array.from(store.keys())[index] ?? null,
-    get length() {
-      return store.size
+    setItem: (key, value) => {
+      store.set(key, String(value))
     },
   }
 }
@@ -44,15 +44,15 @@ const ensureStorage = (key: 'localStorage' | 'sessionStorage'): void => {
   if (!isStorageLike(existing)) {
     const fallback = createMemoryStorage()
     Object.defineProperty(globalThis, key, {
-      value: fallback,
       configurable: true,
-      writable: true,
+      value:        fallback,
+      writable:     true,
     })
     if (typeof window !== 'undefined') {
       Object.defineProperty(window, key, {
-        value: fallback,
         configurable: true,
-        writable: true,
+        value:        fallback,
+        writable:     true,
       })
     }
   }
