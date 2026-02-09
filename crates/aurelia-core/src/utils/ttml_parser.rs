@@ -170,6 +170,8 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
     let mut current_span_start: Option<i64> = None;
     let mut current_span_end: Option<i64> = None;
     let mut current_span_text = String::new();
+    // Text between </span> and the next <span> (whitespace prefix for next word)
+    let mut inter_span_text = String::new();
 
     // Songwriter text accumulator
     let mut songwriter_text = String::new();
@@ -248,6 +250,7 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                                 get_attr(&attrs, "agent", &["ttm"]).map(ToString::to_string);
                             current_line_text.clear();
                             current_line_words.clear();
+                            inter_span_text.clear();
                             is_word_synced = timing_mode.as_deref() == Some("Word");
                         }
                     }
@@ -258,7 +261,18 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                                 get_attr(&attrs, "begin", &[]).and_then(parse_ttml_timestamp);
                             current_span_end =
                                 get_attr(&attrs, "end", &[]).and_then(parse_ttml_timestamp);
-                            current_span_text.clear();
+                            // Prepend any whitespace between the previous </span> and this <span>.
+                            // Normalize to a single space (real TTML uses " ", but pretty-printed
+                            // XML may have newlines/indentation).
+                            let gap = std::mem::take(&mut inter_span_text);
+                            current_span_text = if !gap.trim().is_empty() {
+                                // Non-whitespace content between spans — preserve it
+                                gap
+                            } else if !gap.is_empty() {
+                                " ".to_string()
+                            } else {
+                                String::new()
+                            };
                         }
                     }
                     _ => {}
@@ -293,6 +307,8 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                     }
                     "span" => {
                         if in_span {
+                            // Append the full span text (including any prefix whitespace) to line text
+                            current_line_text.push_str(&current_span_text);
                             // Commit the word
                             if let Some(start) = current_span_start {
                                 current_line_words.push(ParsedLyricsWord {
@@ -307,16 +323,7 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                     "p" => {
                         if in_p {
                             let line_start = current_line_start.unwrap_or(0);
-                            let line_text = if is_word_synced && !current_line_words.is_empty() {
-                                current_line_words
-                                    .iter()
-                                    .map(|w| w.word.as_str())
-                                    .collect::<String>()
-                                    .trim()
-                                    .to_string()
-                            } else {
-                                current_line_text.trim().to_string()
-                            };
+                            let line_text = current_line_text.trim().to_string();
 
                             let agent = current_line_agent
                                 .take()
@@ -379,7 +386,13 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                 } else if in_span {
                     current_span_text.push_str(&text);
                 } else if in_p {
-                    current_line_text.push_str(&text);
+                    if is_word_synced && !current_line_words.is_empty() {
+                        // Track inter-span text (whitespace between </span> and <span>)
+                        // Only after the first word — text before the first span is formatting
+                        inter_span_text.push_str(&text);
+                    } else if !is_word_synced {
+                        current_line_text.push_str(&text);
+                    }
                 }
             }
             Ok(Event::Eof) => break,
@@ -542,23 +555,8 @@ mod tests {
 
     #[test]
     fn parses_word_synced_ttml() {
-        let ttml = r#"<?xml version="1.0" ?>
-<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" itunes:timing="Word" xml:lang="en">
-  <head>
-    <metadata>
-      <ttm:agent type="person" xml:id="v1"/>
-    </metadata>
-  </head>
-  <body dur="5:00.000">
-    <div begin="30.348" end="55.833" itunes:songPart="Verse">
-      <p begin="30.348" end="33.231" ttm:agent="v1">
-        <span begin="30.348" end="30.777">hello </span>
-        <span begin="30.777" end="31.110">world </span>
-        <span begin="31.110" end="31.459">foo</span>
-      </p>
-    </div>
-  </body>
-</tt>"#;
+        // Use real Apple Music TTML structure: spaces between spans, not inside
+        let ttml = r#"<?xml version="1.0" ?><tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" itunes:timing="Word" xml:lang="en"><head><metadata><ttm:agent type="person" xml:id="v1"/></metadata></head><body dur="5:00.000"><div begin="30.348" end="55.833" itunes:songPart="Verse"><p begin="30.348" end="33.231" ttm:agent="v1"><span begin="30.348" end="30.777">hello</span> <span begin="30.777" end="31.110">world</span> <span begin="31.110" end="31.459">foo</span></p></div></body></tt>"#;
 
         let parsed = parse_ttml_lyrics(ttml);
         assert_eq!(parsed.synced.len(), 1);
@@ -568,12 +566,12 @@ mod tests {
 
         let words = line.words.as_ref().unwrap();
         assert_eq!(words.len(), 3);
-        assert_eq!(words[0].word, "hello ");
+        assert_eq!(words[0].word, "hello");
         assert_eq!(words[0].time_ms, 30348);
         assert_eq!(words[0].end_time_ms, Some(30777));
-        assert_eq!(words[1].word, "world ");
+        assert_eq!(words[1].word, " world");
         assert_eq!(words[1].time_ms, 30777);
-        assert_eq!(words[2].word, "foo");
+        assert_eq!(words[2].word, " foo");
         assert_eq!(words[2].time_ms, 31110);
         assert_eq!(words[2].end_time_ms, Some(31459));
 
@@ -650,5 +648,39 @@ mod tests {
 
         // No word-level sync (this is a Line-timed file)
         assert!(parsed.synced.iter().all(|l| l.words.is_none()));
+    }
+
+    #[test]
+    fn parses_real_word_synced_ttml_fixture() {
+        let ttml = include_str!("../../tests/fixtures/nuevayol_syllable.ttml");
+        let parsed = parse_ttml_lyrics(ttml);
+
+        // Same metadata as line-synced version
+        assert_eq!(parsed.language.as_deref(), Some("es"));
+        assert_eq!(parsed.synced.len(), 74);
+
+        // First line should have words
+        let first = &parsed.synced[0];
+        assert_eq!(first.line, "¡NUEVAYoL!");
+        let words = first.words.as_ref().expect("First line should have words");
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].word, "¡NUEVA");
+        assert_eq!(words[0].time_ms, 27);
+        assert_eq!(words[0].end_time_ms, Some(635));
+        assert_eq!(words[1].word, "YoL!");
+        assert_eq!(words[1].time_ms, 635);
+        assert_eq!(words[1].end_time_ms, Some(2005));
+
+        // A multi-word line
+        let line2 = &parsed.synced[1]; // "Si te quieres divertir"
+        assert_eq!(line2.line, "Si te quieres divertir");
+        let words2 = line2.words.as_ref().expect("Should have words");
+        assert_eq!(words2.len(), 4);
+
+        // All lines should have word-level sync
+        assert!(
+            parsed.synced.iter().all(|l| l.words.is_some()),
+            "All lines should have word-level timing in Word-synced TTML"
+        );
     }
 }
