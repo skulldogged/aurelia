@@ -282,9 +282,10 @@ pub async fn get_lyrics(
         let client = services::JellyfinClient::with_auth(server_url, token);
         if let Ok(Some(jf_lyrics)) = client.get_lyrics(&item_id).await
             && let Ok(lrc) = utils::lyrics::jellyfin_to_lrc(&jf_lyrics)
-                && !lrc.trim().is_empty() {
-                    return lrc;
-                }
+            && !lrc.trim().is_empty()
+        {
+            return lrc;
+        }
     }
 
     // 2. Fall back to LrcLib
@@ -350,28 +351,29 @@ pub async fn get_parsed_lyrics(
 
     // 1b. Try fetching sidecar lyrics from the Aurelia web backend (for remote clients)
     if let Some(ref aurelia_url) = aurelia_server_url
-        && !aurelia_url.is_empty() {
-            tracing::info!(
-                "[Lyrics] Trying remote sidecar from Aurelia server: {}",
-                aurelia_url
-            );
-            match fetch_remote_sidecar_lyrics(aurelia_url, &item_id).await {
-                Ok(Some(parsed)) if parsed.is_valid() => {
-                    tracing::info!(
-                        "[Lyrics] Remote sidecar found: syncedLines={}, hasWords={}",
-                        parsed.synced.len(),
-                        parsed.synced.first().is_some_and(|l| l.words.is_some()),
-                    );
-                    return parsed;
-                }
-                Ok(_) => {
-                    tracing::info!("[Lyrics] Remote sidecar returned no valid lyrics");
-                }
-                Err(e) => {
-                    tracing::warn!("[Lyrics] Remote sidecar fetch failed: {}", e);
-                }
+        && !aurelia_url.is_empty()
+    {
+        tracing::info!(
+            "[Lyrics] Trying remote sidecar from Aurelia server: {}",
+            aurelia_url
+        );
+        match fetch_remote_sidecar_lyrics(aurelia_url, &item_id).await {
+            Ok(Some(parsed)) if parsed.is_valid() => {
+                tracing::info!(
+                    "[Lyrics] Remote sidecar found: syncedLines={}, hasWords={}",
+                    parsed.synced.len(),
+                    parsed.synced.first().is_some_and(|l| l.words.is_some()),
+                );
+                return parsed;
+            }
+            Ok(_) => {
+                tracing::info!("[Lyrics] Remote sidecar returned no valid lyrics");
+            }
+            Err(e) => {
+                tracing::warn!("[Lyrics] Remote sidecar fetch failed: {}", e);
             }
         }
+    }
 
     // 2. Try Jellyfin lyrics API
     if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
