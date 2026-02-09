@@ -41,6 +41,8 @@ final class AudioPlayerController: @unchecked Sendable {
         setupRemoteTransportControls()
         setupNotifications()
         setupTimeObserver()
+        // Begin receiving remote control events early for Control Center integration
+        UIApplication.shared.beginReceivingRemoteControlEvents()
     }
 
     deinit {
@@ -55,12 +57,10 @@ final class AudioPlayerController: @unchecked Sendable {
     private func configureAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            // Use .mixWithOthers to allow audio to continue in background
-            // Also add .duckOthers to duck other audio when we start playing
-            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
+            try session.setCategory(.playback, mode: .default, options: [])
             try session.setActive(true)
             audioSessionConfigured = true
-            logger.info("Audio session configured successfully with mixWithOthers and duckOthers")
+            logger.info("Audio session configured successfully")
         } catch {
             logger.error("Failed to configure audio session: \(error)")
             audioSessionConfigured = false
@@ -490,6 +490,13 @@ final class AudioPlayerController: @unchecked Sendable {
         )
         if playbackPosition != newPosition {
             playbackPosition = newPosition
+        }
+        
+        // Update Now Playing elapsed time during playback for smooth progress display
+        if player.rate > 0, MPNowPlayingInfoCenter.default().nowPlayingInfo != nil {
+            var nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
+            nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = Double(positionMs) / 1000.0
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         }
 
         // Build candidate and only replace snapshot when display fields change.

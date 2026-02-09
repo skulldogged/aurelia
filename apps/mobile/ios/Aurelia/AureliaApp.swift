@@ -28,7 +28,6 @@ struct AureliaApp: App {
                         .task {
                             let controller = AudioPlayerController()
                             playerController = controller
-                            UIApplication.shared.beginReceivingRemoteControlEvents()
                         }
                     }
                 } else {

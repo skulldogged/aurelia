@@ -12,8 +12,8 @@
 
 /* Begin PBXFileReference section */
 		AB1C1E6D2F2BF9A000217004 /* Aurelia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Aurelia.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		AB21E7522F2BFCEB00DA2ECA /* AureliaCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AureliaCore; sourceTree = "<group>"; };
 		AB1C1E6F2F2BF9A100217004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AB21E7522F2BFCEB00DA2ECA /* AureliaCore */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = AureliaCore; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -269,6 +269,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8L9UZ4J5TA;
@@ -302,6 +303,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 8L9UZ4J5TA;
