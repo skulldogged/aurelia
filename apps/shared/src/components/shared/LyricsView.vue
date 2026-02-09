@@ -2,16 +2,21 @@
   import { AlertTriangle, Loader2 } from 'lucide-vue-next'
   import { computed, nextTick, ref, watch } from 'vue'
 
-  import type { ParsedLyrics, Song } from '../../lib/api/types'
+  import type { ParsedLyrics, ParsedLyricsLine, Song } from '../../lib/api/types'
 
   import { ApiError, runAureliaEffect } from '../../effect'
   import { getLyricsEffect, getParsedLyricsEffect } from '../../effect/services/api'
   import { logger } from '../../lib/logger'
 
   interface LyricLine {
+    agentId: string | null
+    endTime: number | null
     text: string
     time: number
   }
+
+  /** Map agent IDs to their type for quick lookup. */
+  type AgentMap = Record<string, string>
 
   const props = defineProps<{
     currentTime:  number
@@ -35,8 +40,28 @@
   const lyricsContainerRef = ref<HTMLDivElement | null>(null)
   const currentLyricsRequestToken = ref<null | symbol>(null)
 
+  /** Build a lookup from agent ID to agent type (e.g. "person" | "other"). */
+  const agentMap = computed<AgentMap>(() => {
+    const map: AgentMap = {}
+    for (const agent of parsedLyricsResponse.value?.agents ?? [])
+      map[agent.id] = agent.agentType
+    return map
+  })
+
+  /** Section labels indexed by line start time for display as dividers. */
+  const sectionLabels = computed<Record<number, string>>(() => {
+    const labels: Record<number, string> = {}
+    for (const section of parsedLyricsResponse.value?.sections ?? []) {
+      if (section.name && section.lines.length > 0)
+        labels[section.lines[0].timeMs] = section.name
+    }
+    return labels
+  })
+
   const parsedLyrics = computed<LyricLine[]>(() =>
     parsedLyricsResponse.value?.synced?.map(line => ({
+      agentId: line.agentId ?? null,
+      endTime: line.endTimeMs != null ? line.endTimeMs / 1000 : null,
       text: line.line,
       time: line.timeMs / 1000,
     })) ?? [],
@@ -52,6 +77,16 @@
     if (props.duration > 0)
       emit('seek', time)
   }
+
+  /** Check if an agent ID refers to a background/other voice. */
+  const isBackgroundVocal = (agentId: string | null): boolean => {
+    if (!agentId) return false
+    return agentMap.value[agentId] === 'other'
+  }
+
+  /** Get the section label for a given line, if it starts a new section. */
+  const getSectionLabel = (timeMs: number): string | undefined =>
+    sectionLabels.value[timeMs]
 
   watch(() => props.song?.id, async (newId, oldId) => {
     if (newId === oldId && props.song) return
@@ -74,7 +109,7 @@
               newSong.id,
               newSong.artists![0],
               newSong.name,
-              undefined,
+              newSong.path ?? undefined,
             ))
             if (currentLyricsRequestToken.value !== requestToken) return
             parsedLyricsResponse.value = parsedData
@@ -92,7 +127,7 @@
             newSong.id,
             newSong.artists![0],
             newSong.name,
-            undefined,
+            newSong.path ?? undefined,
           ))
           if (currentLyricsRequestToken.value !== requestToken) return
           lyrics.value = lyricsData
@@ -138,9 +173,23 @@
       return -1
 
     const tolerance = 0.01 // 10ms tolerance for floating point precision
-    for (let i = parsedLyrics.value.length - 1; i >= 0; i--)
-      if (parsedLyrics.value[i].time <= props.currentTime + tolerance)
+    const time = props.currentTime + tolerance
+
+    // Use end times when available for more precise detection
+    for (let i = parsedLyrics.value.length - 1; i >= 0; i--) {
+      const line = parsedLyrics.value[i]
+      if (line.time <= time) {
+        // If we have an end time, check we haven't passed it
+        if (line.endTime != null && time > line.endTime) {
+          // We're past this line's end — check if the next line has started
+          if (i < parsedLyrics.value.length - 1 && parsedLyrics.value[i + 1].time <= time) {
+            continue // Skip, a later line is active
+          }
+          // We're in a gap between lines — keep this as active for continuity
+        }
         return i
+      }
+    }
 
     return -1
   })
@@ -240,20 +289,28 @@
       :class="['lyrics-container grow overflow-y-auto', { 'sidebar': isInSidebar }]"
     >
       <div class='lyrics-content'>
-        <p
-          v-for='(line, index) in parsedLyrics'
-          @click='handleLineClick(line.time)'
-          :key='line.time + line.text'
-          :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
-          :class="['lyric-line', {
-            'active': index === currentLineIndex,
-            'sidebar': isInSidebar,
-            'large': size === 'large',
-            'small': size === 'small'
-          }]"
-        >
-          {{ line.text }}
-        </p>
+        <template v-for='(line, index) in parsedLyrics' :key='line.time + line.text'>
+          <div
+            v-if='getSectionLabel(line.time * 1000)'
+            class='section-label'
+            :class="{ 'sidebar': isInSidebar }"
+          >
+            {{ getSectionLabel(line.time * 1000) }}
+          </div>
+          <p
+            @click='handleLineClick(line.time)'
+            :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
+            :class="['lyric-line', {
+              'active': index === currentLineIndex,
+              'background-vocal': isBackgroundVocal(line.agentId),
+              'sidebar': isInSidebar,
+              'large': size === 'large',
+              'small': size === 'small'
+            }]"
+          >
+            {{ line.text }}
+          </p>
+        </template>
       </div>
     </div>
     <div
@@ -316,12 +373,36 @@
   display: none;
 }
 
+.section-label {
+  padding: 16px 0 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.35;
+  color: var(--muted-foreground);
+}
+
+.section-label.sidebar {
+  padding: 12px 0 2px;
+  font-size: 0.65rem;
+}
+
 .lyric-line {
   padding: 8px 0;
   transition: opacity 0.3s ease, transform 0.3s ease, color 0.3s ease;
   opacity: 0.4;
   font-size: 2rem;
   cursor: pointer;
+}
+
+.lyric-line.background-vocal {
+  font-style: italic;
+  opacity: 0.3;
+}
+
+.lyric-line.background-vocal.active {
+  opacity: 0.75;
 }
 
 .lyric-line.sidebar {

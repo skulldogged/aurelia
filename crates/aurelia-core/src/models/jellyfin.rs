@@ -3,17 +3,58 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-/// Jellyfin lyrics response
+/// Jellyfin lyrics response (`LyricDto`).
 #[derive(Serialize, Deserialize, Debug, Type)]
 #[specta(rename_all = "camelCase")]
 pub struct JellyfinLyrics {
+    /// Optional metadata about the lyrics.
+    #[serde(rename = "Metadata")]
+    #[specta(rename = "metadata")]
+    #[serde(default)]
+    pub metadata: Option<JellyfinLyricMetadata>,
     /// List of lyric lines with timestamps
     #[serde(rename = "Lyrics")]
     #[specta(rename = "lyrics")]
     pub lyrics: Vec<JellyfinLyricLine>,
 }
 
-/// Individual lyric line with optional timestamp
+/// Metadata about the lyrics (`LyricMetadata`).
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct JellyfinLyricMetadata {
+    #[serde(rename = "Artist")]
+    #[serde(default)]
+    pub artist: Option<String>,
+    #[serde(rename = "Album")]
+    #[serde(default)]
+    pub album: Option<String>,
+    #[serde(rename = "Title")]
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(rename = "Author")]
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(rename = "Length")]
+    #[serde(default)]
+    pub length: Option<i64>,
+    #[serde(rename = "By")]
+    #[serde(default)]
+    pub by: Option<String>,
+    #[serde(rename = "Offset")]
+    #[serde(default)]
+    pub offset: Option<i64>,
+    #[serde(rename = "Creator")]
+    #[serde(default)]
+    pub creator: Option<String>,
+    #[serde(rename = "Version")]
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(rename = "IsSynced")]
+    #[serde(default)]
+    pub is_synced: Option<bool>,
+}
+
+/// Individual lyric line with optional timestamp (`LyricLine`).
 #[derive(Serialize, Deserialize, Debug, Type)]
 #[specta(rename_all = "camelCase")]
 pub struct JellyfinLyricLine {
@@ -25,6 +66,32 @@ pub struct JellyfinLyricLine {
     #[serde(rename = "Start")]
     #[specta(rename = "timestamp")]
     pub timestamp: Option<f64>,
+    /// Word-level timing cues within this line.
+    #[serde(rename = "Cues")]
+    #[serde(default)]
+    pub cues: Option<Vec<JellyfinLyricLineCue>>,
+}
+
+/// Word-level timing cue within a lyric line (`LyricLineCue`).
+///
+/// Holds character position indices into the parent line's `Text` and
+/// timing information for a single word/segment.
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct JellyfinLyricLineCue {
+    /// Start character index in the line text (inclusive).
+    #[serde(rename = "Position")]
+    pub position: i32,
+    /// End character index in the line text (exclusive).
+    #[serde(rename = "EndPosition")]
+    pub end_position: i32,
+    /// Start timestamp in ticks (100ns intervals).
+    #[serde(rename = "Start")]
+    pub start: i64,
+    /// End timestamp in ticks (100ns intervals), if available.
+    #[serde(rename = "End")]
+    #[serde(default)]
+    pub end: Option<i64>,
 }
 
 /// Device profile for client capabilities

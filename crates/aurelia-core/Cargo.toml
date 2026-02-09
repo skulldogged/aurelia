@@ -28,6 +28,7 @@ derive_more = { version = "2.1", features = ["display"] }
 dirs = "6.0"
 md5 = "0.8"
 once_cell = "1.21.3"
+quick-xml = "0.37"
 postcard = { version = "1.0", features = ["use-std"] }
 progenitor-client = "0.11"
 rand = "0.9"

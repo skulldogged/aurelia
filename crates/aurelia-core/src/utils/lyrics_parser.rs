@@ -1,8 +1,21 @@
-//! Shared LRC parser used by web/desktop/mobile clients.
+//! Shared lyrics parser used by web/desktop/mobile clients.
+//!
+//! Supports LRC and TTML formats with automatic detection via [`parse_lyrics`].
 
 use crate::models::{ParsedLyrics, ParsedLyricsLine, ParsedLyricsWord};
+use crate::utils::ttml_parser;
 use once_cell::sync::Lazy;
 use regex::Regex;
+
+/// Parse lyrics text, auto-detecting the format (TTML or LRC/plain).
+#[must_use]
+pub fn parse_lyrics(lyrics_text: &str) -> ParsedLyrics {
+    if ttml_parser::is_ttml(lyrics_text) {
+        ttml_parser::parse_ttml_lyrics(lyrics_text)
+    } else {
+        parse_lrc_lyrics(lyrics_text)
+    }
+}
 
 static LRC_LINE_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^\[(\d{1,3}):(\d{2})\.(\d{2,3})\](.*)$").expect("valid line regex"));
@@ -76,6 +89,10 @@ pub fn parse_lrc_lyrics(lyrics_text: &str) -> ParsedLyrics {
         return ParsedLyrics {
             plain: vec![],
             synced: vec![],
+            sections: None,
+            agents: None,
+            songwriters: None,
+            language: None,
             are_from_remote: true,
         };
     }
@@ -115,6 +132,7 @@ pub fn parse_lrc_lyrics(lyrics_text: &str) -> ParsedLyrics {
                                 .unwrap_or(line_timestamp);
                             words.push(ParsedLyricsWord {
                                 time_ms: fallback_time,
+                                end_time_ms: None,
                                 word: untagged.to_string(),
                             });
                         }
@@ -127,6 +145,7 @@ pub fn parse_lrc_lyrics(lyrics_text: &str) -> ParsedLyrics {
 
                     words.push(ParsedLyricsWord {
                         time_ms: word_timestamp,
+                        end_time_ms: None,
                         word: word_text,
                     });
 
@@ -142,6 +161,7 @@ pub fn parse_lrc_lyrics(lyrics_text: &str) -> ParsedLyrics {
                             .unwrap_or(line_timestamp);
                         words.push(ParsedLyricsWord {
                             time_ms: fallback_time,
+                            end_time_ms: None,
                             word: trailing.to_string(),
                         });
                     }
@@ -150,22 +170,28 @@ pub fn parse_lrc_lyrics(lyrics_text: &str) -> ParsedLyrics {
                 if words.is_empty() {
                     synced_lines.push(ParsedLyricsLine {
                         time_ms: line_timestamp,
+                        end_time_ms: None,
                         line: text,
                         words: None,
+                        agent_id: None,
                     });
                 } else {
                     let full_line_text = words.iter().map(|word| word.word.as_str()).collect();
                     synced_lines.push(ParsedLyricsLine {
                         time_ms: line_timestamp,
+                        end_time_ms: None,
                         line: full_line_text,
                         words: Some(words),
+                        agent_id: None,
                     });
                 }
             } else {
                 synced_lines.push(ParsedLyricsLine {
                     time_ms: line_timestamp,
+                    end_time_ms: None,
                     line: text,
                     words: None,
+                    agent_id: None,
                 });
             }
         } else {
@@ -191,6 +217,10 @@ pub fn parse_lrc_lyrics(lyrics_text: &str) -> ParsedLyrics {
         ParsedLyrics {
             plain,
             synced: synced_lines,
+            sections: None,
+            agents: None,
+            songwriters: None,
+            language: None,
             are_from_remote: true,
         }
     } else {
@@ -200,6 +230,10 @@ pub fn parse_lrc_lyrics(lyrics_text: &str) -> ParsedLyrics {
                 .filter(|line| !line.is_empty())
                 .collect(),
             synced: vec![],
+            sections: None,
+            agents: None,
+            songwriters: None,
+            language: None,
             are_from_remote: true,
         }
     }
@@ -207,7 +241,39 @@ pub fn parse_lrc_lyrics(lyrics_text: &str) -> ParsedLyrics {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_lrc_lyrics;
+    use super::{parse_lrc_lyrics, parse_lyrics};
+
+    #[test]
+    fn parse_lyrics_dispatches_to_ttml() {
+        let ttml = r#"<?xml version="1.0" ?>
+<tt xmlns="http://www.w3.org/ns/ttml" itunes:timing="Line" xml:lang="en">
+  <head><metadata/></head>
+  <body dur="1:00.000">
+    <div begin="0.0" end="5.0">
+      <p begin="0.0" end="2.0">Hello TTML</p>
+    </div>
+  </body>
+</tt>"#;
+        let parsed = parse_lyrics(ttml);
+        assert_eq!(parsed.synced.len(), 1);
+        assert_eq!(parsed.synced[0].line, "Hello TTML");
+        assert!(parsed.synced[0].end_time_ms.is_some());
+    }
+
+    #[test]
+    fn parse_lyrics_dispatches_to_lrc() {
+        let parsed = parse_lyrics("[00:01.50]Hello LRC");
+        assert_eq!(parsed.synced.len(), 1);
+        assert_eq!(parsed.synced[0].line, "Hello LRC");
+        assert!(parsed.synced[0].end_time_ms.is_none());
+    }
+
+    #[test]
+    fn parse_lyrics_dispatches_plain() {
+        let parsed = parse_lyrics("just plain text");
+        assert!(parsed.synced.is_empty());
+        assert_eq!(parsed.plain, vec!["just plain text"]);
+    }
 
     #[test]
     fn parses_plain_lyrics() {

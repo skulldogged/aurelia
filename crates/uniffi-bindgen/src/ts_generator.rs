@@ -5,7 +5,9 @@ use aurelia_core::models::library::{
     HomeViewData, LastFmCredentials, LibraryData, MobileHomeData, NowPlayingPayload, RpcActivity,
     SyncStateInfo,
 };
-use aurelia_core::models::lyrics::{ParsedLyrics, ParsedLyricsLine, ParsedLyricsWord};
+use aurelia_core::models::lyrics::{
+    ParsedLyrics, ParsedLyricsAgent, ParsedLyricsLine, ParsedLyricsSection, ParsedLyricsWord,
+};
 use aurelia_core::models::music::{
     Album, Artist, NameIdPair, Playlist, PlaylistCreateData, PlaylistUpdateData, Song, UserData,
 };
@@ -76,8 +78,16 @@ pub fn generate_typescript_bindings(out_dir: &Path) -> Result<(), Box<dyn std::e
             specta_typescript::export::<ParsedLyricsWord>(&config)?,
         ),
         (
+            "parsedLyricsAgent",
+            specta_typescript::export::<ParsedLyricsAgent>(&config)?,
+        ),
+        (
             "parsedLyricsLine",
             specta_typescript::export::<ParsedLyricsLine>(&config)?,
+        ),
+        (
+            "parsedLyricsSection",
+            specta_typescript::export::<ParsedLyricsSection>(&config)?,
         ),
         (
             "parsedLyrics",

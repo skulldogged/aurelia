@@ -765,7 +765,7 @@ external fun uniffi_aurelia_core_fn_func_get_library_sync_state(`appDataDir`: Ru
 ): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_get_lyrics(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`artist`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_aurelia_core_fn_func_get_parsed_lyrics(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`artist`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,
+external fun uniffi_aurelia_core_fn_func_get_parsed_lyrics(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`artist`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`path`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_aurelia_core_fn_func_get_playlist_items(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,
 ): Long
@@ -972,10 +972,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_get_library_sync_state() != 52280.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_aurelia_core_checksum_func_get_lyrics() != 52693.toShort()) {
+    if (lib.uniffi_aurelia_core_checksum_func_get_lyrics() != 56114.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 17830.toShort()) {
+    if (lib.uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 16323.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_get_playlist_items() != 51827.toShort()) {
@@ -1995,6 +1995,14 @@ data class ParsedLyrics (
     , 
     var `synced`: List<ParsedLyricsLine>
     , 
+    var `sections`: List<ParsedLyricsSection>?
+    , 
+    var `agents`: List<ParsedLyricsAgent>?
+    , 
+    var `songwriters`: List<kotlin.String>?
+    , 
+    var `language`: kotlin.String?
+    , 
     var `areFromRemote`: kotlin.Boolean
     
 ){
@@ -2014,6 +2022,10 @@ public object FfiConverterTypeParsedLyrics: FfiConverterRustBuffer<ParsedLyrics>
         return ParsedLyrics(
             FfiConverterSequenceString.read(buf),
             FfiConverterSequenceTypeParsedLyricsLine.read(buf),
+            FfiConverterOptionalSequenceTypeParsedLyricsSection.read(buf),
+            FfiConverterOptionalSequenceTypeParsedLyricsAgent.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterOptionalString.read(buf),
             FfiConverterBoolean.read(buf),
         )
     }
@@ -2021,13 +2033,68 @@ public object FfiConverterTypeParsedLyrics: FfiConverterRustBuffer<ParsedLyrics>
     override fun allocationSize(value: ParsedLyrics) = (
             FfiConverterSequenceString.allocationSize(value.`plain`) +
             FfiConverterSequenceTypeParsedLyricsLine.allocationSize(value.`synced`) +
+            FfiConverterOptionalSequenceTypeParsedLyricsSection.allocationSize(value.`sections`) +
+            FfiConverterOptionalSequenceTypeParsedLyricsAgent.allocationSize(value.`agents`) +
+            FfiConverterOptionalSequenceString.allocationSize(value.`songwriters`) +
+            FfiConverterOptionalString.allocationSize(value.`language`) +
             FfiConverterBoolean.allocationSize(value.`areFromRemote`)
     )
 
     override fun write(value: ParsedLyrics, buf: ByteBuffer) {
             FfiConverterSequenceString.write(value.`plain`, buf)
             FfiConverterSequenceTypeParsedLyricsLine.write(value.`synced`, buf)
+            FfiConverterOptionalSequenceTypeParsedLyricsSection.write(value.`sections`, buf)
+            FfiConverterOptionalSequenceTypeParsedLyricsAgent.write(value.`agents`, buf)
+            FfiConverterOptionalSequenceString.write(value.`songwriters`, buf)
+            FfiConverterOptionalString.write(value.`language`, buf)
             FfiConverterBoolean.write(value.`areFromRemote`, buf)
+    }
+}
+
+
+
+/**
+ * A singer/performer agent definition.
+ */
+data class ParsedLyricsAgent (
+    /**
+     * Unique identifier (e.g. "v1", "v2000").
+     */
+    var `id`: kotlin.String
+    , 
+    /**
+     * Agent type: "person" for a singer, "other" for background/samples.
+     */
+    var `agentType`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeParsedLyricsAgent: FfiConverterRustBuffer<ParsedLyricsAgent> {
+    override fun read(buf: ByteBuffer): ParsedLyricsAgent {
+        return ParsedLyricsAgent(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ParsedLyricsAgent) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`agentType`)
+    )
+
+    override fun write(value: ParsedLyricsAgent, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`agentType`, buf)
     }
 }
 
@@ -2039,9 +2106,16 @@ public object FfiConverterTypeParsedLyrics: FfiConverterRustBuffer<ParsedLyrics>
 data class ParsedLyricsLine (
     var `timeMs`: kotlin.Long
     , 
+    var `endTimeMs`: kotlin.Long?
+    , 
     var `line`: kotlin.String
     , 
     var `words`: List<ParsedLyricsWord>?
+    , 
+    /**
+     * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
+     */
+    var `agentId`: kotlin.String?
     
 ){
     
@@ -2059,21 +2133,98 @@ public object FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer<ParsedLyr
     override fun read(buf: ByteBuffer): ParsedLyricsLine {
         return ParsedLyricsLine(
             FfiConverterLong.read(buf),
+            FfiConverterOptionalLong.read(buf),
             FfiConverterString.read(buf),
             FfiConverterOptionalSequenceTypeParsedLyricsWord.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
     override fun allocationSize(value: ParsedLyricsLine) = (
             FfiConverterLong.allocationSize(value.`timeMs`) +
+            FfiConverterOptionalLong.allocationSize(value.`endTimeMs`) +
             FfiConverterString.allocationSize(value.`line`) +
-            FfiConverterOptionalSequenceTypeParsedLyricsWord.allocationSize(value.`words`)
+            FfiConverterOptionalSequenceTypeParsedLyricsWord.allocationSize(value.`words`) +
+            FfiConverterOptionalString.allocationSize(value.`agentId`)
     )
 
     override fun write(value: ParsedLyricsLine, buf: ByteBuffer) {
             FfiConverterLong.write(value.`timeMs`, buf)
+            FfiConverterOptionalLong.write(value.`endTimeMs`, buf)
             FfiConverterString.write(value.`line`, buf)
             FfiConverterOptionalSequenceTypeParsedLyricsWord.write(value.`words`, buf)
+            FfiConverterOptionalString.write(value.`agentId`, buf)
+    }
+}
+
+
+
+/**
+ * A named section of the song (e.g. Verse, Chorus, Bridge).
+ */
+data class ParsedLyricsSection (
+    /**
+     * Section name (e.g. "Verse", "Chorus", "Bridge", "Intro", "Outro").
+     */
+    var `name`: kotlin.String
+    , 
+    /**
+     * Start time in milliseconds.
+     */
+    var `startTimeMs`: kotlin.Long
+    , 
+    /**
+     * End time in milliseconds.
+     */
+    var `endTimeMs`: kotlin.Long
+    , 
+    /**
+     * Lines belonging to this section.
+     */
+    var `lines`: List<ParsedLyricsLine>
+    , 
+    /**
+     * Default agent for this section, if any.
+     */
+    var `agentId`: kotlin.String?
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeParsedLyricsSection: FfiConverterRustBuffer<ParsedLyricsSection> {
+    override fun read(buf: ByteBuffer): ParsedLyricsSection {
+        return ParsedLyricsSection(
+            FfiConverterString.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterSequenceTypeParsedLyricsLine.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ParsedLyricsSection) = (
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterLong.allocationSize(value.`startTimeMs`) +
+            FfiConverterLong.allocationSize(value.`endTimeMs`) +
+            FfiConverterSequenceTypeParsedLyricsLine.allocationSize(value.`lines`) +
+            FfiConverterOptionalString.allocationSize(value.`agentId`)
+    )
+
+    override fun write(value: ParsedLyricsSection, buf: ByteBuffer) {
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterLong.write(value.`startTimeMs`, buf)
+            FfiConverterLong.write(value.`endTimeMs`, buf)
+            FfiConverterSequenceTypeParsedLyricsLine.write(value.`lines`, buf)
+            FfiConverterOptionalString.write(value.`agentId`, buf)
     }
 }
 
@@ -2084,6 +2235,8 @@ public object FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer<ParsedLyr
  */
 data class ParsedLyricsWord (
     var `timeMs`: kotlin.Long
+    , 
+    var `endTimeMs`: kotlin.Long?
     , 
     var `word`: kotlin.String
     
@@ -2103,17 +2256,20 @@ public object FfiConverterTypeParsedLyricsWord: FfiConverterRustBuffer<ParsedLyr
     override fun read(buf: ByteBuffer): ParsedLyricsWord {
         return ParsedLyricsWord(
             FfiConverterLong.read(buf),
+            FfiConverterOptionalLong.read(buf),
             FfiConverterString.read(buf),
         )
     }
 
     override fun allocationSize(value: ParsedLyricsWord) = (
             FfiConverterLong.allocationSize(value.`timeMs`) +
+            FfiConverterOptionalLong.allocationSize(value.`endTimeMs`) +
             FfiConverterString.allocationSize(value.`word`)
     )
 
     override fun write(value: ParsedLyricsWord, buf: ByteBuffer) {
             FfiConverterLong.write(value.`timeMs`, buf)
+            FfiConverterOptionalLong.write(value.`endTimeMs`, buf)
             FfiConverterString.write(value.`word`, buf)
     }
 }
@@ -3527,6 +3683,70 @@ public object FfiConverterOptionalSequenceTypeNameIdPair: FfiConverterRustBuffer
 /**
  * @suppress
  */
+public object FfiConverterOptionalSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer<List<ParsedLyricsAgent>?> {
+    override fun read(buf: ByteBuffer): List<ParsedLyricsAgent>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterSequenceTypeParsedLyricsAgent.read(buf)
+    }
+
+    override fun allocationSize(value: List<ParsedLyricsAgent>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterSequenceTypeParsedLyricsAgent.allocationSize(value)
+        }
+    }
+
+    override fun write(value: List<ParsedLyricsAgent>?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterSequenceTypeParsedLyricsAgent.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalSequenceTypeParsedLyricsSection: FfiConverterRustBuffer<List<ParsedLyricsSection>?> {
+    override fun read(buf: ByteBuffer): List<ParsedLyricsSection>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterSequenceTypeParsedLyricsSection.read(buf)
+    }
+
+    override fun allocationSize(value: List<ParsedLyricsSection>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterSequenceTypeParsedLyricsSection.allocationSize(value)
+        }
+    }
+
+    override fun write(value: List<ParsedLyricsSection>?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterSequenceTypeParsedLyricsSection.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalSequenceTypeParsedLyricsWord: FfiConverterRustBuffer<List<ParsedLyricsWord>?> {
     override fun read(buf: ByteBuffer): List<ParsedLyricsWord>? {
         if (buf.get().toInt() == 0) {
@@ -3767,6 +3987,34 @@ public object FfiConverterSequenceTypeNameIdPair: FfiConverterRustBuffer<List<Na
 /**
  * @suppress
  */
+public object FfiConverterSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer<List<ParsedLyricsAgent>> {
+    override fun read(buf: ByteBuffer): List<ParsedLyricsAgent> {
+        val len = buf.getInt()
+        return List<ParsedLyricsAgent>(len) {
+            FfiConverterTypeParsedLyricsAgent.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<ParsedLyricsAgent>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeParsedLyricsAgent.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<ParsedLyricsAgent>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeParsedLyricsAgent.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceTypeParsedLyricsLine: FfiConverterRustBuffer<List<ParsedLyricsLine>> {
     override fun read(buf: ByteBuffer): List<ParsedLyricsLine> {
         val len = buf.getInt()
@@ -3785,6 +4033,34 @@ public object FfiConverterSequenceTypeParsedLyricsLine: FfiConverterRustBuffer<L
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeParsedLyricsLine.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeParsedLyricsSection: FfiConverterRustBuffer<List<ParsedLyricsSection>> {
+    override fun read(buf: ByteBuffer): List<ParsedLyricsSection> {
+        val len = buf.getInt()
+        return List<ParsedLyricsSection>(len) {
+            FfiConverterTypeParsedLyricsSection.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<ParsedLyricsSection>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeParsedLyricsSection.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<ParsedLyricsSection>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeParsedLyricsSection.write(it, buf)
         }
     }
 }
@@ -4221,9 +4497,9 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
     }
 
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `getParsedLyrics`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String, `artist`: kotlin.String, `title`: kotlin.String) : ParsedLyrics {
+     suspend fun `getParsedLyrics`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String, `artist`: kotlin.String, `title`: kotlin.String, `path`: kotlin.String?) : ParsedLyrics {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),FfiConverterString.lower(`artist`),FfiConverterString.lower(`title`),),
+        UniffiLib.uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),FfiConverterString.lower(`artist`),FfiConverterString.lower(`title`),FfiConverterOptionalString.lower(`path`),),
         { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
         { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },

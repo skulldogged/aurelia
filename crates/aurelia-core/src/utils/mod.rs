@@ -8,6 +8,7 @@ use uuid::Uuid;
 pub mod error_handling;
 pub mod lyrics;
 pub mod lyrics_parser;
+pub mod ttml_parser;
 
 /// Application constants
 pub mod constants {

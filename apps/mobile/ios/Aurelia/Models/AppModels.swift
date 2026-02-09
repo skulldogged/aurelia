@@ -80,22 +80,48 @@ struct AlbumItem: Identifiable, Equatable {
 
 struct SyncedWord: Equatable {
     var time: TimeInterval
+    var endTime: TimeInterval?
     var word: String
 }
 
 struct SyncedLine: Equatable {
     var time: TimeInterval
+    var endTime: TimeInterval?
     var line: String
     var words: [SyncedWord]?
+    var agentId: String?
+}
+
+struct LyricsSection: Equatable {
+    var name: String
+    var startTime: TimeInterval
+    var endTime: TimeInterval
+    var lines: [SyncedLine]
+    var agentId: String?
+}
+
+struct LyricsAgent: Equatable {
+    var id: String
+    var agentType: String
 }
 
 struct Lyrics: Equatable {
     var plain: String?
     var synced: [SyncedLine]?
+    var sections: [LyricsSection]?
+    var agents: [LyricsAgent]?
+    var songwriters: [String]?
+    var language: String?
     var areFromRemote: Bool
 
     var isValid: Bool {
         (plain != nil && !plain!.isEmpty) || (synced != nil && !synced!.isEmpty)
+    }
+
+    /// Check if an agent ID refers to a background/other voice.
+    func isBackgroundVocal(_ agentId: String?) -> Bool {
+        guard let agentId = agentId, let agents = agents else { return false }
+        return agents.first(where: { $0.id == agentId })?.agentType == "other"
     }
 }
 

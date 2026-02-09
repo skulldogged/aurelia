@@ -607,13 +607,36 @@ struct LyricsView: View {
         }
     }
 
+    /// Build a lookup of line start-time to section name for displaying dividers.
+    private var sectionLabels: [TimeInterval: String] {
+        guard let sections = lyrics.sections else { return [:] }
+        var labels: [TimeInterval: String] = [:]
+        for section in sections {
+            if !section.name.isEmpty, let firstLine = section.lines.first {
+                labels[firstLine.time] = section.name
+            }
+        }
+        return labels
+    }
+
     private func syncedLyricsView(_ synced: [SyncedLine]) -> some View {
-        ScrollViewReader { proxy in
+        let labels = sectionLabels
+        return ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 10) {
                     Color.clear.frame(height: 120)
 
                     ForEach(Array(synced.enumerated()), id: \.offset) { index, line in
+                        if let label = labels[line.time] {
+                            Text(label.uppercased())
+                                .font(.caption2)
+                                .fontWeight(.semibold)
+                                .tracking(1.5)
+                                .foregroundStyle(.white.opacity(0.30))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.top, index == 0 ? 0 : 8)
+                        }
+
                         Button {
                             let targetMs = Int64((line.time * 1000.0).rounded())
                             onSeekToMs?(targetMs)
@@ -622,7 +645,11 @@ struct LyricsView: View {
                                 proxy.scrollTo(index, anchor: .center)
                             }
                         } label: {
-                            lyricLine(line.line, isActive: index == activeLineIndex(in: synced))
+                            lyricLine(
+                                line.line,
+                                isActive: index == activeLineIndex(in: synced),
+                                isBackground: lyrics.isBackgroundVocal(line.agentId)
+                            )
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -660,10 +687,17 @@ struct LyricsView: View {
         }
     }
 
-    private func lyricLine(_ text: String, isActive: Bool) -> some View {
-        Text(text.isEmpty ? " " : text)
+    private func lyricLine(_ text: String, isActive: Bool, isBackground: Bool = false) -> some View {
+        let opacity: Double = if isActive {
+            isBackground ? 0.75 : 0.98
+        } else {
+            isBackground ? 0.25 : 0.50
+        }
+
+        return Text(text.isEmpty ? " " : text)
             .font(.system(size: 25, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(isActive ? 0.98 : 0.50))
+            .italic(isBackground)
+            .foregroundStyle(.white.opacity(opacity))
             .frame(maxWidth: .infinity, alignment: .leading)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
@@ -691,17 +725,31 @@ struct LyricsView: View {
         guard !synced.isEmpty else { return nil }
 
         let currentTime = Double(positionMs) / 1000.0
+        let tolerance = 0.01
         var low = 0
         var high = synced.count - 1
         var bestIndex: Int?
 
         while low <= high {
             let mid = (low + high) / 2
-            if synced[mid].time <= currentTime {
+            if synced[mid].time <= currentTime + tolerance {
                 bestIndex = mid
                 low = mid + 1
             } else {
                 high = mid - 1
+            }
+        }
+
+        // If we have end times, check if we've passed the active line's end
+        // and a subsequent line hasn't started yet (gap between lines)
+        if let idx = bestIndex, let endTime = synced[idx].endTime {
+            if currentTime > endTime {
+                // Check if the next line has started
+                if idx + 1 < synced.count && synced[idx + 1].time <= currentTime + tolerance {
+                    // Next line is active, binary search already found it
+                } else {
+                    // In a gap — keep current as active for continuity
+                }
             }
         }
 

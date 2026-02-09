@@ -424,36 +424,30 @@ impl Api for AxumApiImpl {
 
     async fn get_lyrics(
         &self,
-        _id: String,
+        id: String,
         artist: String,
         title: String,
         _path: Option<String>,
     ) -> ApiResult<String> {
-        Ok(aurelia_core::get_lyrics(
-            "".to_string(),
-            "".to_string(),
-            "".to_string(),
-            artist,
-            title,
-        )
-        .await)
+        let (server_url, token) = match get_credentials(&self.state)? {
+            Some(creds) => (creds.server_url, creds.token),
+            None => (String::new(), String::new()),
+        };
+        Ok(aurelia_core::get_lyrics(server_url, token, id, artist, title).await)
     }
 
     async fn get_parsed_lyrics(
         &self,
-        _id: String,
+        id: String,
         artist: String,
         title: String,
-        _path: Option<String>,
+        path: Option<String>,
     ) -> ApiResult<aurelia_core::models::ParsedLyrics> {
-        Ok(aurelia_core::get_parsed_lyrics(
-            "".to_string(),
-            "".to_string(),
-            "".to_string(),
-            artist,
-            title,
-        )
-        .await)
+        let (server_url, token) = match get_credentials(&self.state)? {
+            Some(creds) => (creds.server_url, creds.token),
+            None => (String::new(), String::new()),
+        };
+        Ok(aurelia_core::get_parsed_lyrics(server_url, token, id, artist, title, path).await)
     }
 
     // ─── Cache ───────────────────────────────────────────────────

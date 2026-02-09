@@ -239,12 +239,25 @@ pub fn clear_cache(app_data_dir: String) -> Result<(), error::AppError> {
 
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn get_lyrics(
-    _server_url: String, // Kept for API compatibility, though currently unused for LRCLIB
-    _token: String,
-    _item_id: String,
+    server_url: String,
+    token: String,
+    item_id: String,
     artist: String,
     title: String,
 ) -> String {
+    // 1. Try Jellyfin server first
+    if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        if let Ok(Some(jf_lyrics)) = client.get_lyrics(&item_id).await {
+            if let Ok(lrc) = utils::lyrics::jellyfin_to_lrc(&jf_lyrics) {
+                if !lrc.trim().is_empty() {
+                    return lrc;
+                }
+            }
+        }
+    }
+
+    // 2. Fall back to LrcLib
     let client = services::LrcLibClient::new();
     match client.search_lyrics(&artist, &title).await {
         Ok(results) => services::LrcLibClient::get_best_lyrics(&results).unwrap_or_default(),
@@ -259,9 +272,167 @@ pub async fn get_parsed_lyrics(
     item_id: String,
     artist: String,
     title: String,
+    path: Option<String>,
 ) -> models::ParsedLyrics {
-    let lyrics = get_lyrics(server_url, token, item_id, artist, title).await;
-    utils::lyrics_parser::parse_lrc_lyrics(&lyrics)
+    // 1. Try Jellyfin server first (returns structured data, no re-parsing needed)
+    if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
+        tracing::info!(
+            "[Lyrics] Trying Jellyfin: itemId={}, serverUrl={}...",
+            item_id,
+            &server_url[..server_url.len().min(30)]
+        );
+        let client =
+            services::JellyfinClient::with_auth(server_url.clone(), token.clone());
+        match client.get_lyrics(&item_id).await {
+            Ok(Some(jf_lyrics)) => {
+                let line_count = jf_lyrics.lyrics.len();
+                let lines_with_cues = jf_lyrics
+                    .lyrics
+                    .iter()
+                    .filter(|l| l.cues.as_ref().is_some_and(|c| !c.is_empty()))
+                    .count();
+                let has_metadata = jf_lyrics.metadata.is_some();
+                tracing::info!(
+                    "[Lyrics] Jellyfin returned {} lines, {} with cues, hasMetadata={}",
+                    line_count,
+                    lines_with_cues,
+                    has_metadata,
+                );
+
+                let parsed = utils::lyrics::jellyfin_to_parsed_lyrics(&jf_lyrics);
+                tracing::info!(
+                    "[Lyrics] Converted: syncedLines={}, hasWords={}, plainLines={}",
+                    parsed.synced.len(),
+                    parsed
+                        .synced
+                        .first()
+                        .is_some_and(|l| l.words.is_some()),
+                    parsed.plain.len(),
+                );
+                if parsed.is_valid() {
+                    return parsed;
+                }
+                tracing::warn!("[Lyrics] Jellyfin lyrics parsed but not valid, trying sidecar files");
+            }
+            Ok(None) => {
+                tracing::info!("[Lyrics] Jellyfin returned no lyrics for itemId={}", item_id);
+            }
+            Err(e) => {
+                tracing::warn!("[Lyrics] Jellyfin lyrics fetch error: {}", e);
+            }
+        }
+    } else {
+        tracing::info!(
+            "[Lyrics] Skipping Jellyfin (serverUrl empty={}, token empty={}, itemId empty={})",
+            server_url.is_empty(),
+            token.is_empty(),
+            item_id.is_empty(),
+        );
+    }
+
+    // 2. Try reading sidecar lyric files (.ttml, .lrc) next to the audio file
+    //    If path wasn't provided by the caller, try to fetch it from Jellyfin.
+    let resolved_path = match path {
+        Some(ref p) if !p.is_empty() => Some(p.clone()),
+        _ if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() => {
+            tracing::info!("[Lyrics] No path provided, fetching from Jellyfin item metadata");
+            let client =
+                services::JellyfinClient::with_auth(server_url.clone(), token.clone());
+            match client.get_item_path(&item_id).await {
+                Ok(Some(p)) => {
+                    tracing::info!("[Lyrics] Got path from Jellyfin: {}", p);
+                    Some(p)
+                }
+                Ok(None) => {
+                    tracing::info!("[Lyrics] Jellyfin item has no path");
+                    None
+                }
+                Err(e) => {
+                    tracing::warn!("[Lyrics] Failed to fetch item path: {}", e);
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
+
+    if let Some(ref audio_path) = resolved_path {
+        tracing::info!("[Lyrics] Trying sidecar files for: {}", audio_path);
+        if let Some(parsed) = try_read_sidecar_lyrics(audio_path) {
+            tracing::info!(
+                "[Lyrics] Sidecar lyrics found: syncedLines={}, hasSections={}, hasWords={}",
+                parsed.synced.len(),
+                parsed.sections.is_some(),
+                parsed.synced.first().is_some_and(|l| l.words.is_some()),
+            );
+            if parsed.is_valid() {
+                return parsed;
+            }
+        } else {
+            tracing::info!("[Lyrics] No sidecar lyric files found");
+        }
+    }
+
+    // 3. Fall back to LrcLib — parse_lyrics auto-detects TTML vs LRC
+    tracing::info!("[Lyrics] Falling back to LrcLib for '{}' by '{}'", title, artist);
+    let lrclib_client = services::LrcLibClient::new();
+    let raw = match lrclib_client.search_lyrics(&artist, &title).await {
+        Ok(results) => {
+            let best = services::LrcLibClient::get_best_lyrics(&results).unwrap_or_default();
+            tracing::info!("[Lyrics] LrcLib returned {} bytes", best.len());
+            best
+        }
+        Err(e) => {
+            tracing::warn!("[Lyrics] LrcLib search error: {}", e);
+            String::new()
+        }
+    };
+    utils::lyrics_parser::parse_lyrics(&raw)
+}
+
+/// Try to read a sidecar lyrics file next to the given audio file path.
+///
+/// Checks for `.ttml` first (richest metadata), then `.lrc` / `.elrc`.
+fn try_read_sidecar_lyrics(audio_path: &str) -> Option<models::ParsedLyrics> {
+    let audio = std::path::Path::new(audio_path);
+    let stem = audio.file_stem()?.to_str()?;
+    let parent = audio.parent()?;
+
+    // Extensions to try, in priority order (TTML first — richest format)
+    let extensions = [".ttml", ".lrc", ".elrc", ".txt"];
+
+    for ext in &extensions {
+        let candidate = parent.join(format!("{stem}{ext}"));
+        tracing::debug!("[Lyrics] Checking sidecar: {}", candidate.display());
+        if candidate.is_file() {
+            match std::fs::read_to_string(&candidate) {
+                Ok(contents) => {
+                    tracing::info!(
+                        "[Lyrics] Reading sidecar: {} ({} bytes)",
+                        candidate.display(),
+                        contents.len()
+                    );
+                    let parsed = utils::lyrics_parser::parse_lyrics(&contents);
+                    if parsed.is_valid() {
+                        return Some(parsed);
+                    }
+                    tracing::warn!(
+                        "[Lyrics] Sidecar {} parsed but not valid, trying next",
+                        candidate.display()
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "[Lyrics] Failed to read sidecar {}: {}",
+                        candidate.display(),
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    None
 }
 
 #[uniffi::export(async_runtime = "tokio")]

@@ -155,29 +155,50 @@ class PlayerViewModel(
             sampleRate = snapshot.sampleRate,
         )
 
+    private fun uniffi.aurelia_core.ParsedLyricsLine.toUiSyncedLine(): SyncedLine =
+        SyncedLine(
+            time = timeMs.toInt(),
+            endTime = endTimeMs?.toInt(),
+            line = line,
+            words = words?.map { word ->
+                SyncedWord(
+                    time = word.timeMs.toInt(),
+                    endTime = word.endTimeMs?.toInt(),
+                    word = word.word,
+                )
+            },
+            agentId = agentId,
+        )
+
     private fun uniffi.aurelia_core.ParsedLyrics.toUiLyrics(): Lyrics {
         val syncedLines =
             synced
                 .takeIf { it.isNotEmpty() }
-                ?.map { line ->
-                    SyncedLine(
-                        time = line.timeMs.toInt(),
-                        line = line.line,
-                        words =
-                            line.words?.map { word ->
-                                SyncedWord(
-                                    time = word.timeMs.toInt(),
-                                    word = word.word,
-                                )
-                            },
-                    )
-                }
+                ?.map { it.toUiSyncedLine() }
+
+        val uiSections = sections?.takeIf { it.isNotEmpty() }?.map { section ->
+            LyricsSection(
+                name = section.name,
+                startTime = section.startTimeMs.toInt(),
+                endTime = section.endTimeMs.toInt(),
+                lines = section.lines.map { it.toUiSyncedLine() },
+                agentId = section.agentId,
+            )
+        }
+
+        val uiAgents = agents?.takeIf { it.isNotEmpty() }?.map { agent ->
+            LyricsAgent(id = agent.id, agentType = agent.agentType)
+        }
 
         val plainLines = plain.takeIf { it.isNotEmpty() }
 
         return Lyrics(
             plain = plainLines,
             synced = syncedLines,
+            sections = uiSections,
+            agents = uiAgents,
+            songwriters = songwriters?.takeIf { it.isNotEmpty() },
+            language = language,
             areFromRemote = areFromRemote,
         )
     }

@@ -415,19 +415,62 @@ export type SyncStateInfo = { lastSyncTime: string | null; songCount: number; ar
 /**
  * Word-level synchronized lyric entry.
  */
-export type ParsedLyricsWord = { timeMs: number; word: string }
+export type ParsedLyricsWord = { timeMs: number; endTimeMs: number | null; word: string }
+
+/**
+ * A singer/performer agent definition.
+ */
+export type ParsedLyricsAgent = { 
+/**
+ * Unique identifier (e.g. "v1", "v2000").
+ */
+id: string; 
+/**
+ * Agent type: "person" for a singer, "other" for background/samples.
+ */
+agentType: string }
 
 // ParsedLyricsLine depends on: ParsedLyricsWord
 /**
  * Line-level synchronized lyric entry.
  */
-export type ParsedLyricsLine = { timeMs: number; line: string; words: ParsedLyricsWord[] | null }
+export type ParsedLyricsLine = { timeMs: number; endTimeMs: number | null; line: string; words: ParsedLyricsWord[] | null; 
+/**
+ * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
+ */
+agentId: string | null }
 
-// ParsedLyrics depends on: ParsedLyricsLine
+// ParsedLyricsSection depends on: ParsedLyricsLine
+/**
+ * A named section of the song (e.g. Verse, Chorus, Bridge).
+ */
+export type ParsedLyricsSection = { 
+/**
+ * Section name (e.g. "Verse", "Chorus", "Bridge", "Intro", "Outro").
+ */
+name: string; 
+/**
+ * Start time in milliseconds.
+ */
+startTimeMs: number; 
+/**
+ * End time in milliseconds.
+ */
+endTimeMs: number; 
+/**
+ * Lines belonging to this section.
+ */
+lines: ParsedLyricsLine[]; 
+/**
+ * Default agent for this section, if any.
+ */
+agentId: string | null }
+
+// ParsedLyrics depends on: ParsedLyricsAgent, ParsedLyricsLine, ParsedLyricsSection
 /**
  * Parsed lyrics payload returned by shared parser.
  */
-export type ParsedLyrics = { plain: string[]; synced: ParsedLyricsLine[]; areFromRemote: boolean }
+export type ParsedLyrics = { plain: string[]; synced: ParsedLyricsLine[]; sections: ParsedLyricsSection[] | null; agents: ParsedLyricsAgent[] | null; songwriters: string[] | null; language: string | null; areFromRemote: boolean }
 
 /**
  * Application-specific error type using thiserror

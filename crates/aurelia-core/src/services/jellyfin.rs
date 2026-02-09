@@ -555,7 +555,7 @@ impl JellyfinClient {
             album_id,
             artists,
             artist_ids,
-            path: None,
+            path: item["Path"].as_str().map(std::string::ToString::to_string),
             duration,
             album_art_url,
             year,
@@ -1114,10 +1114,36 @@ impl JellyfinClient {
         Ok(artist)
     }
 
+    /// Fetch just the filesystem `Path` of an item from Jellyfin.
+    ///
+    /// Uses a lightweight `GET /Items/{id}?Fields=Path` request.
+    pub async fn get_item_path(&self, item_id: &str) -> AppResult<Option<String>> {
+        let url = utils::build_jellyfin_url(
+            &self.server_url,
+            &format!("/Items/{item_id}?Fields=Path"),
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", self.get_auth_header())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            return Ok(None);
+        }
+
+        let body: serde_json::Value = response.json().await?;
+        Ok(body["Path"].as_str().map(ToString::to_string))
+    }
+
     /// Get lyrics for a song
     pub async fn get_lyrics(&self, item_id: &str) -> AppResult<Option<JellyfinLyrics>> {
         let lyrics_url =
             utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{item_id}/Lyrics"));
+
+        tracing::info!("[Lyrics] GET {}", lyrics_url);
 
         let response = self
             .client
@@ -1126,12 +1152,28 @@ impl JellyfinClient {
             .send()
             .await?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        tracing::info!("[Lyrics] Response status: {}", status);
+
+        if !status.is_success() {
             return Ok(None); // No lyrics available
         }
 
-        let lyrics: JellyfinLyrics = response.json().await?;
-        Ok(Some(lyrics))
+        // Read body as text first so we can log it on parse failure
+        let body = response.text().await?;
+        tracing::info!(
+            "[Lyrics] Response body length: {} bytes, preview: {}",
+            body.len(),
+            &body[..body.len().min(300)]
+        );
+
+        match serde_json::from_str::<JellyfinLyrics>(&body) {
+            Ok(lyrics) => Ok(Some(lyrics)),
+            Err(e) => {
+                tracing::error!("[Lyrics] Failed to parse Jellyfin lyrics JSON: {}", e);
+                Ok(None)
+            }
+        }
     }
 
     /// Toggle favorite status for an item

@@ -92,6 +92,7 @@ pub fn run() {
             tauri_commands::get_audio_stream_url,
             // Lyrics
             tauri_commands::get_lyrics,
+            tauri_commands::get_parsed_lyrics,
             // Cache
             tauri_commands::clear_cache,
             // Session / Playback

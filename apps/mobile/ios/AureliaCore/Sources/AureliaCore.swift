@@ -1418,13 +1418,21 @@ public func FfiConverterTypeNameIdPair_lower(_ value: NameIdPair) -> RustBuffer 
 public struct ParsedLyrics: Equatable, Hashable {
     public var plain: [String]
     public var synced: [ParsedLyricsLine]
+    public var sections: [ParsedLyricsSection]?
+    public var agents: [ParsedLyricsAgent]?
+    public var songwriters: [String]?
+    public var language: String?
     public var areFromRemote: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(plain: [String], synced: [ParsedLyricsLine], areFromRemote: Bool) {
+    public init(plain: [String], synced: [ParsedLyricsLine], sections: [ParsedLyricsSection]?, agents: [ParsedLyricsAgent]?, songwriters: [String]?, language: String?, areFromRemote: Bool) {
         self.plain = plain
         self.synced = synced
+        self.sections = sections
+        self.agents = agents
+        self.songwriters = songwriters
+        self.language = language
         self.areFromRemote = areFromRemote
     }
 
@@ -1446,6 +1454,10 @@ public struct FfiConverterTypeParsedLyrics: FfiConverterRustBuffer {
             try ParsedLyrics(
                 plain: FfiConverterSequenceString.read(from: &buf), 
                 synced: FfiConverterSequenceTypeParsedLyricsLine.read(from: &buf), 
+                sections: FfiConverterOptionSequenceTypeParsedLyricsSection.read(from: &buf), 
+                agents: FfiConverterOptionSequenceTypeParsedLyricsAgent.read(from: &buf), 
+                songwriters: FfiConverterOptionSequenceString.read(from: &buf), 
+                language: FfiConverterOptionString.read(from: &buf), 
                 areFromRemote: FfiConverterBool.read(from: &buf)
         )
     }
@@ -1453,6 +1465,10 @@ public struct FfiConverterTypeParsedLyrics: FfiConverterRustBuffer {
     public static func write(_ value: ParsedLyrics, into buf: inout [UInt8]) {
         FfiConverterSequenceString.write(value.plain, into: &buf)
         FfiConverterSequenceTypeParsedLyricsLine.write(value.synced, into: &buf)
+        FfiConverterOptionSequenceTypeParsedLyricsSection.write(value.sections, into: &buf)
+        FfiConverterOptionSequenceTypeParsedLyricsAgent.write(value.agents, into: &buf)
+        FfiConverterOptionSequenceString.write(value.songwriters, into: &buf)
+        FfiConverterOptionString.write(value.language, into: &buf)
         FfiConverterBool.write(value.areFromRemote, into: &buf)
     }
 }
@@ -1474,19 +1490,98 @@ public func FfiConverterTypeParsedLyrics_lower(_ value: ParsedLyrics) -> RustBuf
 
 
 /**
+ * A singer/performer agent definition.
+ */
+public struct ParsedLyricsAgent: Equatable, Hashable {
+    /**
+     * Unique identifier (e.g. "v1", "v2000").
+     */
+    public var id: String
+    /**
+     * Agent type: "person" for a singer, "other" for background/samples.
+     */
+    public var agentType: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Unique identifier (e.g. "v1", "v2000").
+         */id: String, 
+        /**
+         * Agent type: "person" for a singer, "other" for background/samples.
+         */agentType: String) {
+        self.id = id
+        self.agentType = agentType
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ParsedLyricsAgent: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParsedLyricsAgent: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyricsAgent {
+        return
+            try ParsedLyricsAgent(
+                id: FfiConverterString.read(from: &buf), 
+                agentType: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ParsedLyricsAgent, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.agentType, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyricsAgent_lift(_ buf: RustBuffer) throws -> ParsedLyricsAgent {
+    return try FfiConverterTypeParsedLyricsAgent.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyricsAgent_lower(_ value: ParsedLyricsAgent) -> RustBuffer {
+    return FfiConverterTypeParsedLyricsAgent.lower(value)
+}
+
+
+/**
  * Line-level synchronized lyric entry.
  */
 public struct ParsedLyricsLine: Equatable, Hashable {
     public var timeMs: Int64
+    public var endTimeMs: Int64?
     public var line: String
     public var words: [ParsedLyricsWord]?
+    /**
+     * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
+     */
+    public var agentId: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(timeMs: Int64, line: String, words: [ParsedLyricsWord]?) {
+    public init(timeMs: Int64, endTimeMs: Int64?, line: String, words: [ParsedLyricsWord]?, 
+        /**
+         * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
+         */agentId: String?) {
         self.timeMs = timeMs
+        self.endTimeMs = endTimeMs
         self.line = line
         self.words = words
+        self.agentId = agentId
     }
 
     
@@ -1506,15 +1601,19 @@ public struct FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer {
         return
             try ParsedLyricsLine(
                 timeMs: FfiConverterInt64.read(from: &buf), 
+                endTimeMs: FfiConverterOptionInt64.read(from: &buf), 
                 line: FfiConverterString.read(from: &buf), 
-                words: FfiConverterOptionSequenceTypeParsedLyricsWord.read(from: &buf)
+                words: FfiConverterOptionSequenceTypeParsedLyricsWord.read(from: &buf), 
+                agentId: FfiConverterOptionString.read(from: &buf)
         )
     }
 
     public static func write(_ value: ParsedLyricsLine, into buf: inout [UInt8]) {
         FfiConverterInt64.write(value.timeMs, into: &buf)
+        FfiConverterOptionInt64.write(value.endTimeMs, into: &buf)
         FfiConverterString.write(value.line, into: &buf)
         FfiConverterOptionSequenceTypeParsedLyricsWord.write(value.words, into: &buf)
+        FfiConverterOptionString.write(value.agentId, into: &buf)
     }
 }
 
@@ -1535,16 +1634,117 @@ public func FfiConverterTypeParsedLyricsLine_lower(_ value: ParsedLyricsLine) ->
 
 
 /**
+ * A named section of the song (e.g. Verse, Chorus, Bridge).
+ */
+public struct ParsedLyricsSection: Equatable, Hashable {
+    /**
+     * Section name (e.g. "Verse", "Chorus", "Bridge", "Intro", "Outro").
+     */
+    public var name: String
+    /**
+     * Start time in milliseconds.
+     */
+    public var startTimeMs: Int64
+    /**
+     * End time in milliseconds.
+     */
+    public var endTimeMs: Int64
+    /**
+     * Lines belonging to this section.
+     */
+    public var lines: [ParsedLyricsLine]
+    /**
+     * Default agent for this section, if any.
+     */
+    public var agentId: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Section name (e.g. "Verse", "Chorus", "Bridge", "Intro", "Outro").
+         */name: String, 
+        /**
+         * Start time in milliseconds.
+         */startTimeMs: Int64, 
+        /**
+         * End time in milliseconds.
+         */endTimeMs: Int64, 
+        /**
+         * Lines belonging to this section.
+         */lines: [ParsedLyricsLine], 
+        /**
+         * Default agent for this section, if any.
+         */agentId: String?) {
+        self.name = name
+        self.startTimeMs = startTimeMs
+        self.endTimeMs = endTimeMs
+        self.lines = lines
+        self.agentId = agentId
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ParsedLyricsSection: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeParsedLyricsSection: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyricsSection {
+        return
+            try ParsedLyricsSection(
+                name: FfiConverterString.read(from: &buf), 
+                startTimeMs: FfiConverterInt64.read(from: &buf), 
+                endTimeMs: FfiConverterInt64.read(from: &buf), 
+                lines: FfiConverterSequenceTypeParsedLyricsLine.read(from: &buf), 
+                agentId: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ParsedLyricsSection, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterInt64.write(value.startTimeMs, into: &buf)
+        FfiConverterInt64.write(value.endTimeMs, into: &buf)
+        FfiConverterSequenceTypeParsedLyricsLine.write(value.lines, into: &buf)
+        FfiConverterOptionString.write(value.agentId, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyricsSection_lift(_ buf: RustBuffer) throws -> ParsedLyricsSection {
+    return try FfiConverterTypeParsedLyricsSection.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeParsedLyricsSection_lower(_ value: ParsedLyricsSection) -> RustBuffer {
+    return FfiConverterTypeParsedLyricsSection.lower(value)
+}
+
+
+/**
  * Word-level synchronized lyric entry.
  */
 public struct ParsedLyricsWord: Equatable, Hashable {
     public var timeMs: Int64
+    public var endTimeMs: Int64?
     public var word: String
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(timeMs: Int64, word: String) {
+    public init(timeMs: Int64, endTimeMs: Int64?, word: String) {
         self.timeMs = timeMs
+        self.endTimeMs = endTimeMs
         self.word = word
     }
 
@@ -1565,12 +1765,14 @@ public struct FfiConverterTypeParsedLyricsWord: FfiConverterRustBuffer {
         return
             try ParsedLyricsWord(
                 timeMs: FfiConverterInt64.read(from: &buf), 
+                endTimeMs: FfiConverterOptionInt64.read(from: &buf), 
                 word: FfiConverterString.read(from: &buf)
         )
     }
 
     public static func write(_ value: ParsedLyricsWord, into buf: inout [UInt8]) {
         FfiConverterInt64.write(value.timeMs, into: &buf)
+        FfiConverterOptionInt64.write(value.endTimeMs, into: &buf)
         FfiConverterString.write(value.word, into: &buf)
     }
 }
@@ -3047,6 +3249,54 @@ fileprivate struct FfiConverterOptionSequenceTypeNameIdPair: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer {
+    typealias SwiftType = [ParsedLyricsAgent]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceTypeParsedLyricsAgent.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceTypeParsedLyricsAgent.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionSequenceTypeParsedLyricsSection: FfiConverterRustBuffer {
+    typealias SwiftType = [ParsedLyricsSection]?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterSequenceTypeParsedLyricsSection.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterSequenceTypeParsedLyricsSection.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionSequenceTypeParsedLyricsWord: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsWord]?
 
@@ -3243,6 +3493,31 @@ fileprivate struct FfiConverterSequenceTypeNameIdPair: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer {
+    typealias SwiftType = [ParsedLyricsAgent]
+
+    public static func write(_ value: [ParsedLyricsAgent], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeParsedLyricsAgent.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsAgent] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ParsedLyricsAgent]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeParsedLyricsAgent.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeParsedLyricsLine: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsLine]
 
@@ -3260,6 +3535,31 @@ fileprivate struct FfiConverterSequenceTypeParsedLyricsLine: FfiConverterRustBuf
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeParsedLyricsLine.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeParsedLyricsSection: FfiConverterRustBuffer {
+    typealias SwiftType = [ParsedLyricsSection]
+
+    public static func write(_ value: [ParsedLyricsSection], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeParsedLyricsSection.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsSection] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ParsedLyricsSection]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeParsedLyricsSection.read(from: &buf))
         }
         return seq
     }
@@ -3669,11 +3969,11 @@ public func getLyrics(serverUrl: String, token: String, itemId: String, artist: 
             
         )
 }
-public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String)async  -> ParsedLyrics  {
+public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String, path: String?)async  -> ParsedLyrics  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title)
+                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title),FfiConverterOptionString.lower(path)
                 )
             },
             pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
@@ -3941,10 +4241,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_get_library_sync_state() != 52280) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_get_lyrics() != 52693) {
+    if (uniffi_aurelia_core_checksum_func_get_lyrics() != 56114) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 17830) {
+    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 16323) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_playlist_items() != 51827) {

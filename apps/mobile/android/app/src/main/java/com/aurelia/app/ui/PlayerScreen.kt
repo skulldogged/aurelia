@@ -793,16 +793,33 @@ private fun LyricsView(
   val syncedLines = lyrics?.synced
   val plainLines = lyrics?.plain
 
+  // Build a lookup of line indices that start a new section
+  val sectionLabelsAtIndex =
+    remember(lyrics?.sections, syncedLines) {
+      val labels = mutableMapOf<Int, String>()
+      val sections = lyrics?.sections ?: emptyList()
+      if (!syncedLines.isNullOrEmpty()) {
+        for (section in sections) {
+          if (section.name.isNotBlank() && section.lines.isNotEmpty()) {
+            val firstLineTime = section.lines.first().time
+            val idx = syncedLines.indexOfFirst { it.time == firstLineTime }
+            if (idx >= 0) labels[idx] = section.name
+          }
+        }
+      }
+      labels
+    }
+
   val currentLineIndex =
     remember(currentPosition, syncedLines) {
       if (syncedLines.isNullOrEmpty()) {
         -1
       } else {
+        val tolerance = 10L // 10ms tolerance
         syncedLines
           .withIndex()
-          .lastOrNull { (index, line) ->
-            val nextTime = syncedLines.getOrNull(index + 1)?.time?.toLong() ?: Long.MAX_VALUE
-            currentPosition in line.time.toLong()..<nextTime
+          .lastOrNull { (_, line) ->
+            line.time.toLong() <= currentPosition + tolerance
           }?.index ?: -1
       }
     }
@@ -837,6 +854,23 @@ private fun LyricsView(
       ) {
         itemsIndexed(syncedLines) { index, line ->
           val isCurrentLine = index == currentLineIndex
+          val isBackground = lyrics?.isBackgroundVocal(line.agentId) == true
+
+          // Section label divider
+          val sectionLabel = sectionLabelsAtIndex[index]
+          if (sectionLabel != null) {
+            Text(
+              text = sectionLabel.uppercase(),
+              style = MaterialTheme.typography.labelSmall.copy(
+                letterSpacing = 1.5.sp,
+              ),
+              color = colors.onPrimaryContainer.copy(alpha = 0.30f),
+              textAlign = TextAlign.Center,
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = if (index == 0) 0.dp else 12.dp, bottom = 4.dp),
+            )
+          }
 
           val blurRadius by animateDpAsState(
             targetValue = if (isCurrentLine) 0.dp else 4.dp,
@@ -844,8 +878,11 @@ private fun LyricsView(
             label = "blur",
           )
 
+          val activeColor = if (isBackground) colors.primary.copy(alpha = 0.75f) else colors.primary
+          val inactiveColor = if (isBackground) colors.onPrimaryContainer.copy(alpha = 0.35f) else colors.onPrimaryContainer
+
           val textColor by animateColorAsState(
-            targetValue = if (isCurrentLine) colors.primary else colors.onPrimaryContainer,
+            targetValue = if (isCurrentLine) activeColor else inactiveColor,
             animationSpec = tween(durationMillis = 300),
             label = "color",
           )
@@ -854,6 +891,7 @@ private fun LyricsView(
             text = line.line,
             style = MaterialTheme.typography.titleLarge.copy(
               fontSize = 28.sp,
+              fontStyle = if (isBackground) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
             ),
             fontWeight = FontWeight.Bold,
             color = textColor,
