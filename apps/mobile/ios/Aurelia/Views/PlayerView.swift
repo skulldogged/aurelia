@@ -36,8 +36,10 @@ struct PlayerView: View {
                 isWide ? 300 : 260,
                 max(170, playerWidth - 120)
             )
-            let contentTopPadding: CGFloat = 58
-            let centeredContentHeight = max(0, geometry.size.height - contentTopPadding - AureliaSpacing.l)
+            let compactTopBarReservedHeight = topSafeInset + 36 + (AureliaSpacing.s * 2)
+            let contentTopPadding: CGFloat = isWide ? 58 : compactTopBarReservedHeight
+            let bottomContentPadding = max(geometry.safeAreaInsets.bottom + AureliaSpacing.s, AureliaSpacing.l)
+            let centeredContentHeight = max(0, geometry.size.height - contentTopPadding - bottomContentPadding)
 
             ZStack {
                 Group {
@@ -52,7 +54,7 @@ struct PlayerView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                         .padding(.horizontal, horizontalInset)
                         .padding(.top, contentTopPadding)
-                        .padding(.bottom, AureliaSpacing.l)
+                        .padding(.bottom, bottomContentPadding)
                     } else if isWide {
                         VStack {
                             adaptivePrimaryColumn(
@@ -73,20 +75,15 @@ struct PlayerView: View {
                         .frame(height: centeredContentHeight, alignment: .center)
                         .padding(.horizontal, horizontalInset)
                         .padding(.top, contentTopPadding)
-                        .padding(.bottom, AureliaSpacing.l)
+                        .padding(.bottom, bottomContentPadding)
                     } else {
-                        ScrollView(showsIndicators: false) {
-                            VStack(spacing: AureliaSpacing.l) {
-                                primaryColumn(artSize: baseArtSize)
-
-                                if activePanel != .none {
-                                    panelView
-                                }
-                            }
-                            .padding(.horizontal, horizontalInset)
-                            .padding(.top, contentTopPadding)
-                            .padding(.bottom, AureliaSpacing.xl)
-                        }
+                        compactPlayerLayout(
+                            playerWidth: playerWidth,
+                            horizontalInset: horizontalInset,
+                            contentTopPadding: contentTopPadding,
+                            bottomPadding: bottomContentPadding,
+                            centeredContentHeight: centeredContentHeight
+                        )
                     }
                 }
             }
@@ -99,7 +96,10 @@ struct PlayerView: View {
             }
         }
         .onChange(of: playerController.snapshot) { _, snapshot in
-            viewModel.updateFrom(snapshot, playerController: playerController)
+            viewModel.updateFrom(snapshot, position: playerController.playbackPosition, playerController: playerController)
+        }
+        .onChange(of: playerController.playbackPosition) { _, position in
+            viewModel.updateFrom(playerController.snapshot, position: position, playerController: playerController)
         }
         .onChange(of: viewModel.showLyrics) { _, isShown in
             if !isShown, activePanel == .lyrics {
@@ -107,7 +107,7 @@ struct PlayerView: View {
             }
         }
         .onAppear {
-            viewModel.updateFrom(playerController.snapshot, playerController: playerController)
+            viewModel.updateFrom(playerController.snapshot, position: playerController.playbackPosition, playerController: playerController)
         }
     }
 
@@ -126,24 +126,87 @@ struct PlayerView: View {
         }
     }
 
+    private func compactPlayerLayout(
+        playerWidth: CGFloat,
+        horizontalInset: CGFloat,
+        contentTopPadding: CGFloat,
+        bottomPadding: CGFloat,
+        centeredContentHeight: CGFloat
+    ) -> some View {
+        let artworkWidth = playerWidth
+
+        return ViewThatFits(in: .vertical) {
+            VStack(spacing: AureliaSpacing.l) {
+                compactArtworkPanelSlot(width: artworkWidth)
+                controlsColumn(horizontalPadding: AureliaSpacing.m)
+                    .frame(maxWidth: playerWidth)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .frame(height: centeredContentHeight, alignment: .bottom)
+            .padding(.horizontal, horizontalInset)
+            .padding(.top, contentTopPadding)
+            .padding(.bottom, bottomPadding)
+
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: AureliaSpacing.l) {
+                    compactArtworkPanelSlot(width: playerWidth)
+
+                    controlsColumn(horizontalPadding: AureliaSpacing.m)
+                        .frame(maxWidth: playerWidth)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, contentTopPadding)
+                .padding(.bottom, max(bottomPadding, AureliaSpacing.xl))
+            }
+        }
+    }
+
+    private func compactArtworkPanelSlot(width: CGFloat) -> some View {
+        Group {
+            if activePanel == .none {
+                artworkHero(artSize: width)
+                    .frame(width: width, height: width, alignment: .center)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            } else {
+                panelView
+                    .frame(width: width, alignment: .topLeading)
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+        }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: activePanel == .none ? .bottom : .top
+        )
+    }
+
     private func primaryColumn(artSize: CGFloat) -> some View {
         VStack(spacing: AureliaSpacing.l) {
-            AlbumArtView(url: viewModel.albumArtUrl, size: .extraLarge, customDimension: artSize)
-                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.36 : 0.16), radius: 18, x: 0, y: 10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.30), lineWidth: 1)
-                )
-
-            VStack(spacing: AureliaSpacing.m) {
-                songInfo
-                progressSection
-                playbackControls
-                secondaryControls
-            }
-            .padding(.horizontal, AureliaSpacing.l)
-            .padding(.vertical, AureliaSpacing.l)
+            artworkHero(artSize: artSize)
+            controlsColumn(horizontalPadding: AureliaSpacing.l)
         }
+    }
+
+    private func artworkHero(artSize: CGFloat) -> some View {
+        AlbumArtView(url: viewModel.albumArtUrl, size: .extraLarge, customDimension: artSize)
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.36 : 0.16), radius: 18, x: 0, y: 10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.30), lineWidth: 1)
+            )
+    }
+
+    private func controlsColumn(horizontalPadding: CGFloat) -> some View {
+        VStack(spacing: AureliaSpacing.m) {
+            songInfo
+            progressSection
+            playbackControls
+            secondaryControls
+        }
+        .padding(.horizontal, horizontalPadding)
+        .padding(.vertical, AureliaSpacing.l)
     }
 
     private var panelView: some View {

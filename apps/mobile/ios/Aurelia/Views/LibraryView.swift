@@ -3,16 +3,17 @@ import AureliaCore
 
 struct LibraryView: View {
     @Environment(AudioPlayerController.self) private var playerController
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel = LibraryViewModel()
+
+    private var isWide: Bool { horizontalSizeClass == .regular }
 
     var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                let isWide = AureliaLayout.isWide(proxy.size.width)
-                let columnCount = proxy.size.width > 1000 ? 3 : 2
-                let columns = Array(repeating: GridItem(.flexible(), spacing: AureliaSpacing.m), count: columnCount)
+            let columnCount = isWide ? 3 : 2
+            let columns = Array(repeating: GridItem(.flexible(), spacing: AureliaSpacing.m), count: columnCount)
 
-                Group {
+            Group {
                     if viewModel.isLoading && viewModel.songs.isEmpty {
                         ProgressView()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -50,7 +51,6 @@ struct LibraryView: View {
                             .scrollContentBackground(.hidden)
                         }
                     }
-                }
             }
             .aureliaRootTabHeader("Songs")
             .onAppear { viewModel.loadLibrary() }

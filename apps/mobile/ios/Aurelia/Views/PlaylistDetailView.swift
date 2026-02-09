@@ -6,14 +6,15 @@ struct PlaylistDetailView: View {
     let playlistName: String
 
     @Environment(AudioPlayerController.self) private var playerController
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel = PlaylistViewModel()
 
-    var body: some View {
-        GeometryReader { proxy in
-            let isWide = AureliaLayout.isWide(proxy.size.width)
-            let horizontalPadding: CGFloat = isWide ? AureliaSpacing.xl : AureliaSpacing.m
+    private var isWide: Bool { horizontalSizeClass == .regular }
 
-            Group {
+    var body: some View {
+        let horizontalPadding: CGFloat = isWide ? AureliaSpacing.xl : AureliaSpacing.m
+
+        Group {
                 if viewModel.detailIsLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,7 +44,6 @@ struct PlaylistDetailView: View {
                         }
                     }
                 }
-            }
         }
         .navigationTitle(playlistName)
         .navigationBarTitleDisplayMode(.inline)

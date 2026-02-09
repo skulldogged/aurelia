@@ -6,18 +6,19 @@ struct AlbumDetailView: View {
     let albumName: String
 
     @Environment(AudioPlayerController.self) private var playerController
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var album: Album?
     @State private var songs: [Song] = []
     @State private var isLoading = true
     @State private var error: String?
 
-    var body: some View {
-        GeometryReader { proxy in
-            let isWide = AureliaLayout.isWide(proxy.size.width)
-            let horizontalPadding: CGFloat = isWide ? AureliaSpacing.xl : AureliaSpacing.m
-            let artDimension: CGFloat = isWide ? 260 : 220
+    private var isWide: Bool { horizontalSizeClass == .regular }
 
-            Group {
+    var body: some View {
+        let horizontalPadding: CGFloat = isWide ? AureliaSpacing.xl : AureliaSpacing.m
+        let artDimension: CGFloat = isWide ? 260 : 220
+
+        Group {
                 if isLoading {
                     ProgressView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -44,7 +45,6 @@ struct AlbumDetailView: View {
                             .padding(.vertical, AureliaSpacing.l)
                         }
                     }
-                }
             }
         }
         .navigationTitle(albumName)

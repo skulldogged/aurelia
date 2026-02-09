@@ -3,15 +3,21 @@ import AureliaCore
 
 struct HomeView: View {
     @Environment(AudioPlayerController.self) private var playerController
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel = HomeViewModel()
     @State private var featuredSelection: AlbumRoute? = nil
+
+    private var isWide: Bool {
+        horizontalSizeClass == .regular
+    }
+
+    private var cardWidth: CGFloat {
+        isWide ? 180 : 140
+    }
 
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
-                let isWide = AureliaLayout.isWide(proxy.size.width)
-                let cardWidth: CGFloat = isWide ? 180 : 140
-
                 ScrollView {
                     if viewModel.isLoading && viewModel.featuredAlbums.isEmpty {
                         ProgressView()

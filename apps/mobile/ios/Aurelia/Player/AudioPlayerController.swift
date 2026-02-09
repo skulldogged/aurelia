@@ -11,6 +11,7 @@ final class AudioPlayerController: @unchecked Sendable {
     // MARK: - Published State
 
     private(set) var snapshot = PlayerSnapshot()
+    private(set) var playbackPosition = PlaybackPosition()
     private(set) var isReady = false
 
     // MARK: - Private State
@@ -395,14 +396,26 @@ final class AudioPlayerController: @unchecked Sendable {
             durationMs = 0
         }
 
-        snapshot = PlayerSnapshot(
+        // Always update position (separate from snapshot so views reading
+        // only display state aren't invalidated by the 500ms timer tick).
+        let newPosition = PlaybackPosition(
+            positionMs: positionMs,
+            durationMs: durationMs,
+            updateTimeMs: Int64(ProcessInfo.processInfo.systemUptime * 1000)
+        )
+        if playbackPosition != newPosition {
+            playbackPosition = newPosition
+        }
+
+        // Build candidate and only replace snapshot when display fields change.
+        // Position/duration/updateTime are tracked separately via `playbackPosition`
+        // so that views reading only display state are not invalidated by position ticks.
+        let candidate = PlayerSnapshot(
             title: song?.name ?? "",
             artist: song?.artists?.joined(separator: ", ") ?? "",
             albumArtUrl: song?.albumArtUrl,
             isPlaying: player.rate > 0,
             isBuffering: player.currentItem?.status == .unknown,
-            positionMs: positionMs,
-            durationMs: durationMs,
             hasPrevious: currentIndex > 0,
             hasNext: currentIndex + 1 < songQueue.count,
             isShuffled: snapshot.isShuffled,
@@ -412,11 +425,14 @@ final class AudioPlayerController: @unchecked Sendable {
             currentArtistId: song?.artistIds?.first,
             currentAlbumName: song?.album,
             playbackSpeed: player.rate != 0 ? player.rate : snapshot.playbackSpeed,
-            updateTimeMs: Int64(ProcessInfo.processInfo.systemUptime * 1000),
             codec: song?.codec,
             bitRate: song?.bitRate.flatMap { Int32($0) },
             sampleRate: song?.sampleRate.flatMap { Int32($0) }
         )
+
+        if snapshot != candidate {
+            snapshot = candidate
+        }
     }
 
     // MARK: - Now Playing Info (Lock Screen / Control Center)
@@ -429,8 +445,8 @@ final class AudioPlayerController: @unchecked Sendable {
             MPMediaItemPropertyTitle: song.name,
             MPMediaItemPropertyArtist: song.artists?.joined(separator: ", ") ?? "",
             MPMediaItemPropertyAlbumTitle: song.album ?? "",
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: Double(snapshot.positionMs) / 1000.0,
-            MPMediaItemPropertyPlaybackDuration: Double(snapshot.durationMs) / 1000.0,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: Double(playbackPosition.positionMs) / 1000.0,
+            MPMediaItemPropertyPlaybackDuration: Double(playbackPosition.durationMs) / 1000.0,
             MPNowPlayingInfoPropertyPlaybackRate: player.rate,
         ]
 

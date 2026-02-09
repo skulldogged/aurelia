@@ -2,21 +2,22 @@ import SwiftUI
 import AureliaCore
 
 struct AlbumsView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var albums: [AlbumItem] = []
     @State private var isLoading = false
     @State private var error: String?
 
+    private var isWide: Bool { horizontalSizeClass == .regular }
+
     var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                let isWide = AureliaLayout.isWide(proxy.size.width)
-                let minWidth: CGFloat = isWide ? 180 : 150
-                let horizontalPadding: CGFloat = isWide ? AureliaSpacing.xl : AureliaSpacing.m
-                let columns = [
-                    GridItem(.adaptive(minimum: minWidth), spacing: isWide ? 20 : 16)
-                ]
+            let minWidth: CGFloat = isWide ? 180 : 150
+            let horizontalPadding: CGFloat = isWide ? AureliaSpacing.xl : AureliaSpacing.m
+            let columns = [
+                GridItem(.adaptive(minimum: minWidth), spacing: isWide ? 20 : 16)
+            ]
 
-                Group {
+            Group {
                     if isLoading && albums.isEmpty {
                         ProgressView()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -49,7 +50,6 @@ struct AlbumsView: View {
                             .padding(.vertical, AureliaSpacing.l)
                         }
                     }
-                }
             }
             .aureliaRootTabHeader("Albums")
             .navigationDestination(for: AlbumRoute.self) { route in

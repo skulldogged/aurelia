@@ -9,10 +9,11 @@ struct AlbumArtView: View {
     @State private var loadedKey: String? = nil
 
     enum ArtSize {
-        case small, medium, large, extraLarge
+        case miniPlayer, small, medium, large, extraLarge
 
         var dimension: CGFloat {
             switch self {
+            case .miniPlayer: 36
             case .small: 48
             case .medium: 140
             case .large: 220
@@ -22,6 +23,7 @@ struct AlbumArtView: View {
 
         var cornerRadius: CGFloat {
             switch self {
+            case .miniPlayer: 5
             case .small: 6
             case .medium: 10
             case .large: 14
@@ -84,17 +86,22 @@ struct AlbumArtView: View {
             return
         }
 
-        if loadedKey != requestKey {
-            loadedImage = nil
-            loadedKey = requestKey
-        } else if loadedImage != nil {
+        guard loadedKey != requestKey || loadedImage == nil else {
             return
         }
 
-        loadedImage = await ImageCache.shared.fetchImage(
+        // Keep showing the previous image while loading the new one
+        // (don't nil out loadedImage) to avoid a flash to placeholder.
+        loadedKey = requestKey
+
+        let fetched = await ImageCache.shared.fetchImage(
             for: imageUrl,
             targetSize: CGSize(width: targetDimension, height: targetDimension)
         )
+        // Only update if this is still the current request (task hasn't been cancelled/superseded)
+        if loadedKey == requestKey {
+            loadedImage = fetched
+        }
     }
 
     private func requestKey(for targetDimension: CGFloat) -> String? {

@@ -23,8 +23,6 @@ struct PlayerSnapshot: Equatable {
     var albumArtUrl: String? = nil
     var isPlaying: Bool = false
     var isBuffering: Bool = false
-    var positionMs: Int64 = 0
-    var durationMs: Int64 = 0
     var hasPrevious: Bool = false
     var hasNext: Bool = false
     var isShuffled: Bool = false
@@ -34,10 +32,20 @@ struct PlayerSnapshot: Equatable {
     var currentArtistId: String? = nil
     var currentAlbumName: String? = nil
     var playbackSpeed: Float = 1.0
-    var updateTimeMs: Int64 = 0
     var codec: String? = nil
     var bitRate: Int32? = nil
     var sampleRate: Int32? = nil
+}
+
+// MARK: - Playback Position
+
+/// Lightweight struct for frequently-updating playback position.
+/// Separated from `PlayerSnapshot` so that views reading only display state
+/// (title, art, controls) are not invalidated by position ticks.
+struct PlaybackPosition: Equatable {
+    var positionMs: Int64 = 0
+    var durationMs: Int64 = 0
+    var updateTimeMs: Int64 = 0
 }
 
 // MARK: - Repeat Mode

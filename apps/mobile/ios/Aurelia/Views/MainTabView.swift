@@ -2,191 +2,243 @@ import SwiftUI
 
 struct MainTabView: View {
     @Binding var selectedTab: MainDestination
-#if !targetEnvironment(macCatalyst)
-    @Binding var animatedContentWidth: CGFloat
-    @Binding var hasAnimatedContentWidth: Bool
-#endif
+    @Binding var playerPresentationProgress: CGFloat
+    var onMiniPlayerTap: () -> Void
+    @Environment(AudioPlayerController.self) private var playerController
 
     var body: some View {
 #if targetEnvironment(macCatalyst)
-        catalystLayout
-#endif
-#if !targetEnvironment(macCatalyst)
-        mainTabs
-#endif
-    }
-
-    @ViewBuilder
-    private var mainTabs: some View {
+        CatalystSplitView(selectedTab: $selectedTab)
+#else
         if useSidebarAdaptable {
             tabs
                 .tabViewStyle(.sidebarAdaptable)
         } else {
             tabs
                 .tabViewStyle(.automatic)
+                .tabViewBottomAccessory(isEnabled: playerController.snapshot.currentSongId != nil) {
+                    TabBarMiniPlayer(
+                        playerPresentationProgress: $playerPresentationProgress,
+                        onTap: onMiniPlayerTap
+                    )
+                }
+                .background(Color.clear)
         }
-    }
-
-    private var tabs: some View {
-        TabView(selection: $selectedTab) {
-            SwiftUI.Tab("Home", systemImage: MainDestination.home.systemImage, value: MainDestination.home) {
-                tabContent {
-                    HomeView()
-                }
-            }
-
-            SwiftUI.Tab("Songs", systemImage: MainDestination.songs.systemImage, value: MainDestination.songs) {
-                tabContent {
-                    LibraryView()
-                }
-            }
-
-            SwiftUI.Tab("Albums", systemImage: MainDestination.albums.systemImage, value: MainDestination.albums) {
-                tabContent {
-                    AlbumsView()
-                }
-            }
-
-            SwiftUI.Tab("Artists", systemImage: MainDestination.artists.systemImage, value: MainDestination.artists) {
-                tabContent {
-                    ArtistsView()
-                }
-            }
-
-            SwiftUI.Tab("Search", systemImage: MainDestination.search.systemImage, value: MainDestination.search) {
-                tabContent {
-                    SearchView()
-                }
-            }
-
-            SwiftUI.Tab("Settings", systemImage: MainDestination.settings.systemImage, value: MainDestination.settings) {
-                tabContent {
-                    SettingsView()
-                }
-            }
-        }
-    }
-
-    private var useSidebarAdaptable: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad
+#endif
     }
 
 #if !targetEnvironment(macCatalyst)
+    private var tabs: some View {
+        TabView(selection: $selectedTab) {
+            SwiftUI.Tab(value: MainDestination.home) {
+                tabContent {
+                    HomeView()
+                }
+            } label: {
+                tabLabel(for: .home)
+            }
+
+            SwiftUI.Tab(value: MainDestination.songs) {
+                tabContent {
+                    LibraryView()
+                }
+            } label: {
+                tabLabel(for: .songs)
+            }
+
+            SwiftUI.Tab(value: MainDestination.albums) {
+                tabContent {
+                    AlbumsView()
+                }
+            } label: {
+                tabLabel(for: .albums)
+            }
+
+            SwiftUI.Tab(value: MainDestination.artists) {
+                tabContent {
+                    ArtistsView()
+                }
+            } label: {
+                tabLabel(for: .artists)
+            }
+
+            SwiftUI.Tab(value: MainDestination.search) {
+                tabContent {
+                    SearchView()
+                }
+            } label: {
+                tabLabel(for: .search)
+            }
+
+            SwiftUI.Tab(value: MainDestination.settings) {
+                tabContent {
+                    SettingsView()
+                }
+            } label: {
+                tabLabel(for: .settings)
+            }
+        }
+    }
+
+    private func tabLabel(for destination: MainDestination) -> some View {
+        Label(destination.title, systemImage: destination.systemImage)
+    }
+
+    private var useSidebarAdaptable: Bool {
+        return UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    /// A dedicated view for the tab bar bottom accessory miniplayer.
+    /// Isolating this into its own struct ensures that `@State` in child views
+    /// (like `AlbumArtView`) persists across `AudioPlayerController` snapshot updates,
+    /// preventing album art flickering.
+    private struct TabBarMiniPlayer: View {
+        @Binding var playerPresentationProgress: CGFloat
+        var onTap: () -> Void
+
+        var body: some View {
+            MiniPlayerView(onTap: onTap)
+                .onTapGesture(perform: onTap)
+                .opacity(Double(max(CGFloat(0), CGFloat(1) - playerPresentationProgress * CGFloat(1.4))))
+                .offset(y: playerPresentationProgress * 42)
+                .allowsHitTesting(playerPresentationProgress < 0.95)
+        }
+    }
+
     @ViewBuilder
     private func tabContent<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        if useSidebarAdaptable {
-            AnimatedTabContentWidthHost(
-                animatedWidth: $animatedContentWidth,
-                hasInitialWidth: $hasAnimatedContentWidth,
-                content: content
-            )
-        } else {
-            content()
-        }
-    }
-#endif
-
-#if targetEnvironment(macCatalyst)
-    private var catalystLayout: some View {
-        VStack(spacing: 0) {
-            catalystTopBar
-                .padding(.horizontal, AureliaSpacing.m)
-                .padding(.vertical, AureliaSpacing.s)
-
-            selectedTab.destinationView()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .background(AureliaBackground())
-    }
-
-    private var catalystTopBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                ForEach(Array(MainDestination.allCases.enumerated()), id: \.element.id) { index, destination in
-                    tabButton(for: destination)
-                    if index < MainDestination.allCases.count - 1 {
-                        Divider()
-                            .frame(height: 18)
-                            .padding(.horizontal, 8)
-                    }
-                }
-            }
-            .padding(4)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.primary.opacity(0.12), lineWidth: 1)
-            )
-        }
-    }
-
-    private func tabButton(for destination: MainDestination) -> some View {
-        Button {
-            selectedTab = destination
-        } label: {
-            Text(destination.title)
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .foregroundStyle(selectedTab == destination ? Color.primary : .secondary)
-                .background(
-                    selectedTab == destination ? Color.primary.opacity(0.16) : Color.clear,
-                    in: Capsule()
-                )
-        }
-        .buttonStyle(.plain)
+        content()
+            .modifier(SidebarSlideModifier())
     }
 #endif
 }
 
 #if !targetEnvironment(macCatalyst)
-private struct AnimatedTabContentWidthHost<Content: View>: View {
-    @Binding var animatedWidth: CGFloat
-    @Binding var hasInitialWidth: Bool
-    private let content: Content
+private struct SidebarSlideModifier: ViewModifier {
+    @Environment(\.tabBarPlacement) private var tabBarPlacement
+    @State private var animatedWidth: CGFloat = 0
+    @State private var hasInitialWidth = false
+    @State private var isTransitioning = false
+    @State private var pendingWidth: CGFloat? = nil
 
-    init(
-        animatedWidth: Binding<CGFloat>,
-        hasInitialWidth: Binding<Bool>,
-        @ViewBuilder content: () -> Content
-    ) {
-        _animatedWidth = animatedWidth
-        _hasInitialWidth = hasInitialWidth
-        self.content = content()
-    }
+    func body(content: Content) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(key: ContainerWidthKey.self, value: proxy.size.width)
+                }
+            )
+            .onPreferenceChange(ContainerWidthKey.self) { newWidth in
+                guard newWidth > 0 else { return }
 
-    var body: some View {
-        GeometryReader { proxy in
-            let targetWidth = max(proxy.size.width, 1)
-            let displayedWidth = hasInitialWidth ? animatedWidth : targetWidth
-            let trailingOffset = targetWidth - displayedWidth
+                guard hasInitialWidth else {
+                    animatedWidth = newWidth
+                    hasInitialWidth = true
+                    return
+                }
 
-            content
-                .frame(width: displayedWidth, alignment: .topLeading)
-                .offset(x: trailingOffset)
-                .frame(width: targetWidth, alignment: .topLeading)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .onAppear {
-                    if !hasInitialWidth {
-                        animatedWidth = targetWidth
-                        hasInitialWidth = true
-                    } else if abs(targetWidth - animatedWidth) > 0.5 {
+                if isTransitioning {
+                    // Don't update animatedWidth yet - keep it at old value.
+                    // Schedule the animation for the next frame so SwiftUI
+                    // has committed the layout pass and our withAnimation
+                    // actually takes effect.
+                    pendingWidth = newWidth
+                    DispatchQueue.main.async {
+                        guard let target = pendingWidth else { return }
+                        pendingWidth = nil
                         withAnimation(.easeInOut(duration: 0.28)) {
-                            animatedWidth = targetWidth
+                            animatedWidth = target
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            isTransitioning = false
                         }
                     }
+                } else {
+                    animatedWidth = newWidth
                 }
-                .onChange(of: targetWidth) { _, newWidth in
-                    guard hasInitialWidth else {
-                        animatedWidth = newWidth
-                        hasInitialWidth = true
-                        return
-                    }
-                    guard abs(newWidth - animatedWidth) > 0.5 else { return }
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        animatedWidth = newWidth
-                    }
-                }
+            }
+            .overlay {
+                content
+                    .frame(width: max(animatedWidth, 1))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .clipped()
+            }
+            .onChange(of: tabBarPlacement) { _, _ in
+                isTransitioning = true
+            }
+    }
+}
+
+private struct ContainerWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+#endif
+
+#if targetEnvironment(macCatalyst)
+private struct CatalystSplitView: View {
+    @Binding var selectedTab: MainDestination
+    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @State private var contentWidth: CGFloat = 0
+
+    var body: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            sidebarContent
+        } detail: {
+            detailContent
+        }
+        .navigationSplitViewStyle(.automatic)
+    }
+
+    private var sidebarContent: some View {
+        List {
+            ForEach(MainDestination.allCases) { destination in
+                sidebarRow(for: destination)
+            }
+        }
+        .listStyle(.sidebar)
+        .navigationSplitViewColumnWidth(ideal: 200, max: 240)
+    }
+
+    private func sidebarRow(for destination: MainDestination) -> some View {
+        let isSelected = selectedTab == destination
+        return Button {
+            selectedTab = destination
+        } label: {
+            Label {
+                Text(destination.title)
+                    .font(.body)
+            } icon: {
+                Image(systemName: destination.systemImage)
+                    .font(.body)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowBackground(
+            isSelected
+                ? RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.15))
+                : nil
+        )
+        .foregroundStyle(isSelected ? Color.accentColor : .primary)
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        switch selectedTab {
+        case .home: HomeView().navigationTitle(selectedTab.title)
+        case .songs: LibraryView().navigationTitle(selectedTab.title)
+        case .albums: AlbumsView().navigationTitle(selectedTab.title)
+        case .artists: ArtistsView().navigationTitle(selectedTab.title)
+        case .search: SearchView().navigationTitle(selectedTab.title)
+        case .settings: SettingsView().navigationTitle(selectedTab.title)
         }
     }
 }

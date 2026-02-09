@@ -2,19 +2,20 @@ import SwiftUI
 import AureliaCore
 
 struct ArtistsView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var artists: [(id: String, name: String, artUrl: String?, songCount: Int)] = []
     @State private var isLoading = false
     @State private var error: String?
 
+    private var isWide: Bool { horizontalSizeClass == .regular }
+
     var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                let isWide = AureliaLayout.isWide(proxy.size.width)
-                let columns = [
-                    GridItem(.adaptive(minimum: isWide ? 200 : 160), spacing: AureliaSpacing.m)
-                ]
+            let columns = [
+                GridItem(.adaptive(minimum: isWide ? 200 : 160), spacing: AureliaSpacing.m)
+            ]
 
-                Group {
+            Group {
                     if isLoading && artists.isEmpty {
                         ProgressView()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -90,7 +91,6 @@ struct ArtistsView: View {
                             .scrollContentBackground(.hidden)
                         }
                     }
-                }
             }
             .aureliaRootTabHeader("Artists")
             .navigationDestination(for: ArtistRoute.self) { route in

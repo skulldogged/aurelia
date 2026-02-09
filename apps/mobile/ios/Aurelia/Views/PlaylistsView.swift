@@ -2,19 +2,20 @@ import SwiftUI
 import AureliaCore
 
 struct PlaylistsView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel = PlaylistViewModel()
     @State private var showCreateDialog = false
     @State private var newPlaylistName = ""
 
+    private var isWide: Bool { horizontalSizeClass == .regular }
+
     var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                let isWide = AureliaLayout.isWide(proxy.size.width)
-                let columns = [
-                    GridItem(.adaptive(minimum: isWide ? 220 : 180), spacing: AureliaSpacing.m)
-                ]
+            let columns = [
+                GridItem(.adaptive(minimum: isWide ? 220 : 180), spacing: AureliaSpacing.m)
+            ]
 
-                Group {
+            Group {
                     if viewModel.isLoading {
                         ProgressView()
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -91,7 +92,6 @@ struct PlaylistsView: View {
                             .scrollContentBackground(.hidden)
                         }
                     }
-                }
             }
             .navigationTitle("Playlists")
             .toolbar {

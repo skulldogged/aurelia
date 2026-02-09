@@ -46,7 +46,7 @@ final class PlayerViewModel: @unchecked Sendable {
     private var favoriteCache: [String: Bool] = [:]
 
     /// Call this to sync state from the player controller.
-    func updateFrom(_ snapshot: PlayerSnapshot, playerController: AudioPlayerController) {
+    func updateFrom(_ snapshot: PlayerSnapshot, position: PlaybackPosition, playerController: AudioPlayerController) {
         let previousSongId = currentSongId
         let newSongId = snapshot.currentSongId
         let didChangeSong = newSongId != previousSongId
@@ -71,8 +71,8 @@ final class PlayerViewModel: @unchecked Sendable {
         setIfChanged(\.albumArtUrl, snapshot.albumArtUrl)
         setIfChanged(\.isPlaying, snapshot.isPlaying)
         setIfChanged(\.isBuffering, snapshot.isBuffering)
-        setIfChanged(\.positionMs, snapshot.positionMs)
-        setIfChanged(\.durationMs, snapshot.durationMs)
+        setIfChanged(\.positionMs, position.positionMs)
+        setIfChanged(\.durationMs, position.durationMs)
         setIfChanged(\.currentQueueIndex, latestQueueIndex)
         setIfChanged(\.isShuffled, snapshot.isShuffled)
         setIfChanged(\.repeatMode, snapshot.repeatMode)

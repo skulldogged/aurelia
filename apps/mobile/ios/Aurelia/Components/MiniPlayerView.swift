@@ -82,50 +82,48 @@ struct MiniPlayerView: View {
     }
 
     private var compactMiniPlayerBar: some View {
-        Button(action: onTap) {
-            GlassCard(cornerRadius: AureliaRadius.l, padding: AureliaSpacing.s) {
-                HStack(spacing: 12) {
-                    AlbumArtView(url: snapshot.albumArtUrl, size: .small)
+        HStack(spacing: 12) {
+            AlbumArtView(url: snapshot.albumArtUrl, size: .miniPlayer)
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(snapshot.title)
-                            .font(.subheadline.weight(.medium))
-                            .lineLimit(1)
-                        Text(snapshot.artist)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(snapshot.title)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                Text(snapshot.artist)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
 
-                    Spacer()
+            Spacer()
 
-                    HStack(spacing: 16) {
-                        Button {
-                            playerController.skipPrevious()
-                        } label: {
-                            Image(systemName: "backward.fill")
-                        }
-                        .disabled(!snapshot.hasPrevious)
+            HStack(spacing: 16) {
+                MiniPlayerUIKitButton(
+                    systemName: "backward.fill",
+                    fontSize: 17,
+                    isEnabled: snapshot.hasPrevious,
+                    action: { playerController.skipPrevious() }
+                )
 
-                        Button {
-                            togglePlayPause()
-                        } label: {
-                            Image(systemName: snapshot.isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: 24, weight: .bold))
-                        }
+                MiniPlayerUIKitButton(
+                    systemName: snapshot.isPlaying ? "pause.fill" : "play.fill",
+                    fontSize: 24,
+                    fontWeight: .bold,
+                    action: { togglePlayPause() }
+                )
 
-                        Button {
-                            playerController.skipNext()
-                        } label: {
-                            Image(systemName: "forward.fill")
-                        }
-                        .disabled(!snapshot.hasNext)
-                    }
-                    .buttonStyle(.plain)
-                }
+                MiniPlayerUIKitButton(
+                    systemName: "forward.fill",
+                    fontSize: 17,
+                    isEnabled: snapshot.hasNext,
+                    action: { playerController.skipNext() }
+                )
             }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, AureliaSpacing.s)
+        .padding(.vertical, AureliaSpacing.xs)
+        .tint(.primary)
+        .frame(minHeight: 64)
     }
 
     private var leftControls: some View {
@@ -287,5 +285,54 @@ struct MiniPlayerView: View {
             }
         }
     }
-
 }
+
+// MARK: - UIKit Button for Tab Bar Bottom Accessory
+
+/// A UIKit-backed button that properly participates in UIKit's gesture exclusion
+/// system, preventing conflicts with the `tabViewBottomAccessory` system gesture.
+/// SwiftUI `Button` and `onTapGesture` both conflict with the system's press
+/// animation, causing it to start and abruptly cancel. UIKit `UIButton` handles
+/// this correctly because it operates within the same gesture recognition system.
+private struct MiniPlayerUIKitButton: UIViewRepresentable {
+    let systemName: String
+    var fontSize: CGFloat = 17
+    var fontWeight: UIImage.SymbolWeight = .semibold
+    var isEnabled: Bool = true
+    let action: () -> Void
+
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(type: .system)
+        button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentHuggingPriority(.required, for: .vertical)
+        button.tintColor = .label
+        return button
+    }
+
+    func updateUIView(_ button: UIButton, context: Context) {
+        context.coordinator.action = action
+        let config = UIImage.SymbolConfiguration(pointSize: fontSize, weight: fontWeight)
+        let image = UIImage(systemName: systemName, withConfiguration: config)
+        button.setImage(image, for: .normal)
+        button.isEnabled = isEnabled
+        button.alpha = isEnabled ? 1 : 0.4
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func tapped() {
+            action()
+        }
+    }
+}
+

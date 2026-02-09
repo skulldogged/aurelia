@@ -3,9 +3,12 @@ import AureliaCore
 
 struct SearchView: View {
     @Environment(AudioPlayerController.self) private var playerController
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
     @State private var allSongs: [Song] = []
     @State private var isLoaded = false
+
+    private var isWide: Bool { horizontalSizeClass == .regular }
 
     private var filteredSongs: [Song] {
         guard !searchText.isEmpty else { return [] }
@@ -36,10 +39,7 @@ struct SearchView: View {
 
     var body: some View {
         NavigationStack {
-            GeometryReader { proxy in
-                let isWide = AureliaLayout.isWide(proxy.size.width)
-
-                Group {
+            Group {
                     if searchText.isEmpty {
                         ContentUnavailableView("Search Your Library", systemImage: "magnifyingglass", description: Text("Search for songs, albums, or artists"))
                     } else if filteredSongs.isEmpty && filteredAlbums.isEmpty {
@@ -108,7 +108,6 @@ struct SearchView: View {
                             .scrollContentBackground(.hidden)
                         }
                     }
-                }
             }
             .aureliaRootTabHeader("Search")
             .searchable(text: $searchText, prompt: "Songs, albums, artists")

@@ -104,9 +104,14 @@ struct AureliaSectionHeader: View {
 
 extension View {
     func aureliaScreen() -> some View {
+#if targetEnvironment(macCatalyst)
+        self
+            .background(AureliaBackground())
+#else
         self
             .background(AureliaBackground())
             .navigationBarTitleDisplayMode(.inline)
+#endif
     }
 
     func aureliaInsetCard(cornerRadius: CGFloat = AureliaRadius.l) -> some View {
@@ -135,8 +140,13 @@ private struct AureliaRootTabHeaderModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
+#if targetEnvironment(macCatalyst)
+        content
+            .navigationTitle(resolvedTitle)
+#else
         content
             .navigationTitle(resolvedTitle)
             .navigationBarTitleDisplayMode(.inline)
+#endif
     }
 }

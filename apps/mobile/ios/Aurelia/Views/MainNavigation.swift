@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum MainDestination: String, CaseIterable, Identifiable {
+enum MainDestination: String, CaseIterable, Identifiable, Hashable {
     case home
     case songs
     case albums

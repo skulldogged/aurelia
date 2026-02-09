@@ -5,24 +5,16 @@ struct MainView: View {
     @Environment(AudioPlayerController.self) private var playerController
     @State private var selection: MainDestination = .home
     @State private var playerPresentationProgress: CGFloat = 0
-#if !targetEnvironment(macCatalyst)
-    @State private var animatedContentWidth: CGFloat = 0
-    @State private var hasAnimatedContentWidth = false
-#endif
 
     var body: some View {
         GeometryReader { geometry in
             let containerHeight = max(geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom, 1)
 
-            #if !targetEnvironment(macCatalyst)
             let tabView = MainTabView(
                 selectedTab: $selection,
-                animatedContentWidth: $animatedContentWidth,
-                hasAnimatedContentWidth: $hasAnimatedContentWidth
+                playerPresentationProgress: $playerPresentationProgress,
+                onMiniPlayerTap: { openPlayer(animated: true) }
             )
-            #else
-            let tabView = MainTabView(selectedTab: $selection)
-            #endif
 
             tabView
                 .miniPlayerInset(
@@ -53,6 +45,11 @@ struct MainView: View {
             guard let command = notification.object as? AureliaMenuCommand else { return }
             handleMenuCommand(command)
         }
+#if targetEnvironment(macCatalyst)
+        .onAppear {
+            configureCatalystTitlebar()
+        }
+#endif
     }
 
     private func openPlayer(animated: Bool) {
@@ -140,25 +137,45 @@ struct MainView: View {
             playerController.cycleRepeatMode()
         }
     }
+
+#if targetEnvironment(macCatalyst)
+    private func configureCatalystTitlebar() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+        windowScene.titlebar?.titleVisibility = .visible
+    }
+#endif
 }
 
 private struct MiniPlayerInsetModifier: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.tabBarPlacement) private var tabBarPlacement
     @Environment(AudioPlayerController.self) private var playerController
     @Binding var playerPresentationProgress: CGFloat
     var onTap: () -> Void
 
+    /// Whether this device uses the tabViewBottomAccessory for the miniplayer (compact iPhone).
+    /// When true, we skip the overlay here since the accessory handles it.
+    private var usesBottomAccessory: Bool {
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return false }
+        guard horizontalSizeClass == .compact else { return false }
+        guard tabBarPlacement != .sidebar && tabBarPlacement != .topBar else { return false }
+        return true
+    }
+
     func body(content: Content) -> some View {
-        content.safeAreaInset(edge: .bottom) {
-            if playerController.snapshot.currentSongId != nil && playerPresentationProgress < 0.999 {
-                MiniPlayerView(onTap: onTap)
-                    .padding(.horizontal, AureliaSpacing.m)
-                    .padding(.top, AureliaSpacing.s)
-                    .opacity(Double(max(CGFloat(0), CGFloat(1) - playerPresentationProgress * CGFloat(1.4))))
-                    .offset(y: playerPresentationProgress * 42)
-                    .allowsHitTesting(playerPresentationProgress < 0.95)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+        content
+            .overlay(alignment: .bottom) {
+                if !usesBottomAccessory && playerController.snapshot.currentSongId != nil && playerPresentationProgress < 0.999 {
+                    MiniPlayerView(onTap: onTap)
+                        .padding(.horizontal, AureliaSpacing.m)
+                        .padding(.top, AureliaSpacing.s)
+                        .padding(.bottom, 8)
+                        .opacity(Double(max(CGFloat(0), CGFloat(1) - playerPresentationProgress * CGFloat(1.4))))
+                        .offset(y: playerPresentationProgress * 42)
+                        .allowsHitTesting(playerPresentationProgress < 0.95)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
-        }
     }
 }
 
