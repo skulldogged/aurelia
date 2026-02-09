@@ -12,7 +12,6 @@ const vitestEntry = require.resolve('vitest/vitest.mjs', { paths: [process.cwd()
 const cacheDir = join(process.cwd(), '.cache')
 mkdirSync(cacheDir, { recursive: true })
 
-const storageFile = join(cacheDir, 'localstorage.json')
 const nodeOptions = (process.env.NODE_OPTIONS ?? '')
   .split(' ')
   .filter(Boolean)
