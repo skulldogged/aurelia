@@ -1,10 +1,12 @@
 import SwiftUI
+import AVFoundation
 
 @main
 struct AureliaApp: App {
     @State private var appViewModel = AppViewModel()
     @State private var playerController: AudioPlayerController?
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -41,6 +43,28 @@ struct AureliaApp: App {
                         self.playerController = nil
                         appViewModel.logout()
                     }
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                switch newPhase {
+                case .background:
+                    print("App entered background - ensuring audio session stays active")
+                    do {
+                        try AVAudioSession.sharedInstance().setActive(true)
+                    } catch {
+                        print("Failed to activate audio session in background: \(error)")
+                    }
+                case .inactive:
+                    print("App became inactive")
+                case .active:
+                    print("App became active")
+                    do {
+                        try AVAudioSession.sharedInstance().setActive(true)
+                    } catch {
+                        print("Failed to activate audio session: \(error)")
+                    }
+                @unknown default:
+                    break
                 }
             }
         }

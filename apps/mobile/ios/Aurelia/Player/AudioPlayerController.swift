@@ -26,7 +26,6 @@ final class AudioPlayerController: @unchecked Sendable {
     private var loadedQueueRange: ClosedRange<Int>?
     private var timeObserver: Any?
     private var audioSessionConfigured = false
-    private let audioSessionQueue = DispatchQueue(label: "com.aurelia.audio-session", qos: .userInitiated)
     private let logger = Logger(subsystem: "com.aurelia.app", category: "AudioPlayer")
 
     private static let seekableContainers: Set<String> = ["flac", "mp3", "aac", "ogg"]
@@ -36,6 +35,9 @@ final class AudioPlayerController: @unchecked Sendable {
     init() {
         player = AVQueuePlayer()
         player.allowsExternalPlayback = false
+        // Configure for background playback
+        player.automaticallyWaitsToMinimizeStalling = true
+        configureAudioSession()
         setupRemoteTransportControls()
         setupNotifications()
         setupTimeObserver()
@@ -53,19 +55,21 @@ final class AudioPlayerController: @unchecked Sendable {
     private func configureAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
+            // Use .mixWithOthers to allow audio to continue in background
+            // Also add .duckOthers to duck other audio when we start playing
+            try session.setCategory(.playback, mode: .default, options: [.mixWithOthers, .duckOthers])
             try session.setActive(true)
+            audioSessionConfigured = true
+            logger.info("Audio session configured successfully with mixWithOthers and duckOthers")
         } catch {
             logger.error("Failed to configure audio session: \(error)")
+            audioSessionConfigured = false
         }
     }
 
     private func ensureAudioSession() {
         guard !audioSessionConfigured else { return }
-        audioSessionConfigured = true
-        audioSessionQueue.async { [weak self] in
-            self?.configureAudioSession()
-        }
+        configureAudioSession()
     }
 
     // MARK: - Remote Controls (Lock Screen / Control Center)
@@ -123,6 +127,71 @@ final class AudioPlayerController: @unchecked Sendable {
                   item == self.player.currentItem else { return }
             self.handleTrackEnded()
         }
+        
+        // Handle audio session interruptions
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleAudioSessionInterruption(notification)
+        }
+        
+        // Handle app lifecycle
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.logger.info("App entered background, ensuring audio session stays active")
+            self?.ensureAudioSessionActive()
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willEnterForegroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.logger.info("App will enter foreground")
+            self?.ensureAudioSessionActive()
+        }
+    }
+    
+    private func handleAudioSessionInterruption(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            logger.info("Audio session interruption began")
+            // Interruption began, audio will pause automatically
+        case .ended:
+            logger.info("Audio session interruption ended")
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                if options.contains(.shouldResume) && snapshot.isPlaying {
+                    logger.info("Resuming playback after interruption")
+                    resume()
+                }
+            }
+        @unknown default:
+            break
+        }
+    }
+    
+    private func ensureAudioSessionActive() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            if !session.isOtherAudioPlaying {
+                try session.setActive(true)
+                logger.info("Audio session reactivated")
+            }
+        } catch {
+            logger.error("Failed to reactivate audio session: \(error)")
+        }
     }
 
     // MARK: - Time Observer
@@ -131,6 +200,13 @@ final class AudioPlayerController: @unchecked Sendable {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             self?.updateSnapshot()
+        }
+        
+        // Observe rate changes to detect unexpected pauses
+        player.observe(\.rate, options: [.new]) { [weak self] player, change in
+            guard let self = self else { return }
+            let newRate = change.newValue ?? 0
+            self.logger.info("Player rate changed to: \(newRate)")
         }
     }
 
@@ -231,7 +307,16 @@ final class AudioPlayerController: @unchecked Sendable {
     }
 
     func pause() {
+        logger.info("Pause called")
         player.pause()
+        updateSnapshot()
+        updateNowPlayingInfo()
+    }
+    
+    func play() {
+        logger.info("Play called")
+        ensureAudioSession()
+        player.play()
         updateSnapshot()
         updateNowPlayingInfo()
     }

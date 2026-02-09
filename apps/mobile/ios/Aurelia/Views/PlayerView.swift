@@ -353,6 +353,8 @@ struct PlayerView: View {
                 LyricsView(
                     lyrics: lyrics,
                     positionMs: viewModel.positionMs,
+                    isPlaying: viewModel.isPlaying,
+                    updateTimeMs: viewModel.positionUpdateTimeMs,
                     onSeekToMs: { targetMs in
                         viewModel.seekTo(targetMs, playerController: playerController)
                     }
@@ -593,12 +595,28 @@ private struct PlayerBackdropView: View {
 struct LyricsView: View {
     let lyrics: Lyrics
     let positionMs: Int64
+    let isPlaying: Bool
+    let updateTimeMs: Int64
     var onSeekToMs: ((Int64) -> Void)? = nil
     @State private var lastCenteredIndex: Int?
 
+    /// Whether these lyrics contain any word-level sync data.
+    private var hasWordSync: Bool {
+        lyrics.synced?.contains(where: { $0.words != nil && !$0.words!.isEmpty }) ?? false
+    }
+
     var body: some View {
         if let synced = lyrics.synced, !synced.isEmpty {
-            syncedLyricsView(synced)
+            if hasWordSync {
+                // Use TimelineView for high-frequency updates (~60fps) to drive
+                // smooth word-level karaoke fill, similar to Apple Music.
+                TimelineView(.animation(minimumInterval: nil, paused: !isPlaying)) { timeline in
+                    let interpolatedMs = interpolatedPositionMs(at: timeline.date)
+                    syncedLyricsView(synced, currentPositionMs: interpolatedMs)
+                }
+            } else {
+                syncedLyricsView(synced, currentPositionMs: positionMs)
+            }
         } else if let plain = lyrics.plain, !plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             plainLyricsView(plain)
         } else {
@@ -606,6 +624,19 @@ struct LyricsView: View {
                 .foregroundStyle(.white.opacity(0.78))
         }
     }
+
+    // MARK: - Time Interpolation
+
+    /// Interpolate the current playback position from the last known snapshot
+    /// using system uptime, giving us sub-frame accuracy for word fill.
+    private func interpolatedPositionMs(at date: Date) -> Int64 {
+        guard isPlaying, updateTimeMs > 0 else { return positionMs }
+        let nowMs = Int64(ProcessInfo.processInfo.systemUptime * 1000)
+        let elapsed = nowMs - updateTimeMs
+        return positionMs + max(0, elapsed)
+    }
+
+    // MARK: - Section Labels
 
     /// Build a lookup of line start-time to section name for displaying dividers.
     private var sectionLabels: [TimeInterval: String] {
@@ -619,8 +650,119 @@ struct LyricsView: View {
         return labels
     }
 
-    private func syncedLyricsView(_ synced: [SyncedLine]) -> some View {
+    // MARK: - Line State
+
+    /// Describes a line's visual state for rendering.
+    /// - `active`: the primary line being sung — words fill with karaoke animation.
+    /// - `finishing`: a line that was preempted by an overlapping vocal but whose
+    ///   end time hasn't been reached yet. Words that were already sung stay bright
+    ///   and the fill continues, but scale/glow animate down so focus shifts to the
+    ///   new active line.
+    /// - `inactive`: fully past — uniform dim opacity.
+    private enum LineState: Equatable {
+        case active
+        case finishing
+        case inactive
+    }
+
+    // MARK: - Active Line / Word Detection
+
+    private func activeLineIndex(in synced: [SyncedLine], currentPositionMs: Int64) -> Int? {
+        guard !synced.isEmpty else { return nil }
+
+        let currentTime = Double(currentPositionMs) / 1000.0
+        let tolerance = 0.01
+        var low = 0
+        var high = synced.count - 1
+        var bestIndex: Int?
+
+        while low <= high {
+            let mid = (low + high) / 2
+            if synced[mid].time <= currentTime + tolerance {
+                bestIndex = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+
+        if let idx = bestIndex, let endTime = synced[idx].endTime {
+            if currentTime > endTime {
+                if idx + 1 < synced.count && synced[idx + 1].time <= currentTime + tolerance {
+                    // Next line is active, binary search already found it
+                } else {
+                    // In a gap — keep current as active for continuity
+                }
+            }
+        }
+
+        return bestIndex
+    }
+
+    /// Determine the visual state of a line given its index and the active line.
+    /// A line is "finishing" when it was preempted by an overlapping line but
+    /// its end time hasn't been reached yet — its word highlights should keep
+    /// animating rather than snapping to inactive.
+    private func lineState(for index: Int, line: SyncedLine, activeIdx: Int?, currentPositionMs: Int64) -> LineState {
+        guard let activeIdx else { return .inactive }
+        if index == activeIdx { return .active }
+
+        // Only lines *before* the active line can be "finishing".
+        guard index < activeIdx else { return .inactive }
+
+        let currentTime = Double(currentPositionMs) / 1000.0
+
+        // Determine when this line's content actually ends.
+        // Prefer the last word's end time for precision, fall back to line endTime.
+        let lineContentEnd: TimeInterval? = {
+            if let words = line.words, let lastWord = words.last {
+                return lastWord.endTime ?? line.endTime
+            }
+            return line.endTime
+        }()
+
+        if let endTime = lineContentEnd, currentTime <= endTime {
+            // Line hasn't finished its content yet — keep it animating
+            return .finishing
+        }
+
+        return .inactive
+    }
+
+    /// For a line, determine which word is currently being sung.
+    private func activeWordIndex(in line: SyncedLine, currentPositionMs: Int64) -> Int? {
+        guard let words = line.words, !words.isEmpty else { return nil }
+        let currentTime = Double(currentPositionMs) / 1000.0
+        let tolerance = 0.01
+
+        var result: Int?
+        for i in stride(from: words.count - 1, through: 0, by: -1) {
+            if words[i].time <= currentTime + tolerance {
+                result = i
+                break
+            }
+        }
+        return result
+    }
+
+    /// Compute the progress (0...1) through a specific word for the gradient fill.
+    private func wordProgress(word: SyncedWord, nextWord: SyncedWord?, lineEndTime: TimeInterval?, currentPositionMs: Int64) -> Double {
+        let currentTime = Double(currentPositionMs) / 1000.0
+        let endTime = word.endTime
+            ?? nextWord?.time
+            ?? lineEndTime
+            ?? (word.time + 0.5)
+        let duration = endTime - word.time
+        guard duration > 0 else { return 1 }
+        let elapsed = currentTime - word.time
+        return min(1, max(0, elapsed / duration))
+    }
+
+    // MARK: - Synced Lyrics View
+
+    private func syncedLyricsView(_ synced: [SyncedLine], currentPositionMs: Int64) -> some View {
         let labels = sectionLabels
+        let activeIdx = activeLineIndex(in: synced, currentPositionMs: currentPositionMs)
         return ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 10) {
@@ -645,12 +787,26 @@ struct LyricsView: View {
                                 proxy.scrollTo(index, anchor: .center)
                             }
                         } label: {
-                            lyricLine(
-                                line.line,
-                                isActive: index == activeLineIndex(in: synced),
-                                isBackground: lyrics.isBackgroundVocal(line.agentId)
-                            )
+                            let state = lineState(for: index, line: line, activeIdx: activeIdx, currentPositionMs: currentPositionMs)
+                            let isBackground = lyrics.isBackgroundVocal(line.agentId)
+                            let isWordSynced = line.words != nil && !line.words!.isEmpty
+
+                            if isWordSynced {
+                                wordSyncedLine(
+                                    line: line,
+                                    state: state,
+                                    isBackground: isBackground,
+                                    currentPositionMs: currentPositionMs
+                                )
                                 .contentShape(Rectangle())
+                            } else {
+                                lyricLine(
+                                    line.line,
+                                    isActive: state == .active,
+                                    isBackground: isBackground
+                                )
+                                .contentShape(Rectangle())
+                            }
                         }
                         .buttonStyle(.plain)
                         .id(index)
@@ -668,13 +824,135 @@ struct LyricsView: View {
                 )
             )
             .onAppear {
-                centerActiveLine(in: synced, proxy: proxy, animated: false)
+                centerActiveLine(in: synced, proxy: proxy, currentPositionMs: currentPositionMs, animated: false)
             }
-            .onChange(of: activeLineIndex(in: synced)) { _, _ in
-                centerActiveLine(in: synced, proxy: proxy, animated: true)
+            .onChange(of: activeLineIndex(in: synced, currentPositionMs: currentPositionMs)) { _, _ in
+                centerActiveLine(in: synced, proxy: proxy, currentPositionMs: currentPositionMs, animated: true)
             }
         }
     }
+
+    // MARK: - Word-Synced Line (Apple Music Style)
+
+    /// Renders a line with per-word karaoke fill.
+    ///
+    /// Each word is an individual `Text` inside a `WordFlowLayout` so that:
+    /// 1. Each word's gradient is scoped to its own bounds (not the whole line).
+    /// 2. Words wrap naturally across visual lines.
+    /// 3. Repeated words ("la la la") maintain stable identity via their index.
+    ///
+    /// Three visual states driven by `LineState`:
+    /// - **active**: full karaoke — words fill progressively, glow, scale up.
+    /// - **finishing**: line was preempted by an overlap but its words keep
+    ///   animating. Sung words stay bright, the current word's fill continues,
+    ///   but scale and glow ease down so focus shifts to the new active line.
+    /// - **inactive**: fully past — uniform dim opacity, no glow.
+    private func wordSyncedLine(line: SyncedLine, state: LineState, isBackground: Bool, currentPositionMs: Int64) -> some View {
+        let words = line.words!
+        let isAnimating = state == .active || state == .finishing
+        let activeWord = isAnimating ? activeWordIndex(in: line, currentPositionMs: currentPositionMs) : nil
+
+        let brightOpacity: Double = isBackground ? 0.75 : 0.98
+        let inactiveOpacity: Double = isBackground ? 0.25 : 0.50
+
+        // Word colors are the same for active and finishing states — the
+        // finishing fade is handled by an overall opacity on the container,
+        // not by changing individual word colors. This avoids a jarring
+        // color jump when the state changes.
+        let brightColor: Color = .white.opacity(brightOpacity)
+        let dimColor: Color = .white.opacity(inactiveOpacity)
+        let inactiveColor: Color = .white.opacity(inactiveOpacity)
+
+        // Overall opacity: finishing lines fade to ~75% so focus shifts
+        // to the new active line, but the transition is smooth.
+        let containerOpacity: Double = switch state {
+        case .active: 1.0
+        case .finishing: isBackground ? 0.65 : 0.75
+        case .inactive: 1.0  // inactive word colors already handle dimming
+        }
+
+        // Glow: active lines glow proportionally to progress; finishing lines don't glow.
+        let glowRadius: CGFloat = if let aw = activeWord, state == .active {
+            CGFloat(6.0 * Double(aw + 1) / Double(words.count))
+        } else {
+            0
+        }
+
+        let isScaledUp = state == .active
+
+        // Precompute which words have a leading space (inter-word gap from TTML/LRC).
+        // We strip it from the display text and let the layout handle spacing,
+        // so wrapped lines don't start with visible indentation.
+        let wordEntries: [(text: String, hasGap: Bool)] = words.map { w in
+            let hasGap = w.word.hasPrefix(" ")
+            let trimmed = hasGap ? String(w.word.drop(while: { $0 == " " })) : w.word
+            return (text: trimmed, hasGap: hasGap)
+        }
+
+        return WordFlowLayout {
+            ForEach(Array(words.enumerated()), id: \.offset) { wIdx, word in
+                let entry = wordEntries[wIdx]
+                // Determine the solid color for this word.
+                // For finishing lines, the "active" word is treated as sung
+                // (bright) so there's no gradient outlier — the container
+                // opacity handles the overall fade instead.
+                let isSung: Bool = if let aw = activeWord {
+                    wIdx < aw || (wIdx == aw && state == .finishing)
+                } else {
+                    false
+                }
+                let wordColor: Color = if !isAnimating {
+                    inactiveColor
+                } else if isSung {
+                    brightColor
+                } else if activeWord != wIdx {
+                    dimColor
+                } else {
+                    dimColor // placeholder; active word gradient below
+                }
+
+                // Only the active line gets the sweep gradient on the
+                // current word. Finishing lines use solid colors for all
+                // words so the container opacity fade looks uniform.
+                if activeWord == wIdx, state == .active {
+                    let nextWord = wIdx + 1 < words.count ? words[wIdx + 1] : nil
+                    let progress = wordProgress(word: word, nextWord: nextWord, lineEndTime: line.endTime, currentPositionMs: currentPositionMs)
+                    Text(entry.text)
+                        .foregroundStyle(
+                            .linearGradient(
+                                stops: [
+                                    .init(color: brightColor, location: max(0, progress - 0.01)),
+                                    .init(color: dimColor, location: min(1, progress + 0.01)),
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .layoutValue(key: WordGapKey.self, value: entry.hasGap)
+                } else {
+                    Text(entry.text)
+                        .foregroundStyle(
+                            .linearGradient(
+                                stops: [.init(color: wordColor, location: 0)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .layoutValue(key: WordGapKey.self, value: entry.hasGap)
+                }
+            }
+        }
+        .font(.system(size: 25, weight: .semibold, design: .rounded))
+        .italic(isBackground)
+        .opacity(containerOpacity)
+        .shadow(color: .white.opacity(state == .active ? 0.45 : 0), radius: glowRadius, x: 0, y: 0)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+        .scaleEffect(isScaledUp ? 1.015 : 1.0, anchor: .leading)
+        .animation(.easeInOut(duration: 0.35), value: state)
+    }
+
+    // MARK: - Plain Line (line-synced / no word data)
 
     private func plainLyricsView(_ plain: String) -> some View {
         ScrollView(showsIndicators: false) {
@@ -702,15 +980,17 @@ struct LyricsView: View {
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .scaleEffect(isActive ? 1.015 : 1.0, anchor: .leading)
-            .animation(.easeInOut(duration: 0.18), value: isActive)
+            .animation(.easeInOut(duration: 0.35), value: isActive)
     }
 
-    private func centerActiveLine(in synced: [SyncedLine], proxy: ScrollViewProxy, animated: Bool) {
-        guard let active = activeLineIndex(in: synced), active != lastCenteredIndex else { return }
+    // MARK: - Scroll Centering
+
+    private func centerActiveLine(in synced: [SyncedLine], proxy: ScrollViewProxy, currentPositionMs: Int64, animated: Bool) {
+        guard let active = activeLineIndex(in: synced, currentPositionMs: currentPositionMs), active != lastCenteredIndex else { return }
 
         DispatchQueue.main.async {
             if animated {
-                withAnimation(.easeInOut(duration: 0.3)) {
+                withAnimation(.easeInOut(duration: 0.35)) {
                     proxy.scrollTo(active, anchor: .center)
                 }
             } else {
@@ -720,39 +1000,92 @@ struct LyricsView: View {
             lastCenteredIndex = active
         }
     }
+}
 
-    private func activeLineIndex(in synced: [SyncedLine]) -> Int? {
-        guard !synced.isEmpty else { return nil }
+// MARK: - Word Flow Layout
 
-        let currentTime = Double(positionMs) / 1000.0
-        let tolerance = 0.01
-        var low = 0
-        var high = synced.count - 1
-        var bestIndex: Int?
+/// Layout value key that marks whether a word had a leading space (inter-word gap).
+/// Used by `WordFlowLayout` to add spacing only between words that originally had
+/// a space separator — and to suppress that space at the start of a wrapped row
+/// so there's no visible indentation.
+private struct WordGapKey: LayoutValueKey {
+    static let defaultValue: Bool = false
+}
 
-        while low <= high {
-            let mid = (low + high) / 2
-            if synced[mid].time <= currentTime + tolerance {
-                bestIndex = mid
-                low = mid + 1
-            } else {
-                high = mid - 1
-            }
-        }
+/// A custom `Layout` that arranges children inline like text, wrapping to the
+/// next line when children exceed the available width. Used for word-synced
+/// lyrics so each word is its own view (with its own gradient bounds) while
+/// still wrapping naturally.
+///
+/// Uses `WordGapKey` to determine inter-word spacing: words that had a leading
+/// space in the source data get a space-width gap before them, except when they
+/// land at the start of a wrapped row.
+private struct WordFlowLayout: Layout {
+    /// Approximate width of a space in the lyrics font.
+    /// Measured for .system(size: 25, weight: .semibold, design: .rounded).
+    private static let spaceWidth: CGFloat = 7.5
 
-        // If we have end times, check if we've passed the active line's end
-        // and a subsequent line hasn't started yet (gap between lines)
-        if let idx = bestIndex, let endTime = synced[idx].endTime {
-            if currentTime > endTime {
-                // Check if the next line has started
-                if idx + 1 < synced.count && synced[idx + 1].time <= currentTime + tolerance {
-                    // Next line is active, binary search already found it
-                } else {
-                    // In a gap — keep current as active for continuity
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        guard let lastRow = rows.last else { return .zero }
+        let height = lastRow.yOffset + lastRow.height
+        let width = rows.map(\.width).max() ?? 0
+        return CGSize(width: min(width, proposal.width ?? .infinity), height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(proposal: proposal, subviews: subviews)
+        var subviewIndex = 0
+        for row in rows {
+            var x = bounds.minX
+            for posInRow in 0..<row.count {
+                let subview = subviews[subviewIndex]
+                let size = subview.sizeThatFits(.unspecified)
+                // Add inter-word gap if this word had a leading space — but not
+                // at the start of a row (to avoid indentation on wrapped lines).
+                if posInRow > 0 && subview[WordGapKey.self] {
+                    x += Self.spaceWidth
                 }
+                subview.place(at: CGPoint(x: x, y: bounds.minY + row.yOffset), proposal: .unspecified)
+                x += size.width
+                subviewIndex += 1
+            }
+        }
+    }
+
+    private struct Row {
+        var count: Int
+        var width: CGFloat
+        var height: CGFloat
+        var yOffset: CGFloat
+    }
+
+    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [Row] = []
+        var currentRow = Row(count: 0, width: 0, height: 0, yOffset: 0)
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let gap: CGFloat = (currentRow.count > 0 && subview[WordGapKey.self]) ? Self.spaceWidth : 0
+            let neededWidth = size.width + gap
+
+            if currentRow.count > 0 && currentRow.width + neededWidth > maxWidth {
+                // Wrap to next row — no gap at the start of a new row.
+                rows.append(currentRow)
+                let nextY = currentRow.yOffset + currentRow.height
+                currentRow = Row(count: 1, width: size.width, height: size.height, yOffset: nextY)
+            } else {
+                currentRow.width += neededWidth
+                currentRow.height = max(currentRow.height, size.height)
+                currentRow.count += 1
             }
         }
 
-        return bestIndex
+        if currentRow.count > 0 {
+            rows.append(currentRow)
+        }
+
+        return rows
     }
 }

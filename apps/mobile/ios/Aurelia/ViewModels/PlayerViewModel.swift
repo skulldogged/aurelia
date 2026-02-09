@@ -12,6 +12,7 @@ final class PlayerViewModel: @unchecked Sendable {
     var isBuffering = false
     var positionMs: Int64 = 0
     var durationMs: Int64 = 0
+    var positionUpdateTimeMs: Int64 = 0
     var queue: [Song] = []
     var currentQueueIndex: Int = -1
     var lyrics: Lyrics?
@@ -73,6 +74,7 @@ final class PlayerViewModel: @unchecked Sendable {
         setIfChanged(\.isBuffering, snapshot.isBuffering)
         setIfChanged(\.positionMs, position.positionMs)
         setIfChanged(\.durationMs, position.durationMs)
+        setIfChanged(\.positionUpdateTimeMs, position.updateTimeMs)
         setIfChanged(\.currentQueueIndex, latestQueueIndex)
         setIfChanged(\.isShuffled, snapshot.isShuffled)
         setIfChanged(\.repeatMode, snapshot.repeatMode)
