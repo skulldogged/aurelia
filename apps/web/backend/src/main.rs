@@ -11,6 +11,7 @@ use axum::{
 use serde::Serialize;
 use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::{ServeDir, ServeFile};
 use tracing::{info, warn};
 
 // Re-export types from aurelia_core
@@ -38,10 +39,22 @@ enum WsMessage {
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    // Parse CLI arguments / environment
+    let host = std::env::var("AURELIA_HOST").unwrap_or_else(|_| "0.0.0.0".into());
+    let port: u16 = std::env::var("AURELIA_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(3000);
+    let static_dir = std::env::var("AURELIA_STATIC_DIR").ok().map(PathBuf::from);
+
     // Setup app data directory
-    let app_data_dir = dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("./data"))
-        .join("aurelia-web");
+    let app_data_dir = std::env::var("AURELIA_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            dirs::data_dir()
+                .unwrap_or_else(|| PathBuf::from("./data"))
+                .join("aurelia-web")
+        });
 
     std::fs::create_dir_all(&app_data_dir).expect("Failed to create data directory");
 
@@ -75,7 +88,7 @@ async fn main() {
     // Build router from generated axum routes (uses Arc<AppState>)
     let api_router = build_router().with_state(app_state.clone());
 
-    let app = Router::new()
+    let mut app = Router::new()
         // Mount the generated API routes (already has its own state)
         .nest("/api", api_router)
         // Add WebSocket endpoint
@@ -83,7 +96,25 @@ async fn main() {
         .layer(cors)
         .with_state(server_state.clone());
 
-    let addr: SocketAddr = "0.0.0.0:3000".parse().unwrap();
+    // Optionally serve the frontend static files (SPA with index.html fallback)
+    if let Some(ref dir) = static_dir {
+        if dir.is_dir() {
+            let index = dir.join("index.html");
+            info!("Serving static files from: {:?}", dir);
+            app = app.fallback_service(
+                ServeDir::new(dir).not_found_service(ServeFile::new(index)),
+            );
+        } else {
+            warn!(
+                "Static directory {:?} does not exist, not serving frontend",
+                dir
+            );
+        }
+    }
+
+    let addr: SocketAddr = format!("{host}:{port}")
+        .parse()
+        .expect("Invalid host/port configuration");
     info!("Starting server on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();

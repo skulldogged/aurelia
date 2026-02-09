@@ -8,11 +8,18 @@
   import { getLyricsEffect, getParsedLyricsEffect } from '../../effect/services/api'
   import { logger } from '../../lib/logger'
 
+  interface LyricWord {
+    endTime: number | null
+    time: number
+    word: string
+  }
+
   interface LyricLine {
     agentId: string | null
     endTime: number | null
     text: string
     time: number
+    words: LyricWord[] | null
   }
 
   /** Map agent IDs to their type for quick lookup. */
@@ -64,6 +71,11 @@
       endTime: line.endTimeMs != null ? line.endTimeMs / 1000 : null,
       text: line.line,
       time: line.timeMs / 1000,
+      words: line.words?.map(w => ({
+        endTime: w.endTimeMs != null ? w.endTimeMs / 1000 : null,
+        time: w.timeMs / 1000,
+        word: w.word,
+      })) ?? null,
     })) ?? [],
   )
   const areLyricsSynced = computed(() => parsedLyrics.value.length > 0)
@@ -194,6 +206,52 @@
     return -1
   })
 
+  /** For the active line, determine which word is currently being sung. */
+  const activeWordIndex = computed(() => {
+    const lineIdx = currentLineIndex.value
+    if (lineIdx === -1) return -1
+    const line = parsedLyrics.value[lineIdx]
+    if (!line.words || line.words.length === 0) return -1
+
+    const tolerance = 0.01
+    const time = props.currentTime + tolerance
+
+    for (let i = line.words.length - 1; i >= 0; i--) {
+      if (line.words[i].time <= time)
+        return i
+    }
+    return -1
+  })
+
+  /** Check if a specific word in the active line has been sung (is at or past its start time). */
+  const isWordSung = (lineIdx: number, wordIdx: number): boolean => {
+    if (lineIdx !== currentLineIndex.value) return false
+    return wordIdx <= activeWordIndex.value
+  }
+
+  /**
+   * Compute the progress (0-1) through the currently active word for gradient fill.
+   * Returns 1 for fully-sung words, 0 for upcoming words.
+   */
+  const wordProgress = (lineIdx: number, wordIdx: number): number => {
+    if (lineIdx !== currentLineIndex.value) return 0
+    if (wordIdx < activeWordIndex.value) return 1
+    if (wordIdx > activeWordIndex.value) return 0
+
+    // This is the currently active word — compute partial progress
+    const line = parsedLyrics.value[lineIdx]
+    if (!line.words) return 0
+    const word = line.words[wordIdx]
+    const endTime = word.endTime
+      ?? line.words[wordIdx + 1]?.time
+      ?? line.endTime
+      ?? (word.time + 0.5)
+    const duration = endTime - word.time
+    if (duration <= 0) return 1
+    const elapsed = props.currentTime - word.time
+    return Math.max(0, Math.min(1, elapsed / duration))
+  }
+
   // Scroll to center an element within the lyrics container
   const scrollToCenter = (element: HTMLElement, smooth = true): void => {
     const container = lyricsContainerRef.value
@@ -302,13 +360,30 @@
             :ref='(el) => { if (index === currentLineIndex) activeLineRef = el as HTMLParagraphElement }'
             :class="['lyric-line', {
               'active': index === currentLineIndex,
+              'word-synced': index === currentLineIndex && line.words && line.words.length > 0,
               'background-vocal': isBackgroundVocal(line.agentId),
               'sidebar': isInSidebar,
               'large': size === 'large',
               'small': size === 'small'
             }]"
           >
-            {{ line.text }}
+            <template v-if='line.words && line.words.length > 0 && index === currentLineIndex'>
+              <span
+                v-for='(word, wIdx) in line.words'
+                :key='wIdx'
+                class='lyric-word'
+                :class='{
+                  "sung": isWordSung(index, wIdx) && wIdx !== activeWordIndex,
+                  "filling": wIdx === activeWordIndex,
+                }'
+                :style='wIdx === activeWordIndex ? {
+                  "--fill": `${wordProgress(index, wIdx) * 100}%`,
+                } : undefined'
+              >{{ word.word }}</span>
+            </template>
+            <template v-else>
+              {{ line.text }}
+            </template>
           </p>
         </template>
       </div>
@@ -427,6 +502,37 @@
   font-weight: bold;
   transform: scale(1.15);
   color: var(--accent);
+}
+
+/* Word-synced active lines use per-word coloring instead of line-level accent */
+.lyric-line.word-synced {
+  color: var(--muted-foreground);
+}
+
+.lyric-word {
+  -webkit-text-fill-color: var(--muted-foreground);
+  color: var(--muted-foreground);
+}
+
+/* Sung words: fully colored with accent */
+.lyric-word.sung {
+  -webkit-text-fill-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Active word: gradient fill from accent to muted based on progress */
+.lyric-word.filling {
+  background-image: linear-gradient(
+    to right,
+    var(--accent),
+    var(--accent) var(--fill, 0%),
+    var(--muted-foreground) var(--fill, 0%),
+    var(--muted-foreground)
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .lyrics-content--static {
