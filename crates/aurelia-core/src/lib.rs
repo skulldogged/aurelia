@@ -493,13 +493,15 @@ async fn fetch_remote_sidecar_lyrics(
         return Ok(None);
     }
 
-    // The web backend wraps responses in ApiResponse { ok, data, error }
+    // The web backend wraps responses in ApiResponse { status: "ok", data, error }
     let body: serde_json::Value = resp.json().await?;
-    if body.get("ok") == Some(&serde_json::Value::Bool(true)) {
+    if body.get("status") == Some(&serde_json::Value::String("ok".to_string())) {
         if let Some(data) = body.get("data") {
             let parsed: models::ParsedLyrics = serde_json::from_value(data.clone())?;
             return Ok(Some(parsed));
         }
+    } else {
+        tracing::warn!("[Lyrics] Remote sidecar response not ok: {:?}", body);
     }
 
     Ok(None)

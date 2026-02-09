@@ -8,7 +8,7 @@
     User,
   } from 'lucide-vue-next'
 
-  import { getApiClient } from '../../api/apiClient'
+  import { apiClient } from '../../api/apiClient'
   import Button from '../ui/Button.vue'
 
   interface Credentials {
@@ -31,7 +31,7 @@
 
   onMounted(async () => {
     try {
-      const result = await getApiClient().getSetting('aurelia_server_url')
+      const result = await apiClient.getSetting('aurelia_server_url')
       if (result.ok && result.data) {
         aureliaServerUrl.value = result.data
       }
@@ -49,9 +49,9 @@
     saveTimeout = setTimeout(async () => {
       try {
         if (value.trim()) {
-          await getApiClient().saveSetting('aurelia_server_url', value.trim())
+          await apiClient.saveSetting('aurelia_server_url', value.trim())
         } else {
-          await getApiClient().deleteSetting('aurelia_server_url')
+          await apiClient.deleteSetting('aurelia_server_url')
         }
       } catch {
         // Ignore save errors
