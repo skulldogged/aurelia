@@ -1,6 +1,6 @@
 use crate::db;
 use crate::models::{Album, Artist, Credentials, Song};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use redb::ReadableDatabase;
 use serde_json;
 use std::path::PathBuf;

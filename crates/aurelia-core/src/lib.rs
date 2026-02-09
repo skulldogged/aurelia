@@ -243,29 +243,21 @@ pub fn save_setting(
 }
 
 #[uniffi::export]
-pub fn load_setting(
-    app_data_dir: String,
-    key: String,
-) -> Result<Option<String>, error::AppError> {
+pub fn load_setting(app_data_dir: String, key: String) -> Result<Option<String>, error::AppError> {
     if app_data_dir.is_empty() {
         return Ok(None);
     }
     let app_dir = std::path::PathBuf::from(app_data_dir);
-    cache::load_setting(app_dir, &key)
-        .map_err(|err| error::AppError::Database(err.to_string()))
+    cache::load_setting(app_dir, &key).map_err(|err| error::AppError::Database(err.to_string()))
 }
 
 #[uniffi::export]
-pub fn delete_setting(
-    app_data_dir: String,
-    key: String,
-) -> Result<(), error::AppError> {
+pub fn delete_setting(app_data_dir: String, key: String) -> Result<(), error::AppError> {
     if app_data_dir.is_empty() {
         return Ok(());
     }
     let app_dir = std::path::PathBuf::from(app_data_dir);
-    cache::delete_setting(app_dir, &key)
-        .map_err(|err| error::AppError::Database(err.to_string()))
+    cache::delete_setting(app_dir, &key).map_err(|err| error::AppError::Database(err.to_string()))
 }
 
 #[uniffi::export]
@@ -288,13 +280,11 @@ pub async fn get_lyrics(
     // 1. Try Jellyfin server first
     if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
         let client = services::JellyfinClient::with_auth(server_url, token);
-        if let Ok(Some(jf_lyrics)) = client.get_lyrics(&item_id).await {
-            if let Ok(lrc) = utils::lyrics::jellyfin_to_lrc(&jf_lyrics) {
-                if !lrc.trim().is_empty() {
+        if let Ok(Some(jf_lyrics)) = client.get_lyrics(&item_id).await
+            && let Ok(lrc) = utils::lyrics::jellyfin_to_lrc(&jf_lyrics)
+                && !lrc.trim().is_empty() {
                     return lrc;
                 }
-            }
-        }
     }
 
     // 2. Fall back to LrcLib
@@ -322,8 +312,7 @@ pub async fn get_parsed_lyrics(
         Some(ref p) if !p.is_empty() => Some(p.clone()),
         _ if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() => {
             tracing::info!("[Lyrics] No path provided, fetching from Jellyfin item metadata");
-            let client =
-                services::JellyfinClient::with_auth(server_url.clone(), token.clone());
+            let client = services::JellyfinClient::with_auth(server_url.clone(), token.clone());
             match client.get_item_path(&item_id).await {
                 Ok(Some(p)) => {
                     tracing::info!("[Lyrics] Got path from Jellyfin: {}", p);
@@ -360,8 +349,8 @@ pub async fn get_parsed_lyrics(
     }
 
     // 1b. Try fetching sidecar lyrics from the Aurelia web backend (for remote clients)
-    if let Some(ref aurelia_url) = aurelia_server_url {
-        if !aurelia_url.is_empty() {
+    if let Some(ref aurelia_url) = aurelia_server_url
+        && !aurelia_url.is_empty() {
             tracing::info!(
                 "[Lyrics] Trying remote sidecar from Aurelia server: {}",
                 aurelia_url
@@ -383,7 +372,6 @@ pub async fn get_parsed_lyrics(
                 }
             }
         }
-    }
 
     // 2. Try Jellyfin lyrics API
     if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
@@ -392,8 +380,7 @@ pub async fn get_parsed_lyrics(
             item_id,
             &server_url[..server_url.len().min(30)]
         );
-        let client =
-            services::JellyfinClient::with_auth(server_url.clone(), token.clone());
+        let client = services::JellyfinClient::with_auth(server_url.clone(), token.clone());
         match client.get_lyrics(&item_id).await {
             Ok(Some(jf_lyrics)) => {
                 let line_count = jf_lyrics.lyrics.len();
@@ -414,10 +401,7 @@ pub async fn get_parsed_lyrics(
                 tracing::info!(
                     "[Lyrics] Converted: syncedLines={}, hasWords={}, plainLines={}",
                     parsed.synced.len(),
-                    parsed
-                        .synced
-                        .first()
-                        .is_some_and(|l| l.words.is_some()),
+                    parsed.synced.first().is_some_and(|l| l.words.is_some()),
                     parsed.plain.len(),
                 );
                 if parsed.is_valid() {
@@ -426,7 +410,10 @@ pub async fn get_parsed_lyrics(
                 tracing::warn!("[Lyrics] Jellyfin lyrics parsed but not valid");
             }
             Ok(None) => {
-                tracing::info!("[Lyrics] Jellyfin returned no lyrics for itemId={}", item_id);
+                tracing::info!(
+                    "[Lyrics] Jellyfin returned no lyrics for itemId={}",
+                    item_id
+                );
             }
             Err(e) => {
                 tracing::warn!("[Lyrics] Jellyfin lyrics fetch error: {}", e);
@@ -442,7 +429,11 @@ pub async fn get_parsed_lyrics(
     }
 
     // 3. Fall back to LrcLib
-    tracing::info!("[Lyrics] Falling back to LrcLib for '{}' by '{}'", title, artist);
+    tracing::info!(
+        "[Lyrics] Falling back to LrcLib for '{}' by '{}'",
+        title,
+        artist
+    );
     let lrclib_client = services::LrcLibClient::new();
     let raw = match lrclib_client.search_lyrics(&artist, &title).await {
         Ok(results) => {
@@ -487,7 +478,11 @@ async fn fetch_remote_sidecar_lyrics(
         item_id
     );
     let client = reqwest::Client::new();
-    let resp = client.get(&url).timeout(std::time::Duration::from_secs(10)).send().await?;
+    let resp = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(10))
+        .send()
+        .await?;
 
     if !resp.status().is_success() {
         return Ok(None);

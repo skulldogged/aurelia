@@ -1118,10 +1118,8 @@ impl JellyfinClient {
     ///
     /// Uses a lightweight `GET /Items/{id}?Fields=Path` request.
     pub async fn get_item_path(&self, item_id: &str) -> AppResult<Option<String>> {
-        let url = utils::build_jellyfin_url(
-            &self.server_url,
-            &format!("/Items/{item_id}?Fields=Path"),
-        );
+        let url =
+            utils::build_jellyfin_url(&self.server_url, &format!("/Items/{item_id}?Fields=Path"));
 
         let response = self
             .client

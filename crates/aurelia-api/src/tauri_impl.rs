@@ -735,18 +735,16 @@ impl Api for TauriApiImpl {
             None
         };
 
-        Ok(
-            aurelia_core::get_parsed_lyrics(
-                server_url,
-                token,
-                id,
-                artist,
-                title,
-                path,
-                aurelia_server_url,
-            )
-            .await,
+        Ok(aurelia_core::get_parsed_lyrics(
+            server_url,
+            token,
+            id,
+            artist,
+            title,
+            path,
+            aurelia_server_url,
         )
+        .await)
     }
 
     async fn get_sidecar_lyrics(

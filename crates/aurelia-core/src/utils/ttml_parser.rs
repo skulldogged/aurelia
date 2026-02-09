@@ -8,8 +8,8 @@
 use crate::models::{
     ParsedLyrics, ParsedLyricsAgent, ParsedLyricsLine, ParsedLyricsSection, ParsedLyricsWord,
 };
-use quick_xml::events::Event;
 use quick_xml::Reader;
+use quick_xml::events::Event;
 
 /// Check whether a string looks like TTML (XML with a `<tt` root element).
 #[must_use]
@@ -182,7 +182,7 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) | Ok(Event::Empty(ref e)) => {
                 let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                let local_tag = tag.split(':').last().unwrap_or(&tag);
+                let local_tag = tag.split(':').next_back().unwrap_or(&tag);
                 let attrs = collect_attrs(e);
 
                 match local_tag {
@@ -280,7 +280,7 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
             }
             Ok(Event::End(ref e)) => {
                 let tag = String::from_utf8_lossy(e.name().as_ref()).to_string();
-                let local_tag = tag.split(':').last().unwrap_or(&tag);
+                let local_tag = tag.split(':').next_back().unwrap_or(&tag);
 
                 match local_tag {
                     "metadata" => {

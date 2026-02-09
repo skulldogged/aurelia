@@ -101,9 +101,7 @@ async fn main() {
         if dir.is_dir() {
             let index = dir.join("index.html");
             info!("Serving static files from: {:?}", dir);
-            app = app.fallback_service(
-                ServeDir::new(dir).not_found_service(ServeFile::new(index)),
-            );
+            app = app.fallback_service(ServeDir::new(dir).not_found_service(ServeFile::new(index)));
         } else {
             warn!(
                 "Static directory {:?} does not exist, not serving frontend",
