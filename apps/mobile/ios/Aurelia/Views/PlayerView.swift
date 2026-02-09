@@ -863,13 +863,11 @@ struct LyricsView: View {
         let dimColor: Color = .white.opacity(inactiveOpacity)
         let inactiveColor: Color = .white.opacity(inactiveOpacity)
 
-        // Overall opacity: finishing lines fade to ~75% so focus shifts
-        // to the new active line, but the transition is smooth.
-        let containerOpacity: Double = switch state {
-        case .active: 1.0
-        case .finishing: isBackground ? 0.65 : 0.75
-        case .inactive: 1.0  // inactive word colors already handle dimming
-        }
+        // Overall opacity:
+        // We keep opacity 1.0 even for finishing lines so the "sung" parts
+        // remain bright and visible (acting "active") while the "unsung" parts
+        // (0.5 opacity) match the inactive lines (looking "inactive").
+        let containerOpacity: Double = 1.0
 
         // Glow: active lines glow proportionally to progress; finishing lines don't glow.
         let glowRadius: CGFloat = if let aw = activeWord, state == .active {
@@ -893,11 +891,10 @@ struct LyricsView: View {
             ForEach(Array(words.enumerated()), id: \.offset) { wIdx, word in
                 let entry = wordEntries[wIdx]
                 // Determine the solid color for this word.
-                // For finishing lines, the "active" word is treated as sung
-                // (bright) so there's no gradient outlier — the container
-                // opacity handles the overall fade instead.
+                // "Sung" words use the bright color. Words after the active
+                // word use the dim color.
                 let isSung: Bool = if let aw = activeWord {
-                    wIdx < aw || (wIdx == aw && state == .finishing)
+                    wIdx < aw
                 } else {
                     false
                 }
@@ -912,9 +909,10 @@ struct LyricsView: View {
                 }
 
                 // Only the active line gets the sweep gradient on the
-                // current word. Finishing lines use solid colors for all
-                // words so the container opacity fade looks uniform.
-                if activeWord == wIdx, state == .active {
+                // The active word gets a sweep gradient to animate the fill.
+                // We keep animating this even in the finishing state so the
+                // fill doesn't snap to full/empty when the line transitions.
+                if activeWord == wIdx, (state == .active || state == .finishing) {
                     let nextWord = wIdx + 1 < words.count ? words[wIdx + 1] : nil
                     let progress = wordProgress(word: word, nextWord: nextWord, lineEndTime: line.endTime, currentPositionMs: currentPositionMs)
                     Text(entry.text)
@@ -929,6 +927,7 @@ struct LyricsView: View {
                             )
                         )
                         .layoutValue(key: WordGapKey.self, value: entry.hasGap)
+                        .animation(.easeOut(duration: 0.15), value: state)
                 } else {
                     Text(entry.text)
                         .foregroundStyle(
@@ -939,6 +938,7 @@ struct LyricsView: View {
                             )
                         )
                         .layoutValue(key: WordGapKey.self, value: entry.hasGap)
+                        .animation(.easeOut(duration: 0.15), value: state)
                 }
             }
         }
