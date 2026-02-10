@@ -46,7 +46,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import coil.request.ImageRequest
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -209,8 +213,15 @@ fun AlbumDetailScreen(
                 )
               }
             } else {
+              val context = LocalContext.current
+              // Album art is displayed at 240dp, 300px is plenty
+              val artworkSize = with(LocalDensity.current) { 300.dp.toPx().toInt() }
               SubcomposeAsyncImage(
-                model = albumArtUrl,
+                model = ImageRequest.Builder(context)
+                  .data(albumArtUrl)
+                  .crossfade(true)
+                  .size(artworkSize)
+                  .build(),
                 contentDescription = albumName,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,

@@ -1,6 +1,9 @@
 package com.aurelia.app.ui
 
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
 import android.os.SystemClock
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -8,6 +11,11 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.palette.graphics.Palette
+import coil.ImageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -74,6 +82,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.Brush
@@ -81,6 +90,8 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -113,6 +124,178 @@ import uniffi.aurelia_core.Song
 
 private enum class ControlButton { NONE, PREVIOUS, PLAY_PAUSE, NEXT }
 
+/**
+ * Data class holding dynamically extracted colors from album art.
+ */
+private data class AlbumArtColors(
+    val primary: Color = Color(0xFF9B6DFF),
+    val secondary: Color = Color(0xFFFF6EB4),
+    val accent: Color = Color(0xFFFF9F68),
+    val onPrimary: Color = Color.White,
+    val isLight: Boolean = false,
+)
+
+/**
+ * Extracts dominant colors from album art URL using Palette API.
+ * Falls back to default purple theme colors if extraction fails.
+ */
+@Composable
+private fun rememberAlbumArtColors(albumArtUrl: String?): AlbumArtColors {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var colors by remember { mutableStateOf(AlbumArtColors()) }
+    
+    LaunchedEffect(albumArtUrl) {
+        if (albumArtUrl.isNullOrBlank()) {
+            colors = AlbumArtColors()
+            return@LaunchedEffect
+        }
+        
+        try {
+            val loader = ImageLoader(context)
+            // Use smaller size for palette extraction - 200px is plenty for color analysis
+            val request = ImageRequest.Builder(context)
+                .data(albumArtUrl)
+                .allowHardware(false)
+                .size(200)
+                .build()
+            
+            val result = (loader.execute(request) as? SuccessResult)?.drawable
+            val bitmap = (result as? BitmapDrawable)?.bitmap
+            
+            if (bitmap != null) {
+                val palette = Palette.from(bitmap).generate()
+                
+                // Use dominant swatch as the base color (most representative color)
+                val dominant = palette.dominantSwatch
+                
+                // For primary, prefer muted or dark muted for better aesthetics
+                // Fall back to dominant if those aren't available
+                val primaryColor = palette.mutedSwatch?.rgb?.let { Color(it) }
+                    ?: palette.darkMutedSwatch?.rgb?.let { Color(it) }
+                    ?: dominant?.rgb?.let { Color(it) }
+                    ?: Color(0xFF9B6DFF)
+                
+                // For secondary/accent, use vibrant but ensure it's not too neon
+                val secondaryColor = palette.lightMutedSwatch?.rgb?.let { Color(it) }
+                    ?: palette.vibrantSwatch?.rgb?.let { Color(it) }
+                    ?: dominant?.rgb?.let { Color(it) }
+                    ?: Color(0xFFFF6EB4)
+                
+                // Determine if the primary color is light or dark for text contrast
+                val hsl = FloatArray(3)
+                android.graphics.Color.colorToHSV(primaryColor.hashCode(), hsl)
+                val isLight = hsl[2] > 0.6f
+                
+                colors = AlbumArtColors(
+                    primary = primaryColor,
+                    secondary = secondaryColor,
+                    accent = primaryColor,
+                    onPrimary = if (isLight) Color.Black else Color.White,
+                    isLight = isLight,
+                )
+            } else {
+                colors = AlbumArtColors()
+            }
+        } catch (e: Exception) {
+            colors = AlbumArtColors()
+        }
+    }
+    
+    return colors
+}
+
+/**
+ * Blurred album art background backdrop, matching iOS design.
+ * Falls back to gradient colors when no album art is available.
+ * Uses 600px target size for performance (iOS uses 1200x1200).
+ */
+@Composable
+private fun PlayerBackdrop(
+    albumArtUrl: String?,
+    modifier: Modifier = Modifier,
+) {
+    val isDark = isSystemInDarkTheme()
+    val context = LocalContext.current
+    // Backdrop is blurred so doesn't need full resolution
+    val backdropSize = with(LocalDensity.current) { 600.dp.toPx().toInt() }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        // Base gradient fallback
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush =
+                            Brush.linearGradient(
+                                colors =
+                                    if (isDark) {
+                                        listOf(
+                                            Color(0xFF1A0F2E),
+                                            Color(0xFF0A0514),
+                                        )
+                                    } else {
+                                        listOf(
+                                            Color(0xFFF8F5FF),
+                                            Color(0xFFE8E0F5),
+                                        )
+                                    },
+                                start = Offset(0f, 0f),
+                                end = Offset.Infinite,
+                            ),
+                    ),
+        )
+
+        // Blurred album art layer with smooth crossfade
+        Crossfade(
+            targetState = albumArtUrl,
+            animationSpec = tween(500),
+            label = "album-art-background",
+        ) { artUrl ->
+            if (!artUrl.isNullOrBlank()) {
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(artUrl)
+                        .crossfade(true)
+                        .size(backdropSize)
+                        .build(),
+                    contentDescription = null,
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .blur(48.dp)
+                            .graphicsLayer {
+                                alpha = if (isDark) 0.32f else 0.40f
+                                scaleX = 1.14f
+                                scaleY = 1.14f
+                            },
+                    contentScale = ContentScale.Crop,
+                )
+            } else {
+                // Empty box when no art to allow smooth fade out
+                Box(modifier = Modifier.fillMaxSize())
+            }
+        }
+
+        // Overlay gradient for depth
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        brush =
+                            Brush.verticalGradient(
+                                colors =
+                                    listOf(
+                                        Color.Black.copy(alpha = 0.14f),
+                                        Color.Black.copy(alpha = if (isDark) 0.48f else 0.24f),
+                                    ),
+                            ),
+                    ),
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
@@ -136,14 +319,45 @@ fun PlayerScreen(
   val scope = rememberCoroutineScope()
 
   val colors = MaterialTheme.colorScheme
+  
+  // Extract dynamic colors from album art
+  val albumColors = rememberAlbumArtColors(state.albumArtUrl)
+  
+  // Animate color transitions
+  val primaryColor by animateColorAsState(
+    targetValue = albumColors.primary,
+    animationSpec = tween(500),
+    label = "primaryColor",
+  )
+  val secondaryColor by animateColorAsState(
+    targetValue = albumColors.secondary,
+    animationSpec = tween(500),
+    label = "secondaryColor",
+  )
+  val accentColor by animateColorAsState(
+    targetValue = albumColors.accent,
+    animationSpec = tween(500),
+    label = "accentColor",
+  )
+  
+  val onPrimaryColor = remember(primaryColor) {
+    val luminance = (0.299 * primaryColor.red + 0.587 * primaryColor.green + 0.114 * primaryColor.blue)
+    if (luminance > 0.5f) Color.Black else Color.White
+  }
 
-  Column(
-    modifier =
-      modifier
-        .fillMaxSize()
-        .background(colors.primaryContainer)
-        .statusBarsPadding(),
-  ) {
+  Box(modifier = modifier.fillMaxSize()) {
+    // Blurred album art background
+    PlayerBackdrop(
+      albumArtUrl = state.albumArtUrl,
+      modifier = Modifier.fillMaxSize(),
+    )
+
+    Column(
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .statusBarsPadding(),
+    ) {
     Row(
       modifier =
         Modifier
@@ -152,12 +366,13 @@ fun PlayerScreen(
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
+      // Close button - transparent bg normally, colored when pressed
       FilledIconButton(
         onClick = onBack,
         colors =
           IconButtonDefaults.filledIconButtonColors(
-            containerColor = colors.onPrimary,
-            contentColor = colors.primary,
+            containerColor = primaryColor.copy(alpha = 0.15f),
+            contentColor = Color.White,
           ),
         modifier = Modifier.size(42.dp),
       ) {
@@ -169,13 +384,14 @@ fun PlayerScreen(
 
       Spacer(modifier = Modifier.weight(1f))
 
+      // Lyrics button - colored bg when active, transparent when inactive
       FilledIconButton(
         onClick = { viewModel.toggleLyrics() },
         enabled = state.lyrics != null,
         colors =
           IconButtonDefaults.filledIconButtonColors(
-            containerColor = if (state.showLyrics) colors.primary else colors.onPrimary.copy(alpha = 0.8f),
-            contentColor = if (state.showLyrics) colors.onPrimary else colors.primary,
+            containerColor = if (state.showLyrics) primaryColor else primaryColor.copy(alpha = 0.15f),
+            contentColor = Color.White,
           ),
         modifier = Modifier.size(42.dp),
         shape = RoundedCornerShape(topStart = 21.dp, bottomStart = 21.dp, topEnd = 4.dp, bottomEnd = 4.dp),
@@ -189,12 +405,13 @@ fun PlayerScreen(
 
       Spacer(modifier = Modifier.size(4.dp))
 
+      // Queue button - transparent bg
       FilledIconButton(
         onClick = { showQueueSheet = true },
         colors =
           IconButtonDefaults.filledIconButtonColors(
-            containerColor = colors.onPrimary.copy(alpha = 0.8f),
-            contentColor = colors.onPrimaryContainer,
+            containerColor = primaryColor.copy(alpha = 0.15f),
+            contentColor = Color.White,
           ),
         modifier = Modifier.size(42.dp),
         shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 21.dp, bottomEnd = 21.dp),
@@ -221,6 +438,7 @@ fun PlayerScreen(
           lyrics = state.lyrics,
           currentPosition = currentPositionMs,
           onLineClick = { timeMs -> viewModel.seekTo(timeMs.toLong()) },
+          primaryColor = primaryColor,
           modifier =
             Modifier
               .fillMaxWidth()
@@ -271,8 +489,15 @@ fun PlayerScreen(
                 )
               }
             } else {
+              val context = LocalContext.current
+              val screenWidth = LocalConfiguration.current.screenWidthDp
+              val artworkSize = with(LocalDensity.current) { minOf(400.dp, screenWidth.dp).toPx().toInt() }
               SubcomposeAsyncImage(
-                model = state.albumArtUrl,
+                model = ImageRequest.Builder(context)
+                  .data(state.albumArtUrl)
+                  .crossfade(true)
+                  .size(artworkSize)
+                  .build(),
                 contentDescription = "Album art",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
@@ -322,7 +547,7 @@ fun PlayerScreen(
         Text(
           text = state.title.ifBlank { "Nothing playing" },
           style = nowPlayingStyle,
-          color = colors.onPrimaryContainer,
+          color = Color.White.copy(alpha = 0.95f),
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
         )
@@ -330,7 +555,7 @@ fun PlayerScreen(
         Text(
           text = state.artist.ifBlank { "Unknown artist" },
           style = MaterialTheme.typography.bodyLarge,
-          color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+          color = Color.White.copy(alpha = 0.72f),
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
           modifier =
@@ -348,7 +573,7 @@ fun PlayerScreen(
           Text(
             text = info,
             style = MaterialTheme.typography.labelSmall,
-            color = colors.onPrimaryContainer.copy(alpha = 0.5f),
+            color = Color.White.copy(alpha = 0.55f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
           )
@@ -373,7 +598,7 @@ fun PlayerScreen(
               text = formatDuration(currentPositionMs, clampNegative = true),
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.Medium,
-              color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+              color = Color.White.copy(alpha = 0.72f),
               modifier = Modifier.widthIn(min = 40.dp),
             )
             val durationMs = state.durationMs
@@ -392,9 +617,9 @@ fun PlayerScreen(
               modifier = Modifier.weight(1f),
               trackHeight = 6.dp,
               thumbRadius = 8.dp,
-              activeTrackColor = colors.primary,
-              inactiveTrackColor = colors.primary.copy(alpha = 0.2f),
-              thumbColor = colors.primary,
+              activeTrackColor = primaryColor,
+              inactiveTrackColor = primaryColor.copy(alpha = 0.2f),
+              thumbColor = primaryColor,
               waveLength = 30.dp,
               isPlaying = state.isPlaying,
               isWaveEligible = true,
@@ -403,7 +628,7 @@ fun PlayerScreen(
               text = formatDuration(state.durationMs, clampNegative = true),
               style = MaterialTheme.typography.labelMedium,
               fontWeight = FontWeight.Medium,
-              color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+              color = Color.White.copy(alpha = 0.72f),
               modifier = Modifier.widthIn(min = 40.dp),
             )
           }
@@ -421,7 +646,7 @@ fun PlayerScreen(
         onPlayPause = { viewModel.togglePlayPause() },
         onNext = { viewModel.skipNext() },
         height = 80.dp,
-        colors = colors,
+        primaryColor = primaryColor,
       )
 
       Spacer(modifier = Modifier.height(16.dp))
@@ -433,12 +658,13 @@ fun PlayerScreen(
         isFavoriteLoading = state.isFavoriteLoading,
         onShuffleClick = { viewModel.toggleShuffle() },
         onRepeatClick = { viewModel.cycleRepeatMode() },
+        primaryColor = primaryColor,
         onFavoriteClick = { viewModel.toggleFavorite() },
-        colors = colors,
       )
 
       Spacer(modifier = Modifier.height(16.dp))
     }
+  }
   }
 
   if (showQueueSheet) {
@@ -537,7 +763,7 @@ private fun AnimatedPlaybackControls(
   onPlayPause: () -> Unit,
   onNext: () -> Unit,
   height: Dp,
-  colors: androidx.compose.material3.ColorScheme,
+  primaryColor: Color,
   modifier: Modifier = Modifier,
 ) {
   var lastClicked by remember { mutableStateOf<ControlButton?>(null) }
@@ -582,7 +808,7 @@ private fun AnimatedPlaybackControls(
           .weight(prevWeight)
           .fillMaxHeight()
           .clip(CircleShape)
-          .background(colors.primary.copy(alpha = prevBgAlpha))
+          .background(primaryColor.copy(alpha = prevBgAlpha))
           .then(
             if (hasPrevious) {
               Modifier.clickable(
@@ -601,7 +827,7 @@ private fun AnimatedPlaybackControls(
       Icon(
         imageVector = Icons.Filled.SkipPrevious,
         contentDescription = "Previous",
-        tint = colors.primary.copy(alpha = prevIconAlpha),
+        tint = primaryColor.copy(alpha = prevIconAlpha),
         modifier = Modifier.size(32.dp),
       )
     }
@@ -626,7 +852,7 @@ private fun AnimatedPlaybackControls(
           .weight(playWeight)
           .fillMaxHeight()
           .clip(RoundedCornerShape(playCorner))
-          .background(colors.primary)
+          .background(primaryColor)
           .then(
             if (!isBuffering) {
               Modifier.clickable(
@@ -642,16 +868,20 @@ private fun AnimatedPlaybackControls(
           ),
       contentAlignment = Alignment.Center,
     ) {
+      val onPrimaryColor = remember(primaryColor) {
+        val luminance = (0.299 * primaryColor.red + 0.587 * primaryColor.green + 0.114 * primaryColor.blue)
+        if (luminance > 0.5f) Color.Black else Color.White
+      }
       if (isBuffering) {
         CircularProgressIndicator(
           modifier = Modifier.size(32.dp),
-          color = colors.onPrimary,
+          color = onPrimaryColor,
           strokeWidth = 3.dp,
         )
       } else {
         AnimatedPlayPauseIcon(
           isPlaying = isPlaying,
-          tint = colors.onPrimary,
+          tint = onPrimaryColor,
           modifier = Modifier.size(36.dp),
         )
       }
@@ -670,7 +900,7 @@ private fun AnimatedPlaybackControls(
           .weight(nextWeight)
           .fillMaxHeight()
           .clip(CircleShape)
-          .background(colors.primary.copy(alpha = nextBgAlpha))
+          .background(primaryColor.copy(alpha = nextBgAlpha))
           .then(
             if (hasNext) {
               Modifier.clickable(
@@ -689,7 +919,7 @@ private fun AnimatedPlaybackControls(
       Icon(
         imageVector = Icons.Filled.SkipNext,
         contentDescription = "Next",
-        tint = colors.primary.copy(alpha = nextIconAlpha),
+        tint = primaryColor.copy(alpha = nextIconAlpha),
         modifier = Modifier.size(32.dp),
       )
     }
@@ -705,9 +935,13 @@ private fun SecondaryControls(
   onShuffleClick: () -> Unit,
   onRepeatClick: () -> Unit,
   onFavoriteClick: () -> Unit,
-  colors: androidx.compose.material3.ColorScheme,
+  primaryColor: Color,
   modifier: Modifier = Modifier,
 ) {
+  val onPrimaryColor = remember(primaryColor) {
+    val luminance = (0.299 * primaryColor.red + 0.587 * primaryColor.green + 0.114 * primaryColor.blue)
+    if (luminance > 0.5f) Color.Black else Color.White
+  }
   Box(
     modifier = modifier.fillMaxWidth(),
     contentAlignment = Alignment.Center
@@ -715,21 +949,21 @@ private fun SecondaryControls(
     Row(
       modifier = Modifier
         .background(
-          color = colors.onPrimary.copy(alpha = 0.2f),
+          color = Color.White.copy(alpha = 0.2f),
           shape = RoundedCornerShape(28.dp)
         )
         .padding(4.dp),
       horizontalArrangement = Arrangement.Center,
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      // Shuffle button
+      // Shuffle button - same style as play/pause
       FilledIconButton(
         onClick = onShuffleClick,
         modifier = Modifier.size(48.dp),
         shape = RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 4.dp, bottomEnd = 4.dp),
         colors = IconButtonDefaults.filledIconButtonColors(
-          containerColor = if (isShuffled) colors.primary else colors.onPrimary.copy(alpha = 0.8f),
-          contentColor = if (isShuffled) colors.onPrimary else colors.onPrimaryContainer,
+          containerColor = if (isShuffled) primaryColor else primaryColor.copy(alpha = 0.15f),
+          contentColor = if (isShuffled) onPrimaryColor else Color.White,
         )
       ) {
         Icon(
@@ -743,14 +977,14 @@ private fun SecondaryControls(
 
       Spacer(modifier = Modifier.width(4.dp))
 
-      // Repeat button
+      // Repeat button - same style as play/pause
       FilledIconButton(
         onClick = onRepeatClick,
         modifier = Modifier.size(48.dp),
         shape = RoundedCornerShape(4.dp),
         colors = IconButtonDefaults.filledIconButtonColors(
-          containerColor = if (repeatMode != RepeatMode.NONE) colors.primary else colors.onPrimary.copy(alpha = 0.8f),
-          contentColor = if (repeatMode != RepeatMode.NONE) colors.onPrimary else colors.onPrimaryContainer,
+          containerColor = if (repeatMode != RepeatMode.NONE) primaryColor else primaryColor.copy(alpha = 0.15f),
+          contentColor = if (repeatMode != RepeatMode.NONE) onPrimaryColor else Color.White,
         )
       ) {
         val (icon, contentDesc) =
@@ -768,15 +1002,15 @@ private fun SecondaryControls(
 
       Spacer(modifier = Modifier.width(4.dp))
 
-      // Favorite button
+      // Favorite button - same style as play/pause
       FilledIconButton(
         onClick = onFavoriteClick,
         enabled = !isFavoriteLoading,
         modifier = Modifier.size(48.dp),
         shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 24.dp, bottomEnd = 24.dp),
         colors = IconButtonDefaults.filledIconButtonColors(
-          containerColor = if (isFavorite) colors.secondary else colors.onPrimary.copy(alpha = 0.8f),
-          contentColor = if (isFavorite) colors.onSecondary else colors.onPrimaryContainer,
+          containerColor = if (isFavorite) primaryColor else primaryColor.copy(alpha = 0.15f),
+          contentColor = if (isFavorite) onPrimaryColor else Color.White,
         )
       ) {
         val iconAlpha = if (isFavoriteLoading) 0.3f else 1f
@@ -799,6 +1033,7 @@ private fun LyricsView(
   lyrics: Lyrics?,
   currentPosition: Long,
   onLineClick: (Int) -> Unit,
+  primaryColor: Color,
   modifier: Modifier = Modifier,
 ) {
   val colors = MaterialTheme.colorScheme
@@ -876,7 +1111,7 @@ private fun LyricsView(
               style = MaterialTheme.typography.labelSmall.copy(
                 letterSpacing = 1.5.sp,
               ),
-              color = colors.onPrimaryContainer.copy(alpha = 0.30f),
+              color = Color.White.copy(alpha = 0.35f),
               textAlign = TextAlign.Center,
               modifier = Modifier
                 .fillMaxWidth()
@@ -890,11 +1125,9 @@ private fun LyricsView(
             label = "blur",
           )
 
-          val activeColor = if (isBackground) colors.primary.copy(alpha = 0.75f) else colors.primary
-          val inactiveColor = if (isBackground) colors.onPrimaryContainer.copy(alpha = 0.35f) else colors.onPrimaryContainer
-
+          // Lyrics always white - active lines are brighter
           val textColor by animateColorAsState(
-            targetValue = if (isCurrentLine) activeColor else inactiveColor,
+            targetValue = if (isCurrentLine) Color.White else Color.White.copy(alpha = 0.55f),
             animationSpec = tween(durationMillis = 300),
             label = "color",
           )
@@ -917,14 +1150,14 @@ private fun LyricsView(
             val hasWordSync = !line.words.isNullOrEmpty()
 
             if (hasWordSync && isCurrentLine) {
-              // Word-synced karaoke line with gradient fill
+              // Word-synced karaoke line with gradient fill - always white
               WordSyncedLine(
                 line = line,
                 currentPosition = currentPosition,
                 isActive = isCurrentLine,
                 isBackground = isBackground,
-                activeColor = activeColor,
-                inactiveColor = inactiveColor,
+                activeColor = Color.White,
+                inactiveColor = Color.White.copy(alpha = 0.55f),
               )
             } else {
               // Standard line display
@@ -940,21 +1173,15 @@ private fun LyricsView(
               )
             }
 
-            // Show translation if available
+            // Show translation if available - always white
             if (!line.translation.isNullOrBlank()) {
-              val translationColor = if (isCurrentLine) {
-                activeColor.copy(alpha = 0.65f)
-              } else {
-                inactiveColor.copy(alpha = 0.50f)
-              }
-
               Text(
                 text = line.translation,
                 style = MaterialTheme.typography.bodyMedium.copy(
                   fontSize = 17.sp,
                 ),
                 fontWeight = FontWeight.Medium,
-                color = translationColor,
+                color = if (isCurrentLine) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.40f),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp),
               )
@@ -963,35 +1190,7 @@ private fun LyricsView(
         }
       }
 
-      val fadeColor = colors.primaryContainer
 
-      // Top Fade
-      Box(
-        modifier =
-          Modifier
-            .align(Alignment.TopCenter)
-            .fillMaxWidth()
-            .height(containerHeight / 6)
-            .background(
-              Brush.verticalGradient(
-                colors = listOf(fadeColor, Color.Transparent),
-              ),
-            ),
-      )
-
-      // Bottom Fade
-      Box(
-        modifier =
-          Modifier
-            .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .height(containerHeight / 6)
-            .background(
-              Brush.verticalGradient(
-                colors = listOf(Color.Transparent, fadeColor),
-              ),
-            ),
-      )
     } else if (!plainLines.isNullOrEmpty()) {
       LazyColumn(
         modifier =
@@ -1009,7 +1208,7 @@ private fun LyricsView(
               fontSize = 24.sp,
             ),
             fontWeight = FontWeight.Bold,
-            color = colors.onPrimaryContainer.copy(alpha = 0.7f),
+            color = Color.White.copy(alpha = 0.72f),
             textAlign = TextAlign.Center,
             modifier =
               Modifier
@@ -1026,7 +1225,7 @@ private fun LyricsView(
         Text(
           text = "No lyrics available",
           style = MaterialTheme.typography.bodyLarge,
-          color = colors.onPrimaryContainer.copy(alpha = 0.5f),
+          color = Color.White.copy(alpha = 0.55f),
         )
       }
     }

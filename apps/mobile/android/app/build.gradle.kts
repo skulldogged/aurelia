@@ -172,6 +172,7 @@ dependencies {
   implementation("net.java.dev.jna:jna:5.18.1@aar")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
   implementation("io.coil-kt:coil-compose:2.7.0")
+  implementation("androidx.palette:palette:1.0.0")
   implementation("com.squareup.okhttp3:okhttp:5.3.2")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
   implementation("androidx.graphics:graphics-shapes:1.1.0")
