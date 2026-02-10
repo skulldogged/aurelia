@@ -15,16 +15,25 @@ SOURCES_DIR="$OUT_DIR/Sources"
 FRAMEWORK_DIR="$OUT_DIR/AureliaCoreFFI.xcframework"
 
 PROFILE="debug"
-CARGO_FLAGS=""
+CARGO_FLAGS=()
 if [[ "${1:-}" == "--release" ]]; then
     PROFILE="release"
-    CARGO_FLAGS="--release"
+    CARGO_FLAGS=("--release")
 fi
 
 TARGET_DIR="$PROJECT_ROOT/target"
 # Keep all cargo outputs deterministic for this script so generated Swift bindings
 # and XCFramework slices always come from the same build artifacts.
 export CARGO_TARGET_DIR="$TARGET_DIR"
+
+# Cleanup temp directories on exit
+TEMP_DIRS=()
+cleanup() {
+    for dir in "${TEMP_DIRS[@]}"; do
+        rm -rf "$dir"
+    done
+}
+trap cleanup EXIT
 
 ensure_rust_target() {
     local target="$1"
@@ -43,17 +52,17 @@ ensure_rust_target "$IOS_DEVICE_TARGET"
 ensure_rust_target "$IOS_SIM_TARGET"
 
 echo "==> Building aurelia-core for iOS device (aarch64-apple-ios)..."
-cargo build -p "$CORE_CRATE" --target "$IOS_DEVICE_TARGET" $CARGO_FLAGS
+cargo build -p "$CORE_CRATE" --target "$IOS_DEVICE_TARGET" "${CARGO_FLAGS[@]}"
 
 echo "==> Building aurelia-core for iOS simulator (aarch64-apple-ios-sim)..."
-cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" $CARGO_FLAGS
+cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" "${CARGO_FLAGS[@]}"
 
 # Build Mac Catalyst for both Apple Silicon and Intel so Xcode can build
 # "Any Mac" without missing-architecture slice failures.
 for CATALYST_TARGET in "${CATALYST_TARGETS[@]}"; do
     ensure_rust_target "$CATALYST_TARGET"
     echo "==> Building aurelia-core for Mac Catalyst ($CATALYST_TARGET)..."
-    IPHONEOS_DEPLOYMENT_TARGET=26.0 cargo build -p "$CORE_CRATE" --target "$CATALYST_TARGET" $CARGO_FLAGS
+    IPHONEOS_DEPLOYMENT_TARGET=26.0 cargo build -p "$CORE_CRATE" --target "$CATALYST_TARGET" "${CARGO_FLAGS[@]}"
 done
 
 # Build macOS target for SwiftPM tests (host architecture)
@@ -64,11 +73,11 @@ else
 fi
 ensure_rust_target "$MACOS_TARGET"
 echo "==> Building aurelia-core for macOS ($MACOS_TARGET)..."
-MACOSX_DEPLOYMENT_TARGET=13.0 cargo build -p "$CORE_CRATE" --target "$MACOS_TARGET" $CARGO_FLAGS
+MACOSX_DEPLOYMENT_TARGET=13.0 cargo build -p "$CORE_CRATE" --target "$MACOS_TARGET" "${CARGO_FLAGS[@]}"
 
 # Generate Swift bindings from the host build
 echo "==> Building aurelia-core for host (binding generation)..."
-cargo build -p "$CORE_CRATE" $CARGO_FLAGS
+cargo build -p "$CORE_CRATE" "${CARGO_FLAGS[@]}"
 
 HOST_LIB="$TARGET_DIR/$PROFILE/libaurelia_core.dylib"
 if [[ ! -f "$HOST_LIB" ]]; then
@@ -102,6 +111,7 @@ CATALYST_X86_64_LIB="$TARGET_DIR/x86_64-apple-ios-macabi/$PROFILE/libaurelia_cor
 # xcodebuild requires a single library definition per platform variant.
 # Merge arm64 + x86_64 Mac Catalyst static libs into one universal archive.
 CATALYST_UNIVERSAL_DIR=$(mktemp -d)
+TEMP_DIRS+=("$CATALYST_UNIVERSAL_DIR")
 CATALYST_LIB="$CATALYST_UNIVERSAL_DIR/libaurelia_core.a"
 lipo -create "$CATALYST_ARM64_LIB" "$CATALYST_X86_64_LIB" -output "$CATALYST_LIB"
 
@@ -109,16 +119,13 @@ lipo -create "$CATALYST_ARM64_LIB" "$CATALYST_X86_64_LIB" -output "$CATALYST_LIB
 DEVICE_HEADERS=$(mktemp -d)
 SIM_HEADERS=$(mktemp -d)
 MACOS_HEADERS=$(mktemp -d)
-cp "$HEADER_FILE" "$DEVICE_HEADERS/"
-cp "$MODULEMAP_FILE" "$DEVICE_HEADERS/module.modulemap"
-cp "$HEADER_FILE" "$SIM_HEADERS/"
-cp "$MODULEMAP_FILE" "$SIM_HEADERS/module.modulemap"
-cp "$HEADER_FILE" "$MACOS_HEADERS/"
-cp "$MODULEMAP_FILE" "$MACOS_HEADERS/module.modulemap"
-
 CATALYST_HEADERS=$(mktemp -d)
-cp "$HEADER_FILE" "$CATALYST_HEADERS/"
-cp "$MODULEMAP_FILE" "$CATALYST_HEADERS/module.modulemap"
+TEMP_DIRS+=("$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS" "$CATALYST_HEADERS")
+
+for dir in "$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS" "$CATALYST_HEADERS"; do
+    cp "$HEADER_FILE" "$dir/"
+    cp "$MODULEMAP_FILE" "$dir/module.modulemap"
+done
 
 xcodebuild -create-xcframework \
     -library "$DEVICE_LIB" -headers "$DEVICE_HEADERS" \
@@ -129,8 +136,6 @@ xcodebuild -create-xcframework \
 
 # Ensure SwiftPM can read module maps copied from mktemp-created header dirs.
 chmod -R a+rX "$FRAMEWORK_DIR"
-
-rm -rf "$DEVICE_HEADERS" "$SIM_HEADERS" "$CATALYST_HEADERS" "$MACOS_HEADERS" "$CATALYST_UNIVERSAL_DIR"
 
 echo "==> Done! XCFramework at: $FRAMEWORK_DIR"
 echo "    Swift bindings at: $SOURCES_DIR/AureliaCore.swift"

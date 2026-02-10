@@ -30,9 +30,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libglib2.0-dev libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
+        run: ./scripts/install-system-deps.sh all
 
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
@@ -73,9 +71,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libssl-dev pkg-config
+        run: ./scripts/install-system-deps.sh web
 
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
@@ -114,9 +110,7 @@ jobs:
 
       - name: Install system dependencies (Linux)
         if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev
+        run: ./scripts/install-system-deps.sh desktop
 
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
@@ -201,16 +195,9 @@ jobs:
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
 
-      - name: Generate Bindings
-        run: bun run bindings:generate
-
-      - name: Run Android Tests
+      - name: Build Android (Gradle handles binding generation)
         working-directory: apps/mobile/android
-        run: ./gradlew testDebugUnitTest
-
-      - name: Build APK
-        working-directory: apps/mobile/android
-        run: ./gradlew assembleDebug
+        run: ./gradlew testDebugUnitTest assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -229,18 +216,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - uses: dtolnay/rust-toolchain@stable
       
-      - name: Add iOS targets
-        run: rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-ios-macabi x86_64-apple-ios-macabi aarch64-apple-darwin x86_64-apple-darwin
-
       - uses: Swatinem/rust-cache@v2
 
       - name: Install JS dependencies
         run: bun install --frozen-lockfile
 
-      - name: Generate Bindings (Full)
-        run: bun run bindings:generate:full
+      - name: Generate TypeScript & Kotlin Bindings
+        run: bun run bindings:generate
 
-      - name: Build Rust Framework
+      - name: Build Rust Framework (includes Swift bindings)
         run: ./apps/mobile/ios/build-rust.sh --release
 
       - name: Run Swift Tests

@@ -1,34 +1,12 @@
 {
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "module": "ESNext",
-    "lib": [
-      "ES2020",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "preserve",
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "src/*"
-      ],
-      "@shared": [
-        "../../shared/src"
-      ],
-      "@shared/*": [
-        "../../shared/src/*"
-      ]
-    },
-    "strict": true,
-    "noFallthroughCasesInSwitch": true
+      "@/*": ["src/*"],
+      "@shared": ["../../shared/src"],
+      "@shared/*": ["../../shared/src/*"]
+    }
   },
   "include": [
     "src/**/*.ts",

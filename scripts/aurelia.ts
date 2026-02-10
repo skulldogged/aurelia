@@ -2,7 +2,8 @@
 import { type ChildProcess, spawn, type SpawnOptions } from 'child_process'
 import { createHash } from 'crypto'
 import { existsSync } from 'fs'
-import { mkdir, readdir, readFile, stat, writeFile } from 'fs/promises'
+import { mkdir, readdir, readFile, writeFile } from 'fs/promises'
+import { createConnection } from 'net'
 import { dirname, join, relative, resolve } from 'path'
 
 const PLATFORM = process.argv.find(arg => arg.startsWith('--platform='))?.split('=')[1] || 'web'
@@ -162,12 +163,7 @@ const computeBindingsFingerprint = async (): Promise<string> => {
   const sortedFiles = [...allFiles].sort()
   for (const file of sortedFiles) {
     const relPath = relative(ROOT, file)
-    const fileStat = await stat(file)
     hasher.update(relPath)
-    hasher.update('\0')
-    hasher.update(fileStat.size.toString())
-    hasher.update('\0')
-    hasher.update(fileStat.mtimeMs.toString())
     hasher.update('\0')
     hasher.update(await readFile(file))
     hasher.update('\0')
@@ -194,26 +190,42 @@ const bindings = async (): Promise<void> => {
   }
 
   console.log('Generating bindings...')
-  try {
-    await run('cargo', ['run', '-p', 'uniffi-bindgen', '--', 'all', '--out-dir', 'apps/shared/src/generated'])
-    await run('cargo', ['check', '-p', 'aurelia-api', '--features', 'web'])
+  await run('cargo', ['run', '-p', 'uniffi-bindgen', '--', 'all', '--out-dir', 'apps/shared/src/generated'])
+  await run('cargo', ['check', '-p', 'aurelia-api', '--features', 'web'])
 
-    const finalFingerprint = fingerprint ?? await computeBindingsFingerprint()
-    await writeBindingsState({
-      fingerprint: finalFingerprint,
-      updatedAt:   new Date().toISOString(),
-    })
-  } catch {
-    console.log('Binding generation failed, continuing...')
-  }
+  const finalFingerprint = fingerprint ?? await computeBindingsFingerprint()
+  await writeBindingsState({
+    fingerprint: finalFingerprint,
+    updatedAt:   new Date().toISOString(),
+  })
+}
+
+const waitForPort = (port: number, timeoutMs = 30000): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now()
+    const tryConnect = (): void => {
+      const socket = createConnection(port, 'localhost', () => {
+        socket.destroy()
+        resolve()
+      })
+      socket.on('error', () => {
+        if (Date.now() - startTime > timeoutMs) {
+          reject(new Error(`Port ${port} did not become available within ${timeoutMs}ms`))
+        } else {
+          setTimeout(tryConnect, 500)
+        }
+      })
+    }
+    tryConnect()
+  })
 }
 
 const devWeb = async (): Promise<void> => {
   await bindings()
   console.log('Starting web dev server...')
   const backend = spawn('cargo', ['run', '-p', 'aurelia-web-backend'], { cwd: ROOT, shell: true, stdio: 'inherit' })
-  await new Promise(r => setTimeout(r, 3000))
   try {
+    await waitForPort(3000)
     await run('bun', ['run', 'dev'], { cwd: join(ROOT, 'apps/web/frontend') })
   } finally {
     backend.kill()

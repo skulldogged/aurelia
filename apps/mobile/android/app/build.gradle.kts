@@ -68,8 +68,12 @@ android.sourceSets["main"]
   .jniLibs.directories
   .add("src/main/jniLibs")
 
+val projectRoot: String by lazy {
+  file("$rootDir/../../..").canonicalPath
+}
+
 tasks.register<Exec>("buildRustHost") {
-  workingDir = file("$rootDir/../../..")
+  workingDir = file(projectRoot)
   commandLine("cargo", "build", "-p", "aurelia-core")
 }
 
@@ -85,7 +89,7 @@ tasks.register<Exec>("generateUniffiBindings") {
   val libName = if (org.gradle.internal.os.OperatingSystem.current().isWindows) "aurelia_core.dll"
     else if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) "libaurelia_core.dylib"
     else "libaurelia_core.so"
-  workingDir = file("$rootDir/../../..")
+  workingDir = file(projectRoot)
   commandLine(
     "cargo",
     "run",
@@ -108,7 +112,7 @@ tasks.register<Exec>("generateUniffiBindings") {
 }
 
 tasks.register<Exec>("buildRustAndroid") {
-  workingDir = file("$rootDir/../../..")
+  workingDir = file(projectRoot)
   commandLine(
     "cargo",
     "ndk",
@@ -128,15 +132,12 @@ tasks.register<Exec>("buildRustAndroid") {
 tasks.register("copyUniffiLibs") {
   dependsOn("buildRustAndroid")
   doLast {
-    copy {
-      from("src/main/jniLibs/arm64-v8a/libaurelia_core.so")
-      into("src/main/jniLibs/arm64-v8a")
-      rename("libaurelia_core.so", "libuniffi_aurelia_core.so")
-    }
-    copy {
-      from("src/main/jniLibs/x86_64/libaurelia_core.so")
-      into("src/main/jniLibs/x86_64")
-      rename("libaurelia_core.so", "libuniffi_aurelia_core.so")
+    val archs = listOf("arm64-v8a", "x86_64")
+    archs.forEach { arch ->
+      val srcFile = file("src/main/jniLibs/$arch/libaurelia_core.so")
+      val dstFile = file("src/main/jniLibs/$arch/libuniffi_aurelia_core.so")
+      srcFile.copyTo(dstFile, overwrite = true)
+      srcFile.delete()
     }
   }
 }

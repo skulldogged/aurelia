@@ -1,63 +1,34 @@
-import tailwindcss from '@tailwindcss/vite'
-import vue from '@vitejs/plugin-vue'
-import path from 'path'
-import VueRouter from 'unplugin-vue-router/vite'
-import { defineConfig } from 'vite'
+import { resolve } from 'path'
+import { defineConfig, mergeConfig } from 'vite'
+import { createSharedViteConfig, getDirname } from '@aurelia/shared/vite'
 
-export default defineConfig({
-  build: {
-    chunkSizeWarningLimit: 1000,
-    outDir:                'dist',
-  },
-  clearScreen: false,
-  css:         {
-    transformer: 'lightningcss',
-  },
+const __dirname = getDirname(import.meta)
 
-  plugins: [
-    VueRouter({
-      exclude:      ['**/node_modules/**', '**/components/**'],
-      routesFolder: [
-        {
-          path: '',
-          src:  '../../shared/src/pages',
-        },
-      ],
+export default defineConfig(
+  mergeConfig(
+    createSharedViteConfig({
+      projectDir: __dirname,
+      sharedDir: resolve(__dirname, '../../shared/src'),
     }),
-    vue(),
-    tailwindcss(),
-  ],
-
-  resolve: {
-    alias: {
-      '@':       path.resolve(__dirname, './src'),
-      '@shared': path.resolve(__dirname, '../../shared/src'),
-    },
-  },
-  server: {
-    host:  true,
-    port:  5173,
-    proxy: {
-      '/api': {
-        changeOrigin: true,
-        target:       'http://localhost:3000',
+    {
+      build: {
+        outDir: 'dist',
       },
-      '/ws': {
-        target: 'http://localhost:3000',
-        ws:     true,
+      server: {
+        host: true,
+        port: 5173,
+        proxy: {
+          '/api': {
+            changeOrigin: true,
+            target: 'http://localhost:3000',
+          },
+          '/ws': {
+            target: 'http://localhost:3000',
+            ws: true,
+          },
+        },
+        strictPort: true,
       },
     },
-    strictPort: true,
-  },
-  test: {
-    environment: 'happy-dom',
-    globals:     true,
-    include:     [
-      'tests/**/*.spec.ts',
-      'tests/**/*.test.ts',
-      'src/**/*.spec.ts',
-      'src/**/*.test.ts',
-    ],
-    setupFiles: ['./tests/setup.ts'],
-  },
-})
+  ),
+)
