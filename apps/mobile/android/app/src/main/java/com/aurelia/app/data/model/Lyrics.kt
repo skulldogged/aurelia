@@ -12,6 +12,7 @@ data class SyncedLine(
   val line: String,
   val words: List<SyncedWord>? = null,
   val agentId: String? = null,
+  val translation: String? = null,
 )
 
 data class LyricsSection(

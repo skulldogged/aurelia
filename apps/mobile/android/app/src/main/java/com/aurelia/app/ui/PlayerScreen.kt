@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -71,20 +72,31 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.data.model.Lyrics
+import com.aurelia.app.data.model.SyncedLine
+import com.aurelia.app.data.model.SyncedWord
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.RepeatMode
 import com.aurelia.app.ui.components.AlbumArt
@@ -887,15 +899,8 @@ private fun LyricsView(
             label = "color",
           )
 
-          Text(
-            text = line.line,
-            style = MaterialTheme.typography.titleLarge.copy(
-              fontSize = 28.sp,
-              fontStyle = if (isBackground) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
-            ),
-            fontWeight = FontWeight.Bold,
-            color = textColor,
-            textAlign = TextAlign.Center,
+          Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier =
               Modifier
                 .fillMaxWidth()
@@ -907,7 +912,54 @@ private fun LyricsView(
                   indication = null,
                 ) { onLineClick(line.time) }
                 .padding(vertical = 8.dp, horizontal = 4.dp),
-          )
+          ) {
+            // Check if we have word-level sync data
+            val hasWordSync = !line.words.isNullOrEmpty()
+
+            if (hasWordSync && isCurrentLine) {
+              // Word-synced karaoke line with gradient fill
+              WordSyncedLine(
+                line = line,
+                currentPosition = currentPosition,
+                isActive = isCurrentLine,
+                isBackground = isBackground,
+                activeColor = activeColor,
+                inactiveColor = inactiveColor,
+              )
+            } else {
+              // Standard line display
+              Text(
+                text = line.line,
+                style = MaterialTheme.typography.titleLarge.copy(
+                  fontSize = 28.sp,
+                  fontStyle = if (isBackground) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
+                ),
+                fontWeight = FontWeight.Bold,
+                color = textColor,
+                textAlign = TextAlign.Center,
+              )
+            }
+
+            // Show translation if available
+            if (!line.translation.isNullOrBlank()) {
+              val translationColor = if (isCurrentLine) {
+                activeColor.copy(alpha = 0.65f)
+              } else {
+                inactiveColor.copy(alpha = 0.50f)
+              }
+
+              Text(
+                text = line.translation,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                  fontSize = 17.sp,
+                ),
+                fontWeight = FontWeight.Medium,
+                color = translationColor,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 4.dp),
+              )
+            }
+          }
         }
       }
 
@@ -980,6 +1032,208 @@ private fun LyricsView(
     }
   }
 }
+
+/**
+ * Renders a word-synced lyric line with karaoke-style gradient fill animation.
+ * Uses a Path-based clip to handle multi-line text correctly.
+ */
+@Composable
+private fun WordSyncedLine(
+  line: SyncedLine,
+  currentPosition: Long,
+  isActive: Boolean,
+  isBackground: Boolean,
+  activeColor: Color,
+  inactiveColor: Color,
+) {
+  val words = line.words ?: return
+  val density = LocalDensity.current
+
+  val activeWordIndex = remember(currentPosition, words) {
+    words.withIndex().lastOrNull { (_, word) ->
+      word.time.toLong() <= currentPosition
+    }?.index ?: -1
+  }
+
+  val wordProgress = remember(currentPosition, activeWordIndex, words) {
+    if (activeWordIndex < 0 || activeWordIndex >= words.size) {
+      0f
+    } else {
+      val word = words[activeWordIndex]
+      val wordStart = word.time.toLong()
+      val wordEnd = word.endTime?.toLong()
+        ?: words.getOrNull(activeWordIndex + 1)?.time?.toLong()
+        ?: (wordStart + 500)
+
+      val duration = wordEnd - wordStart
+      val elapsed = currentPosition - wordStart
+
+      if (duration > 0) {
+        (elapsed.toFloat() / duration).coerceIn(0f, 1f)
+      } else {
+        1f
+      }
+    }
+  }
+
+  val brightOpacity = if (isBackground) 0.75f else 0.98f
+  val dimOpacity = if (isBackground) 0.25f else 0.50f
+
+  val brightColor = activeColor.copy(alpha = brightOpacity)
+  val dimColor = inactiveColor.copy(alpha = dimOpacity)
+
+  val wordInfos = remember(words) {
+    words.mapIndexed { index, word ->
+      val hasLeadingSpace = word.word.startsWith(" ")
+      val trimmedText = word.word.trimStart()
+      WordInfo(
+        text = trimmedText,
+        hasLeadingSpace = hasLeadingSpace && index > 0,
+        index = index
+      )
+    }
+  }
+
+  val fullText = remember(wordInfos) {
+    buildAnnotatedString {
+      wordInfos.forEach { wordInfo ->
+        if (wordInfo.hasLeadingSpace) {
+          append(" ")
+        }
+        append(wordInfo.text)
+      }
+    }
+  }
+
+  var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+
+  // Pre-compute character ranges for each word
+  val wordCharRanges = remember(wordInfos) {
+    var charIndex = 0
+    wordInfos.map { wordInfo ->
+      val start = if (wordInfo.hasLeadingSpace) charIndex + 1 else charIndex
+      val end = start + wordInfo.text.length
+      charIndex = end
+      WordCharRange(start, end - 1, wordInfo.index)
+    }
+  }
+
+  // Build a clip path for the bright overlay based on word positions
+  val highlightPath = remember(textLayoutResult, activeWordIndex, wordProgress, wordCharRanges) {
+    textLayoutResult?.let { layoutResult ->
+      if (activeWordIndex < 0) return@remember null
+      
+      val path = Path()
+      
+      wordCharRanges.forEach { charRange ->
+        if (charRange.wordIndex <= activeWordIndex) {
+          val startBounds = layoutResult.getBoundingBox(charRange.start)
+          val endBounds = layoutResult.getBoundingBox(charRange.end)
+          
+          // Skip if on different lines (shouldn't happen for single words)
+          if (startBounds.top != endBounds.top) return@forEach
+          
+          val wordLeft = startBounds.left
+          val wordRight = endBounds.right
+          val wordTop = startBounds.top
+          val wordBottom = startBounds.bottom
+          
+          if (charRange.wordIndex < activeWordIndex) {
+            // Fully sung word: add full rectangle
+            path.addRect(Rect(
+              left = wordLeft,
+              top = wordTop,
+              right = wordRight,
+              bottom = wordBottom
+            ))
+          } else {
+            // Active word: add partial rectangle based on progress
+            val clipRight = wordLeft + (wordRight - wordLeft) * wordProgress
+            if (clipRight > wordLeft) {
+              path.addRect(Rect(
+                left = wordLeft,
+                top = wordTop,
+                right = clipRight,
+                bottom = wordBottom
+              ))
+            }
+          }
+        }
+      }
+      
+      path
+    }
+  }
+
+  val textStyle = MaterialTheme.typography.titleLarge.copy(
+    fontSize = 28.sp,
+    fontStyle = if (isBackground) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
+  )
+
+  // Glow effect for active line - increases as more words are sung
+  val glowRadius = if (isActive && activeWordIndex >= 0) {
+    6f * (activeWordIndex + 1) / words.size.toFloat()
+  } else {
+    0f
+  }
+
+  val glowStyle = if (isActive) {
+    textStyle.copy(
+      shadow = Shadow(
+        color = brightColor.copy(alpha = 0.45f),
+        blurRadius = glowRadius * density.density,
+        offset = Offset.Zero
+      )
+    )
+  } else {
+    textStyle
+  }
+
+  Box(modifier = Modifier.fillMaxWidth()) {
+    // Base layer: all words in dim color
+    Text(
+      text = fullText,
+      style = textStyle,
+      fontWeight = FontWeight.Bold,
+      color = dimColor,
+      textAlign = TextAlign.Center,
+      modifier = Modifier.fillMaxWidth(),
+      onTextLayout = { result ->
+        textLayoutResult = result
+      }
+    )
+
+    // Overlay layer: bright text with glow, clipped to show sung words + progress
+    if (isActive && highlightPath != null && !highlightPath.isEmpty) {
+      Text(
+        text = fullText,
+        style = glowStyle,
+        fontWeight = FontWeight.Bold,
+        color = brightColor,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+          .fillMaxWidth()
+          .drawWithContent {
+            clipPath(highlightPath) {
+              this@drawWithContent.drawContent()
+            }
+          }
+      )
+    }
+  }
+}
+
+private data class WordInfo(
+  val text: String,
+  val hasLeadingSpace: Boolean,
+  val index: Int
+)
+
+private data class WordCharRange(
+  val start: Int,
+  val end: Int,
+  val wordIndex: Int
+)
 
 @Composable
 private fun QueueContent(

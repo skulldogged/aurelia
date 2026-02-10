@@ -9,7 +9,7 @@ final class SessionStore: @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.aurelia.app", category: "SessionStore")
     private let libraryRefreshKey = "lastLibraryRefresh"
-    private let aureliaServerUrlKey = "aureliaServerUrl"
+    private let lyricsServerUrlKey = "lyricsServerUrl"
     private let ioQueue = DispatchQueue(label: "com.aurelia.sessionstore.io", qos: .userInitiated)
     private var cachedCredentials: Credentials?
 
@@ -156,11 +156,11 @@ final class SessionStore: @unchecked Sendable {
     var userId: String? { getCredentials()?.userId }
     var token: String? { getCredentials()?.token }
 
-    // MARK: - Aurelia Server URL (for remote sidecar lyrics)
+    // MARK: - Lyrics Server URL (for sidecar lyrics from daemon)
 
-    var aureliaServerUrl: String? {
-        get { UserDefaults.standard.string(forKey: aureliaServerUrlKey) }
-        set { UserDefaults.standard.set(newValue, forKey: aureliaServerUrlKey) }
+    var lyricsServerUrl: String? {
+        get { UserDefaults.standard.string(forKey: lyricsServerUrlKey) }
+        set { UserDefaults.standard.set(newValue, forKey: lyricsServerUrlKey) }
     }
 
     func clear() {

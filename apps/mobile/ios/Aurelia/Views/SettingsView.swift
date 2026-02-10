@@ -4,7 +4,7 @@ struct SettingsView: View {
     @Environment(AppViewModel.self) private var appViewModel
     @State private var viewModel = SettingsViewModel()
     @State private var showLogoutConfirmation = false
-    @State private var aureliaServerUrl: String = SessionStore.shared.aureliaServerUrl ?? ""
+    @State private var lyricsServerUrl: String = SessionStore.shared.lyricsServerUrl ?? ""
 
     var body: some View {
         NavigationStack {
@@ -85,17 +85,17 @@ struct SettingsView: View {
             }
 
             Section {
-                TextField("https://aurelia.example.com", text: $aureliaServerUrl)
+                TextField("http://localhost:3030", text: $lyricsServerUrl)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
-                    .onChange(of: aureliaServerUrl) { _, newValue in
-                        SessionStore.shared.aureliaServerUrl = newValue.isEmpty ? nil : newValue
+                    .onChange(of: lyricsServerUrl) { _, newValue in
+                        SessionStore.shared.lyricsServerUrl = newValue.isEmpty ? nil : newValue
                     }
             } header: {
-                Text("Aurelia Server")
+                Text("Lyrics Server")
             } footer: {
-                Text("URL of the Aurelia web server for synced lyrics. Leave empty if not using a server.")
+                Text("URL of the lyrics daemon for synced lyrics from sidecar files. Leave empty to use Jellyfin lyrics only.")
             }
 
             Section("About") {

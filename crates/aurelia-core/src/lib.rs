@@ -304,23 +304,22 @@ pub async fn get_parsed_lyrics(
     artist: String,
     title: String,
     path: Option<String>,
-    aurelia_server_url: Option<String>,
-    daemon_url: Option<String>,
+    lyrics_server_url: Option<String>,
 ) -> models::ParsedLyrics {
     // 1. Try sidecar lyrics first (richest source: TTML with word-sync, sections, agents)
     
-    // 1a. Try lyrics daemon if configured
-    if let Some(ref d_url) = daemon_url 
-        && !d_url.is_empty() 
+    // 1a. Try lyrics server (daemon) if configured
+    if let Some(ref lyrics_url) = lyrics_server_url
+        && !lyrics_url.is_empty()
     {
-        tracing::info!("[Lyrics] Checking daemon at {}", d_url);
-        match fetch_daemon_lyrics(d_url, &item_id).await {
+        tracing::info!("[Lyrics] Checking lyrics server at {}", lyrics_url);
+        match fetch_lyrics_from_server(lyrics_url, &item_id).await {
             Ok(Some(parsed)) => {
-                 tracing::info!("[Lyrics] Daemon found lyrics");
+                 tracing::info!("[Lyrics] Lyrics server found lyrics");
                  return parsed;
             }
-            Ok(_) => tracing::info!("[Lyrics] Daemon returned no lyrics"),
-            Err(e) => tracing::warn!("[Lyrics] Daemon fetch failed: {}", e),
+            Ok(_) => tracing::info!("[Lyrics] Lyrics server returned no lyrics"),
+            Err(e) => tracing::warn!("[Lyrics] Lyrics server fetch failed: {}", e),
         }
     }
 
@@ -365,31 +364,7 @@ pub async fn get_parsed_lyrics(
         }
     }
 
-    // 1c. Try fetching sidecar lyrics from the Aurelia web backend (for remote clients)
-    if let Some(ref aurelia_url) = aurelia_server_url
-        && !aurelia_url.is_empty()
-    {
-        tracing::info!(
-            "[Lyrics] Trying remote sidecar from Aurelia server: {}",
-            aurelia_url
-        );
-        match fetch_remote_sidecar_lyrics(aurelia_url, &item_id).await {
-            Ok(Some(parsed)) if parsed.is_valid() => {
-                tracing::info!(
-                    "[Lyrics] Remote sidecar found: syncedLines={}, hasWords={}",
-                    parsed.synced.len(),
-                    parsed.synced.first().is_some_and(|l| l.words.is_some()),
-                );
-                return parsed;
-            }
-            Ok(_) => {
-                tracing::info!("[Lyrics] Remote sidecar returned no valid lyrics");
-            }
-            Err(e) => {
-                tracing::warn!("[Lyrics] Remote sidecar fetch failed: {}", e);
-            }
-        }
-    }
+
 
     // 2. Try Jellyfin lyrics API
     if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
@@ -485,12 +460,13 @@ pub async fn get_sidecar_lyrics(
     })
 }
 
-/// Fetch sidecar lyrics from the daemon.
-async fn fetch_daemon_lyrics(
-    daemon_url: &str,
+/// Fetch sidecar lyrics from a lyrics server (daemon).
+/// The server should respond at `{base_url}/lyrics/{item_id}` with a `LyricsDaemonResponse`.
+async fn fetch_lyrics_from_server(
+    server_url: &str,
     item_id: &str,
 ) -> Result<Option<models::ParsedLyrics>, Box<dyn std::error::Error + Send + Sync>> {
-    let url = format!("{}/lyrics/{}", daemon_url.trim_end_matches('/'), item_id);
+    let url = format!("{}/lyrics/{}", server_url.trim_end_matches('/'), item_id);
     let client = reqwest::Client::new();
     let resp = client
         .get(&url)
@@ -507,41 +483,6 @@ async fn fetch_daemon_lyrics(
         return Ok(body.lyrics);
     }
     
-    Ok(None)
-}
-
-/// Fetch sidecar lyrics from a remote Aurelia web backend.
-async fn fetch_remote_sidecar_lyrics(
-    aurelia_server_url: &str,
-    item_id: &str,
-) -> Result<Option<models::ParsedLyrics>, Box<dyn std::error::Error + Send + Sync>> {
-    let url = format!(
-        "{}/api/lyrics/sidecar/{}",
-        aurelia_server_url.trim_end_matches('/'),
-        item_id
-    );
-    let client = reqwest::Client::new();
-    let resp = client
-        .get(&url)
-        .timeout(std::time::Duration::from_secs(10))
-        .send()
-        .await?;
-
-    if !resp.status().is_success() {
-        return Ok(None);
-    }
-
-    // The web backend wraps responses in ApiResponse { status: "ok", data, error }
-    let body: serde_json::Value = resp.json().await?;
-    if body.get("status") == Some(&serde_json::Value::String("ok".to_string())) {
-        if let Some(data) = body.get("data") {
-            let parsed: models::ParsedLyrics = serde_json::from_value(data.clone())?;
-            return Ok(Some(parsed));
-        }
-    } else {
-        tracing::warn!("[Lyrics] Remote sidecar response not ok: {:?}", body);
-    }
-
     Ok(None)
 }
 

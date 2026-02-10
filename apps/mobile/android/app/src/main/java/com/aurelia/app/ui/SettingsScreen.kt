@@ -312,8 +312,8 @@ fun SettingsScreen(
             color = colors.outline.copy(alpha = 0.2f),
           )
 
-          var aureliaServerUrl by remember {
-            mutableStateOf(sessionStore.getAureliaServerUrl() ?: "")
+          var lyricsServerUrl by remember {
+            mutableStateOf(sessionStore.getLyricsServerUrl() ?: "")
           }
           Row(
             modifier = Modifier
@@ -330,24 +330,24 @@ fun SettingsScreen(
             )
             Column(modifier = Modifier.weight(1f)) {
               Text(
-                text = "Aurelia Server",
+                text = "Lyrics Server",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 color = colors.onSurface,
               )
               androidx.compose.material3.OutlinedTextField(
-                value = aureliaServerUrl,
+                value = lyricsServerUrl,
                 onValueChange = {
-                  aureliaServerUrl = it
-                  sessionStore.setAureliaServerUrl(it.ifBlank { null })
+                  lyricsServerUrl = it
+                  sessionStore.setLyricsServerUrl(it.ifBlank { null })
                 },
-                placeholder = { Text("https://aurelia.example.com") },
+                placeholder = { Text("http://localhost:3030") },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.onSurface),
                 modifier = Modifier.fillMaxWidth(),
               )
               Text(
-                text = "For synced lyrics from sidecar files",
+                text = "For synced lyrics from sidecar files (daemon URL)",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurfaceVariant,
               )

@@ -720,8 +720,7 @@ impl Api for TauriApiImpl {
             None => (String::new(), String::new()),
         };
 
-        // Read aurelia_server_url from local settings for remote sidecar lyrics
-        // Read settings from local storage
+        // Read lyrics_server_url from local settings for sidecar lyrics
         let app_dir = self
             .app
             .path()
@@ -729,16 +728,12 @@ impl Api for TauriApiImpl {
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        let (aurelia_server_url, lyrics_daemon_url) = if !app_dir.is_empty() {
-            let s1 = aurelia_core::load_setting(app_dir.clone(), "aurelia_server_url".to_string())
+        let lyrics_server_url = if !app_dir.is_empty() {
+            aurelia_core::load_setting(app_dir, "lyrics_server_url".to_string())
                 .ok()
-                .flatten();
-            let s2 = aurelia_core::load_setting(app_dir, "lyrics_daemon_url".to_string())
-                .ok()
-                .flatten();
-            (s1, s2)
+                .flatten()
         } else {
-            (None, None)
+            None
         };
 
         Ok(aurelia_core::get_parsed_lyrics(
@@ -748,8 +743,7 @@ impl Api for TauriApiImpl {
             artist,
             title,
             path,
-            aurelia_server_url,
-            lyrics_daemon_url,
+            lyrics_server_url,
         )
         .await)
     }

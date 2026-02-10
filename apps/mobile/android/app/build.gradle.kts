@@ -135,9 +135,12 @@ tasks.register("copyUniffiLibs") {
     val archs = listOf("arm64-v8a", "x86_64")
     archs.forEach { arch ->
       val srcFile = file("src/main/jniLibs/$arch/libaurelia_core.so")
-      val dstFile = file("src/main/jniLibs/$arch/libuniffi_aurelia_core.so")
-      srcFile.copyTo(dstFile, overwrite = true)
-      srcFile.delete()
+      // The library name must match what UniFFI bindings expect: "aurelia_core"
+      // which translates to "libaurelia_core.so" on Android
+      // Keep the original filename - do not rename it
+      if (!srcFile.exists()) {
+        throw GradleException("Rust library not found: ${srcFile.absolutePath}. Run 'cargo ndk' build first.")
+      }
     }
   }
 }

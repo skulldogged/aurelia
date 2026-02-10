@@ -3423,11 +3423,11 @@ public func getLyrics(serverUrl: String, token: String, itemId: String, artist: 
             
         )
 }
-public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String, path: String?, aureliaServerUrl: String?, daemonUrl: String?)async  -> ParsedLyrics  {
+public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String, path: String?, lyricsServerUrl: String?)async  -> ParsedLyrics  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title),FfiConverterOptionString.lower(path),FfiConverterOptionString.lower(aureliaServerUrl),FfiConverterOptionString.lower(daemonUrl)
+                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title),FfiConverterOptionString.lower(path),FfiConverterOptionString.lower(lyricsServerUrl)
                 )
             },
             pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
@@ -3717,7 +3717,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_get_lyrics() != 56114) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 35443) {
+    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 62359) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_playlist_items() != 51827) {

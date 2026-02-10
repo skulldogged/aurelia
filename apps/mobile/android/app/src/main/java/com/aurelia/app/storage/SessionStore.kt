@@ -90,17 +90,17 @@ class SessionStore(
 
   fun getToken(): String? = getCredentials()?.token
 
-  fun setAureliaServerUrl(url: String?) {
+  fun setLyricsServerUrl(url: String?) {
     prefs.edit {
       if (url.isNullOrBlank()) {
-        remove("aureliaServerUrl")
+        remove("lyricsServerUrl")
       } else {
-        putString("aureliaServerUrl", url)
+        putString("lyricsServerUrl", url)
       }
     }
   }
 
-  fun getAureliaServerUrl(): String? = prefs.getString("aureliaServerUrl", null)
+  fun getLyricsServerUrl(): String? = prefs.getString("lyricsServerUrl", null)
 
   fun getDeviceId(): String {
     val savedId = prefs.getString("device_id", null)

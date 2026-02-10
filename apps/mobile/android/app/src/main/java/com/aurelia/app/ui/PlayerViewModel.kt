@@ -19,6 +19,8 @@ import kotlinx.coroutines.launch
 import uniffi.aurelia_core.getParsedLyrics as uniffiGetParsedLyrics
 import uniffi.aurelia_core.markItemPlayed as uniffiMarkItemPlayed
 import uniffi.aurelia_core.toggleFavorite as uniffiToggleFavorite
+import uniffi.aurelia_lyrics.ParsedLyrics
+import uniffi.aurelia_lyrics.ParsedLyricsLine
 
 class PlayerViewModel(
     private val playerController: PlayerController,
@@ -87,9 +89,9 @@ class PlayerViewModel(
                 val token = sessionStore.getToken() ?: ""
                 val itemId = songId ?: ""
 
-                val aureliaServerUrl = sessionStore.getAureliaServerUrl()
+                val lyricsServerUrl = sessionStore.getLyricsServerUrl()
                 val lyrics =
-                    uniffiGetParsedLyrics(serverUrl, token, itemId, artist, title, null, aureliaServerUrl).toUiLyrics()
+                    uniffiGetParsedLyrics(serverUrl, token, itemId, artist, title, null, lyricsServerUrl).toUiLyrics()
 
                 // Ensure we are still playing the same song
                 if (songId == mutableState.value.currentSongId) {
@@ -158,7 +160,7 @@ class PlayerViewModel(
             sampleRate = snapshot.sampleRate,
         )
 
-    private fun uniffi.aurelia_core.ParsedLyricsLine.toUiSyncedLine(): SyncedLine =
+    private fun ParsedLyricsLine.toUiSyncedLine(): SyncedLine =
         SyncedLine(
             time = timeMs.toInt(),
             endTime = endTimeMs?.toInt(),
@@ -171,9 +173,10 @@ class PlayerViewModel(
                 )
             },
             agentId = agentId,
+            translation = translation,
         )
 
-    private fun uniffi.aurelia_core.ParsedLyrics.toUiLyrics(): Lyrics {
+    private fun ParsedLyrics.toUiLyrics(): Lyrics {
         val syncedLines =
             synced
                 .takeIf { it.isNotEmpty() }

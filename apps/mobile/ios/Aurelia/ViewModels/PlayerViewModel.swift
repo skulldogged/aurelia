@@ -153,9 +153,8 @@ final class PlayerViewModel: @unchecked Sendable {
 
                 self.logger.info("[Lyrics] Fetching lyrics for '\(title)' by '\(artist)' (itemId=\(itemId), serverUrl=\(serverUrl.prefix(30))..., hasToken=\(!token.isEmpty))")
 
-                let aureliaServerUrl = await self.sessionStore.aureliaServerUrl
-                self.logger.info("[Lyrics] Debug: aureliaServerUrl = '\(aureliaServerUrl ?? "nil")'")
-                // Use the configured Aurelia Server URL as the Daemon URL
+                let lyricsServerUrl = await self.sessionStore.lyricsServerUrl
+                self.logger.info("[Lyrics] Debug: lyricsServerUrl = '\(lyricsServerUrl ?? "nil")'")
                 let parsedLyrics = await getParsedLyrics(
                     serverUrl: serverUrl,
                     token: token,
@@ -163,8 +162,7 @@ final class PlayerViewModel: @unchecked Sendable {
                     artist: artist,
                     title: title,
                     path: nil,
-                    aureliaServerUrl: nil, // Disable old web app proxy
-                    daemonUrl: aureliaServerUrl // Pass to new daemon logic
+                    lyricsServerUrl: lyricsServerUrl
                 )
 
                 self.logger.info("[Lyrics] Got ParsedLyrics from core: syncedLines=\(parsedLyrics.synced.count), plainLines=\(parsedLyrics.plain.count), areFromRemote=\(parsedLyrics.areFromRemote), hasSections=\(parsedLyrics.sections != nil), hasAgents=\(parsedLyrics.agents != nil), hasSongwriters=\(parsedLyrics.songwriters != nil), language=\(parsedLyrics.language ?? "nil")")
