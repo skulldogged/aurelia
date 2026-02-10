@@ -19,9 +19,6 @@ export const createSharedViteConfig = (options: SharedViteConfigOptions): UserCo
       chunkSizeWarningLimit: 1000,
     },
     clearScreen: false,
-    css: {
-      transformer: 'lightningcss',
-    },
     plugins: [
       VueRouter({
         exclude: ['**/node_modules/**', '**/components/**'],
@@ -36,10 +33,11 @@ export const createSharedViteConfig = (options: SharedViteConfigOptions): UserCo
       tailwindcss(),
     ],
     resolve: {
-      alias: {
-        '@': resolve(projectDir, './src'),
-        '@shared': resolvedSharedDir,
-      },
+      alias: [
+        { find: '@', replacement: resolve(projectDir, './src') },
+        { find: '@shared', replacement: resolvedSharedDir },
+        { find: /^@shared\/(.*)$/, replacement: resolve(resolvedSharedDir, '$1') },
+      ],
     },
     test: {
       environment: 'happy-dom',
@@ -49,7 +47,5 @@ export const createSharedViteConfig = (options: SharedViteConfigOptions): UserCo
     },
   }
 }
-
-export const getDirname = (meta: ImportMeta): string => dirname(fileURLToPath(meta.url))
 
 export type { UserConfig, UserConfigExport }

@@ -133,6 +133,23 @@
           '';
         };
 
+        # Build the sidecar lyrics daemon
+        commonArgsSidecar = {
+          inherit src;
+          pname = "aurelia-sidecar-daemon";
+          version = "0.1.0";
+          strictDeps = true;
+          cargoExtraArgs = "-p aurelia-sidecar-daemon";
+        };
+
+        cargoArtifactsSidecar = craneLib.buildDepsOnly commonArgsSidecar;
+
+        aurelia-sidecar-daemon = craneLib.buildPackage (commonArgsSidecar
+          // {
+            inherit cargoArtifactsSidecar;
+            doCheck = false;
+          });
+
         androidComposition = pkgs.androidenv.composeAndroidPackages {
           cmdLineToolsVersion = "13.0";
           platformToolsVersion = "36.0.1";
@@ -146,7 +163,7 @@
         androidSdk = androidComposition.androidsdk;
       in {
         packages = {
-          inherit aurelia-web-backend aurelia-web-frontend aurelia-web;
+          inherit aurelia-web-backend aurelia-web-frontend aurelia-web aurelia-sidecar-daemon;
           default = aurelia-web;
         };
 
@@ -200,7 +217,15 @@
     )
     // {
       # NixOS module (system-independent)
-      nixosModules.default = {
+      nixosModules = {
+        default = {config, lib, pkgs, ...}: {
+          imports = [
+            self.nixosModules.aurelia-web
+            self.nixosModules.aurelia-sidecar-daemon
+          ];
+        };
+
+        aurelia-web = {
         config,
         lib,
         pkgs,
@@ -314,5 +339,131 @@
           };
         };
       };
+
+      # NixOS module for the sidecar lyrics daemon
+      aurelia-sidecar-daemon = {config, lib, pkgs, ...}:
+        let
+          cfg = config.services.aurelia-sidecar-daemon;
+          settingsFormat = pkgs.formats.toml {};
+          configFile = settingsFormat.generate "aurelia-sidecar-daemon.toml" cfg.settings;
+        in {
+          options.services.aurelia-sidecar-daemon = {
+            enable = lib.mkEnableOption "Aurelia Sidecar Lyrics Daemon";
+
+            package = lib.mkOption {
+              type = lib.types.package;
+              default = self.packages.${pkgs.system}.aurelia-sidecar-daemon;
+              description = "The aurelia-sidecar-daemon package to use.";
+            };
+
+            settings = lib.mkOption {
+              type = lib.types.submodule {
+                freeformType = settingsFormat.type;
+                options = {
+                  jellyfin_url = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = "URL of the Jellyfin server.";
+                    example = "http://localhost:8096";
+                  };
+
+                  jellyfin_api_key = lib.mkOption {
+                    type = lib.types.nullOr lib.types.str;
+                    default = null;
+                    description = ''
+                      Jellyfin API key for authentication.
+                      WARNING: Use environmentFile option instead for production deployments.
+                    '';
+                  };
+
+                  music_paths = lib.mkOption {
+                    type = lib.types.listOf lib.types.path;
+                    default = [];
+                    description = "Paths to music libraries to scan for sidecar files.";
+                    example = ["/var/lib/jellyfin/media/music"];
+                  };
+
+                  bind = lib.mkOption {
+                    type = lib.types.str;
+                    default = "127.0.0.1";
+                    description = "Address to bind the HTTP server to.";
+                  };
+
+                  port = lib.mkOption {
+                    type = lib.types.port;
+                    default = 8080;
+                    description = "Port to listen on.";
+                  };
+
+                  cache_ttl_seconds = lib.mkOption {
+                    type = lib.types.ints.positive;
+                    default = 3600;
+                    description = "Time-to-live for cached lyrics in seconds.";
+                  };
+                };
+              };
+              default = {};
+              description = "Configuration for the Aurelia Sidecar Lyrics Daemon.";
+            };
+
+            environmentFile = lib.mkOption {
+              type = lib.types.nullOr lib.types.path;
+              default = null;
+              description = ''
+                Path to an environment file containing sensitive configuration.
+                Useful for storing the Jellyfin API key securely.
+              '';
+            };
+
+            openFirewall = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = ''
+                Whether to open the firewall for the daemon port.
+                Only enable this if the daemon needs to be accessible from other machines.
+              '';
+            };
+          };
+
+          config = lib.mkIf cfg.enable {
+            systemd.services.aurelia-sidecar-daemon = {
+              description = "Aurelia Sidecar Lyrics Daemon";
+              after = ["network.target"] ++ lib.optional (cfg.settings.jellyfin_url != null) "jellyfin.service";
+              wantedBy = ["multi-user.target"];
+
+              serviceConfig = {
+                Type = "simple";
+                DynamicUser = true;
+                ExecStart = "${cfg.package}/bin/aurelia-sidecar-daemon --config ${configFile}";
+                Restart = "on-failure";
+                RestartSec = 5;
+                StateDirectory = "aurelia-sidecar";
+
+                # Security hardening
+                NoNewPrivileges = true;
+                ProtectSystem = "strict";
+                ProtectHome = true;
+                ReadWritePaths = ["/var/lib/aurelia-sidecar"];
+                PrivateTmp = true;
+                PrivateDevices = true;
+                ProtectKernelTunables = true;
+                ProtectControlGroups = true;
+                RestrictSUIDSGID = true;
+
+                # Read music directories
+                BindReadOnlyPaths = cfg.settings.music_paths;
+
+                # Environment file for secrets
+                EnvironmentFile = lib.mkIf (cfg.environmentFile != null) cfg.environmentFile;
+
+                # Resource limits
+                MemoryMax = "512M";
+                CPUQuota = "50%";
+              };
+            };
+
+            networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [cfg.settings.port];
+          };
+        };
     };
 }

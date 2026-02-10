@@ -1,0 +1,13 @@
+[package]
+name = "aurelia-lyrics"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+quick-xml = { version = "0.36", features = ["serialize"] }
+thiserror = "1"
+regex = "1"
+
+[dev-dependencies]
+tokio-test = "0.4"

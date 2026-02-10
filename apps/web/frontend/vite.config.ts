@@ -1,8 +1,9 @@
-import { resolve } from 'path'
+import { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 import { defineConfig, mergeConfig } from 'vite'
-import { createSharedViteConfig, getDirname } from '@aurelia/shared/vite'
+import { createSharedViteConfig } from '@aurelia/shared/vite'
 
-const __dirname = getDirname(import.meta)
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig(
   mergeConfig(

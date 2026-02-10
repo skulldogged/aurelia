@@ -1,0 +1,27 @@
+[package]
+name = "aurelia-sidecar-daemon"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+notify = "6"
+dashmap = "6"
+thiserror = "1"
+clap = { version = "4", features = ["derive", "env"] }
+toml = "0.8"
+
+# Reuse core parsing logic - or vendor it
+# Option 1: Depend on aurelia-core (heavier)
+# aurelia-core = { path = "../aurelia-core" }
+
+# Option 2: Create a minimal lyrics crate
+[dependencies.aurelia-lyrics]
+path = "../aurelia-lyrics"
