@@ -44,17 +44,25 @@ impl JellyfinClient {
     
     /// Get item info including path, artist, album, etc.
     pub async fn get_item_info(&self, item_id: &str) -> anyhow::Result<ItemInfo> {
+        // Use the list endpoint to avoid potential 400 Bad Request issues on some servers
+        // when accessing /Items/{Id} directly without user context.
         let url = format!(
-            "{}/Items/{}?api_key={}&fields=Path",
+            "{}/Items?ids={}&fields=Path&api_key={}",
             self.base_url, item_id, self.api_key
         );
         
         let response = self.client.get(&url).send().await?;
         
         if !response.status().is_success() {
-            anyhow::bail!("Failed to get item: HTTP {}", response.status());
+            anyhow::bail!("Failed to get item info: HTTP {}", response.status());
         }
         
+        #[derive(Deserialize)]
+        struct ItemsResponse {
+            #[serde(rename = "Items")]
+            items: Vec<ItemResponse>,
+        }
+
         #[derive(Deserialize)]
         struct ItemResponse {
             #[serde(rename = "Path")]
@@ -69,7 +77,9 @@ impl JellyfinClient {
             run_time_ticks: Option<i64>,
         }
         
-        let item: ItemResponse = response.json().await?;
+        let list: ItemsResponse = response.json().await?;
+        let item = list.items.into_iter().next()
+            .ok_or_else(|| anyhow::anyhow!("Item not found"))?;
         
         Ok(ItemInfo {
             path: item.path.map(std::path::PathBuf::from),
