@@ -505,8 +505,10 @@ dependencies = [
  "quick-xml 0.39.0",
  "regex",
  "serde",
+ "specta",
  "thiserror 2.0.18",
  "tokio-test",
+ "uniffi",
 ]
 
 [[package]]

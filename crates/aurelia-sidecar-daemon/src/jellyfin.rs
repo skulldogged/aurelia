@@ -131,6 +131,7 @@ impl JellyfinClient {
             agents: None,
             songwriters: None,
             language: None,
+            are_from_remote: true,
         })
     }
 }

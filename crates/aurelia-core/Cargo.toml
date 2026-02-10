@@ -20,7 +20,7 @@ desktop = [
 ]
 
 [dependencies]
-aurelia-lyrics = { path = "../aurelia-lyrics" }
+aurelia-lyrics = { path = "../aurelia-lyrics", features = ["specta", "uniffi", "json"] }
 anyhow = "1.0"
 base64 = "0.22"
 

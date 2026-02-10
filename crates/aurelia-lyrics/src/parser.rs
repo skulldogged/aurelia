@@ -73,6 +73,7 @@ pub fn parse_lrc(content: &str) -> Result<ParsedLyrics> {
         agents: None,
         songwriters: None,
         language: None,
+        are_from_remote: false,
     })
 }
 
@@ -101,6 +102,7 @@ pub fn parse_plain_text(content: &str) -> ParsedLyrics {
         agents: None,
         songwriters: None,
         language: None,
+        are_from_remote: false,
     }
 }
 

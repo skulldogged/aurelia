@@ -5,7 +5,7 @@ use aurelia_core::models::library::{
     HomeViewData, LastFmCredentials, LibraryData, MobileHomeData, NowPlayingPayload, RpcActivity,
     SyncStateInfo,
 };
-use aurelia_core::models::lyrics::{
+use aurelia_core::models::{
     ParsedLyrics, ParsedLyricsAgent, ParsedLyricsLine, ParsedLyricsSection, ParsedLyricsWord,
 };
 use aurelia_core::models::music::{

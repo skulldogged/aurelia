@@ -309,9 +309,8 @@ mod tests {
 /// Parse lyrics text using aurelia-lyrics crate, auto-detecting the format.
 #[must_use]
 pub fn parse_lyrics(text: &str) -> ParsedLyrics {
-    if aurelia_lyrics::ttml::is_ttml(text) {
+    let mut parsed = if aurelia_lyrics::ttml::is_ttml(text) {
         aurelia_lyrics::parse_ttml(text)
-            .map(Into::into)
             .unwrap_or_else(|_| ParsedLyrics {
                 plain: vec![],
                 synced: vec![],
@@ -319,12 +318,11 @@ pub fn parse_lyrics(text: &str) -> ParsedLyrics {
                 agents: None,
                 songwriters: None,
                 language: None,
-                are_from_remote: true,
+                are_from_remote: false,
             })
     } else {
         // Use parse_lrc for everything else (LRC and plain text)
         aurelia_lyrics::parse_lrc(text)
-            .map(Into::into)
             .unwrap_or_else(|_| ParsedLyrics {
                 plain: vec![],
                 synced: vec![],
@@ -332,7 +330,11 @@ pub fn parse_lyrics(text: &str) -> ParsedLyrics {
                 agents: None,
                 songwriters: None,
                 language: None,
-                are_from_remote: true,
+                are_from_remote: false,
             })
-    }
+    };
+
+    // Ensure remote flag is set to true to match legacy behavior
+    parsed.are_from_remote = true;
+    parsed
 }

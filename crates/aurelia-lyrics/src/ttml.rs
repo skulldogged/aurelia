@@ -83,7 +83,7 @@ fn collect_attrs(e: &quick_xml::events::BytesStart<'_>) -> Vec<(String, String)>
             (key, val)
         })
         .collect()
-}
+    }
 
 /// Resolve an attribute name, handling namespace prefixes.
 ///
@@ -126,6 +126,7 @@ pub fn parse_ttml(xml: &str) -> Result<ParsedLyrics> {
             agents: None,
             songwriters: None,
             language: None,
+            are_from_remote: false,
         }),
     }
 }
@@ -350,12 +351,25 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
 
                             // Build section if we have a name
                             if let Some(name) = current_section_name.take() {
+                                let start_time_ms = section_lines
+                                    .first()
+                                    .map(|l| l.time_ms)
+                                    .unwrap_or(0);
+                                let end_time_ms = section_lines
+                                    .last()
+                                    .and_then(|l| l.end_time_ms)
+                                    .or_else(|| section_lines.last().map(|l| l.time_ms))
+                                    .unwrap_or(start_time_ms);
+
                                 sections.push(ParsedLyricsSection {
                                     name,
-                                    start_line_index: 0, // TODO: track actual indices
-                                    end_line_index: section_lines.len(),
+                                    start_time_ms,
+                                    end_time_ms,
+                                    lines: section_lines,
+                                    agent_id: current_section_agent.clone(),
                                 });
                             }
+                            current_section_agent = None;
                             in_div = false;
                         }
                     }
@@ -409,6 +423,7 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
             Some(songwriters)
         },
         language,
+        are_from_remote: false,
     })
 }
 
@@ -505,6 +520,13 @@ mod tests {
 
         // Plain
         assert_eq!(parsed.plain.len(), 3);
+        
+        // Sections
+        let sections = parsed.sections.unwrap();
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].name, "Chorus");
+        assert_eq!(sections[0].lines.len(), 2);
+        assert_eq!(sections[0].lines[0].line, "First line");
     }
 
     #[test]
