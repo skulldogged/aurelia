@@ -352,7 +352,9 @@
         }: let
           cfg = config.services.aurelia-sidecar-daemon;
           settingsFormat = pkgs.formats.toml {};
-          configFile = settingsFormat.generate "aurelia-sidecar-daemon.toml" cfg.settings;
+          # Filter out null values since TOML doesn't support them
+          settingsFiltered = lib.filterAttrs (n: v: v != null) cfg.settings;
+          configFile = settingsFormat.generate "aurelia-sidecar-daemon.toml" settingsFiltered;
         in {
           options.services.aurelia-sidecar-daemon = {
             enable = lib.mkEnableOption "Aurelia Sidecar Lyrics Daemon";
