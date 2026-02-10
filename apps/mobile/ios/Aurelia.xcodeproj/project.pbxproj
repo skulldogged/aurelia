@@ -69,6 +69,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = AB1C1E782F2BF9A100217004 /* Build configuration list for PBXNativeTarget "Aurelia" */;
 			buildPhases = (
+				AB3377312F3ADB6600E5C7A4 /* ShellScript */,
 				AB1C1E692F2BF9A000217004 /* Sources */,
 				AB1C1E6A2F2BF9A000217004 /* Frameworks */,
 				AB1C1E6B2F2BF9A000217004 /* Resources */,
@@ -132,6 +133,26 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		AB3377312F3ADB6600E5C7A4 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "unset CC CFLAGS CXX CXXFLAGS LDFLAGS SDKROOT\n\nif [ -f \"$HOME/.cargo/env\" ]; then\n    source \"$HOME/.cargo/env\"\nfi\n\nPROJECT_ROOT=\"$(cd \"$SRCROOT/../../..\" && pwd)\"\ncd \"$PROJECT_ROOT\"\n\nif [ -f \"./scripts/generate-bindings.sh\" ]; then\n    ./scripts/generate-bindings.sh --ios\nelse\n    echo \"Error: Could not find scripts/generate-bindings.sh\"\n    exit 1\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		AB1C1E692F2BF9A000217004 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -181,7 +202,7 @@
 				DEVELOPMENT_TEAM = 8L9UZ4J5TA;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -245,7 +266,7 @@
 				DEVELOPMENT_TEAM = 8L9UZ4J5TA;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;

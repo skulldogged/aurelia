@@ -305,10 +305,26 @@ pub async fn get_parsed_lyrics(
     title: String,
     path: Option<String>,
     aurelia_server_url: Option<String>,
+    daemon_url: Option<String>,
 ) -> models::ParsedLyrics {
     // 1. Try sidecar lyrics first (richest source: TTML with word-sync, sections, agents)
+    
+    // 1a. Try lyrics daemon if configured
+    if let Some(ref d_url) = daemon_url 
+        && !d_url.is_empty() 
+    {
+        tracing::info!("[Lyrics] Checking daemon at {}", d_url);
+        match fetch_daemon_lyrics(d_url, &item_id).await {
+            Ok(Some(parsed)) => {
+                 tracing::info!("[Lyrics] Daemon found lyrics");
+                 return parsed;
+            }
+            Ok(_) => tracing::info!("[Lyrics] Daemon returned no lyrics"),
+            Err(e) => tracing::warn!("[Lyrics] Daemon fetch failed: {}", e),
+        }
+    }
 
-    // 1a. Try local sidecar files (.ttml, .lrc) next to the audio file
+    // 1b. Try local sidecar files (.ttml, .lrc) next to the audio file
     let resolved_path = match path {
         Some(ref p) if !p.is_empty() => Some(p.clone()),
         _ if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() => {
@@ -349,7 +365,7 @@ pub async fn get_parsed_lyrics(
         }
     }
 
-    // 1b. Try fetching sidecar lyrics from the Aurelia web backend (for remote clients)
+    // 1c. Try fetching sidecar lyrics from the Aurelia web backend (for remote clients)
     if let Some(ref aurelia_url) = aurelia_server_url
         && !aurelia_url.is_empty()
     {
@@ -467,6 +483,31 @@ pub async fn get_sidecar_lyrics(
     try_read_sidecar_lyrics(&path).ok_or_else(|| {
         error::AppError::General("No sidecar lyrics found for this item".to_string())
     })
+}
+
+/// Fetch sidecar lyrics from the daemon.
+async fn fetch_daemon_lyrics(
+    daemon_url: &str,
+    item_id: &str,
+) -> Result<Option<models::ParsedLyrics>, Box<dyn std::error::Error + Send + Sync>> {
+    let url = format!("{}/lyrics/{}", daemon_url.trim_end_matches('/'), item_id);
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(5))
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+
+    let body: models::daemon::LyricsDaemonResponse = resp.json().await?;
+    if body.found {
+        return Ok(body.lyrics);
+    }
+    
+    Ok(None)
 }
 
 /// Fetch sidecar lyrics from a remote Aurelia web backend.

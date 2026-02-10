@@ -9,9 +9,10 @@ pub mod library;
 pub mod lrclib;
 pub mod music;
 
+pub use aurelia_lyrics::models::*;
 pub use auth::*;
 pub use jellyfin::*;
 pub use library::*;
 pub use lrclib::*;
-pub use aurelia_lyrics::models::*;
 pub use music::*;
+pub mod daemon;

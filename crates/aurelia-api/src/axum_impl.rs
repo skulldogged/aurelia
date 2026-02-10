@@ -448,7 +448,7 @@ impl Api for AxumApiImpl {
             None => (String::new(), String::new()),
         };
         // Web backend runs co-located with media files, no need for remote sidecar fetch
-        Ok(aurelia_core::get_parsed_lyrics(server_url, token, id, artist, title, path, None).await)
+        Ok(aurelia_core::get_parsed_lyrics(server_url, token, id, artist, title, path, None, None).await)
     }
 
     async fn get_sidecar_lyrics(

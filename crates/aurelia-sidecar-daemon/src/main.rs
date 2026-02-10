@@ -110,8 +110,8 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     
     // Load or create config
-    let config = if let Some(config_path) = args.config {
-        Config::from_file(config_path).await?
+    let config = if let Some(config_path) = args.config.clone() {
+        Config::from_file_and_args(config_path, &args).await?
     } else {
         Config::from_args(&args).await?
     };

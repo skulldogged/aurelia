@@ -15,10 +15,22 @@ pub struct Config {
 }
 
 impl Config {
-    /// Load config from TOML file
-    pub async fn from_file(path: PathBuf) -> anyhow::Result<Self> {
+    /// Load config from TOML file and merge with CLI args/env vars
+    pub async fn from_file_and_args(path: PathBuf, args: &Args) -> anyhow::Result<Self> {
         let content = tokio::fs::read_to_string(&path).await?;
-        let config: Config = toml::from_str(&content)?;
+        let mut config: Config = toml::from_str(&content)?;
+
+        // Override with env vars/CLI args if present
+        if let Some(url) = &args.jellyfin_url {
+            config.jellyfin_url = Some(url.clone());
+        }
+        if let Some(key) = &args.jellyfin_api_key {
+            config.jellyfin_api_key = Some(key.clone());
+        }
+        if let Some(paths) = &args.music_paths {
+            config.music_paths = paths.split(',').map(PathBuf::from).collect();
+        }
+        
         Ok(config)
     }
     

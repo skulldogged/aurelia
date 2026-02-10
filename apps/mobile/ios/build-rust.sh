@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eo pipefail
 
 # Build Rust aurelia-core for iOS targets and generate Swift UniFFI bindings.
 # Usage: ./build-rust.sh [--release]
@@ -96,8 +96,8 @@ cargo run -p uniffi-bindgen -- generate \
 mv "$SOURCES_DIR/aurelia_core.swift" "$SOURCES_DIR/AureliaCore.swift"
 
 # Move the generated header and modulemap into place for the XCFramework
-HEADER_FILE="$SOURCES_DIR/aurelia_coreFFI.h"
-MODULEMAP_FILE="$SOURCES_DIR/aurelia_coreFFI.modulemap"
+HEADER_FILES=("$SOURCES_DIR/aurelia_coreFFI.h" "$SOURCES_DIR/aurelia_lyricsFFI.h")
+MODULEMAP_FILES=("$SOURCES_DIR/aurelia_coreFFI.modulemap" "$SOURCES_DIR/aurelia_lyricsFFI.modulemap")
 
 echo "==> Creating XCFramework..."
 rm -rf "$FRAMEWORK_DIR"
@@ -123,8 +123,8 @@ CATALYST_HEADERS=$(mktemp -d)
 TEMP_DIRS+=("$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS" "$CATALYST_HEADERS")
 
 for dir in "$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS" "$CATALYST_HEADERS"; do
-    cp "$HEADER_FILE" "$dir/"
-    cp "$MODULEMAP_FILE" "$dir/module.modulemap"
+    cp "${HEADER_FILES[@]}" "$dir/"
+    for f in "${MODULEMAP_FILES[@]}"; do cat "$f" >> "$dir/module.modulemap"; echo "" >> "$dir/module.modulemap"; done
 done
 
 xcodebuild -create-xcframework \
