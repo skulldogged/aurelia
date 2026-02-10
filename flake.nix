@@ -28,15 +28,17 @@
 
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = ["rust-src"];
-          targets = lib.optionals pkgs.stdenv.isDarwin [
-            "aarch64-apple-ios"
-            "aarch64-apple-ios-sim"
-          ] ++ [
-            "aarch64-linux-android"
-            "armv7-linux-androideabi"
-            "i686-linux-android"
-            "x86_64-linux-android"
-          ];
+          targets =
+            lib.optionals pkgs.stdenv.isDarwin [
+              "aarch64-apple-ios"
+              "aarch64-apple-ios-sim"
+            ]
+            ++ [
+              "aarch64-linux-android"
+              "armv7-linux-androideabi"
+              "i686-linux-android"
+              "x86_64-linux-android"
+            ];
         };
 
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
@@ -218,7 +220,7 @@
     // {
       # NixOS module (system-independent)
       nixosModules = {
-        default = {config, lib, pkgs, ...}: {
+        default = _: {
           imports = [
             self.nixosModules.aurelia-web
             self.nixosModules.aurelia-sidecar-daemon
@@ -226,123 +228,128 @@
         };
 
         aurelia-web = {
-        config,
-        lib,
-        pkgs,
-        ...
-      }: let
-        cfg = config.services.aurelia;
-      in {
-        options.services.aurelia = {
-          enable = lib.mkEnableOption "Aurelia web music player";
+          config,
+          lib,
+          pkgs,
+          ...
+        }: let
+          cfg = config.services.aurelia;
+        in {
+          options.services.aurelia = {
+            enable = lib.mkEnableOption "Aurelia web music player";
 
-          package = lib.mkOption {
-            type = lib.types.package;
-            default = self.packages.${pkgs.system}.aurelia-web;
-            description = "The Aurelia web package to use.";
+            package = lib.mkOption {
+              type = lib.types.package;
+              default = self.packages.${pkgs.system}.aurelia-web;
+              description = "The Aurelia web package to use.";
+            };
+
+            host = lib.mkOption {
+              type = lib.types.str;
+              default = "0.0.0.0";
+              description = "Address to bind the server to.";
+            };
+
+            port = lib.mkOption {
+              type = lib.types.port;
+              default = 3000;
+              description = "Port to listen on.";
+            };
+
+            dataDir = lib.mkOption {
+              type = lib.types.path;
+              default = "/var/lib/aurelia";
+              description = "Directory for Aurelia's persistent data (database, cache).";
+            };
+
+            user = lib.mkOption {
+              type = lib.types.str;
+              default = "aurelia";
+              description = "User account under which Aurelia runs.";
+            };
+
+            group = lib.mkOption {
+              type = lib.types.str;
+              default = "aurelia";
+              description = "Group under which Aurelia runs.";
+            };
+
+            openFirewall = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "Whether to open the firewall port.";
+            };
+
+            environment = lib.mkOption {
+              type = lib.types.attrsOf lib.types.str;
+              default = {};
+              description = "Extra environment variables for the Aurelia service.";
+              example = lib.literalExpression ''
+                {
+                  RUST_LOG = "info";
+                }
+              '';
+            };
           };
 
-          host = lib.mkOption {
-            type = lib.types.str;
-            default = "0.0.0.0";
-            description = "Address to bind the server to.";
-          };
+          config = lib.mkIf cfg.enable {
+            users.users.${cfg.user} = {
+              inherit (cfg) group;
 
-          port = lib.mkOption {
-            type = lib.types.port;
-            default = 3000;
-            description = "Port to listen on.";
-          };
+              isSystemUser = true;
+              home = cfg.dataDir;
+              createHome = true;
+            };
 
-          dataDir = lib.mkOption {
-            type = lib.types.path;
-            default = "/var/lib/aurelia";
-            description = "Directory for Aurelia's persistent data (database, cache).";
-          };
+            users.groups.${cfg.group} = {};
 
-          user = lib.mkOption {
-            type = lib.types.str;
-            default = "aurelia";
-            description = "User account under which Aurelia runs.";
-          };
+            networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [cfg.port];
 
-          group = lib.mkOption {
-            type = lib.types.str;
-            default = "aurelia";
-            description = "Group under which Aurelia runs.";
-          };
+            systemd.services.aurelia = {
+              description = "Aurelia Web Music Player";
+              after = ["network.target"];
+              wantedBy = ["multi-user.target"];
 
-          openFirewall = lib.mkOption {
-            type = lib.types.bool;
-            default = false;
-            description = "Whether to open the firewall port.";
-          };
+              environment =
+                {
+                  AURELIA_HOST = cfg.host;
+                  AURELIA_PORT = toString cfg.port;
+                  AURELIA_DATA_DIR = cfg.dataDir;
+                  AURELIA_STATIC_DIR = "${cfg.package}/share/aurelia-web";
+                  RUST_LOG = "info";
+                }
+                // cfg.environment;
 
-          environment = lib.mkOption {
-            type = lib.types.attrsOf lib.types.str;
-            default = {};
-            description = "Extra environment variables for the Aurelia service.";
-            example = lib.literalExpression ''
-              {
-                RUST_LOG = "info";
-              }
-            '';
-          };
-        };
+              serviceConfig = {
+                Type = "simple";
+                User = cfg.user;
+                Group = cfg.group;
+                ExecStart = "${cfg.package}/bin/aurelia-web-backend";
+                Restart = "on-failure";
+                RestartSec = 5;
 
-        config = lib.mkIf cfg.enable {
-          users.users.${cfg.user} = {
-            isSystemUser = true;
-            group = cfg.group;
-            home = cfg.dataDir;
-            createHome = true;
-          };
-
-          users.groups.${cfg.group} = {};
-
-          networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [cfg.port];
-
-          systemd.services.aurelia = {
-            description = "Aurelia Web Music Player";
-            after = ["network.target"];
-            wantedBy = ["multi-user.target"];
-
-            environment =
-              {
-                AURELIA_HOST = cfg.host;
-                AURELIA_PORT = toString cfg.port;
-                AURELIA_DATA_DIR = cfg.dataDir;
-                AURELIA_STATIC_DIR = "${cfg.package}/share/aurelia-web";
-                RUST_LOG = "info";
-              }
-              // cfg.environment;
-
-            serviceConfig = {
-              Type = "simple";
-              User = cfg.user;
-              Group = cfg.group;
-              ExecStart = "${cfg.package}/bin/aurelia-web-backend";
-              Restart = "on-failure";
-              RestartSec = 5;
-
-              # Hardening
-              NoNewPrivileges = true;
-              ProtectSystem = "strict";
-              ProtectHome = true;
-              ReadWritePaths = [cfg.dataDir];
-              PrivateTmp = true;
-              PrivateDevices = true;
-              ProtectKernelTunables = true;
-              ProtectControlGroups = true;
-              RestrictSUIDSGID = true;
+                # Hardening
+                NoNewPrivileges = true;
+                ProtectSystem = "strict";
+                ProtectHome = true;
+                ReadWritePaths = [cfg.dataDir];
+                PrivateTmp = true;
+                PrivateDevices = true;
+                ProtectKernelTunables = true;
+                ProtectControlGroups = true;
+                RestrictSUIDSGID = true;
+              };
             };
           };
         };
-      };
 
-      # NixOS module for the sidecar lyrics daemon
-      aurelia-sidecar-daemon = {config, lib, pkgs, ...}:
-        let
+        # NixOS module for the sidecar lyrics daemon
+        aurelia-sidecar-daemon = {
+          config,
+          lib,
+          pkgs,
+          ...
+        }: let
           cfg = config.services.aurelia-sidecar-daemon;
           settingsFormat = pkgs.formats.toml {};
           configFile = settingsFormat.generate "aurelia-sidecar-daemon.toml" cfg.settings;
@@ -465,5 +472,6 @@
             networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall [cfg.settings.port];
           };
         };
+      };
     };
 }
