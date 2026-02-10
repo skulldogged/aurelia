@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """
-Fetch word-synced (syllable) TTML lyrics from Apple Music for an entire album.
+Fetch word-synced (syllable) TTML lyrics from Apple Music for an entire album,
+optionally with embedded translations.
 
 Usage:
-    uv run --with httpx python scripts/fetch-syllable-lyrics.py <apple-music-album-url> [--output-dir DIR] [--cookies PATH]
+    uv run --with httpx python scripts/fetch-syllable-lyrics.py <apple-music-album-url> [--output-dir DIR]
 
 Examples:
-    # Save next to your music files
+    # Basic: fetch lyrics only
     uv run --with httpx python scripts/fetch-syllable-lyrics.py \
-        "https://music.apple.com/us/album/debi-tirar-mas-fotos/1787022561" \
+        "https://music.apple.com/us/album/debi-tirar-mas-fotos/1787022393" \
         --output-dir "/mnt/music/Bad Bunny/DeBÍ TiRAR MáS FOToS"
 
-    # Save to current directory (default)
+    # With English translations embedded in the TTML
     uv run --with httpx python scripts/fetch-syllable-lyrics.py \
-        "https://music.apple.com/us/album/debi-tirar-mas-fotos/1787022561"
+        "https://music.apple.com/us/album/debi-tirar-mas-fotos/1787022393" \
+        --output-dir "/tmp/badbunny" --translate en
+
+    # Single track
+    uv run --with httpx python scripts/fetch-syllable-lyrics.py \
+        "https://music.apple.com/us/album/debi-tirar-mas-fotos/1787022393?i=1787022572"
 
 Requires a cookies.txt (Netscape format) with a valid Apple Music `media-user-token`.
 """
@@ -22,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import re
 import sys
 from http.cookiejar import MozillaCookieJar
@@ -46,12 +53,51 @@ ALBUM_URL_RE = re.compile(
     r"(?:\?i=(?P<song_id>[0-9]+))?"
 )
 
+# ISO 639-1 language code to IETF script tag mapping for l[script] param.
+# Apple uses these to specify the writing system for the translation.
+LANG_SCRIPT_MAP = {
+    "en": "en-Latn",
+    "es": "es-Latn",
+    "fr": "fr-Latn",
+    "de": "de-Latn",
+    "it": "it-Latn",
+    "pt": "pt-Latn",
+    "ja": "ja-Jpan",
+    "ko": "ko-Kore",
+    "zh": "zh-Hans",
+    "zh-tw": "zh-Hant",
+    "ar": "ar-Arab",
+    "ru": "ru-Cyrl",
+    "hi": "hi-Deva",
+    "th": "th-Thai",
+    "vi": "vi-Latn",
+    "tr": "tr-Latn",
+    "pl": "pl-Latn",
+    "nl": "nl-Latn",
+    "sv": "sv-Latn",
+    "uk": "uk-Cyrl",
+}
+
 # Characters illegal in filenames on most OSes
-ILLEGAL_CHARS_RE = re.compile(r'[\\/:*?"<>|]')
+ILLEGAL_CHARS_RE = re.compile(r'[\/:*?"<>|]')
 
 
 def sanitize_filename(name: str) -> str:
     return ILLEGAL_CHARS_RE.sub("_", name)
+
+
+def guess_script_tag(lang: str) -> str:
+    """Guess the l[script] value for a given language code."""
+    lang_lower = lang.lower().replace("_", "-")
+    # Try exact match first (e.g. "zh-tw")
+    if lang_lower in LANG_SCRIPT_MAP:
+        return LANG_SCRIPT_MAP[lang_lower]
+    # Try base language (e.g. "en" from "en-us")
+    base = lang_lower.split("-")[0]
+    if base in LANG_SCRIPT_MAP:
+        return LANG_SCRIPT_MAP[base]
+    # Default: assume Latin script
+    return f"{base}-Latn"
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +109,6 @@ async def get_developer_token(client: httpx.AsyncClient) -> str:
     resp = await client.get(APPLE_MUSIC_HOMEPAGE)
     resp.raise_for_status()
 
-    # Find the index JS bundle
     m = re.search(r"/(assets/index-legacy[~-][^/\"]+\.js)", resp.text)
     if not m:
         raise RuntimeError("Could not find index.js URI in Apple Music homepage")
@@ -130,7 +175,7 @@ async def get_album_tracks(
     storefront: str,
     album_id: str,
 ) -> list[dict]:
-    """Fetch all tracks on an album with syllable-lyrics included."""
+    """Fetch all tracks on an album."""
     resp = await client.get(
         f"{AMP_API_URL}/v1/catalog/{storefront}/albums/{album_id}",
         params={
@@ -169,32 +214,72 @@ async def fetch_syllable_lyrics(
     client: httpx.AsyncClient,
     storefront: str,
     song_id: str,
-) -> str | None:
-    """Fetch word-synced TTML for a single song.  Returns TTML string or None."""
-    resp = await client.get(
-        f"{AMP_API_URL}/v1/catalog/{storefront}/songs/{song_id}",
-        params={
-            "include": "syllable-lyrics",
-        },
-    )
+    translate_lang: str | None = None,
+    dump_json: Path | None = None,
+) -> dict | None:
+    """
+    Fetch word-synced TTML for a single song.
+
+    If translate_lang is set (e.g. "en"), fetches the localized TTML which
+    contains both original lyrics and translations embedded in
+    <iTunesMetadata><translations>.
+
+    Returns dict with 'ttml', 'has_translations', 'translation_lang' keys,
+    or None if no lyrics available.
+    """
+    # Use the direct /syllable-lyrics sub-resource endpoint.
+    # With extend=ttmlLocalizations and l[lyrics]/l[script], the API returns
+    # a TTML with translations embedded in <translations><translation>.
+    url = f"{AMP_API_URL}/v1/catalog/{storefront}/songs/{song_id}/syllable-lyrics"
+
+    params: dict[str, str] = {}
+    if translate_lang:
+        lang_lower = translate_lang.lower().replace("_", "-")
+        # l[lyrics] wants a locale like "en-us", l[script] wants "en-Latn"
+        locale = lang_lower if "-" in lang_lower else f"{lang_lower}-{lang_lower}"
+        params["l[lyrics]"] = locale
+        params["l[script]"] = guess_script_tag(translate_lang)
+        params["extend"] = "ttmlLocalizations"
+
+    resp = await client.get(url, params=params)
     if resp.status_code == 404:
         return None
     resp.raise_for_status()
 
     data = resp.json()
-    song = data["data"][0]
-    syl = song.get("relationships", {}).get("syllable-lyrics", {})
 
-    if (
-        syl
-        and "data" in syl
-        and len(syl["data"]) > 0
-        and "attributes" in syl["data"][0]
-        and "ttml" in syl["data"][0]["attributes"]
-    ):
-        return syl["data"][0]["attributes"]["ttml"]
+    if dump_json:
+        dump_path = dump_json / f"{song_id}.json"
+        dump_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    return None
+    if "data" not in data or not data["data"]:
+        return None
+
+    attrs = data["data"][0].get("attributes", {})
+
+    # When requesting translations, the TTML is in 'ttmlLocalizations'.
+    # Without translations, it's in 'ttml'.
+    ttml = attrs.get("ttmlLocalizations") or attrs.get("ttml")
+    if not ttml:
+        return None
+
+    # Check if translations are actually present in the TTML
+    has_translations = bool(re.search(
+        r'<translations[^/]*>(.+?)</translations>', ttml, re.DOTALL
+    ))
+
+    # Extract translation language from the TTML if present
+    trans_lang = None
+    if has_translations:
+        m = re.search(r'<translation[^>]*xml:lang="([^"]+)"', ttml)
+        if m:
+            trans_lang = m.group(1)
+
+    return {
+        "ttml": ttml,
+        "has_translations": has_translations,
+        "translation_lang": trans_lang,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +312,19 @@ async def main():
         ),
         default="{track:02d}. {title}.ttml",
     )
+    parser.add_argument(
+        "--translate", "-t",
+        metavar="LANG",
+        help=(
+            "Fetch lyrics with translations embedded in the TTML. "
+            "LANG is a language code like 'en', 'ja', 'ko', 'fr', etc."
+        ),
+    )
+    parser.add_argument(
+        "--dump-json",
+        action="store_true",
+        help="Save raw API JSON responses alongside .ttml files.",
+    )
     args = parser.parse_args()
 
     # Parse URL
@@ -236,12 +334,15 @@ async def main():
         sys.exit(1)
 
     album_id = m.group("id")
-    single_song_id = m.group("song_id")  # ?i=... for a specific track
+    single_song_id = m.group("song_id")
 
     # Authenticate
     print("Authenticating with Apple Music...")
     client, storefront = await create_client(args.cookies)
     print(f"Storefront: {storefront}")
+
+    if args.translate:
+        print(f"Translation: {args.translate}")
 
     # Fetch album tracks
     tracks = await get_album_tracks(client, storefront, album_id)
@@ -255,6 +356,10 @@ async def main():
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    dump_dir = output_dir / "_json" if args.dump_json else None
+    if dump_dir:
+        dump_dir.mkdir(parents=True, exist_ok=True)
 
     # Fetch lyrics for each track
     succeeded = 0
@@ -270,22 +375,32 @@ async def main():
         song_id = track["id"]
 
         print(f"\n[{track_num:2d}] {name} — {artist}")
-        print(f"     Song ID: {song_id}", end="")
 
-        ttml = await fetch_syllable_lyrics(client, storefront, song_id)
+        result = await fetch_syllable_lyrics(
+            client, storefront, song_id,
+            translate_lang=args.translate,
+            dump_json=dump_dir,
+        )
 
-        if ttml is None:
-            print(" — no syllable lyrics available")
+        if not result:
+            print("     No syllable lyrics available")
             skipped += 1
             continue
 
+        ttml = result["ttml"]
         is_word = 'timing="Word"' in ttml
-        print(f" — {'word-synced' if is_word else 'line-synced only'} ({len(ttml)} chars)")
+        sync_type = "word-synced" if is_word else "line-synced"
 
-        if not is_word:
-            print("     WARNING: Only line-synced lyrics available for this track")
+        if result["has_translations"]:
+            trans_info = f" + {result['translation_lang']} translation"
+        else:
+            trans_info = ""
+            if args.translate:
+                trans_info = " (no translation available)"
 
-        # Build filename
+        print(f"     {sync_type} ({len(ttml)} chars){trans_info}")
+
+        # Build filename and save
         safe_title = sanitize_filename(name)
         safe_artist = sanitize_filename(artist)
         filename = args.filename_template.format(
@@ -295,9 +410,9 @@ async def main():
             disc=disc_num,
         )
 
-        out_path = output_dir / filename
-        out_path.write_text(ttml, encoding="utf-8")
-        print(f"     Saved: {out_path}")
+        save_path = output_dir / filename
+        save_path.write_text(ttml, encoding="utf-8")
+        print(f"     Saved: {save_path}")
         succeeded += 1
 
     print(f"\nDone! {succeeded} saved, {skipped} skipped (no lyrics), {failed} failed")

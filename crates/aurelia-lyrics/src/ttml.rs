@@ -83,7 +83,7 @@ fn collect_attrs(e: &quick_xml::events::BytesStart<'_>) -> Vec<(String, String)>
             (key, val)
         })
         .collect()
-    }
+}
 
 /// Resolve an attribute name, handling namespace prefixes.
 ///
@@ -175,6 +175,15 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
     // Songwriter text accumulator
     let mut songwriter_text = String::new();
 
+    // Translation handling
+    let mut in_translations = false;
+    let mut in_translation = false;
+    let mut current_translation_key: Option<String> = None;
+    let mut current_translation_text = String::new();
+    let mut translations_map: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut current_line_key: Option<String> = None;
+
     let mut buf = Vec::new();
 
     loop {
@@ -221,6 +230,23 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                             songwriter_text.clear();
                         }
                     }
+                    "translations" => {
+                        if in_itunes_metadata {
+                            in_translations = true;
+                        }
+                    }
+                    "translation" => {
+                        if in_translations {
+                            in_translation = true;
+                        }
+                    }
+                    "text" => {
+                        if in_translation {
+                            current_translation_key = get_attr(&attrs, "for", &[])
+                                .map(|s| s.trim_start_matches('L').to_string());
+                            current_translation_text.clear();
+                        }
+                    }
                     "body" => {
                         in_body = true;
                     }
@@ -243,6 +269,9 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                                 get_attr(&attrs, "end", &[]).and_then(parse_ttml_timestamp);
                             current_line_agent =
                                 get_attr(&attrs, "agent", &["ttm"]).map(ToString::to_string);
+                            // Capture the line key for translation lookup (e.g., "L1", "L2")
+                            current_line_key =
+                                get_attr(&attrs, "key", &["itunes"]).map(ToString::to_string);
                             current_line_text.clear();
                             current_line_words.clear();
                             inter_span_text.clear();
@@ -297,6 +326,23 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                             in_songwriter = false;
                         }
                     }
+                    "text" => {
+                        if in_translation {
+                            if let Some(key) = current_translation_key.take() {
+                                let trimmed = current_translation_text.trim().to_string();
+                                if !trimmed.is_empty() {
+                                    translations_map.insert(key, trimmed);
+                                }
+                            }
+                            current_translation_text.clear();
+                        }
+                    }
+                    "translation" => {
+                        in_translation = false;
+                    }
+                    "translations" => {
+                        in_translations = false;
+                    }
                     "body" => {
                         in_body = false;
                     }
@@ -330,14 +376,28 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                                 None
                             };
 
+                            // Look up translation for this line using its itunes:key
+                            let translation = current_line_key
+                                .as_ref()
+                                .and_then(|key| {
+                                    // Try with "L" prefix first, then without
+                                    translations_map.get(key).or_else(|| {
+                                        let without_prefix = key.trim_start_matches('L');
+                                        translations_map.get(without_prefix)
+                                    })
+                                })
+                                .cloned();
+
                             let line = ParsedLyricsLine {
                                 time_ms: line_start,
                                 end_time_ms: current_line_end,
                                 line: line_text,
                                 words,
                                 agent_id: agent,
+                                translation,
                             };
                             current_section_lines.push(line);
+                            current_line_key = None;
                             in_p = false;
                         }
                     }
@@ -351,10 +411,8 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
 
                             // Build section if we have a name
                             if let Some(name) = current_section_name.take() {
-                                let start_time_ms = section_lines
-                                    .first()
-                                    .map(|l| l.time_ms)
-                                    .unwrap_or(0);
+                                let start_time_ms =
+                                    section_lines.first().map(|l| l.time_ms).unwrap_or(0);
                                 let end_time_ms = section_lines
                                     .last()
                                     .and_then(|l| l.end_time_ms)
@@ -380,6 +438,8 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                 let text = e.decode().unwrap_or_default().to_string();
                 if in_songwriter {
                     songwriter_text.push_str(&text);
+                } else if in_translation && current_translation_key.is_some() {
+                    current_translation_text.push_str(&text);
                 } else if in_span {
                     current_span_text.push_str(&text);
                 } else if in_p {
@@ -520,7 +580,7 @@ mod tests {
 
         // Plain
         assert_eq!(parsed.plain.len(), 3);
-        
+
         // Sections
         let sections = parsed.sections.unwrap();
         assert_eq!(sections.len(), 2);

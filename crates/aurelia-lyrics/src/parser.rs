@@ -58,6 +58,7 @@ pub fn parse_lrc(content: &str) -> Result<ParsedLyrics> {
                     line: text.clone(),
                     words: None,
                     agent_id: None,
+                    translation: None,
                 });
             }
         }
@@ -96,6 +97,7 @@ pub fn parse_plain_text(content: &str) -> ParsedLyrics {
                 line,
                 words: None,
                 agent_id: None,
+                translation: None,
             })
             .collect(),
         sections: None,

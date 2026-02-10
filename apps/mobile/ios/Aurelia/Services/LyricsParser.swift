@@ -17,7 +17,8 @@ enum LyricsParser {
                             word: $0.word
                         )
                     },
-                    agentId: $0.agentId
+                    agentId: $0.agentId,
+                    translation: $0.translation
                 )
             }
 
@@ -39,7 +40,8 @@ enum LyricsParser {
                                     word: $0.word
                                 )
                             },
-                            agentId: $0.agentId
+                            agentId: $0.agentId,
+                            translation: $0.translation
                         )
                     },
                     agentId: sec.agentId

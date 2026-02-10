@@ -656,18 +656,26 @@ public struct ParsedLyricsLine: Equatable, Hashable {
      * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
      */
     public var agentId: String?
+    /**
+     * Translation text for this line, if available (e.g. English translation of foreign lyrics).
+     */
+    public var translation: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
     public init(timeMs: Int64, endTimeMs: Int64?, line: String, words: [ParsedLyricsWord]?, 
         /**
          * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
-         */agentId: String?) {
+         */agentId: String?, 
+        /**
+         * Translation text for this line, if available (e.g. English translation of foreign lyrics).
+         */translation: String?) {
         self.timeMs = timeMs
         self.endTimeMs = endTimeMs
         self.line = line
         self.words = words
         self.agentId = agentId
+        self.translation = translation
     }
 
     
@@ -690,7 +698,8 @@ public struct FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer {
                 endTimeMs: FfiConverterOptionInt64.read(from: &buf), 
                 line: FfiConverterString.read(from: &buf), 
                 words: FfiConverterOptionSequenceTypeParsedLyricsWord.read(from: &buf), 
-                agentId: FfiConverterOptionString.read(from: &buf)
+                agentId: FfiConverterOptionString.read(from: &buf), 
+                translation: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -700,6 +709,7 @@ public struct FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer {
         FfiConverterString.write(value.line, into: &buf)
         FfiConverterOptionSequenceTypeParsedLyricsWord.write(value.words, into: &buf)
         FfiConverterOptionString.write(value.agentId, into: &buf)
+        FfiConverterOptionString.write(value.translation, into: &buf)
     }
 }
 

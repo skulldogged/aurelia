@@ -1094,6 +1094,11 @@ data class ParsedLyricsLine (
      * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
      */
     var `agentId`: kotlin.String?
+    , 
+    /**
+     * Translation text for this line, if available (e.g. English translation of foreign lyrics).
+     */
+    var `translation`: kotlin.String?
     
 ){
     
@@ -1115,6 +1120,7 @@ public object FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer<ParsedLyr
             FfiConverterString.read(buf),
             FfiConverterOptionalSequenceTypeParsedLyricsWord.read(buf),
             FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
@@ -1123,7 +1129,8 @@ public object FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer<ParsedLyr
             FfiConverterOptionalLong.allocationSize(value.`endTimeMs`) +
             FfiConverterString.allocationSize(value.`line`) +
             FfiConverterOptionalSequenceTypeParsedLyricsWord.allocationSize(value.`words`) +
-            FfiConverterOptionalString.allocationSize(value.`agentId`)
+            FfiConverterOptionalString.allocationSize(value.`agentId`) +
+            FfiConverterOptionalString.allocationSize(value.`translation`)
     )
 
     override fun write(value: ParsedLyricsLine, buf: ByteBuffer) {
@@ -1132,6 +1139,7 @@ public object FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer<ParsedLyr
             FfiConverterString.write(value.`line`, buf)
             FfiConverterOptionalSequenceTypeParsedLyricsWord.write(value.`words`, buf)
             FfiConverterOptionalString.write(value.`agentId`, buf)
+            FfiConverterOptionalString.write(value.`translation`, buf)
     }
 }
 

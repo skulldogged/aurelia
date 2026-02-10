@@ -25,6 +25,8 @@ pub struct ParsedLyricsLine {
     pub words: Option<Vec<ParsedLyricsWord>>,
     /// Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
     pub agent_id: Option<String>,
+    /// Translation text for this line, if available (e.g. English translation of foreign lyrics).
+    pub translation: Option<String>,
 }
 
 /// A named section of the song (e.g. Verse, Chorus, Bridge).

@@ -438,7 +438,11 @@ export type ParsedLyricsLine = { timeMs: number; endTimeMs: number | null; line:
 /**
  * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
  */
-agentId: string | null }
+agentId: string | null; 
+/**
+ * Translation text for this line, if available (e.g. English translation of foreign lyrics).
+ */
+translation: string | null }
 
 // ParsedLyricsSection depends on: ParsedLyricsLine
 /**

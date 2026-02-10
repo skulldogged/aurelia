@@ -800,8 +800,8 @@ struct LyricsView: View {
                                 )
                                 .contentShape(Rectangle())
                             } else {
-                                lyricLine(
-                                    line.line,
+                                lyricLineWithTranslation(
+                                    line: line,
                                     isActive: state == .active,
                                     isBackground: isBackground
                                 )
@@ -887,69 +887,83 @@ struct LyricsView: View {
             return (text: trimmed, hasGap: hasGap)
         }
 
-        return WordFlowLayout {
-            ForEach(Array(words.enumerated()), id: \.offset) { wIdx, word in
-                let entry = wordEntries[wIdx]
-                // Determine the solid color for this word.
-                // "Sung" words use the bright color. Words after the active
-                // word use the dim color.
-                let isSung: Bool = if let aw = activeWord {
-                    wIdx < aw
-                } else {
-                    false
-                }
-                let wordColor: Color = if !isAnimating {
-                    inactiveColor
-                } else if isSung {
-                    brightColor
-                } else if activeWord != wIdx {
-                    dimColor
-                } else {
-                    dimColor // placeholder; active word gradient below
-                }
+        return VStack(alignment: .leading, spacing: 4) {
+            WordFlowLayout {
+                ForEach(Array(words.enumerated()), id: \.offset) { wIdx, word in
+                    let entry = wordEntries[wIdx]
+                    // Determine the solid color for this word.
+                    // "Sung" words use the bright color. Words after the active
+                    // word use the dim color.
+                    let isSung: Bool = if let aw = activeWord {
+                        wIdx < aw
+                    } else {
+                        false
+                    }
+                    let wordColor: Color = if !isAnimating {
+                        inactiveColor
+                    } else if isSung {
+                        brightColor
+                    } else if activeWord != wIdx {
+                        dimColor
+                    } else {
+                        dimColor // placeholder; active word gradient below
+                    }
 
-                // Only the active line gets the sweep gradient on the
-                // The active word gets a sweep gradient to animate the fill.
-                // We keep animating this even in the finishing state so the
-                // fill doesn't snap to full/empty when the line transitions.
-                if activeWord == wIdx, (state == .active || state == .finishing) {
-                    let nextWord = wIdx + 1 < words.count ? words[wIdx + 1] : nil
-                    let progress = wordProgress(word: word, nextWord: nextWord, lineEndTime: line.endTime, currentPositionMs: currentPositionMs)
-                    Text(entry.text)
-                        .foregroundStyle(
-                            .linearGradient(
-                                stops: [
-                                    .init(color: brightColor, location: max(0, progress - 0.01)),
-                                    .init(color: dimColor, location: min(1, progress + 0.01)),
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                    // Only the active line gets the sweep gradient on the
+                    // The active word gets a sweep gradient to animate the fill.
+                    // We keep animating this even in the finishing state so the
+                    // fill doesn't snap to full/empty when the line transitions.
+                    if activeWord == wIdx, (state == .active || state == .finishing) {
+                        let nextWord = wIdx + 1 < words.count ? words[wIdx + 1] : nil
+                        let progress = wordProgress(word: word, nextWord: nextWord, lineEndTime: line.endTime, currentPositionMs: currentPositionMs)
+                        Text(entry.text)
+                            .foregroundStyle(
+                                .linearGradient(
+                                    stops: [
+                                        .init(color: brightColor, location: max(0, progress - 0.01)),
+                                        .init(color: dimColor, location: min(1, progress + 0.01)),
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .layoutValue(key: WordGapKey.self, value: entry.hasGap)
-                        .animation(.easeOut(duration: 0.15), value: state)
-                } else {
-                    Text(entry.text)
-                        .foregroundStyle(
-                            .linearGradient(
-                                stops: [.init(color: wordColor, location: 0)],
-                                startPoint: .leading,
-                                endPoint: .trailing
+                            .layoutValue(key: WordGapKey.self, value: entry.hasGap)
+                            .animation(.easeOut(duration: 0.15), value: state)
+                    } else {
+                        Text(entry.text)
+                            .foregroundStyle(
+                                .linearGradient(
+                                    stops: [.init(color: wordColor, location: 0)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
                             )
-                        )
-                        .layoutValue(key: WordGapKey.self, value: entry.hasGap)
-                        .animation(.easeOut(duration: 0.15), value: state)
+                            .layoutValue(key: WordGapKey.self, value: entry.hasGap)
+                            .animation(.easeOut(duration: 0.15), value: state)
+                    }
                 }
             }
+            .font(.system(size: 25, weight: .semibold, design: .rounded))
+            .italic(isBackground)
+            .opacity(containerOpacity)
+            .shadow(color: .white.opacity(state == .active ? 0.45 : 0), radius: glowRadius, x: 0, y: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .scaleEffect(isScaledUp ? 1.015 : 1.0, anchor: .leading)
+            .animation(.easeInOut(duration: 0.35), value: state)
+
+            // Translation text below the word-synced line
+            if let translation = line.translation, !translation.isEmpty {
+                Text(translation)
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(state == .active ? 0.65 : 0.35))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .scaleEffect(isScaledUp ? 1.015 : 1.0, anchor: .leading)
+                    .animation(.easeInOut(duration: 0.35), value: state)
+            }
         }
-        .font(.system(size: 25, weight: .semibold, design: .rounded))
-        .italic(isBackground)
-        .opacity(containerOpacity)
-        .shadow(color: .white.opacity(state == .active ? 0.45 : 0), radius: glowRadius, x: 0, y: 0)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
-        .scaleEffect(isScaledUp ? 1.015 : 1.0, anchor: .leading)
-        .animation(.easeInOut(duration: 0.35), value: state)
     }
 
     // MARK: - Plain Line (line-synced / no word data)
@@ -981,6 +995,24 @@ struct LyricsView: View {
             .fixedSize(horizontal: false, vertical: true)
             .scaleEffect(isActive ? 1.015 : 1.0, anchor: .leading)
             .animation(.easeInOut(duration: 0.35), value: isActive)
+    }
+
+    /// Renders a lyric line with optional translation below it (Apple Music style).
+    private func lyricLineWithTranslation(line: SyncedLine, isActive: Bool, isBackground: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            lyricLine(line.line, isActive: isActive, isBackground: isBackground)
+            
+            if let translation = line.translation, !translation.isEmpty {
+                Text(translation)
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(isActive ? 0.65 : 0.35))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .scaleEffect(isActive ? 1.015 : 1.0, anchor: .leading)
+                    .animation(.easeInOut(duration: 0.35), value: isActive)
+            }
+        }
     }
 
     // MARK: - Scroll Centering

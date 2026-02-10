@@ -129,6 +129,7 @@ impl JellyfinClient {
                 line: line.text,
                 words: None,
                 agent_id: None,
+                translation: None,
             })
             .collect();
         

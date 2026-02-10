@@ -78,7 +78,11 @@ fn extract_words_from_cues(
         });
     }
 
-    if words.is_empty() { None } else { Some(words) }
+    if words.is_empty() {
+        None
+    } else {
+        Some(words)
+    }
 }
 
 /// Convert Jellyfin lyrics directly to [`ParsedLyrics`] without an intermediate LRC string.
@@ -127,6 +131,7 @@ pub fn jellyfin_to_parsed_lyrics(lyrics: &JellyfinLyrics) -> ParsedLyrics {
                 line: text,
                 words,
                 agent_id: None,
+                translation: None,
             });
         } else {
             plain.push(text);
@@ -310,28 +315,26 @@ mod tests {
 #[must_use]
 pub fn parse_lyrics(text: &str) -> ParsedLyrics {
     let mut parsed = if aurelia_lyrics::ttml::is_ttml(text) {
-        aurelia_lyrics::parse_ttml(text)
-            .unwrap_or_else(|_| ParsedLyrics {
-                plain: vec![],
-                synced: vec![],
-                sections: None,
-                agents: None,
-                songwriters: None,
-                language: None,
-                are_from_remote: false,
-            })
+        aurelia_lyrics::parse_ttml(text).unwrap_or_else(|_| ParsedLyrics {
+            plain: vec![],
+            synced: vec![],
+            sections: None,
+            agents: None,
+            songwriters: None,
+            language: None,
+            are_from_remote: false,
+        })
     } else {
         // Use parse_lrc for everything else (LRC and plain text)
-        aurelia_lyrics::parse_lrc(text)
-            .unwrap_or_else(|_| ParsedLyrics {
-                plain: vec![],
-                synced: vec![],
-                sections: None,
-                agents: None,
-                songwriters: None,
-                language: None,
-                are_from_remote: false,
-            })
+        aurelia_lyrics::parse_lrc(text).unwrap_or_else(|_| ParsedLyrics {
+            plain: vec![],
+            synced: vec![],
+            sections: None,
+            agents: None,
+            songwriters: None,
+            language: None,
+            are_from_remote: false,
+        })
     };
 
     // Ensure remote flag is set to true to match legacy behavior

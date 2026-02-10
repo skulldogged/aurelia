@@ -90,6 +90,7 @@ struct SyncedLine: Equatable {
     var line: String
     var words: [SyncedWord]?
     var agentId: String?
+    var translation: String?
 }
 
 struct LyricsSection: Equatable {
