@@ -36,7 +36,7 @@ pub struct ParsedLyricsSection {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedLyricsAgent {
     pub id: String,
-    pub name: Option<String>,
+    pub agent_type: String,
 }
 
 impl ParsedLyrics {

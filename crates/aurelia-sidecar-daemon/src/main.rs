@@ -12,21 +12,23 @@ use axum::{
 };
 use clap::Parser;
 use dashmap::DashMap;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs;
 use tower_http::cors::{Any, CorsLayer};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use aurelia_lyrics::{parse_auto, parse_ttml, ParsedLyrics};
 
 mod config;
 mod jellyfin;
+mod lrclib;
 
 use config::Config;
 use jellyfin::JellyfinClient;
+use lrclib::LrcLibClient;
 
 /// CLI arguments
 #[derive(Parser, Debug)]
@@ -62,6 +64,7 @@ struct Args {
 struct AppState {
     config: Config,
     jellyfin: Option<JellyfinClient>,
+    lrclib: LrcLibClient,
     cache: Arc<DashMap<String, CachedLyrics>>,
 }
 
@@ -72,10 +75,11 @@ struct CachedLyrics {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 enum LyricsSource {
-    Sidecar(String), // File path
-    Jellyfin,        // From Jellyfin API
-    None,
+    Sidecar(String),
+    Jellyfin,
+    LrcLib,
 }
 
 /// API response for lyrics
@@ -138,6 +142,7 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         config,
         jellyfin,
+        lrclib: LrcLibClient::new(),
         cache: Arc::new(DashMap::new()),
     });
     
@@ -151,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
             .allow_origin(Any)
             .allow_methods(Any)
             .allow_headers(Any))
-        .with_state(state);
+        .with_state(state.clone());
     
     // Start server
     let addr: SocketAddr = format!("{}:{}", state.config.bind, state.config.port)
@@ -191,12 +196,12 @@ async fn get_lyrics_handler(
         }));
     }
     
-    // Try to get the file path from Jellyfin
-    let file_path = if let Some(ref jellyfin) = state.jellyfin {
-        match jellyfin.get_item_path(&item_id).await {
-            Ok(path) => Some(path),
+    // Get item info from Jellyfin (path, artist, album, etc.)
+    let item_info = if let Some(ref jellyfin) = state.jellyfin {
+        match jellyfin.get_item_info(&item_id).await {
+            Ok(info) => Some(info),
             Err(e) => {
-                warn!("Failed to get item path from Jellyfin: {}", e);
+                warn!("Failed to get item info from Jellyfin: {}", e);
                 None
             }
         }
@@ -205,26 +210,28 @@ async fn get_lyrics_handler(
     };
     
     // Try to find sidecar files
-    if let Some(ref path) = file_path {
-        match try_read_sidecar_lyrics(path).await {
-            Ok(lyrics) => {
-                debug!("Found sidecar lyrics for {} at {:?}", item_id, path);
-                
-                let source = LyricsSource::Sidecar(path.to_string_lossy().to_string());
-                state.cache.insert(item_id.clone(), CachedLyrics {
-                    lyrics: lyrics.clone(),
-                    source: source.clone(),
-                });
-                
-                return Ok(Json(LyricsResponse {
-                    item_id,
-                    found: true,
-                    source: Some(format!("{:?}", source)),
-                    lyrics: Some(lyrics),
-                }));
-            }
-            Err(e) => {
-                debug!("No sidecar lyrics found for {}: {}", item_id, e);
+    if let Some(ref info) = item_info {
+        if let Some(ref path) = info.path {
+            match try_read_sidecar_lyrics(path).await {
+                Ok(lyrics) => {
+                    debug!("Found sidecar lyrics for {} at {:?}", item_id, path);
+                    
+                    let source = LyricsSource::Sidecar(path.to_string_lossy().to_string());
+                    state.cache.insert(item_id.clone(), CachedLyrics {
+                        lyrics: lyrics.clone(),
+                        source: source.clone(),
+                    });
+                    
+                    return Ok(Json(LyricsResponse {
+                        item_id,
+                        found: true,
+                        source: Some(format!("{:?}", source)),
+                        lyrics: Some(lyrics),
+                    }));
+                }
+                Err(e) => {
+                    debug!("No sidecar lyrics found for {}: {}", item_id, e);
+                }
             }
         }
     }
@@ -253,6 +260,37 @@ async fn get_lyrics_handler(
         }
     }
     
+    // Fallback: Try LrcLib if we have artist/title info
+    if let Some(ref info) = item_info {
+        if let Some(artist) = &info.artist {
+            let duration_ms = info.run_time_ticks.map(|t| t / 10_000);
+            
+            match state.lrclib.get(artist.as_str(), &info.name, info.album.as_deref(), duration_ms).await {
+                Ok(Some(lyrics)) => {
+                    debug!("Found lyrics from LrcLib for {}", item_id);
+                    
+                    state.cache.insert(item_id.clone(), CachedLyrics {
+                        lyrics: lyrics.clone(),
+                        source: LyricsSource::LrcLib,
+                    });
+                    
+                    return Ok(Json(LyricsResponse {
+                        item_id,
+                        found: true,
+                        source: Some("LrcLib".to_string()),
+                        lyrics: Some(lyrics),
+                    }));
+                }
+                Ok(None) => {
+                    debug!("No lyrics found on LrcLib for {}", item_id);
+                }
+                Err(e) => {
+                    debug!("LrcLib error for {}: {}", item_id, e);
+                }
+            }
+        }
+    }
+    
     // No lyrics found
     Ok(Json(LyricsResponse {
         item_id,
@@ -268,12 +306,16 @@ async fn get_raw_lyrics_handler(
     Path(item_id): Path<String>,
 ) -> Result<String, StatusCode> {
     if let Some(ref jellyfin) = state.jellyfin {
-        match jellyfin.get_item_path(&item_id).await {
-            Ok(path) => {
-                if let Some(sidecar_path) = find_sidecar_file(&path).await {
-                    match fs::read_to_string(&sidecar_path).await {
-                        Ok(content) => Ok(content),
-                        Err(_) => Err(StatusCode::NOT_FOUND),
+        match jellyfin.get_item_info(&item_id).await {
+            Ok(info) => {
+                if let Some(path) = info.path {
+                    if let Some(sidecar_path) = find_sidecar_file(&path).await {
+                        match fs::read_to_string(&sidecar_path).await {
+                            Ok(content) => Ok(content),
+                            Err(_) => Err(StatusCode::NOT_FOUND),
+                        }
+                    } else {
+                        Err(StatusCode::NOT_FOUND)
                     }
                 } else {
                     Err(StatusCode::NOT_FOUND)

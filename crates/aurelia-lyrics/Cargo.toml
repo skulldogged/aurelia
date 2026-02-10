@@ -5,9 +5,10 @@ edition = "2021"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-quick-xml = { version = "0.36", features = ["serialize"] }
-thiserror = "1"
+quick-xml = { version = "0.39", features = ["serialize"] }
+thiserror = "2"
 regex = "1"
+anyhow = "1"
 
 [dev-dependencies]
 tokio-test = "0.4"

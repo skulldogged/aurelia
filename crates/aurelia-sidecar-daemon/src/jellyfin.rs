@@ -10,6 +10,16 @@ pub struct JellyfinClient {
     api_key: String,
 }
 
+/// Item metadata needed for lyrics lookup
+#[derive(Debug, Clone)]
+pub struct ItemInfo {
+    pub path: Option<std::path::PathBuf>,
+    pub name: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub run_time_ticks: Option<i64>,
+}
+
 impl JellyfinClient {
     /// Create a new Jellyfin client
     pub async fn new(base_url: String, api_key: String) -> anyhow::Result<Self> {
@@ -32,8 +42,8 @@ impl JellyfinClient {
         })
     }
     
-    /// Get the file path for a media item
-    pub async fn get_item_path(&self, item_id: &str) -> anyhow::Result<std::path::PathBuf> {
+    /// Get item info including path, artist, album, etc.
+    pub async fn get_item_info(&self, item_id: &str) -> anyhow::Result<ItemInfo> {
         let url = format!(
             "{}/Items/{}?api_key={}&fields=Path",
             self.base_url, item_id, self.api_key
@@ -47,14 +57,27 @@ impl JellyfinClient {
         
         #[derive(Deserialize)]
         struct ItemResponse {
-            Path: Option<String>,
+            #[serde(rename = "Path")]
+            path: Option<String>,
+            #[serde(rename = "Name")]
+            name: Option<String>,
+            #[serde(rename = "Artists")]
+            artists: Option<Vec<String>>,
+            #[serde(rename = "Album")]
+            album: Option<String>,
+            #[serde(rename = "RunTimeTicks")]
+            run_time_ticks: Option<i64>,
         }
         
         let item: ItemResponse = response.json().await?;
         
-        item.Path
-            .map(|p| std::path::PathBuf::from(p))
-            .ok_or_else(|| anyhow::anyhow!("Item has no path"))
+        Ok(ItemInfo {
+            path: item.path.map(std::path::PathBuf::from),
+            name: item.name.unwrap_or_default(),
+            artist: item.artists.and_then(|a| a.into_iter().next()),
+            album: item.album,
+            run_time_ticks: item.run_time_ticks,
+        })
     }
     
     /// Get lyrics from Jellyfin's built-in API
@@ -72,25 +95,28 @@ impl JellyfinClient {
         
         #[derive(Deserialize)]
         struct LyricsResponse {
-            Lyrics: Vec<LyricLine>,
+            #[serde(rename = "Lyrics")]
+            lyrics: Vec<LyricLine>,
         }
         
         #[derive(Deserialize)]
         struct LyricLine {
-            Text: String,
-            Start: i64, // in ticks (1 tick = 100 nanoseconds)
+            #[serde(rename = "Text")]
+            text: String,
+            #[serde(rename = "Start")]
+            start: i64, // in ticks (1 tick = 100 nanoseconds)
         }
         
         let lyrics: LyricsResponse = response.json().await?;
         
         let synced: Vec<aurelia_lyrics::ParsedLyricsLine> = lyrics
-            .Lyrics
+            .lyrics
             .into_iter()
             .map(|line| aurelia_lyrics::ParsedLyricsLine {
                 // Convert ticks to milliseconds (1 tick = 100ns = 0.0001ms)
-                time_ms: line.Start / 10_000,
+                time_ms: line.start / 10_000,
                 end_time_ms: None,
-                line: line.Text,
+                line: line.text,
                 words: None,
                 agent_id: None,
             })

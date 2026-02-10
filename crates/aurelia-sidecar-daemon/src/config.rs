@@ -40,12 +40,6 @@ impl Config {
         })
     }
     
-    /// Save config to file
-    pub async fn save(&self, path: &PathBuf) -> anyhow::Result<()> {
-        let content = toml::to_string_pretty(self)?;
-        tokio::fs::write(path, content).await?;
-        Ok(())
-    }
 }
 
 impl Default for Config {

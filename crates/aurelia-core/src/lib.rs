@@ -448,7 +448,7 @@ pub async fn get_parsed_lyrics(
             String::new()
         }
     };
-    utils::lyrics_parser::parse_lyrics(&raw)
+    utils::lyrics::parse_lyrics(&raw)
 }
 
 /// Fetch sidecar lyrics for a Jellyfin item from the local filesystem.
@@ -526,7 +526,7 @@ fn try_read_sidecar_lyrics(audio_path: &str) -> Option<models::ParsedLyrics> {
                         candidate.display(),
                         contents.len()
                     );
-                    let parsed = utils::lyrics_parser::parse_lyrics(&contents);
+                    let parsed = utils::lyrics::parse_lyrics(&contents);
                     if parsed.is_valid() {
                         return Some(parsed);
                     }

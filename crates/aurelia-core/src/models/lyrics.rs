@@ -74,3 +74,85 @@ impl ParsedLyrics {
         !self.synced.is_empty() || !self.plain.is_empty()
     }
 }
+
+impl From<aurelia_lyrics::models::ParsedLyricsWord> for ParsedLyricsWord {
+    fn from(other: aurelia_lyrics::models::ParsedLyricsWord) -> Self {
+        Self {
+            time_ms: other.time_ms,
+            end_time_ms: other.end_time_ms,
+            word: other.word,
+        }
+    }
+}
+
+impl From<aurelia_lyrics::models::ParsedLyricsLine> for ParsedLyricsLine {
+    fn from(other: aurelia_lyrics::models::ParsedLyricsLine) -> Self {
+        Self {
+            time_ms: other.time_ms,
+            end_time_ms: other.end_time_ms,
+            line: other.line,
+            words: other.words.map(|w| w.into_iter().map(Into::into).collect()),
+            agent_id: other.agent_id,
+        }
+    }
+}
+
+impl From<aurelia_lyrics::models::ParsedLyricsAgent> for ParsedLyricsAgent {
+    fn from(other: aurelia_lyrics::models::ParsedLyricsAgent) -> Self {
+        Self {
+            id: other.id,
+            agent_type: other.agent_type,
+        }
+    }
+}
+
+impl From<aurelia_lyrics::models::ParsedLyrics> for ParsedLyrics {
+    fn from(other: aurelia_lyrics::models::ParsedLyrics) -> Self {
+        let synced: Vec<ParsedLyricsLine> = other.synced.into_iter().map(Into::into).collect();
+
+        // Convert sections by mapping indices to lines
+        let sections = other.sections.map(|secs| {
+            secs.into_iter()
+                .map(|s| {
+                    // Safe slicing with clamping
+                    let start = s.start_line_index.min(synced.len());
+                    let end = s.end_line_index.min(synced.len());
+                    let lines_in_section = if start <= end {
+                        synced[start..end].to_vec()
+                    } else {
+                        vec![]
+                    };
+                    
+                    let start_time_ms = lines_in_section
+                        .first()
+                        .map(|l| l.time_ms)
+                        .unwrap_or(0);
+                        
+                    let end_time_ms = lines_in_section
+                        .last()
+                        .and_then(|l| l.end_time_ms)
+                        .or_else(|| lines_in_section.last().map(|l| l.time_ms))
+                        .unwrap_or(start_time_ms);
+
+                    ParsedLyricsSection {
+                        name: s.name,
+                        start_time_ms,
+                        end_time_ms,
+                        lines: lines_in_section,
+                        agent_id: None, // Missing in source
+                    }
+                })
+                .collect()
+        });
+
+        Self {
+            plain: other.plain,
+            synced,
+            sections,
+            agents: other.agents.map(|a| a.into_iter().map(Into::into).collect()),
+            songwriters: other.songwriters,
+            language: other.language,
+            are_from_remote: true,
+        }
+    }
+}

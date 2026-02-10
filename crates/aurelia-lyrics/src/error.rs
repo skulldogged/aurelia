@@ -13,6 +13,9 @@ pub enum LyricsError {
 
     #[error("Unsupported format")]
     UnsupportedFormat,
+
+    #[error("Anyhow error: {0}")]
+    Anyhow(#[from] anyhow::Error),
 }
 
 pub type Result<T> = std::result::Result<T, LyricsError>;

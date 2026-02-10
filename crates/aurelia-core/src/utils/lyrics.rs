@@ -305,3 +305,34 @@ mod tests {
         assert!(parsed.synced[0].words.is_none());
     }
 }
+
+/// Parse lyrics text using aurelia-lyrics crate, auto-detecting the format.
+#[must_use]
+pub fn parse_lyrics(text: &str) -> ParsedLyrics {
+    if aurelia_lyrics::ttml::is_ttml(text) {
+        aurelia_lyrics::parse_ttml(text)
+            .map(Into::into)
+            .unwrap_or_else(|_| ParsedLyrics {
+                plain: vec![],
+                synced: vec![],
+                sections: None,
+                agents: None,
+                songwriters: None,
+                language: None,
+                are_from_remote: true,
+            })
+    } else {
+        // Use parse_lrc for everything else (LRC and plain text)
+        aurelia_lyrics::parse_lrc(text)
+            .map(Into::into)
+            .unwrap_or_else(|_| ParsedLyrics {
+                plain: vec![],
+                synced: vec![],
+                sections: None,
+                agents: None,
+                songwriters: None,
+                language: None,
+                are_from_remote: true,
+            })
+    }
+}
