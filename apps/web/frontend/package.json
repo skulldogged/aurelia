@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "bun --bun vite",
+    "build": "bun --bun vite build",
     "build:strict": "bun run typecheck && bun run build",
-    "preview": "vite preview",
+    "preview": "bun --bun vite preview",
     "typecheck": "vue-tsc --build tsconfig.typecheck.json --pretty false",
     "test": "bun run ../../../scripts/run-vitest.ts",
     "test:watch": "bun run ../../../scripts/run-vitest.ts --watch"

@@ -717,6 +717,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_aurelia_core_checksum_func_set_library_sync_state(
     ): Short
+    external fun uniffi_aurelia_core_checksum_func_sync_library_smart(
+    ): Short
     external fun uniffi_aurelia_core_checksum_func_sync_songs_only(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_toggle_favorite(
@@ -809,6 +811,8 @@ external fun uniffi_aurelia_core_fn_func_save_setting(`appDataDir`: RustBuffer.B
 ): Unit
 external fun uniffi_aurelia_core_fn_func_set_library_sync_state(`appDataDir`: RustBuffer.ByValue,`stateJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+external fun uniffi_aurelia_core_fn_func_sync_library_smart(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
+): Long
 external fun uniffi_aurelia_core_fn_func_sync_songs_only(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_aurelia_core_fn_func_toggle_favorite(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`isFavorite`: Byte,
@@ -1042,7 +1046,10 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_aurelia_core_checksum_func_sync_songs_only() != 1256.toShort()) {
+    if (lib.uniffi_aurelia_core_checksum_func_sync_library_smart() != 54797.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_sync_songs_only() != 43201.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_toggle_favorite() != 55632.toShort()) {
@@ -1250,6 +1257,29 @@ public object FfiConverterInt: FfiConverter<Int, Int> {
 
     override fun write(value: Int, buf: ByteBuffer) {
         buf.putInt(value)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterULong: FfiConverter<ULong, Long> {
+    override fun lift(value: Long): ULong {
+        return value.toULong()
+    }
+
+    override fun read(buf: ByteBuffer): ULong {
+        return lift(buf.getLong())
+    }
+
+    override fun lower(value: ULong): Long {
+        return value.toLong()
+    }
+
+    override fun allocationSize(value: ULong) = 8UL
+
+    override fun write(value: ULong, buf: ByteBuffer) {
+        buf.putLong(value.toLong())
     }
 }
 
@@ -2655,6 +2685,59 @@ public object FfiConverterTypeSyncProgress: FfiConverterRustBuffer<SyncProgress>
 
 
 
+data class SyncReport (
+    var `fullSync`: kotlin.Boolean
+    , 
+    var `songsUpdated`: kotlin.UInt
+    , 
+    var `artistsUpdated`: kotlin.UInt
+    , 
+    var `albumsUpdated`: kotlin.UInt
+    , 
+    var `durationMs`: kotlin.ULong
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSyncReport: FfiConverterRustBuffer<SyncReport> {
+    override fun read(buf: ByteBuffer): SyncReport {
+        return SyncReport(
+            FfiConverterBoolean.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterULong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SyncReport) = (
+            FfiConverterBoolean.allocationSize(value.`fullSync`) +
+            FfiConverterUInt.allocationSize(value.`songsUpdated`) +
+            FfiConverterUInt.allocationSize(value.`artistsUpdated`) +
+            FfiConverterUInt.allocationSize(value.`albumsUpdated`) +
+            FfiConverterULong.allocationSize(value.`durationMs`)
+    )
+
+    override fun write(value: SyncReport, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`fullSync`, buf)
+            FfiConverterUInt.write(value.`songsUpdated`, buf)
+            FfiConverterUInt.write(value.`artistsUpdated`, buf)
+            FfiConverterUInt.write(value.`albumsUpdated`, buf)
+            FfiConverterULong.write(value.`durationMs`, buf)
+    }
+}
+
+
+
 /**
  * Sync state persisted to track library sync history
  */
@@ -2670,6 +2753,21 @@ data class SyncState (
     var `artistCount`: kotlin.UInt
     , 
     var `albumCount`: kotlin.UInt
+    , 
+    /**
+     * Whether a full sync is currently in progress (for resumability)
+     */
+    var `fullSyncInProgress`: kotlin.Boolean
+    , 
+    /**
+     * The last page index that was successfully committed during a full sync
+     */
+    var `fullSyncLastPageIndex`: kotlin.UInt
+    , 
+    /**
+     * Which entity type the in-progress full sync is on: "songs", "albums", "artists", or "done"
+     */
+    var `fullSyncEntityType`: kotlin.String?
     
 ){
     
@@ -2692,6 +2790,9 @@ public object FfiConverterTypeSyncState: FfiConverterRustBuffer<SyncState> {
             FfiConverterUInt.read(buf),
             FfiConverterUInt.read(buf),
             FfiConverterUInt.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
@@ -2701,7 +2802,10 @@ public object FfiConverterTypeSyncState: FfiConverterRustBuffer<SyncState> {
             FfiConverterOptionalString.allocationSize(value.`lastSyncVersion`) +
             FfiConverterUInt.allocationSize(value.`songCount`) +
             FfiConverterUInt.allocationSize(value.`artistCount`) +
-            FfiConverterUInt.allocationSize(value.`albumCount`)
+            FfiConverterUInt.allocationSize(value.`albumCount`) +
+            FfiConverterBoolean.allocationSize(value.`fullSyncInProgress`) +
+            FfiConverterUInt.allocationSize(value.`fullSyncLastPageIndex`) +
+            FfiConverterOptionalString.allocationSize(value.`fullSyncEntityType`)
     )
 
     override fun write(value: SyncState, buf: ByteBuffer) {
@@ -2711,6 +2815,9 @@ public object FfiConverterTypeSyncState: FfiConverterRustBuffer<SyncState> {
             FfiConverterUInt.write(value.`songCount`, buf)
             FfiConverterUInt.write(value.`artistCount`, buf)
             FfiConverterUInt.write(value.`albumCount`, buf)
+            FfiConverterBoolean.write(value.`fullSyncInProgress`, buf)
+            FfiConverterUInt.write(value.`fullSyncLastPageIndex`, buf)
+            FfiConverterOptionalString.write(value.`fullSyncEntityType`, buf)
     }
 }
 
@@ -4245,7 +4352,28 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
     
 
         /**
+         * Smart sync: paginated + incremental. Decides whether to do a full or delta sync
+         * based on the existing SyncState. Handles large libraries without OOM and
+         * resumes interrupted full syncs.
+         */
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `syncLibrarySmart`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `appDataDir`: kotlin.String) : SyncReport {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_sync_library_smart(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`appDataDir`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeSyncReport.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+        /**
          * Sync only songs (fast startup). Artists/albums are fetched on-demand.
+         * DEPRECATED: Use sync_library_smart() instead for paginated + incremental sync.
          */
     @Throws(AppException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")

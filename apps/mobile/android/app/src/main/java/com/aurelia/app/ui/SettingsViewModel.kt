@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uniffi.aurelia_core.clearCache
 import uniffi.aurelia_core.getSyncState
-import uniffi.aurelia_core.syncSongsOnly
+import uniffi.aurelia_core.syncLibrarySmart
 import java.time.Duration
 import java.time.Instant
 
@@ -70,8 +70,8 @@ class SettingsViewModel(
 
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        // Only sync songs - artists/albums are fetched on-demand (hybrid lazy-load)
-        syncSongsOnly(serverUrl, token, userId, appDataDir ?: "")
+        // Smart sync: paginated + incremental (songs, albums, artists)
+        syncLibrarySmart(serverUrl, token, userId, appDataDir ?: "")
         loadSyncState()  // Refresh sync state after sync
         mutableState.update { it.copy(isSyncing = false, syncSuccess = true) }
       } catch (e: Exception) {

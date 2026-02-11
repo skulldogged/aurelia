@@ -3,7 +3,7 @@ import AureliaCore
 import UIKit
 
 struct PlayerView: View {
-    private enum Panel {
+    enum Panel {
         case none
         case lyrics
         case queue
@@ -18,6 +18,7 @@ struct PlayerView: View {
     @State private var isDragging = false
     @State private var dragPosition: Double = 0
     @State private var activePanel: Panel = .none
+    var initialPanel: Panel = .none
 
     var body: some View {
         GeometryReader { geometry in
@@ -27,8 +28,8 @@ struct PlayerView: View {
             let panelVisible = activePanel != .none
             let contentWidth = max(geometry.size.width - (horizontalInset * 2), 320)
             let preferredPlayerWidth = min(CGFloat(520), contentWidth)
-            let canShowSidePanel = isWide && panelVisible && contentWidth >= (preferredPlayerWidth + 280 + AureliaSpacing.xl)
-            let panelWidth: CGFloat = canShowSidePanel
+            let hasSidePanelSpace = isWide && contentWidth >= (preferredPlayerWidth + 280 + AureliaSpacing.xl)
+            let panelWidth: CGFloat = hasSidePanelSpace
                 ? min(CGFloat(360), max(CGFloat(280), contentWidth - preferredPlayerWidth - AureliaSpacing.xl))
                 : 0
             let playerWidth = preferredPlayerWidth
@@ -43,15 +44,21 @@ struct PlayerView: View {
 
             ZStack {
                 Group {
-                    if canShowSidePanel {
+                    if hasSidePanelSpace {
                         HStack(alignment: .center, spacing: AureliaSpacing.xl) {
                             primaryColumn(artSize: baseArtSize)
                                 .frame(width: playerWidth)
 
-                            panelView
-                                .frame(width: panelWidth, height: centeredContentHeight, alignment: .top)
+                            if panelVisible {
+                                panelView
+                                    .frame(width: panelWidth, height: centeredContentHeight, alignment: .top)
+                                    .transition(.asymmetric(
+                                        insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.12)),
+                                        removal: .opacity.animation(.easeOut(duration: 0.2))
+                                    ))
+                            }
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: panelVisible ? .center : .center)
                         .padding(.horizontal, horizontalInset)
                         .padding(.top, contentTopPadding)
                         .padding(.bottom, bottomContentPadding)
@@ -69,6 +76,10 @@ struct PlayerView: View {
                             if panelVisible {
                                 panelView
                                     .frame(maxHeight: 420)
+                                    .transition(.asymmetric(
+                                        insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.12)),
+                                        removal: .opacity.animation(.easeOut(duration: 0.2))
+                                    ))
                             }
                         }
                         .frame(maxWidth: .infinity)
@@ -103,11 +114,21 @@ struct PlayerView: View {
         }
         .onChange(of: viewModel.showLyrics) { _, isShown in
             if !isShown, activePanel == .lyrics {
-                activePanel = .none
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    activePanel = .none
+                }
             }
         }
         .onAppear {
             viewModel.updateFrom(playerController.snapshot, position: playerController.playbackPosition, playerController: playerController)
+            if initialPanel != .none {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    activePanel = initialPanel
+                }
+                if initialPanel == .lyrics, viewModel.showLyrics == false {
+                    viewModel.toggleLyrics()
+                }
+            }
         }
     }
 
@@ -525,7 +546,9 @@ struct PlayerView: View {
             if viewModel.showLyrics {
                 viewModel.toggleLyrics()
             }
-            activePanel = .none
+            withAnimation(.easeInOut(duration: 0.35)) {
+                activePanel = .none
+            }
             return
         }
 
@@ -533,14 +556,18 @@ struct PlayerView: View {
             viewModel.toggleLyrics()
         }
 
-        activePanel = .lyrics
+        withAnimation(.easeInOut(duration: 0.35)) {
+            activePanel = .lyrics
+        }
     }
 
     private func toggleQueuePanel() {
         guard !viewModel.queue.isEmpty else { return }
 
         if activePanel == .queue {
-            activePanel = .none
+            withAnimation(.easeInOut(duration: 0.35)) {
+                activePanel = .none
+            }
             return
         }
 
@@ -548,7 +575,9 @@ struct PlayerView: View {
             viewModel.toggleLyrics()
         }
 
-        activePanel = .queue
+        withAnimation(.easeInOut(duration: 0.35)) {
+            activePanel = .queue
+        }
     }
 }
 

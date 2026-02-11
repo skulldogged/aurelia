@@ -137,7 +137,7 @@
 		AB3377312F3ADB6600E5C7A4 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
-			buildActionMask = 8;
+			buildActionMask = 12;
 			files = (
 			);
 			inputFileListPaths = (
@@ -148,7 +148,7 @@
 			);
 			outputPaths = (
 			);
-			runOnlyForDeploymentPostprocessing = 1;
+			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "unset CC CFLAGS CXX CXXFLAGS LDFLAGS SDKROOT\n\nif [ -f \"$HOME/.cargo/env\" ]; then\n    source \"$HOME/.cargo/env\"\nfi\n\nPROJECT_ROOT=\"$(cd \"$SRCROOT/../../..\" && pwd)\"\ncd \"$PROJECT_ROOT\"\n\nif [ -f \"./scripts/generate-bindings.sh\" ]; then\n    ./scripts/generate-bindings.sh --ios\nelse\n    echo \"Error: Could not find scripts/generate-bindings.sh\"\n    exit 1\nfi\n";
 		};

@@ -467,6 +467,22 @@ fileprivate struct FfiConverterInt32: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
     typealias FfiType = Int64
     typealias SwiftType = Int64
@@ -2267,6 +2283,72 @@ public func FfiConverterTypeSyncProgress_lower(_ value: SyncProgress) -> RustBuf
 }
 
 
+public struct SyncReport: Equatable, Hashable {
+    public var fullSync: Bool
+    public var songsUpdated: UInt32
+    public var artistsUpdated: UInt32
+    public var albumsUpdated: UInt32
+    public var durationMs: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(fullSync: Bool, songsUpdated: UInt32, artistsUpdated: UInt32, albumsUpdated: UInt32, durationMs: UInt64) {
+        self.fullSync = fullSync
+        self.songsUpdated = songsUpdated
+        self.artistsUpdated = artistsUpdated
+        self.albumsUpdated = albumsUpdated
+        self.durationMs = durationMs
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension SyncReport: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSyncReport: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SyncReport {
+        return
+            try SyncReport(
+                fullSync: FfiConverterBool.read(from: &buf), 
+                songsUpdated: FfiConverterUInt32.read(from: &buf), 
+                artistsUpdated: FfiConverterUInt32.read(from: &buf), 
+                albumsUpdated: FfiConverterUInt32.read(from: &buf), 
+                durationMs: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SyncReport, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.fullSync, into: &buf)
+        FfiConverterUInt32.write(value.songsUpdated, into: &buf)
+        FfiConverterUInt32.write(value.artistsUpdated, into: &buf)
+        FfiConverterUInt32.write(value.albumsUpdated, into: &buf)
+        FfiConverterUInt64.write(value.durationMs, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSyncReport_lift(_ buf: RustBuffer) throws -> SyncReport {
+    return try FfiConverterTypeSyncReport.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSyncReport_lower(_ value: SyncReport) -> RustBuffer {
+    return FfiConverterTypeSyncReport.lower(value)
+}
+
+
 /**
  * Sync state persisted to track library sync history
  */
@@ -2277,16 +2359,40 @@ public struct SyncState: Equatable, Hashable {
     public var songCount: UInt32
     public var artistCount: UInt32
     public var albumCount: UInt32
+    /**
+     * Whether a full sync is currently in progress (for resumability)
+     */
+    public var fullSyncInProgress: Bool
+    /**
+     * The last page index that was successfully committed during a full sync
+     */
+    public var fullSyncLastPageIndex: UInt32
+    /**
+     * Which entity type the in-progress full sync is on: "songs", "albums", "artists", or "done"
+     */
+    public var fullSyncEntityType: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(lastSyncTime: String, lastFullSyncTime: String?, lastSyncVersion: String?, songCount: UInt32, artistCount: UInt32, albumCount: UInt32) {
+    public init(lastSyncTime: String, lastFullSyncTime: String?, lastSyncVersion: String?, songCount: UInt32, artistCount: UInt32, albumCount: UInt32, 
+        /**
+         * Whether a full sync is currently in progress (for resumability)
+         */fullSyncInProgress: Bool, 
+        /**
+         * The last page index that was successfully committed during a full sync
+         */fullSyncLastPageIndex: UInt32, 
+        /**
+         * Which entity type the in-progress full sync is on: "songs", "albums", "artists", or "done"
+         */fullSyncEntityType: String?) {
         self.lastSyncTime = lastSyncTime
         self.lastFullSyncTime = lastFullSyncTime
         self.lastSyncVersion = lastSyncVersion
         self.songCount = songCount
         self.artistCount = artistCount
         self.albumCount = albumCount
+        self.fullSyncInProgress = fullSyncInProgress
+        self.fullSyncLastPageIndex = fullSyncLastPageIndex
+        self.fullSyncEntityType = fullSyncEntityType
     }
 
     
@@ -2310,7 +2416,10 @@ public struct FfiConverterTypeSyncState: FfiConverterRustBuffer {
                 lastSyncVersion: FfiConverterOptionString.read(from: &buf), 
                 songCount: FfiConverterUInt32.read(from: &buf), 
                 artistCount: FfiConverterUInt32.read(from: &buf), 
-                albumCount: FfiConverterUInt32.read(from: &buf)
+                albumCount: FfiConverterUInt32.read(from: &buf), 
+                fullSyncInProgress: FfiConverterBool.read(from: &buf), 
+                fullSyncLastPageIndex: FfiConverterUInt32.read(from: &buf), 
+                fullSyncEntityType: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -2321,6 +2430,9 @@ public struct FfiConverterTypeSyncState: FfiConverterRustBuffer {
         FfiConverterUInt32.write(value.songCount, into: &buf)
         FfiConverterUInt32.write(value.artistCount, into: &buf)
         FfiConverterUInt32.write(value.albumCount, into: &buf)
+        FfiConverterBool.write(value.fullSyncInProgress, into: &buf)
+        FfiConverterUInt32.write(value.fullSyncLastPageIndex, into: &buf)
+        FfiConverterOptionString.write(value.fullSyncEntityType, into: &buf)
     }
 }
 
@@ -3597,7 +3709,27 @@ public func setLibrarySyncState(appDataDir: String, stateJson: String)throws   {
 }
 }
 /**
+ * Smart sync: paginated + incremental. Decides whether to do a full or delta sync
+ * based on the existing SyncState. Handles large libraries without OOM and
+ * resumes interrupted full syncs.
+ */
+public func syncLibrarySmart(serverUrl: String, token: String, userId: String, appDataDir: String)async throws  -> SyncReport  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_sync_library_smart(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(userId),FfiConverterString.lower(appDataDir)
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_aurelia_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_aurelia_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeSyncReport_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+/**
  * Sync only songs (fast startup). Artists/albums are fetched on-demand.
+ * DEPRECATED: Use sync_library_smart() instead for paginated + incremental sync.
  */
 public func syncSongsOnly(serverUrl: String, token: String, userId: String, appDataDir: String)async throws  -> Bool  {
     return
@@ -3765,7 +3897,10 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_sync_songs_only() != 1256) {
+    if (uniffi_aurelia_core_checksum_func_sync_library_smart() != 54797) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_sync_songs_only() != 43201) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_toggle_favorite() != 55632) {

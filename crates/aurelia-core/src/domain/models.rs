@@ -9,6 +9,12 @@ pub struct SyncState {
     pub song_count: u32,
     pub artist_count: u32,
     pub album_count: u32,
+    /// Whether a full sync is currently in progress (for resumability)
+    pub full_sync_in_progress: bool,
+    /// The last page index that was successfully committed during a full sync
+    pub full_sync_last_page_index: u32,
+    /// Which entity type the in-progress full sync is on: "songs", "albums", "artists", or "done"
+    pub full_sync_entity_type: Option<String>,
 }
 
 impl Default for SyncState {
@@ -20,6 +26,9 @@ impl Default for SyncState {
             song_count: 0,
             artist_count: 0,
             album_count: 0,
+            full_sync_in_progress: false,
+            full_sync_last_page_index: 0,
+            full_sync_entity_type: None,
         }
     }
 }
@@ -68,7 +77,7 @@ impl SyncProgress {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, uniffi::Record)]
 pub struct SyncReport {
     pub full_sync: bool,
     pub songs_updated: u32,

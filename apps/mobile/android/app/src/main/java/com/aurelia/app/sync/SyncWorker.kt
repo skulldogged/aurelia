@@ -12,7 +12,7 @@ import androidx.work.WorkerParameters
 import com.aurelia.app.storage.SessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import uniffi.aurelia_core.syncSongsOnly
+import uniffi.aurelia_core.syncLibrarySmart
 import java.util.concurrent.TimeUnit
 
 /**
@@ -40,10 +40,10 @@ class SyncWorker(
         return@withContext Result.success()
       }
 
-      // Perform songs-only sync (hybrid lazy-load approach)
-      syncSongsOnly(serverUrl, token, userId, appDataDir ?: "")
+      // Perform smart sync (paginated + incremental)
+      val report = syncLibrarySmart(serverUrl, token, userId, appDataDir ?: "")
       
-      Log.d(TAG, "Background sync completed successfully")
+      Log.d(TAG, "Background sync completed: full=${report.fullSync}, songs=${report.songsUpdated}, artists=${report.artistsUpdated}, albums=${report.albumsUpdated}, duration=${report.durationMs}ms")
       Result.success()
     } catch (e: Exception) {
       // Check if database is already in use (app is in foreground)

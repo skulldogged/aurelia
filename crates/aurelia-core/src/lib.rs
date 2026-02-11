@@ -635,6 +635,7 @@ pub async fn mark_item_played(
 // Lazy-load functions for hybrid sync
 
 /// Sync only songs (fast startup). Artists/albums are fetched on-demand.
+/// DEPRECATED: Use sync_library_smart() instead for paginated + incremental sync.
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn sync_songs_only(
     server_url: String,
@@ -652,6 +653,27 @@ pub async fn sync_songs_only(
 
     // Use incremental sync
     db::sync_songs_only(&songs).map_err(|e| error::AppError::Database(e.to_string()))
+}
+
+/// Smart sync: paginated + incremental. Decides whether to do a full or delta sync
+/// based on the existing SyncState. Handles large libraries without OOM and
+/// resumes interrupted full syncs.
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn sync_library_smart(
+    server_url: String,
+    token: String,
+    user_id: String,
+    app_data_dir: String,
+) -> Result<domain::SyncReport, error::AppError> {
+    // Initialize database
+    let app_data_path = std::path::PathBuf::from(&app_data_dir);
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+
+    // Create client and run smart sync
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    db::sync_smart(&client, &user_id)
+        .await
+        .map_err(|e| error::AppError::Database(e.to_string()))
 }
 
 /// Fetch a single artist from server and cache it

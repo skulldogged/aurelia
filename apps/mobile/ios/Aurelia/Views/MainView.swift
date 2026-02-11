@@ -5,25 +5,28 @@ struct MainView: View {
     @Environment(AudioPlayerController.self) private var playerController
     @State private var selection: MainDestination = .home
     @State private var playerPresentationProgress: CGFloat = 0
+    @State private var playerInitialPanel: PlayerView.Panel = .none
 
     var body: some View {
-        GeometryReader { geometry in
-            let containerHeight = max(geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom, 1)
+        MainTabView(
+            selectedTab: $selection,
+            playerPresentationProgress: $playerPresentationProgress,
+            onMiniPlayerTap: { openPlayer(animated: true, panel: .none) },
+            onMiniPlayerLyricsTap: { openPlayer(animated: true, panel: .lyrics) },
+            onMiniPlayerQueueTap: { openPlayer(animated: true, panel: .queue) }
+        )
+        .miniPlayerInset(
+            playerPresentationProgress: $playerPresentationProgress,
+            onTap: { openPlayer(animated: true, panel: .none) },
+            onLyricsTap: { openPlayer(animated: true, panel: .lyrics) },
+            onQueueTap: { openPlayer(animated: true, panel: .queue) }
+        )
+        .overlay(alignment: .top) {
+            GeometryReader { geometry in
+                let containerHeight = max(geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom, 1)
 
-            let tabView = MainTabView(
-                selectedTab: $selection,
-                playerPresentationProgress: $playerPresentationProgress,
-                onMiniPlayerTap: { openPlayer(animated: true) }
-            )
-
-            tabView
-                .miniPlayerInset(
-                    playerPresentationProgress: $playerPresentationProgress,
-                    onTap: { openPlayer(animated: true) }
-                )
-            .overlay(alignment: .top) {
                 if playerPresentationProgress > 0.0001 {
-                    PlayerView(onClose: { closePlayer(animated: true) })
+                    PlayerView(onClose: { closePlayer(animated: true) }, initialPanel: playerInitialPanel)
                         .frame(width: geometry.size.width, height: containerHeight)
                         .frame(maxWidth: .infinity, alignment: .top)
                         .ignoresSafeArea()
@@ -33,10 +36,11 @@ struct MainView: View {
                         .zIndex(30)
                 }
             }
-            .onChange(of: playerController.snapshot.currentSongId) { _, newSongId in
-                if newSongId == nil {
-                    closePlayer(animated: false)
-                }
+            .ignoresSafeArea()
+        }
+        .onChange(of: playerController.snapshot.currentSongId) { _, newSongId in
+            if newSongId == nil {
+                closePlayer(animated: false)
             }
         }
         .tint(AureliaPalette.tint(for: colorScheme))
@@ -49,10 +53,14 @@ struct MainView: View {
         .onAppear {
             configureCatalystTitlebar()
         }
+        .onChange(of: playerPresentationProgress) { _, newValue in
+            updateCatalystTitlebarVisibility(isPlayerOpen: newValue > 0.5)
+        }
 #endif
     }
 
-    private func openPlayer(animated: Bool) {
+    private func openPlayer(animated: Bool, panel: PlayerView.Panel = .none) {
+        playerInitialPanel = panel
         if playerPresentationProgress <= 0 {
             playerPresentationProgress = 0.0001
         }
@@ -144,19 +152,23 @@ struct MainView: View {
               let window = windowScene.windows.first else { return }
         windowScene.titlebar?.titleVisibility = .visible
         
-        if let splitVC = window.rootViewController as? UISplitViewController {
-            splitVC.preferredDisplayMode = .oneBesideSecondary
-            splitVC.preferredSplitBehavior = .tile
-            splitVC.primaryBackgroundStyle = .sidebar
-        } else if let hostVC = window.rootViewController,
-                  let splitVC = findSplitViewController(in: hostVC) {
-            splitVC.preferredDisplayMode = .oneBesideSecondary
-            splitVC.preferredSplitBehavior = .tile
-            splitVC.primaryBackgroundStyle = .sidebar
+        DispatchQueue.main.async {
+            if let splitVC = self.findSplitViewController(in: window.rootViewController) {
+                splitVC.preferredDisplayMode = .oneBesideSecondary
+                splitVC.preferredSplitBehavior = .tile
+                splitVC.primaryBackgroundStyle = .sidebar
+                splitVC.show(.primary)
+            }
         }
     }
     
-    private func findSplitViewController(in viewController: UIViewController) -> UISplitViewController? {
+    private func updateCatalystTitlebarVisibility(isPlayerOpen: Bool) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+        windowScene.titlebar?.titleVisibility = isPlayerOpen ? .hidden : .visible
+    }
+    
+    private func findSplitViewController(in viewController: UIViewController?) -> UISplitViewController? {
+        guard let viewController else { return nil }
         if let splitVC = viewController as? UISplitViewController {
             return splitVC
         }
@@ -176,6 +188,8 @@ private struct MiniPlayerInsetModifier: ViewModifier {
     @Environment(AudioPlayerController.self) private var playerController
     @Binding var playerPresentationProgress: CGFloat
     var onTap: () -> Void
+    var onLyricsTap: () -> Void
+    var onQueueTap: () -> Void
 
     /// Whether this device uses the tabViewBottomAccessory for the miniplayer (compact iPhone).
     /// When true, we skip the overlay here since the accessory handles it.
@@ -190,7 +204,7 @@ private struct MiniPlayerInsetModifier: ViewModifier {
         content
             .overlay(alignment: .bottom) {
                 if !usesBottomAccessory && playerController.snapshot.currentSongId != nil && playerPresentationProgress < 0.999 {
-                    MiniPlayerView(onTap: onTap)
+                    MiniPlayerView(onTap: onTap, onLyricsTap: onLyricsTap, onQueueTap: onQueueTap)
                         .padding(.horizontal, AureliaSpacing.m)
                         .padding(.top, AureliaSpacing.s)
                         .padding(.bottom, 8)
@@ -206,12 +220,16 @@ private struct MiniPlayerInsetModifier: ViewModifier {
 private extension View {
     func miniPlayerInset(
         playerPresentationProgress: Binding<CGFloat>,
-        onTap: @escaping () -> Void
+        onTap: @escaping () -> Void,
+        onLyricsTap: @escaping () -> Void,
+        onQueueTap: @escaping () -> Void
     ) -> some View {
         modifier(
             MiniPlayerInsetModifier(
                 playerPresentationProgress: playerPresentationProgress,
-                onTap: onTap
+                onTap: onTap,
+                onLyricsTap: onLyricsTap,
+                onQueueTap: onQueueTap
             )
         )
     }

@@ -207,8 +207,8 @@ impl Api for TauriApiImpl {
             .app_data_dir()
             .map_err(|e| AppError::FileSystem(e.to_string()))?;
 
-        // Fetch songs from Jellyfin
-        let songs = aurelia_core::fetch_songs(
+        // Use smart sync: paginated + incremental
+        let _report = aurelia_core::sync_library_smart(
             creds.server_url.clone(),
             creds.token.clone(),
             creds.user_id.clone(),
@@ -216,7 +216,9 @@ impl Api for TauriApiImpl {
         )
         .await?;
 
-        // Update in-memory state
+        // Reload in-memory state from DB after sync
+        let songs =
+            aurelia_core::load_cached_songs(app_dir.to_string_lossy().to_string())?;
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
         *app_state.songs.lock().unwrap() = songs;
 

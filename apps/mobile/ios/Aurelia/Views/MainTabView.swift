@@ -4,6 +4,8 @@ struct MainTabView: View {
     @Binding var selectedTab: MainDestination
     @Binding var playerPresentationProgress: CGFloat
     var onMiniPlayerTap: () -> Void
+    var onMiniPlayerLyricsTap: () -> Void
+    var onMiniPlayerQueueTap: () -> Void
     @Environment(AudioPlayerController.self) private var playerController
 
     var body: some View {
@@ -16,7 +18,9 @@ struct MainTabView: View {
                 .tabViewBottomAccessory(isEnabled: playerController.snapshot.currentSongId != nil) {
                     TabBarMiniPlayer(
                         playerPresentationProgress: $playerPresentationProgress,
-                        onTap: onMiniPlayerTap
+                        onTap: onMiniPlayerTap,
+                        onLyricsTap: onMiniPlayerLyricsTap,
+                        onQueueTap: onMiniPlayerQueueTap
                     )
                 }
                 .background(Color.clear)
@@ -86,9 +90,11 @@ struct MainTabView: View {
     private struct TabBarMiniPlayer: View {
         @Binding var playerPresentationProgress: CGFloat
         var onTap: () -> Void
+        var onLyricsTap: () -> Void
+        var onQueueTap: () -> Void
 
         var body: some View {
-            MiniPlayerView(onTap: onTap)
+            MiniPlayerView(onTap: onTap, onLyricsTap: onLyricsTap, onQueueTap: onQueueTap)
                 .onTapGesture(perform: onTap)
                 .opacity(Double(max(CGFloat(0), CGFloat(1) - playerPresentationProgress * CGFloat(1.4))))
                 .offset(y: playerPresentationProgress * 42)

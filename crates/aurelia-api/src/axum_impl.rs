@@ -103,8 +103,8 @@ impl Api for AxumApiImpl {
         let creds = get_credentials(&self.state)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
 
-        // Fetch songs from Jellyfin (result is saved to disk by fetch_songs)
-        let _songs = aurelia_core::fetch_songs(
+        // Use smart sync: paginated + incremental
+        let _report = aurelia_core::sync_library_smart(
             creds.server_url.clone(),
             creds.token.clone(),
             creds.user_id.clone(),

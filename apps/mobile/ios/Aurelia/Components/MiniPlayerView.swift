@@ -10,6 +10,8 @@ struct MiniPlayerView: View {
     @State private var isFavoriteLoading = false
     private let logger = Logger(subsystem: "com.aurelia.app", category: "MiniPlayerView")
     var onTap: () -> Void
+    var onLyricsTap: (() -> Void)?
+    var onQueueTap: (() -> Void)?
 
     private var snapshot: PlayerSnapshot {
         playerController.snapshot
@@ -79,6 +81,8 @@ struct MiniPlayerView: View {
             x: 0,
             y: 8
         )
+        .frame(maxWidth: 768)
+        .contentShape(Capsule())
     }
 
     private var compactMiniPlayerBar: some View {
@@ -124,6 +128,7 @@ struct MiniPlayerView: View {
         .padding(.vertical, AureliaSpacing.xs)
         .tint(.primary)
         .frame(minHeight: 64)
+        .contentShape(Rectangle())
     }
 
     private var leftControls: some View {
@@ -185,12 +190,12 @@ struct MiniPlayerView: View {
         HStack(spacing: 16) {
             miniControlButton(
                 systemName: "quote.bubble.fill",
-                action: onTap
+                action: { onLyricsTap?() ?? onTap() }
             )
 
             miniControlButton(
                 systemName: "list.bullet",
-                action: onTap
+                action: { onQueueTap?() ?? onTap() }
             )
 
             miniControlButton(
