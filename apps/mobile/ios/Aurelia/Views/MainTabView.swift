@@ -15,7 +15,7 @@ struct MainTabView: View {
         } else {
             tabs
                 .tabViewStyle(.automatic)
-                .tabViewBottomAccessory(isEnabled: playerController.snapshot.currentSongId != nil) {
+                .tabViewBottomAccessoryIfAvailable(isEnabled: playerController.snapshot.currentSongId != nil) {
                     TabBarMiniPlayer(
                         playerPresentationProgress: $playerPresentationProgress,
                         onTap: onMiniPlayerTap,
@@ -166,5 +166,21 @@ private struct ContainerWidthKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func tabViewBottomAccessoryIfAvailable<Content: View>(isEnabled: Bool, @ViewBuilder content: () -> Content) -> some View {
+        if #available(iOS 26.1, *) {
+            self.tabViewBottomAccessory(isEnabled: isEnabled, content: content)
+        } else {
+            self.overlay(alignment: .bottom) {
+                if isEnabled {
+                    content()
+                        .padding(.bottom, 49) // Approximate standard Tab Bar height
+                }
+            }
+        }
     }
 }

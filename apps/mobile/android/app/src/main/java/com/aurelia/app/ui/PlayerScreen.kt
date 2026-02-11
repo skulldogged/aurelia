@@ -1169,6 +1169,7 @@ private fun LyricsView(
                 text = line.line,
                 style = MaterialTheme.typography.titleLarge.copy(
                   fontSize = 28.sp,
+                  lineHeight = 36.sp,
                   fontStyle = if (isBackground) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
                 ),
                 fontWeight = FontWeight.Bold,
@@ -1323,55 +1324,55 @@ private fun WordSyncedLine(
     }
   }
 
-  // Build a clip path for the bright overlay based on word positions
-  val highlightPath = remember(textLayoutResult, activeWordIndex, wordProgress, wordCharRanges) {
-    textLayoutResult?.let { layoutResult ->
-      if (activeWordIndex < 0) return@remember null
-      
-      val path = Path()
-      
-      wordCharRanges.forEach { charRange ->
-        if (charRange.wordIndex <= activeWordIndex) {
-          val startBounds = layoutResult.getBoundingBox(charRange.start)
-          val endBounds = layoutResult.getBoundingBox(charRange.end)
-          
-          // Skip if on different lines (shouldn't happen for single words)
-          if (startBounds.top != endBounds.top) return@forEach
-          
-          val wordLeft = startBounds.left
-          val wordRight = endBounds.right
-          val wordTop = startBounds.top
-          val wordBottom = startBounds.bottom
-          
-          if (charRange.wordIndex < activeWordIndex) {
-            // Fully sung word: add full rectangle
-            path.addRect(Rect(
-              left = wordLeft,
-              top = wordTop,
-              right = wordRight,
-              bottom = wordBottom
-            ))
-          } else {
-            // Active word: add partial rectangle based on progress
-            val clipRight = wordLeft + (wordRight - wordLeft) * wordProgress
-            if (clipRight > wordLeft) {
-              path.addRect(Rect(
-                left = wordLeft,
-                top = wordTop,
-                right = clipRight,
-                bottom = wordBottom
-              ))
+          // Build a clip path for the bright overlay based on word positions
+          val highlightPath = remember(textLayoutResult, activeWordIndex, wordProgress, wordCharRanges) {
+            textLayoutResult?.let { layoutResult ->
+              if (activeWordIndex < 0) return@remember null
+              
+              val path = Path()
+              
+              wordCharRanges.forEach { charRange ->
+                if (charRange.wordIndex < activeWordIndex) {
+                  // Fully sung word: add bounding box for every character
+                  // This handles multi-line words and descenders correctly
+                  for (i in charRange.start..charRange.end) {
+                    path.addRect(layoutResult.getBoundingBox(i))
+                  }
+                } else if (charRange.wordIndex == activeWordIndex) {
+                  // Active word: calculate progress
+                  val startBounds = layoutResult.getBoundingBox(charRange.start)
+                  val endBounds = layoutResult.getBoundingBox(charRange.end)
+                  
+                  // Only animate progress for single-line words
+                  if (startBounds.top == endBounds.top) {
+                    val wordLeft = startBounds.left
+                    val wordRight = endBounds.right
+                    val clipRight = wordLeft + (wordRight - wordLeft) * wordProgress
+                    
+                    for (i in charRange.start..charRange.end) {
+                      val charBounds = layoutResult.getBoundingBox(i)
+                      if (charBounds.right <= clipRight) {
+                        path.addRect(charBounds)
+                      } else if (charBounds.left < clipRight) {
+                        path.addRect(Rect(
+                          left = charBounds.left,
+                          top = charBounds.top,
+                          right = clipRight,
+                          bottom = charBounds.bottom
+                        ))
+                      }
+                    }
+                  }
+                }
+              }
+              
+              path
             }
           }
-        }
-      }
-      
-      path
-    }
-  }
 
   val textStyle = MaterialTheme.typography.titleLarge.copy(
     fontSize = 28.sp,
+    lineHeight = 36.sp,
     fontStyle = if (isBackground) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal,
   )
 

@@ -84,8 +84,12 @@ if [[ "$RUN_IOS" == "true" ]]; then
   echo "==> Regenerating iOS Swift bindings/XCFramework"
   (cd apps/mobile/ios && ./build-rust.sh)
 
-  echo "==> Verifying iOS Swift package"
-  swift build --package-path apps/mobile/ios/AureliaCore
+  if [[ -z "${XCODE_VERSION_ACTUAL:-}" ]]; then
+      echo "==> Verifying iOS Swift package"
+      swift build --package-path apps/mobile/ios/AureliaCore
+  else
+      echo "==> Skipping Swift package verification (running inside Xcode)"
+  fi
 else
   echo "==> Skipping iOS generation"
 fi

@@ -63,7 +63,7 @@ struct MiniPlayerView: View {
         .padding(.vertical, AureliaSpacing.s)
         .tint(.primary)
         .frame(minHeight: 64)
-        .glassEffect()
+        .glassEffectIfAvailable()
         .clipShape(Capsule())
         .overlay {
             Capsule()
@@ -128,6 +128,7 @@ struct MiniPlayerView: View {
         .padding(.vertical, AureliaSpacing.xs)
         .tint(.primary)
         .frame(minHeight: 64)
+        .glassEffectIfAvailable()
         .contentShape(Rectangle())
     }
 
@@ -341,3 +342,13 @@ private struct MiniPlayerUIKitButton: UIViewRepresentable {
     }
 }
 
+private extension View {
+    @ViewBuilder
+    func glassEffectIfAvailable() -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect()
+        } else {
+            self.background(.ultraThinMaterial)
+        }
+    }
+}
