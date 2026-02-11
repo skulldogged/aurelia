@@ -1,7 +1,7 @@
+import AureliaCore
 import Foundation
 import Observation
 import os
-import AureliaCore
 
 @Observable
 final class LibraryViewModel: @unchecked Sendable {
@@ -14,7 +14,8 @@ final class LibraryViewModel: @unchecked Sendable {
 
     func loadLibrary() {
         guard let creds = sessionStore.getCredentials(),
-              !creds.serverUrl.isEmpty, !creds.token.isEmpty, !creds.userId.isEmpty else {
+              !creds.serverUrl.isEmpty, !creds.token.isEmpty, !creds.userId.isEmpty
+        else {
             error = "Missing session data"
             return
         }
@@ -39,11 +40,11 @@ final class LibraryViewModel: @unchecked Sendable {
                         }
                     }
                 } catch {
-                    self.logger.warning("Failed to load cached songs: \(error)")
+                    logger.warning("Failed to load cached songs: \(error)")
                 }
             }
 
-            if loadedCache && !shouldRefresh {
+            if loadedCache, !shouldRefresh {
                 return
             }
 

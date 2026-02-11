@@ -1,5 +1,5 @@
-import SwiftUI
 import AureliaCore
+import SwiftUI
 
 struct ArtistsView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -7,90 +7,92 @@ struct ArtistsView: View {
     @State private var isLoading = false
     @State private var error: String?
 
-    private var isWide: Bool { horizontalSizeClass == .regular }
+    private var isWide: Bool {
+        horizontalSizeClass == .regular
+    }
 
     var body: some View {
         NavigationStack {
             let columns = [
-                GridItem(.adaptive(minimum: isWide ? 200 : 160), spacing: AureliaSpacing.m)
+                GridItem(.adaptive(minimum: isWide ? 200 : 160), spacing: AureliaSpacing.m),
             ]
 
             Group {
-                    if isLoading && artists.isEmpty {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if let error, artists.isEmpty {
-                        ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
-                    } else if artists.isEmpty {
-                        ContentUnavailableView("No Artists", systemImage: "music.mic", description: Text("Your library has no artists"))
-                    } else {
-                        if isWide {
-                            ScrollView {
-                                LazyVGrid(columns: columns, spacing: AureliaSpacing.m) {
-                                    ForEach(artists, id: \.id) { artist in
-                                        NavigationLink(value: ArtistRoute(id: artist.id, name: artist.name)) {
-                                            GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.m, showsShadow: false) {
-                                                VStack(alignment: .leading, spacing: 10) {
-                                                    HStack(spacing: 12) {
-                                                        CachedImageView(
-                                                            url: artist.artUrl.flatMap { URL(string: $0) },
-                                                            contentMode: .fill,
-                                                            targetSize: CGSize(width: 56, height: 56)
-                                                        )
-                                                        .frame(width: 56, height: 56)
-                                                        .clipShape(Circle())
+                if isLoading, artists.isEmpty {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let error, artists.isEmpty {
+                    ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
+                } else if artists.isEmpty {
+                    ContentUnavailableView("No Artists", systemImage: "music.mic", description: Text("Your library has no artists"))
+                } else {
+                    if isWide {
+                        ScrollView {
+                            LazyVGrid(columns: columns, spacing: AureliaSpacing.m) {
+                                ForEach(artists, id: \.id) { artist in
+                                    NavigationLink(value: ArtistRoute(id: artist.id, name: artist.name)) {
+                                        GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.m, showsShadow: false) {
+                                            VStack(alignment: .leading, spacing: 10) {
+                                                HStack(spacing: 12) {
+                                                    CachedImageView(
+                                                        url: artist.artUrl.flatMap { URL(string: $0) },
+                                                        contentMode: .fill,
+                                                        targetSize: CGSize(width: 56, height: 56)
+                                                    )
+                                                    .frame(width: 56, height: 56)
+                                                    .clipShape(Circle())
 
-                                                        VStack(alignment: .leading, spacing: 4) {
-                                                            Text(artist.name)
-                                                                .font(.body)
-                                                                .lineLimit(1)
-                                                            Text("\(artist.songCount) songs")
-                                                                .font(.caption)
-                                                                .foregroundStyle(.secondary)
-                                                        }
-                                                        Spacer()
+                                                    VStack(alignment: .leading, spacing: 4) {
+                                                        Text(artist.name)
+                                                            .font(.body)
+                                                            .lineLimit(1)
+                                                        Text("\(artist.songCount) songs")
+                                                            .font(.caption)
+                                                            .foregroundStyle(.secondary)
                                                     }
+                                                    Spacer()
                                                 }
                                             }
                                         }
-                                        .buttonStyle(.plain)
                                     }
+                                    .buttonStyle(.plain)
                                 }
-                                .padding(.horizontal, AureliaSpacing.xl)
-                                .padding(.vertical, AureliaSpacing.l)
                             }
-                        } else {
-                            List(artists, id: \.id) { artist in
-                                GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s, showsShadow: false) {
-                                    NavigationLink(value: ArtistRoute(id: artist.id, name: artist.name)) {
-                                        HStack(spacing: 12) {
-                                            CachedImageView(
-                                                url: artist.artUrl.flatMap { URL(string: $0) },
-                                                contentMode: .fill,
-                                                targetSize: CGSize(width: 48, height: 48)
-                                            )
-                                            .frame(width: 48, height: 48)
-                                            .clipShape(Circle())
-
-                                            VStack(alignment: .leading) {
-                                                Text(artist.name)
-                                                    .font(.body)
-                                                Text("\(artist.songCount) songs")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                            Spacer()
-                                        }
-                                    }
-                                }
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                                .listRowInsets(EdgeInsets(top: 6, leading: AureliaSpacing.m, bottom: 6, trailing: AureliaSpacing.m))
-                            }
-                            .listStyle(.plain)
-                            .scrollContentBackground(.hidden)
+                            .padding(.horizontal, AureliaSpacing.xl)
+                            .padding(.vertical, AureliaSpacing.l)
                         }
+                    } else {
+                        List(artists, id: \.id) { artist in
+                            GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s, showsShadow: false) {
+                                NavigationLink(value: ArtistRoute(id: artist.id, name: artist.name)) {
+                                    HStack(spacing: 12) {
+                                        CachedImageView(
+                                            url: artist.artUrl.flatMap { URL(string: $0) },
+                                            contentMode: .fill,
+                                            targetSize: CGSize(width: 48, height: 48)
+                                        )
+                                        .frame(width: 48, height: 48)
+                                        .clipShape(Circle())
+
+                                        VStack(alignment: .leading) {
+                                            Text(artist.name)
+                                                .font(.body)
+                                            Text("\(artist.songCount) songs")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                    }
+                                }
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 6, leading: AureliaSpacing.m, bottom: 6, trailing: AureliaSpacing.m))
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
+                }
             }
             .aureliaRootTabHeader("Artists")
             .navigationDestination(for: ArtistRoute.self) { route in
@@ -126,13 +128,13 @@ struct ArtistsView: View {
                     .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 
                 await MainActor.run {
-                    self.artists = sorted
-                    self.isLoading = false
+                    artists = sorted
+                    isLoading = false
                 }
             } catch {
                 await MainActor.run {
                     self.error = error.localizedDescription
-                    self.isLoading = false
+                    isLoading = false
                 }
             }
         }

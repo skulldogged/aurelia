@@ -1,5 +1,5 @@
-import SwiftUI
 import AureliaCore
+import SwiftUI
 
 struct ArtistDetailView: View {
     let artistId: String
@@ -115,7 +115,7 @@ struct ArtistDetailView: View {
                             }
                         }
 
-                        if songs.isEmpty && albums.isEmpty {
+                        if songs.isEmpty, albums.isEmpty {
                             Text("No songs available for this artist yet.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -145,10 +145,10 @@ struct ArtistDetailView: View {
         Task.detached {
             let appDataDir = await sessionStore.getAppDataDir() ?? ""
 
-            if let cachedArtist = try? getCachedArtist(appDataDir: appDataDir, artistId: self.artistId) {
+            if let cachedArtist = try? getCachedArtist(appDataDir: appDataDir, artistId: artistId) {
                 await MainActor.run {
-                    self.artist = cachedArtist
-                    self.isLoading = false
+                    artist = cachedArtist
+                    isLoading = false
                 }
             }
 
@@ -156,15 +156,15 @@ struct ArtistDetailView: View {
             if let allSongs = try? loadCachedSongs(appDataDir: appDataDir) {
                 let artistSongs = Self.songsForArtist(
                     from: allSongs,
-                    artistId: self.artistId,
-                    artistName: self.artistName
+                    artistId: artistId,
+                    artistName: artistName
                 )
-                let albumItems = Self.albumItems(from: artistSongs, fallbackArtistName: self.artistName)
+                let albumItems = Self.albumItems(from: artistSongs, fallbackArtistName: artistName)
 
                 await MainActor.run {
-                    self.songs = artistSongs
-                    self.albums = albumItems
-                    self.isLoading = false
+                    songs = artistSongs
+                    albums = albumItems
+                    isLoading = false
                 }
             }
 
@@ -174,19 +174,19 @@ struct ArtistDetailView: View {
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     userId: creds.userId,
-                    artistId: self.artistId,
+                    artistId: artistId,
                     appDataDir: appDataDir
                 )
                 await MainActor.run {
-                    self.artist = fetched
-                    self.isLoading = false
-                    self.error = nil
+                    artist = fetched
+                    isLoading = false
+                    error = nil
                 }
             } catch {
                 if await !AuthInterceptor.shared.handlePotentialAuthError(error) {
                     await MainActor.run {
-                        self.isLoading = false
-                        if self.songs.isEmpty && self.artist == nil {
+                        isLoading = false
+                        if songs.isEmpty, artist == nil {
                             self.error = error.localizedDescription
                         }
                     }

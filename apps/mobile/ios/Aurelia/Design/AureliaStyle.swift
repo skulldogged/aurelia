@@ -22,22 +22,22 @@ enum AureliaLayout {
     }
 }
 
-struct AureliaPalette {
+enum AureliaPalette {
     static func tint(for scheme: ColorScheme) -> Color {
         switch scheme {
         case .dark:
-            return Color(red: 0.70, green: 0.55, blue: 1.00)
+            Color(red: 0.70, green: 0.55, blue: 1.00)
         default:
-            return Color(red: 0.46, green: 0.34, blue: 0.95)
+            Color(red: 0.46, green: 0.34, blue: 0.95)
         }
     }
 
     static func glassBorder(for scheme: ColorScheme) -> Color {
         switch scheme {
         case .dark:
-            return Color.white.opacity(0.18)
+            Color.white.opacity(0.18)
         default:
-            return Color.white.opacity(0.35)
+            Color.white.opacity(0.35)
         }
     }
 
@@ -49,7 +49,7 @@ struct AureliaPalette {
 struct AureliaBackground: View {
     var body: some View {
         Color(.systemBackground)
-        .ignoresSafeArea()
+            .ignoresSafeArea()
     }
 }
 
@@ -83,7 +83,7 @@ struct GlassCard<Content: View>: View {
 
 struct AureliaSectionHeader: View {
     let title: String
-    var subtitle: String? = nil
+    var subtitle: String?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -104,14 +104,12 @@ struct AureliaSectionHeader: View {
 
 extension View {
     func aureliaScreen() -> some View {
-#if targetEnvironment(macCatalyst)
-        self
-            .background(AureliaBackground())
-#else
-        self
-            .background(AureliaBackground())
-            .navigationBarTitleDisplayMode(.inline)
-#endif
+        #if targetEnvironment(macCatalyst)
+            background(AureliaBackground())
+        #else
+            background(AureliaBackground())
+                .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     func aureliaInsetCard(cornerRadius: CGFloat = AureliaRadius.l) -> some View {
@@ -140,13 +138,13 @@ private struct AureliaRootTabHeaderModifier: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-#if targetEnvironment(macCatalyst)
-        content
-            .navigationTitle(resolvedTitle)
-#else
-        content
-            .navigationTitle(resolvedTitle)
-            .navigationBarTitleDisplayMode(.inline)
-#endif
+        #if targetEnvironment(macCatalyst)
+            content
+                .navigationTitle(resolvedTitle)
+        #else
+            content
+                .navigationTitle(resolvedTitle)
+                .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }

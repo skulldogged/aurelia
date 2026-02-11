@@ -4,7 +4,7 @@ import UIKit
 struct AlbumArtView: View {
     let url: String?
     var size: ArtSize = .medium
-    var customDimension: CGFloat? = nil
+    var customDimension: CGFloat?
     @State private var loadedImage: UIImage? = nil
     @State private var loadedKey: String? = nil
 
@@ -80,7 +80,8 @@ struct AlbumArtView: View {
     private func loadImage(targetDimension: CGFloat) async {
         guard let requestKey = requestKey(for: targetDimension),
               let urlString = url,
-              let imageUrl = URL(string: urlString) else {
+              let imageUrl = URL(string: urlString)
+        else {
             loadedImage = nil
             loadedKey = nil
             return

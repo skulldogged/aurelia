@@ -1,7 +1,7 @@
+import AureliaCore
 import Foundation
 import Observation
 import os
-import AureliaCore
 
 @Observable
 final class PlaylistViewModel: @unchecked Sendable {
@@ -23,7 +23,8 @@ final class PlaylistViewModel: @unchecked Sendable {
 
     func loadPlaylists() {
         guard let creds = sessionStore.getCredentials(),
-              !creds.serverUrl.isEmpty, !creds.token.isEmpty, !creds.userId.isEmpty else {
+              !creds.serverUrl.isEmpty, !creds.token.isEmpty, !creds.userId.isEmpty
+        else {
             error = "Missing session data"
             isLoading = false
             return
@@ -127,7 +128,7 @@ final class PlaylistViewModel: @unchecked Sendable {
                     token: creds.token,
                     playlistId: playlistId
                 )
-                let playlist = await self.playlists.first { $0.id == playlistId }
+                let playlist = await playlists.first { $0.id == playlistId }
                 await MainActor.run {
                     self.detailIsLoading = false
                     self.detailPlaylist = playlist
@@ -160,7 +161,7 @@ final class PlaylistViewModel: @unchecked Sendable {
                     self.loadPlaylists()
                 }
             } catch {
-                self.logger.error("Failed to add songs to playlist: \(error)")
+                logger.error("Failed to add songs to playlist: \(error)")
                 await MainActor.run {
                     self.error = "Failed to add songs to playlist"
                 }

@@ -49,14 +49,14 @@ struct MainView: View {
             guard let command = notification.object as? AureliaMenuCommand else { return }
             handleMenuCommand(command)
         }
-#if targetEnvironment(macCatalyst)
+        #if targetEnvironment(macCatalyst)
         .onAppear {
             configureCatalystTitlebar()
         }
         .onChange(of: playerPresentationProgress) { _, newValue in
             updateCatalystTitlebarVisibility(isPlayerOpen: newValue > 0.5)
         }
-#endif
+        #endif
     }
 
     private func openPlayer(animated: Bool, panel: PlayerView.Panel = .none) {
@@ -146,40 +146,40 @@ struct MainView: View {
         }
     }
 
-#if targetEnvironment(macCatalyst)
-    private func configureCatalystTitlebar() {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else { return }
-        windowScene.titlebar?.titleVisibility = .visible
-        
-        DispatchQueue.main.async {
-            if let splitVC = self.findSplitViewController(in: window.rootViewController) {
-                splitVC.preferredDisplayMode = .oneBesideSecondary
-                splitVC.preferredSplitBehavior = .tile
-                splitVC.primaryBackgroundStyle = .sidebar
-                splitVC.show(.primary)
+    #if targetEnvironment(macCatalyst)
+        private func configureCatalystTitlebar() {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first else { return }
+            windowScene.titlebar?.titleVisibility = .visible
+
+            DispatchQueue.main.async {
+                if let splitVC = findSplitViewController(in: window.rootViewController) {
+                    splitVC.preferredDisplayMode = .oneBesideSecondary
+                    splitVC.preferredSplitBehavior = .tile
+                    splitVC.primaryBackgroundStyle = .sidebar
+                    splitVC.show(.primary)
+                }
             }
         }
-    }
-    
-    private func updateCatalystTitlebarVisibility(isPlayerOpen: Bool) {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
-        windowScene.titlebar?.titleVisibility = isPlayerOpen ? .hidden : .visible
-    }
-    
-    private func findSplitViewController(in viewController: UIViewController?) -> UISplitViewController? {
-        guard let viewController else { return nil }
-        if let splitVC = viewController as? UISplitViewController {
-            return splitVC
+
+        private func updateCatalystTitlebarVisibility(isPlayerOpen: Bool) {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+            windowScene.titlebar?.titleVisibility = isPlayerOpen ? .hidden : .visible
         }
-        for child in viewController.children {
-            if let found = findSplitViewController(in: child) {
-                return found
+
+        private func findSplitViewController(in viewController: UIViewController?) -> UISplitViewController? {
+            guard let viewController else { return nil }
+            if let splitVC = viewController as? UISplitViewController {
+                return splitVC
             }
+            for child in viewController.children {
+                if let found = findSplitViewController(in: child) {
+                    return found
+                }
+            }
+            return nil
         }
-        return nil
-    }
-#endif
+    #endif
 }
 
 private struct MiniPlayerInsetModifier: ViewModifier {
@@ -196,14 +196,14 @@ private struct MiniPlayerInsetModifier: ViewModifier {
     private var usesBottomAccessory: Bool {
         guard UIDevice.current.userInterfaceIdiom == .phone else { return false }
         guard horizontalSizeClass == .compact else { return false }
-        guard tabBarPlacement != .sidebar && tabBarPlacement != .topBar else { return false }
+        guard tabBarPlacement != .sidebar, tabBarPlacement != .topBar else { return false }
         return true
     }
 
     func body(content: Content) -> some View {
         content
             .overlay(alignment: .bottom) {
-                if !usesBottomAccessory && playerController.snapshot.currentSongId != nil && playerPresentationProgress < 0.999 {
+                if !usesBottomAccessory, playerController.snapshot.currentSongId != nil, playerPresentationProgress < 0.999 {
                     MiniPlayerView(onTap: onTap, onLyricsTap: onLyricsTap, onQueueTap: onQueueTap)
                         .padding(.horizontal, AureliaSpacing.m)
                         .padding(.top, AureliaSpacing.s)

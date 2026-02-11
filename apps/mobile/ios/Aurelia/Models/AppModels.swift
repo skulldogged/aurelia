@@ -10,9 +10,9 @@ struct NowPlayingState: Equatable {
     var isBuffering: Bool = false
     var hasPrevious: Bool = false
     var hasNext: Bool = false
-    var albumId: String? = nil
-    var artistId: String? = nil
-    var albumName: String? = nil
+    var albumId: String?
+    var artistId: String?
+    var albumName: String?
 }
 
 // MARK: - Player Snapshot
@@ -20,21 +20,21 @@ struct NowPlayingState: Equatable {
 struct PlayerSnapshot: Equatable {
     var title: String = ""
     var artist: String = ""
-    var albumArtUrl: String? = nil
+    var albumArtUrl: String?
     var isPlaying: Bool = false
     var isBuffering: Bool = false
     var hasPrevious: Bool = false
     var hasNext: Bool = false
     var isShuffled: Bool = false
     var repeatMode: RepeatMode = .none
-    var currentSongId: String? = nil
-    var currentAlbumId: String? = nil
-    var currentArtistId: String? = nil
-    var currentAlbumName: String? = nil
+    var currentSongId: String?
+    var currentAlbumId: String?
+    var currentArtistId: String?
+    var currentAlbumName: String?
     var playbackSpeed: Float = 1.0
-    var codec: String? = nil
-    var bitRate: Int32? = nil
-    var sampleRate: Int32? = nil
+    var codec: String?
+    var bitRate: Int32?
+    var sampleRate: Int32?
 }
 
 // MARK: - Playback Position
@@ -121,7 +121,7 @@ struct Lyrics: Equatable {
 
     /// Check if an agent ID refers to a background/other voice.
     func isBackgroundVocal(_ agentId: String?) -> Bool {
-        guard let agentId = agentId, let agents = agents else { return false }
+        guard let agentId, let agents else { return false }
         return agents.first(where: { $0.id == agentId })?.agentType == "other"
     }
 
@@ -129,7 +129,7 @@ struct Lyrics: Equatable {
     /// that is NOT the first (primary) person in the agents list.
     /// Apple Music right-aligns these lines to visually distinguish duet parts.
     func isSecondaryVocalist(_ agentId: String?) -> Bool {
-        guard let agentId = agentId, let agents = agents else { return false }
+        guard let agentId, let agents else { return false }
         guard let firstPerson = agents.first(where: { $0.agentType == "person" }) else { return false }
         if agentId == firstPerson.id { return false }
         return agents.first(where: { $0.id == agentId })?.agentType == "person"

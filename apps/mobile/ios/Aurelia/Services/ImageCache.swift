@@ -1,8 +1,8 @@
-import Foundation
-import UIKit
 import CryptoKit
+import Foundation
 import ImageIO
 import os
+import UIKit
 
 final class ImageCache {
     static let shared = ImageCache()
@@ -27,7 +27,8 @@ final class ImageCache {
 
         guard let diskURL = diskURL(for: url),
               let data = await readData(from: diskURL),
-              let image = await decodeImageAsync(from: data, maxPixelSize: variant.maxPixelSize) else {
+              let image = await decodeImageAsync(from: data, maxPixelSize: variant.maxPixelSize)
+        else {
             return nil
         }
 
@@ -50,15 +51,15 @@ final class ImageCache {
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 guard !data.isEmpty else { return nil }
-                guard let image = await self.decodeImageAsync(from: data, maxPixelSize: variant.maxPixelSize) else {
+                guard let image = await decodeImageAsync(from: data, maxPixelSize: variant.maxPixelSize) else {
                     return nil
                 }
 
-                self.memoryCache.setObject(image, forKey: variant.memoryKey, cost: image.memoryCost)
-                self.storeDataAsync(data, for: url)
+                memoryCache.setObject(image, forKey: variant.memoryKey, cost: image.memoryCost)
+                storeDataAsync(data, for: url)
                 return image
             } catch {
-                self.logger.debug("Image fetch failed: \(error)")
+                logger.debug("Image fetch failed: \(error)")
                 return nil
             }
         })
@@ -143,7 +144,7 @@ final class ImageCache {
                     continuation.resume(returning: nil)
                     return
                 }
-                continuation.resume(returning: self.decodeImage(from: data, maxPixelSize: maxPixelSize))
+                continuation.resume(returning: decodeImage(from: data, maxPixelSize: maxPixelSize))
             }
         }
     }

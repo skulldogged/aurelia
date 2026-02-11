@@ -8,27 +8,29 @@ enum MainDestination: String, CaseIterable, Identifiable, Hashable {
     case search
     case settings
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var title: String {
         switch self {
-        case .home: return "Home"
-        case .songs: return "Songs"
-        case .albums: return "Albums"
-        case .artists: return "Artists"
-        case .search: return "Search"
-        case .settings: return "Settings"
+        case .home: "Home"
+        case .songs: "Songs"
+        case .albums: "Albums"
+        case .artists: "Artists"
+        case .search: "Search"
+        case .settings: "Settings"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .home: return "house.fill"
-        case .songs: return "music.note"
-        case .albums: return "square.stack.fill"
-        case .artists: return "music.mic"
-        case .search: return "magnifyingglass"
-        case .settings: return "gearshape.fill"
+        case .home: "house.fill"
+        case .songs: "music.note"
+        case .albums: "square.stack.fill"
+        case .artists: "music.mic"
+        case .search: "magnifyingglass"
+        case .settings: "gearshape.fill"
         }
     }
 

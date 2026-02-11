@@ -53,7 +53,7 @@ struct FeaturedHeroView: View {
                 .overlay {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: 0) {
-                            ForEach(0..<max(count, 1), id: \.self) { index in
+                            ForEach(0 ..< max(count, 1), id: \.self) { index in
                                 Color.clear
                                     .frame(width: cardWidth, height: cardHeight)
                                     .id(index)
@@ -159,10 +159,10 @@ struct FeaturedHeroView: View {
                 contentMode: .fill,
                 targetSize: CGSize(width: target, height: target)
             )
-                .blur(radius: 18)
-                .scaleEffect(1.2)
-                .saturation(0.8)
-                .brightness(-0.1)
+            .blur(radius: 18)
+            .scaleEffect(1.2)
+            .saturation(0.8)
+            .brightness(-0.1)
 
             Color.black.opacity(colorScheme == .dark ? 0.52 : 0.45)
         }

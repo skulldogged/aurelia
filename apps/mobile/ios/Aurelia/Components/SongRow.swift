@@ -1,5 +1,5 @@
-import SwiftUI
 import AureliaCore
+import SwiftUI
 
 struct SongRow: View {
     @Environment(\.colorScheme) private var colorScheme

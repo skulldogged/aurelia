@@ -1,7 +1,7 @@
+import AureliaCore
 import Foundation
 import Observation
 import os
-import AureliaCore
 
 @Observable
 final class HomeViewModel: @unchecked Sendable {
@@ -22,7 +22,7 @@ final class HomeViewModel: @unchecked Sendable {
     private var allSongs: [Song] = []
     private var songIdByTitleArtist: [String: String] = [:]
     private nonisolated static let useSharedHomeDerivation = true
-    
+
     private struct HomeSections {
         let mostPlayed: [Song]
         let recentlyPlayed: [Song]
@@ -30,7 +30,7 @@ final class HomeViewModel: @unchecked Sendable {
         let randomAlbums: [AlbumItem]
         let featuredAlbums: [FeaturedAlbum]
     }
-    
+
     private struct HomeSectionLimits: Sendable {
         let mostPlayed: Int
         let recentlyPlayed: Int
@@ -53,7 +53,8 @@ final class HomeViewModel: @unchecked Sendable {
 
         Task.detached { [self] in
             guard let creds = await sessionStore.getCredentialsAsync(),
-                  !creds.serverUrl.isEmpty, !creds.token.isEmpty, !creds.userId.isEmpty else {
+                  !creds.serverUrl.isEmpty, !creds.token.isEmpty, !creds.userId.isEmpty
+            else {
                 await MainActor.run {
                     self.isLoading = false
                     self.error = "Missing session data"
@@ -80,11 +81,11 @@ final class HomeViewModel: @unchecked Sendable {
                         }
                     }
                 } catch {
-                    self.logger.warning("Failed to load cached songs: \(error)")
+                    logger.warning("Failed to load cached songs: \(error)")
                 }
             }
 
-            if loadedCache && !shouldRefresh {
+            if loadedCache, !shouldRefresh {
                 await MainActor.run {
                     self.hasLoadedInitialData = true
                 }
@@ -128,8 +129,8 @@ final class HomeViewModel: @unchecked Sendable {
         featuredAlbums = sections.featuredAlbums
         isLoading = false
     }
-    
-    nonisolated private static func computeHomeSections(_ songs: [Song], limits: HomeSectionLimits) -> HomeSections {
+
+    private nonisolated static func computeHomeSections(_ songs: [Song], limits: HomeSectionLimits) -> HomeSections {
         if useSharedHomeDerivation {
             let derived = deriveMobileHomeData(
                 songs: songs,
@@ -177,21 +178,21 @@ final class HomeViewModel: @unchecked Sendable {
             .filter { ($0.playCount ?? 0) > 0 }
             .sorted { ($0.playCount ?? 0) > ($1.playCount ?? 0) }
             .prefix(limits.mostPlayed)
-            .map { $0 }
+            .map(\.self)
 
         // Recently played
         let recentlyPlayed = songs
             .filter { $0.datePlayed != nil && !$0.datePlayed!.isEmpty }
             .sorted { ($0.datePlayed ?? "") > ($1.datePlayed ?? "") }
             .prefix(limits.recentlyPlayed)
-            .map { $0 }
+            .map(\.self)
 
         // Group by album
         let albumsMap = Dictionary(grouping: songs.filter { $0.albumId != nil && !$0.albumId!.isEmpty }) { $0.albumId! }
 
         // Recently added albums
         let recentlyAddedAlbums = albumsMap
-            .map { (albumId, albumSongs) -> (AlbumItem, String) in
+            .map { albumId, albumSongs -> (AlbumItem, String) in
                 let firstSong = albumSongs.max(by: { ($0.dateCreated ?? "") < ($1.dateCreated ?? "") }) ?? albumSongs[0]
                 return (
                     AlbumItem(
@@ -210,7 +211,7 @@ final class HomeViewModel: @unchecked Sendable {
 
         // Random albums
         let randomAlbums = albumsMap
-            .map { (albumId, albumSongs) -> AlbumItem in
+            .map { albumId, albumSongs -> AlbumItem in
                 let firstSong = albumSongs[0]
                 return AlbumItem(
                     id: albumId,
@@ -222,12 +223,12 @@ final class HomeViewModel: @unchecked Sendable {
             }
             .shuffled()
             .prefix(limits.albumSection)
-            .map { $0 }
+            .map(\.self)
 
         // Featured albums
         let featuredAlbums = albumsMap
             .filter { $0.value.contains { $0.albumArtUrl != nil && !$0.albumArtUrl!.isEmpty } }
-            .map { (albumId, albumSongs) -> FeaturedAlbum in
+            .map { albumId, albumSongs -> FeaturedAlbum in
                 let firstSong = albumSongs[0]
                 return FeaturedAlbum(
                     id: albumId,
@@ -239,8 +240,8 @@ final class HomeViewModel: @unchecked Sendable {
             }
             .shuffled()
             .prefix(limits.featuredAlbums)
-            .map { $0 }
-        
+            .map(\.self)
+
         return HomeSections(
             mostPlayed: mostPlayed,
             recentlyPlayed: recentlyPlayed,
@@ -291,7 +292,7 @@ final class HomeViewModel: @unchecked Sendable {
 
     // MARK: - Helpers
 
-    nonisolated private static func buildSongIdCache(_ songs: [Song]) -> [String: String] {
+    private nonisolated static func buildSongIdCache(_ songs: [Song]) -> [String: String] {
         var cache: [String: String] = [:]
         for song in songs {
             let key = "\(song.name)_\(song.artists?.first ?? "")"

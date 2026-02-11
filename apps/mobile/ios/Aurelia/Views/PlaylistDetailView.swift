@@ -1,5 +1,5 @@
-import SwiftUI
 import AureliaCore
+import SwiftUI
 
 struct PlaylistDetailView: View {
     let playlistId: String
@@ -9,41 +9,43 @@ struct PlaylistDetailView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var viewModel = PlaylistViewModel()
 
-    private var isWide: Bool { horizontalSizeClass == .regular }
+    private var isWide: Bool {
+        horizontalSizeClass == .regular
+    }
 
     var body: some View {
         let horizontalPadding: CGFloat = isWide ? AureliaSpacing.xl : AureliaSpacing.m
 
         Group {
-                if viewModel.detailIsLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = viewModel.detailError {
-                    ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
-                } else if viewModel.detailSongs.isEmpty {
-                    ContentUnavailableView("Empty Playlist", systemImage: "music.note.list", description: Text("This playlist has no songs"))
-                } else {
-                    ScrollView {
-                        if isWide {
-                            HStack(alignment: .top, spacing: AureliaSpacing.xl) {
-                                playlistSummary
-                                    .frame(maxWidth: 360)
+            if viewModel.detailIsLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error = viewModel.detailError {
+                ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else if viewModel.detailSongs.isEmpty {
+                ContentUnavailableView("Empty Playlist", systemImage: "music.note.list", description: Text("This playlist has no songs"))
+            } else {
+                ScrollView {
+                    if isWide {
+                        HStack(alignment: .top, spacing: AureliaSpacing.xl) {
+                            playlistSummary
+                                .frame(maxWidth: 360)
 
-                                playlistSongs
-                                    .frame(maxWidth: .infinity, alignment: .top)
-                            }
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.vertical, AureliaSpacing.l)
-                        } else {
-                            VStack(spacing: AureliaSpacing.l) {
-                                playlistSummary
-                                playlistSongs
-                            }
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.vertical, AureliaSpacing.l)
+                            playlistSongs
+                                .frame(maxWidth: .infinity, alignment: .top)
                         }
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.vertical, AureliaSpacing.l)
+                    } else {
+                        VStack(spacing: AureliaSpacing.l) {
+                            playlistSummary
+                            playlistSongs
+                        }
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.vertical, AureliaSpacing.l)
                     }
                 }
+            }
         }
         .navigationTitle(playlistName)
         .navigationBarTitleDisplayMode(.inline)

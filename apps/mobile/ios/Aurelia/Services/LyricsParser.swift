@@ -1,5 +1,5 @@
-import Foundation
 import AureliaCore
+import Foundation
 
 enum LyricsParser {
     static func fromParsed(_ parsed: ParsedLyrics) -> Lyrics {

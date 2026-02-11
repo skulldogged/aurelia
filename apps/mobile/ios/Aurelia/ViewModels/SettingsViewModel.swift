@@ -1,7 +1,7 @@
+import AureliaCore
 import Foundation
 import Observation
 import os
-import AureliaCore
 
 @Observable
 final class SettingsViewModel: @unchecked Sendable {
@@ -37,7 +37,8 @@ final class SettingsViewModel: @unchecked Sendable {
     func syncLibrary() {
         guard let serverUrl = sessionStore.serverUrl,
               let userId = sessionStore.userId,
-              let token = sessionStore.token else {
+              let token = sessionStore.token
+        else {
             error = "Missing session data"
             return
         }
@@ -50,7 +51,7 @@ final class SettingsViewModel: @unchecked Sendable {
 
         Task.detached { [self] in
             do {
-                let _ = try await syncLibrarySmart(
+                _ = try await syncLibrarySmart(
                     serverUrl: serverUrl,
                     token: token,
                     userId: userId,

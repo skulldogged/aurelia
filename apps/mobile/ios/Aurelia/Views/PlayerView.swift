@@ -1,5 +1,5 @@
-import SwiftUI
 import AureliaCore
+import SwiftUI
 import UIKit
 
 struct PlayerView: View {
@@ -12,7 +12,7 @@ struct PlayerView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AudioPlayerController.self) private var playerController
     @Environment(\.dismiss) private var dismiss
-    var onClose: (() -> Void)? = nil
+    var onClose: (() -> Void)?
 
     @State private var viewModel = PlayerViewModel()
     @State private var isDragging = false
@@ -68,7 +68,7 @@ struct PlayerView: View {
                                 artSizes: [
                                     baseArtSize,
                                     max(170, baseArtSize - 30),
-                                    max(150, baseArtSize - 55)
+                                    max(150, baseArtSize - 55),
                                 ],
                                 playerWidth: playerWidth
                             )
@@ -275,7 +275,7 @@ struct PlayerView: View {
                         isDragging = true
                     }
                 ),
-                in: 0...max(Double(viewModel.durationMs), 1),
+                in: 0 ... max(Double(viewModel.durationMs), 1),
                 onEditingChanged: { editing in
                     if !editing {
                         viewModel.seekTo(Int64(dragPosition), playerController: playerController)
@@ -380,7 +380,7 @@ struct PlayerView: View {
                         viewModel.seekTo(targetMs, playerController: playerController)
                     }
                 )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 VStack(spacing: AureliaSpacing.s) {
                     ProgressView()
@@ -448,8 +448,8 @@ struct PlayerView: View {
     private var statusBarTopInset: CGFloat {
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .map { $0.safeAreaInsets.top }
+            .flatMap(\.windows)
+            .map(\.safeAreaInsets.top)
             .max() ?? 0
     }
 
@@ -626,7 +626,7 @@ struct LyricsView: View {
     let positionMs: Int64
     let isPlaying: Bool
     let updateTimeMs: Int64
-    var onSeekToMs: ((Int64) -> Void)? = nil
+    var onSeekToMs: ((Int64) -> Void)?
     @State private var lastCenteredIndex: Int?
 
     /// Whether these lyrics contain any word-level sync data.
@@ -658,7 +658,7 @@ struct LyricsView: View {
 
     /// Interpolate the current playback position from the last known snapshot
     /// using system uptime, giving us sub-frame accuracy for word fill.
-    private func interpolatedPositionMs(at date: Date) -> Int64 {
+    private func interpolatedPositionMs(at _: Date) -> Int64 {
         guard isPlaying, updateTimeMs > 0 else { return positionMs }
         let nowMs = Int64(ProcessInfo.processInfo.systemUptime * 1000)
         let elapsed = nowMs - updateTimeMs
@@ -990,7 +990,7 @@ struct LyricsView: View {
 
         return VStack(alignment: alignment, spacing: 4) {
             lyricLine(line.line, isActive: isActive, isBackground: isBackground, isSecondary: isSecondary)
-            
+
             if let translation = line.translation, !translation.isEmpty {
                 Text(translation)
                     .font(.system(size: 17, weight: .medium, design: .rounded))
@@ -1029,9 +1029,9 @@ struct LyricsView: View {
 /// Used by `WordFlowLayout` to add spacing only between words that originally had
 /// a space separator — and to suppress that space at the start of a wrapped row
 /// so there's no visible indentation.
-    private nonisolated struct WordGapKey: LayoutValueKey {
-        nonisolated static let defaultValue: Bool = false
-    }
+private nonisolated struct WordGapKey: LayoutValueKey {
+    nonisolated static let defaultValue: Bool = false
+}
 
 /// A custom `Layout` that arranges children inline like text, wrapping to the
 /// next line when children exceed the available width. Used for word-synced
@@ -1049,7 +1049,7 @@ private struct WordFlowLayout: Layout, @unchecked Sendable {
     /// Measured for .system(size: 25, weight: .semibold, design: .rounded).
     private static let spaceWidth: CGFloat = 7.5
 
-    nonisolated func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    nonisolated func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) -> CGSize {
         let rows = computeRows(proposal: proposal, subviews: subviews)
         guard let lastRow = rows.last else { return .zero }
         let height = lastRow.yOffset + lastRow.height
@@ -1057,7 +1057,7 @@ private struct WordFlowLayout: Layout, @unchecked Sendable {
         return CGSize(width: min(width, proposal.width ?? .infinity), height: height)
     }
 
-    nonisolated func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    nonisolated func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache _: inout ()) {
         let rows = computeRows(proposal: proposal, subviews: subviews)
         var subviewIndex = 0
         for row in rows {
@@ -1066,12 +1066,12 @@ private struct WordFlowLayout: Layout, @unchecked Sendable {
             let rowOriginX = alignTrailing ? bounds.maxX - row.width : bounds.minX
 
             var x = rowOriginX
-            for posInRow in 0..<row.count {
+            for posInRow in 0 ..< row.count {
                 let subview = subviews[subviewIndex]
                 let size = subview.sizeThatFits(.unspecified)
                 // Add inter-word gap if this word had a leading space — but not
                 // at the start of a row (to avoid indentation on wrapped lines).
-                if posInRow > 0 && subview[WordGapKey.self] {
+                if posInRow > 0, subview[WordGapKey.self] {
                     x += Self.spaceWidth
                 }
                 subview.place(at: CGPoint(x: x, y: bounds.minY + row.yOffset), proposal: .unspecified)
@@ -1098,7 +1098,7 @@ private struct WordFlowLayout: Layout, @unchecked Sendable {
             let gap: CGFloat = (currentRow.count > 0 && subview[WordGapKey.self]) ? Self.spaceWidth : 0
             let neededWidth = size.width + gap
 
-            if currentRow.count > 0 && currentRow.width + neededWidth > maxWidth {
+            if currentRow.count > 0, currentRow.width + neededWidth > maxWidth {
                 // Wrap to next row — no gap at the start of a new row.
                 rows.append(currentRow)
                 let nextY = currentRow.yOffset + currentRow.height

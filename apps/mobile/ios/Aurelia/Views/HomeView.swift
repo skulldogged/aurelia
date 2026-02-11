@@ -1,5 +1,5 @@
-import SwiftUI
 import AureliaCore
+import SwiftUI
 
 struct HomeView: View {
     @Environment(AudioPlayerController.self) private var playerController
@@ -19,7 +19,7 @@ struct HomeView: View {
         NavigationStack {
             GeometryReader { proxy in
                 ScrollView {
-                    if viewModel.isLoading && viewModel.featuredAlbums.isEmpty {
+                    if viewModel.isLoading, viewModel.featuredAlbums.isEmpty {
                         ProgressView()
                             .frame(maxWidth: .infinity, minHeight: 200)
                     } else if let error = viewModel.error, viewModel.featuredAlbums.isEmpty {

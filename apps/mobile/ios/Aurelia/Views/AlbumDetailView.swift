@@ -1,5 +1,5 @@
-import SwiftUI
 import AureliaCore
+import SwiftUI
 
 struct AlbumDetailView: View {
     let albumId: String
@@ -12,39 +12,41 @@ struct AlbumDetailView: View {
     @State private var isLoading = true
     @State private var error: String?
 
-    private var isWide: Bool { horizontalSizeClass == .regular }
+    private var isWide: Bool {
+        horizontalSizeClass == .regular
+    }
 
     var body: some View {
         let horizontalPadding: CGFloat = isWide ? AureliaSpacing.xl : AureliaSpacing.m
         let artDimension: CGFloat = isWide ? 260 : 220
 
         Group {
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error {
-                    ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
-                } else {
-                    ScrollView {
-                        if isWide {
-                            HStack(alignment: .top, spacing: AureliaSpacing.xl) {
-                                albumSummary(artDimension: artDimension)
-                                    .frame(maxWidth: 360)
+            if isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let error {
+                ContentUnavailableView("Failed to Load", systemImage: "exclamationmark.triangle", description: Text(error))
+            } else {
+                ScrollView {
+                    if isWide {
+                        HStack(alignment: .top, spacing: AureliaSpacing.xl) {
+                            albumSummary(artDimension: artDimension)
+                                .frame(maxWidth: 360)
 
-                                albumSongs
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.vertical, AureliaSpacing.l)
-                        } else {
-                            VStack(spacing: AureliaSpacing.l) {
-                                albumSummary(artDimension: artDimension)
-                                albumSongs
-                            }
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.vertical, AureliaSpacing.l)
+                            albumSongs
+                                .frame(maxWidth: .infinity)
                         }
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.vertical, AureliaSpacing.l)
+                    } else {
+                        VStack(spacing: AureliaSpacing.l) {
+                            albumSummary(artDimension: artDimension)
+                            albumSongs
+                        }
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.vertical, AureliaSpacing.l)
                     }
+                }
             }
         }
         .navigationTitle(albumName)
@@ -173,23 +175,23 @@ struct AlbumDetailView: View {
             let appDataDir = await sessionStore.getAppDataDir() ?? ""
 
             if let cachedSongs = try? loadCachedSongs(appDataDir: appDataDir) {
-                let albumSongs = Self.sortSongs(cachedSongs.filter { $0.albumId == self.albumId })
+                let albumSongs = Self.sortSongs(cachedSongs.filter { $0.albumId == albumId })
                 if !albumSongs.isEmpty {
                     await MainActor.run {
-                        self.songs = albumSongs
-                        self.isLoading = false
+                        songs = albumSongs
+                        isLoading = false
                     }
                 }
             }
 
-            if let cached = try? getCachedAlbum(appDataDir: appDataDir, albumId: self.albumId) {
+            if let cached = try? getCachedAlbum(appDataDir: appDataDir, albumId: albumId) {
                 await MainActor.run {
-                    self.album = cached
+                    album = cached
                     let embeddedSongs = Self.sortSongs(cached.songs ?? [])
                     if !embeddedSongs.isEmpty {
-                        self.songs = embeddedSongs
+                        songs = embeddedSongs
                     }
-                    self.isLoading = false
+                    isLoading = false
                 }
             }
 
@@ -198,25 +200,25 @@ struct AlbumDetailView: View {
                     serverUrl: creds.serverUrl,
                     token: creds.token,
                     userId: creds.userId,
-                    albumId: self.albumId,
+                    albumId: albumId,
                     appDataDir: appDataDir
                 )
                 await MainActor.run {
-                    self.album = fetched
+                    album = fetched
                     let embeddedSongs = Self.sortSongs(fetched.songs ?? [])
                     if !embeddedSongs.isEmpty {
-                        self.songs = embeddedSongs
+                        songs = embeddedSongs
                     }
-                    self.isLoading = false
-                    self.error = nil
+                    isLoading = false
+                    error = nil
                 }
             } catch {
                 if await !AuthInterceptor.shared.handlePotentialAuthError(error) {
                     await MainActor.run {
-                        if self.songs.isEmpty && self.album == nil {
+                        if songs.isEmpty, album == nil {
                             self.error = error.localizedDescription
                         }
-                        self.isLoading = false
+                        isLoading = false
                     }
                 }
             }

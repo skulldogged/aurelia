@@ -111,20 +111,20 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var settingsContent: some View {
-#if targetEnvironment(macCatalyst)
-        Form {
-            settingsSections
-        }
-        .formStyle(.grouped)
-        .frame(maxWidth: 600)
-        .frame(maxWidth: .infinity)
-#else
-        List {
-            settingsSections
-        }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .listRowBackground(Rectangle().fill(.ultraThinMaterial))
-#endif
+        #if targetEnvironment(macCatalyst)
+            Form {
+                settingsSections
+            }
+            .formStyle(.grouped)
+            .frame(maxWidth: 600)
+            .frame(maxWidth: .infinity)
+        #else
+            List {
+                settingsSections
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .listRowBackground(Rectangle().fill(.ultraThinMaterial))
+        #endif
     }
 }

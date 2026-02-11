@@ -1,5 +1,5 @@
-import SwiftUI
 import AureliaCore
+import SwiftUI
 
 struct SearchView: View {
     @Environment(AudioPlayerController.self) private var playerController
@@ -8,7 +8,9 @@ struct SearchView: View {
     @State private var allSongs: [Song] = []
     @State private var isLoaded = false
 
-    private var isWide: Bool { horizontalSizeClass == .regular }
+    private var isWide: Bool {
+        horizontalSizeClass == .regular
+    }
 
     private var filteredSongs: [Song] {
         guard !searchText.isEmpty else { return [] }
@@ -19,14 +21,14 @@ struct SearchView: View {
                 || (song.album?.lowercased().contains(query) ?? false)
         }
         .prefix(50)
-        .map { $0 }
+        .map(\.self)
     }
 
     private var filteredAlbums: [AlbumItem] {
         guard !searchText.isEmpty else { return [] }
         let query = searchText.lowercased()
         let albumsMap = Dictionary(grouping: allSongs.filter { $0.albumId != nil && !$0.albumId!.isEmpty }) { $0.albumId! }
-        return albumsMap.compactMap { (id, songs) -> AlbumItem? in
+        return albumsMap.compactMap { id, songs -> AlbumItem? in
             let first = songs[0]
             let name = first.album ?? ""
             let artist = first.artists?.first ?? ""
@@ -34,80 +36,81 @@ struct SearchView: View {
             return AlbumItem(id: id, name: name, artist: artist, albumArtUrl: first.albumArtUrl, songCount: songs.count)
         }
         .prefix(20)
-        .map { $0 }
+        .map(\.self)
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                    if searchText.isEmpty {
-                        ContentUnavailableView("Search Your Library", systemImage: "magnifyingglass", description: Text("Search for songs, albums, or artists"))
-                    } else if filteredSongs.isEmpty && filteredAlbums.isEmpty {
-                        ContentUnavailableView.search(text: searchText)
-                    } else {
-                        if isWide {
-                            ScrollView {
-                                HStack(alignment: .top, spacing: AureliaSpacing.l) {
-                                    albumResultsColumn
-                                        .frame(maxWidth: .infinity)
+                if searchText.isEmpty {
+                    ContentUnavailableView("Search Your Library", systemImage: "magnifyingglass", description: Text("Search for songs, albums, or artists"))
+                } else if filteredSongs.isEmpty, filteredAlbums.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    if isWide {
+                        ScrollView {
+                            HStack(alignment: .top, spacing: AureliaSpacing.l) {
+                                albumResultsColumn
+                                    .frame(maxWidth: .infinity)
 
-                                    songResultsColumn
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .padding(.horizontal, AureliaSpacing.xl)
-                                .padding(.vertical, AureliaSpacing.l)
+                                songResultsColumn
+                                    .frame(maxWidth: .infinity)
                             }
-                        } else {
-                            List {
-                                if !filteredAlbums.isEmpty {
-                                    Section("Albums") {
-                                        ForEach(filteredAlbums) { album in
-                                            NavigationLink(value: AlbumRoute(id: album.id, name: album.name)) {
-                                                GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s, showsShadow: false) {
-                                                    HStack(spacing: 12) {
-                                                        AlbumArtView(url: album.albumArtUrl, size: .small)
-                                                        VStack(alignment: .leading, spacing: 2) {
-                                                            Text(album.name).lineLimit(1)
-                                                            Text(album.artist)
-                                                                .font(.caption)
-                                                                .foregroundStyle(.secondary)
-                                                                .lineLimit(1)
-                                                        }
-                                                        Spacer()
-                                                    }
-                                                }
-                                            }
-                                            .listRowSeparator(.hidden)
-                                            .listRowBackground(Color.clear)
-                                            .listRowInsets(EdgeInsets(top: 6, leading: AureliaSpacing.m, bottom: 6, trailing: AureliaSpacing.m))
-                                        }
-                                    }
-                                }
-
-                                if !filteredSongs.isEmpty {
-                                    Section("Songs") {
-                                        ForEach(filteredSongs, id: \.id) { song in
-                                            GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s, showsShadow: false) {
-                                                SongRow(song: song, isPlaying: song.id == playerController.snapshot.currentSongId) {
-                                                    let queue = filteredSongs
-                                                    if let idx = queue.firstIndex(where: { $0.id == song.id }),
-                                                       let serverUrl = SessionStore.shared.serverUrl,
-                                                       let token = SessionStore.shared.token {
-                                                        playerController.setQueue(queue, serverUrl: serverUrl, token: token, startIndex: idx)
-                                                    }
-                                                }
-                                            }
-                                            .listRowSeparator(.hidden)
-                                            .listRowBackground(Color.clear)
-                                            .listRowInsets(EdgeInsets(top: 6, leading: AureliaSpacing.m, bottom: 6, trailing: AureliaSpacing.m))
-                                        }
-                                    }
-                                }
-                            }
-                            .listStyle(.plain)
-                            .scrollContentBackground(.hidden)
+                            .padding(.horizontal, AureliaSpacing.xl)
+                            .padding(.vertical, AureliaSpacing.l)
                         }
+                    } else {
+                        List {
+                            if !filteredAlbums.isEmpty {
+                                Section("Albums") {
+                                    ForEach(filteredAlbums) { album in
+                                        NavigationLink(value: AlbumRoute(id: album.id, name: album.name)) {
+                                            GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s, showsShadow: false) {
+                                                HStack(spacing: 12) {
+                                                    AlbumArtView(url: album.albumArtUrl, size: .small)
+                                                    VStack(alignment: .leading, spacing: 2) {
+                                                        Text(album.name).lineLimit(1)
+                                                        Text(album.artist)
+                                                            .font(.caption)
+                                                            .foregroundStyle(.secondary)
+                                                            .lineLimit(1)
+                                                    }
+                                                    Spacer()
+                                                }
+                                            }
+                                        }
+                                        .listRowSeparator(.hidden)
+                                        .listRowBackground(Color.clear)
+                                        .listRowInsets(EdgeInsets(top: 6, leading: AureliaSpacing.m, bottom: 6, trailing: AureliaSpacing.m))
+                                    }
+                                }
+                            }
+
+                            if !filteredSongs.isEmpty {
+                                Section("Songs") {
+                                    ForEach(filteredSongs, id: \.id) { song in
+                                        GlassCard(cornerRadius: AureliaRadius.m, padding: AureliaSpacing.s, showsShadow: false) {
+                                            SongRow(song: song, isPlaying: song.id == playerController.snapshot.currentSongId) {
+                                                let queue = filteredSongs
+                                                if let idx = queue.firstIndex(where: { $0.id == song.id }),
+                                                   let serverUrl = SessionStore.shared.serverUrl,
+                                                   let token = SessionStore.shared.token
+                                                {
+                                                    playerController.setQueue(queue, serverUrl: serverUrl, token: token, startIndex: idx)
+                                                }
+                                            }
+                                        }
+                                        .listRowSeparator(.hidden)
+                                        .listRowBackground(Color.clear)
+                                        .listRowInsets(EdgeInsets(top: 6, leading: AureliaSpacing.m, bottom: 6, trailing: AureliaSpacing.m))
+                                    }
+                                }
+                            }
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
+                }
             }
             .aureliaRootTabHeader("Search")
             .searchable(text: $searchText, prompt: "Songs, albums, artists")
@@ -171,7 +174,8 @@ struct SearchView: View {
                                 let queue = filteredSongs
                                 if let idx = queue.firstIndex(where: { $0.id == song.id }),
                                    let serverUrl = SessionStore.shared.serverUrl,
-                                   let token = SessionStore.shared.token {
+                                   let token = SessionStore.shared.token
+                                {
                                     playerController.setQueue(queue, serverUrl: serverUrl, token: token, startIndex: idx)
                                 }
                             }
@@ -191,8 +195,8 @@ struct SearchView: View {
             let appDataDir = await SessionStore.shared.getAppDataDir() ?? ""
             let songs = (try? loadCachedSongs(appDataDir: appDataDir)) ?? []
             await MainActor.run {
-                self.allSongs = songs
-                self.isLoaded = true
+                allSongs = songs
+                isLoaded = true
             }
         }
     }

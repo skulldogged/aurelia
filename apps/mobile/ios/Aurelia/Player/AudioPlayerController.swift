@@ -1,8 +1,8 @@
+import AureliaCore
 import AVFoundation
 import MediaPlayer
 import Observation
 import os
-import AureliaCore
 
 /// iOS audio player using AVQueuePlayer with Now Playing integration.
 /// Equivalent to Android's PlayerController + PlaybackService.
@@ -106,10 +106,10 @@ final class AudioPlayerController: @unchecked Sendable {
 
         commandCenter.togglePlayPauseCommand.addTarget { [weak self] _ in
             guard let self else { return .commandFailed }
-            if self.snapshot.isPlaying {
-                self.pause()
+            if snapshot.isPlaying {
+                pause()
             } else {
-                self.resume()
+                resume()
             }
             return .success
         }
@@ -173,22 +173,23 @@ final class AudioPlayerController: @unchecked Sendable {
             }
         }
     }
-    
+
     private func handleAudioSessionInterruption(typeValue: UInt?, optionsValue: UInt?) {
         guard let typeValue,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+        else {
             return
         }
 
         switch type {
         case .began:
             logger.info("Audio session interruption began")
-            // Interruption began, audio will pause automatically
+        // Interruption began, audio will pause automatically
         case .ended:
             logger.info("Audio session interruption ended")
             if let optionsValue {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                if options.contains(.shouldResume) && snapshot.isPlaying {
+                if options.contains(.shouldResume), snapshot.isPlaying {
                     logger.info("Resuming playback after interruption")
                     resume()
                 }
@@ -197,7 +198,7 @@ final class AudioPlayerController: @unchecked Sendable {
             break
         }
     }
-    
+
     private func ensureAudioSessionActive() {
         do {
             let session = AVAudioSession.sharedInstance()
@@ -214,16 +215,16 @@ final class AudioPlayerController: @unchecked Sendable {
 
     private func setupTimeObserver() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
-        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
+        timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.updateSnapshot()
             }
         }
 
         // Observe rate changes to detect unexpected pauses
-        _ = player.observe(\.rate, options: [.new]) { [weak self] player, change in
+        _ = player.observe(\.rate, options: [.new]) { [weak self] _, change in
             MainActor.assumeIsolated {
-                guard let self = self else { return }
+                guard let self else { return }
                 let newRate = change.newValue ?? 0
                 self.logger.info("Player rate changed to: \(newRate)")
             }
@@ -265,8 +266,13 @@ final class AudioPlayerController: @unchecked Sendable {
         updateNowPlayingInfo()
     }
 
-    func getQueue() -> [Song] { songQueue }
-    func getCurrentQueueIndex() -> Int { currentIndex }
+    func getQueue() -> [Song] {
+        songQueue
+    }
+
+    func getCurrentQueueIndex() -> Int {
+        currentIndex
+    }
 
     func addToQueue(_ song: Song, serverUrl: String, token: String) {
         lastServerUrl = serverUrl
@@ -288,7 +294,8 @@ final class AudioPlayerController: @unchecked Sendable {
             if currentIndex >= 0,
                currentIndex < songQueue.count,
                let currentSongId = songQueue[safe: currentIndex]?.id,
-               let baseCurrentIndex = baseQueue.firstIndex(where: { $0.id == currentSongId }) {
+               let baseCurrentIndex = baseQueue.firstIndex(where: { $0.id == currentSongId })
+            {
                 let baseInsertIndex = min(baseCurrentIndex + 1, baseQueue.count)
                 baseQueue.insert(song, at: baseInsertIndex)
             } else {
@@ -332,7 +339,7 @@ final class AudioPlayerController: @unchecked Sendable {
         updateSnapshot()
         updateNowPlayingInfo()
     }
-    
+
     func play() {
         logger.info("Play called")
         ensureAudioSession()
@@ -367,9 +374,9 @@ final class AudioPlayerController: @unchecked Sendable {
         let songDurationMs = Int64((song.duration ?? 0) * 1000)
         let targetPosition = max(0, min(positionMs, songDurationMs > 0 ? songDurationMs : positionMs))
 
-        if !Self.isContainerSeekable(song.container) && !lastServerUrl.isEmpty {
+        if !Self.isContainerSeekable(song.container), !lastServerUrl.isEmpty {
             // Non-seekable container: rebuild URL with startTimeTicks
-            let ticks = targetPosition * 10_000
+            let ticks = targetPosition * 10000
             let baseUrl = buildMobileStreamUrl(
                 serverUrl: lastServerUrl,
                 token: lastToken,
@@ -403,9 +410,9 @@ final class AudioPlayerController: @unchecked Sendable {
         currentIndex += 1
         player.advanceToNextItem()
         if let range = loadedQueueRange {
-            loadedQueueRange = currentIndex...max(currentIndex, range.upperBound)
+            loadedQueueRange = currentIndex ... max(currentIndex, range.upperBound)
         } else {
-            loadedQueueRange = currentIndex...currentIndex
+            loadedQueueRange = currentIndex ... currentIndex
         }
         preloadUpcomingItems()
         updateSnapshot()
@@ -467,14 +474,14 @@ final class AudioPlayerController: @unchecked Sendable {
         if currentIndex + 1 < songQueue.count {
             currentIndex += 1
             if let range = loadedQueueRange {
-                loadedQueueRange = currentIndex...max(currentIndex, range.upperBound)
+                loadedQueueRange = currentIndex ... max(currentIndex, range.upperBound)
             } else {
-                loadedQueueRange = currentIndex...currentIndex
+                loadedQueueRange = currentIndex ... currentIndex
             }
             preloadUpcomingItems()
             updateSnapshot()
             updateNowPlayingInfo()
-        } else if snapshot.repeatMode == .all && !songQueue.isEmpty {
+        } else if snapshot.repeatMode == .all, !songQueue.isEmpty {
             // Loop back to beginning
             playQueueItem(0)
         } else {
@@ -511,7 +518,7 @@ final class AudioPlayerController: @unchecked Sendable {
         if playbackPosition != newPosition {
             playbackPosition = newPosition
         }
-        
+
         // Update Now Playing elapsed time during playback for smooth progress display
         if player.rate > 0, MPNowPlayingInfoCenter.default().nowPlayingInfo != nil {
             var nowPlayingInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
@@ -573,7 +580,7 @@ final class AudioPlayerController: @unchecked Sendable {
                 guard let image else { return }
                 let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
                 await MainActor.run { [weak self] in
-                    guard let self, self.snapshot.currentSongId == targetSongId else { return }
+                    guard let self, snapshot.currentSongId == targetSongId else { return }
                     var currentInfo = MPNowPlayingInfoCenter.default().nowPlayingInfo ?? [:]
                     currentInfo[MPMediaItemPropertyArtwork] = artwork
                     MPNowPlayingInfoCenter.default().nowPlayingInfo = currentInfo
@@ -604,18 +611,17 @@ final class AudioPlayerController: @unchecked Sendable {
 
         let preloadCount = max(1, min(preloadItemCount, Self.maxPreloadedItems))
         let endIndex = min(songQueue.count - 1, safeStart + preloadCount - 1)
-        for queueIndex in safeStart...endIndex {
-            let url: String
-            if queueIndex == safeStart, let firstItemOverrideUrl {
-                url = firstItemOverrideUrl
+        for queueIndex in safeStart ... endIndex {
+            let url: String = if queueIndex == safeStart, let firstItemOverrideUrl {
+                firstItemOverrideUrl
             } else {
-                url = buildStreamUrl(for: songQueue[queueIndex])
+                buildStreamUrl(for: songQueue[queueIndex])
             }
             if let playerItem = makePlayerItem(url: url) {
                 player.insert(playerItem, after: nil)
             }
         }
-        loadedQueueRange = safeStart...endIndex
+        loadedQueueRange = safeStart ... endIndex
     }
 
     private func preloadUpcomingItems() {
@@ -630,7 +636,7 @@ final class AudioPlayerController: @unchecked Sendable {
         }
 
         if range.lowerBound != currentIndex {
-            range = currentIndex...max(currentIndex, range.upperBound)
+            range = currentIndex ... max(currentIndex, range.upperBound)
         }
 
         let desiredEnd = min(songQueue.count - 1, currentIndex + Self.maxPreloadedItems - 1)
@@ -641,13 +647,13 @@ final class AudioPlayerController: @unchecked Sendable {
             if let item = makePlayerItem(url: url) {
                 player.insert(item, after: nil)
             }
-            range = currentIndex...nextIndex
+            range = currentIndex ... nextIndex
             nextIndex += 1
         }
 
         loadedQueueRange = range
     }
-    
+
     private func scheduleDeferredPreload() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             self?.preloadUpcomingItems()
@@ -680,7 +686,7 @@ final class AudioPlayerController: @unchecked Sendable {
 
         let upcomingStart = currentIndex + 1
         guard upcomingStart < songQueue.count else {
-            loadedQueueRange = currentIndex...currentIndex
+            loadedQueueRange = currentIndex ... currentIndex
             return
         }
 
@@ -696,15 +702,15 @@ final class AudioPlayerController: @unchecked Sendable {
 
         let endIndex = min(songQueue.count - 1, currentIndex + Self.maxPreloadedItems - 1)
         if upcomingStart <= endIndex {
-            for queueIndex in upcomingStart...endIndex {
+            for queueIndex in upcomingStart ... endIndex {
                 let url = buildStreamUrl(for: songQueue[queueIndex])
                 if let item = makePlayerItem(url: url) {
                     player.insert(item, after: nil)
                 }
             }
-            loadedQueueRange = currentIndex...endIndex
+            loadedQueueRange = currentIndex ... endIndex
         } else {
-            loadedQueueRange = currentIndex...currentIndex
+            loadedQueueRange = currentIndex ... currentIndex
         }
 
         scheduleDeferredPreload()
@@ -752,15 +758,15 @@ final class AudioPlayerController: @unchecked Sendable {
         let upcomingStart = currentIndex + 1
         let endIndex = min(songQueue.count - 1, currentIndex + Self.maxPreloadedItems - 1)
         if upcomingStart <= endIndex {
-            for queueIndex in upcomingStart...endIndex {
+            for queueIndex in upcomingStart ... endIndex {
                 let url = buildStreamUrl(for: songQueue[queueIndex])
                 if let item = makePlayerItem(url: url) {
                     player.insert(item, after: nil)
                 }
             }
-            loadedQueueRange = currentIndex...endIndex
+            loadedQueueRange = currentIndex ... endIndex
         } else {
-            loadedQueueRange = currentIndex...currentIndex
+            loadedQueueRange = currentIndex ... currentIndex
         }
 
         scheduleDeferredPreload()
@@ -788,7 +794,7 @@ final class AudioPlayerController: @unchecked Sendable {
     private func occurrenceCount(songId: String, in queue: [Song], through index: Int) -> Int {
         guard !queue.isEmpty else { return 1 }
         let upperBound = min(max(index, 0), queue.count - 1)
-        return max(1, queue[0...upperBound].filter { $0.id == songId }.count)
+        return max(1, queue[0 ... upperBound].filter { $0.id == songId }.count)
     }
 
     private func indexOfOccurrence(songId: String, occurrence: Int, in queue: [Song]) -> Int? {

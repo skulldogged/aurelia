@@ -1,7 +1,7 @@
+import AureliaCore
 import Foundation
 import Observation
 import UIKit
-import AureliaCore
 
 @Observable
 final class LoginViewModel: @unchecked Sendable {
@@ -20,7 +20,8 @@ final class LoginViewModel: @unchecked Sendable {
     func submit() {
         guard !serverUrl.trimmingCharacters(in: .whitespaces).isEmpty,
               !username.trimmingCharacters(in: .whitespaces).isEmpty,
-              !password.isEmpty else {
+              !password.isEmpty
+        else {
             error = "All fields are required"
             return
         }
@@ -43,13 +44,13 @@ final class LoginViewModel: @unchecked Sendable {
                     .save(serverUrl: serverUrl, userId: response.userId, token: response.token, username: username)
 
                 await MainActor.run { [self] in
-                    self.isSubmitting = false
-                    self.token = response.token
-                    self.userId = response.userId
+                    isSubmitting = false
+                    token = response.token
+                    userId = response.userId
                 }
             } catch {
                 await MainActor.run { [self] in
-                    self.isSubmitting = false
+                    isSubmitting = false
                     self.error = error.localizedDescription
                 }
             }

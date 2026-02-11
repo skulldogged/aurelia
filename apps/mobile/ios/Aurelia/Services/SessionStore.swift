@@ -1,6 +1,6 @@
+import AureliaCore
 import Foundation
 import os
-import AureliaCore
 
 /// Manages user session credentials, backed by the Rust redb database via UniFFI.
 @Observable
@@ -24,7 +24,7 @@ final class SessionStore: @unchecked Sendable {
             return nil
         }
         let aureliaDir = supportDir.appendingPathComponent("aurelia", isDirectory: true)
-        
+
         // Ensure directory exists
         if !FileManager.default.fileExists(atPath: aureliaDir.path) {
             do {
@@ -34,7 +34,7 @@ final class SessionStore: @unchecked Sendable {
                 return nil
             }
         }
-        
+
         return aureliaDir.path
     }
 
@@ -79,7 +79,7 @@ final class SessionStore: @unchecked Sendable {
         let credentials = await withCheckedContinuation { continuation in
             ioQueue.async {
                 do {
-                    continuation.resume(returning: try loadCredentials(appDataDir: appDataDir))
+                    try continuation.resume(returning: loadCredentials(appDataDir: appDataDir))
                 } catch {
                     continuation.resume(returning: nil)
                 }
@@ -117,7 +117,7 @@ final class SessionStore: @unchecked Sendable {
     func shouldRefreshLibrary(maxAge: TimeInterval = 6 * 60 * 60) -> Bool {
         let lastSync = lastSyncDate()
         let lastRefresh = lastLibraryRefreshDate()
-        let referenceDate = [lastSync, lastRefresh].compactMap { $0 }.max()
+        let referenceDate = [lastSync, lastRefresh].compactMap(\.self).max()
         guard let referenceDate else { return true }
         return Date().timeIntervalSince(referenceDate) > maxAge
     }
@@ -147,14 +147,22 @@ final class SessionStore: @unchecked Sendable {
             }
         }
 
-        let referenceDate = [lastSync, lastRefresh].compactMap { $0 }.max()
+        let referenceDate = [lastSync, lastRefresh].compactMap(\.self).max()
         guard let referenceDate else { return true }
         return Date().timeIntervalSince(referenceDate) > maxAge
     }
 
-    var serverUrl: String? { getCredentials()?.serverUrl }
-    var userId: String? { getCredentials()?.userId }
-    var token: String? { getCredentials()?.token }
+    var serverUrl: String? {
+        getCredentials()?.serverUrl
+    }
+
+    var userId: String? {
+        getCredentials()?.userId
+    }
+
+    var token: String? {
+        getCredentials()?.token
+    }
 
     // MARK: - Lyrics Server URL (for sidecar lyrics from daemon)
 

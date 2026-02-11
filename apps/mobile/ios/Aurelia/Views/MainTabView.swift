@@ -84,7 +84,7 @@ struct MainTabView: View {
     }
 
     private var useSidebarAdaptable: Bool {
-        return UIDevice.current.userInterfaceIdiom == .pad || ProcessInfo.processInfo.isMacCatalystApp
+        UIDevice.current.userInterfaceIdiom == .pad || ProcessInfo.processInfo.isMacCatalystApp
     }
 
     private struct TabBarMiniPlayer: View {
@@ -102,8 +102,7 @@ struct MainTabView: View {
         }
     }
 
-    @ViewBuilder
-    private func tabContent<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    private func tabContent(@ViewBuilder _ content: () -> some View) -> some View {
         content()
             .modifier(SidebarSlideModifier())
     }
@@ -171,11 +170,11 @@ private struct ContainerWidthKey: PreferenceKey {
 
 private extension View {
     @ViewBuilder
-    func tabViewBottomAccessoryIfAvailable<Content: View>(isEnabled: Bool, @ViewBuilder content: () -> Content) -> some View {
+    func tabViewBottomAccessoryIfAvailable(isEnabled: Bool, @ViewBuilder content: () -> some View) -> some View {
         if #available(iOS 26.1, *) {
-            self.tabViewBottomAccessory(isEnabled: isEnabled, content: content)
+            tabViewBottomAccessory(isEnabled: isEnabled, content: content)
         } else {
-            self.overlay(alignment: .bottom) {
+            overlay(alignment: .bottom) {
                 if isEnabled {
                     content()
                         .padding(.bottom, 49) // Approximate standard Tab Bar height

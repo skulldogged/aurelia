@@ -4,8 +4,8 @@ import UIKit
 struct CachedImageView: View {
     let url: URL?
     var contentMode: ContentMode = .fill
-    var placeholderColor: Color = Color(.systemGray5)
-    var targetSize: CGSize? = nil
+    var placeholderColor: Color = .init(.systemGray5)
+    var targetSize: CGSize?
 
     @State private var loadedImage: UIImage? = nil
     @State private var loadedKey: String? = nil

@@ -1,6 +1,6 @@
-import SwiftUI
-import os
 import AureliaCore
+import os
+import SwiftUI
 
 struct MiniPlayerView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -346,9 +346,9 @@ private extension View {
     @ViewBuilder
     func glassEffectIfAvailable() -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect()
+            glassEffect()
         } else {
-            self.background(.ultraThinMaterial)
+            background(.ultraThinMaterial)
         }
     }
 }

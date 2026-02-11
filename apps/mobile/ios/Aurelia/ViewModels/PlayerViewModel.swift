@@ -1,7 +1,7 @@
+import AureliaCore
 import Foundation
 import Observation
 import os
-import AureliaCore
 
 @Observable
 final class PlayerViewModel: @unchecked Sendable {
@@ -30,8 +30,13 @@ final class PlayerViewModel: @unchecked Sendable {
     var bitRate: Int32?
     var sampleRate: Int32?
 
-    var hasPrevious: Bool { currentQueueIndex > 0 }
-    var hasNext: Bool { currentQueueIndex >= 0 && currentQueueIndex < queue.count - 1 }
+    var hasPrevious: Bool {
+        currentQueueIndex > 0
+    }
+
+    var hasNext: Bool {
+        currentQueueIndex >= 0 && currentQueueIndex < queue.count - 1
+    }
 
     var formatInfo: String? {
         var parts: [String] = []
@@ -137,7 +142,7 @@ final class PlayerViewModel: @unchecked Sendable {
     // MARK: - Lyrics
 
     func toggleLyrics() {
-        if lyrics == nil && !title.isEmpty {
+        if lyrics == nil, !title.isEmpty {
             fetchLyrics(songId: currentSongId, artist: artist, title: title)
         }
         showLyrics.toggle()
@@ -145,16 +150,16 @@ final class PlayerViewModel: @unchecked Sendable {
 
     private func fetchLyrics(songId: String?, artist: String, title: String) {
         lyrics = nil
-        
+
         Task { @MainActor [self] in
-            let serverUrl = self.sessionStore.serverUrl ?? ""
-            let token = self.sessionStore.token ?? ""
-            let lyricsServerUrl = self.sessionStore.lyricsServerUrl
+            let serverUrl = sessionStore.serverUrl ?? ""
+            let token = sessionStore.token ?? ""
+            let lyricsServerUrl = sessionStore.lyricsServerUrl
             let itemId = songId ?? ""
 
-            self.logger.info("[Lyrics] Fetching lyrics for '\(title)' by '\(artist)' (itemId=\(itemId), serverUrl=\(serverUrl.prefix(30))..., hasToken=\(!token.isEmpty))")
+            logger.info("[Lyrics] Fetching lyrics for '\(title)' by '\(artist)' (itemId=\(itemId), serverUrl=\(serverUrl.prefix(30))..., hasToken=\(!token.isEmpty))")
 
-            self.logger.info("[Lyrics] Debug: lyricsServerUrl = '\(lyricsServerUrl ?? "nil")'")
+            logger.info("[Lyrics] Debug: lyricsServerUrl = '\(lyricsServerUrl ?? "nil")'")
             let parsedLyrics = await getParsedLyrics(
                 serverUrl: serverUrl,
                 token: token,
@@ -165,23 +170,23 @@ final class PlayerViewModel: @unchecked Sendable {
                 lyricsServerUrl: lyricsServerUrl
             )
 
-            self.logger.info("[Lyrics] Got ParsedLyrics from core: syncedLines=\(parsedLyrics.synced.count), plainLines=\(parsedLyrics.plain.count), areFromRemote=\(parsedLyrics.areFromRemote), hasSections=\(parsedLyrics.sections != nil), hasAgents=\(parsedLyrics.agents != nil), hasSongwriters=\(parsedLyrics.songwriters != nil), language=\(parsedLyrics.language ?? "nil")")
+            logger.info("[Lyrics] Got ParsedLyrics from core: syncedLines=\(parsedLyrics.synced.count), plainLines=\(parsedLyrics.plain.count), areFromRemote=\(parsedLyrics.areFromRemote), hasSections=\(parsedLyrics.sections != nil), hasAgents=\(parsedLyrics.agents != nil), hasSongwriters=\(parsedLyrics.songwriters != nil), language=\(parsedLyrics.language ?? "nil")")
 
             // Log first few synced lines for debugging
             for (i, line) in parsedLyrics.synced.prefix(5).enumerated() {
                 let wordCount = line.words?.count ?? 0
-                self.logger.info("[Lyrics] synced[\(i)]: timeMs=\(line.timeMs), endTimeMs=\(line.endTimeMs.map { String($0) } ?? "nil"), words=\(wordCount), agentId=\(line.agentId ?? "nil"), text='\(line.line.prefix(60))'")
+                logger.info("[Lyrics] synced[\(i)]: timeMs=\(line.timeMs), endTimeMs=\(line.endTimeMs.map { String($0) } ?? "nil"), words=\(wordCount), agentId=\(line.agentId ?? "nil"), text='\(line.line.prefix(60))'")
                 if let words = line.words {
                     for (j, word) in words.prefix(3).enumerated() {
-                        self.logger.info("[Lyrics] word[\(j)]: timeMs=\(word.timeMs), endTimeMs=\(word.endTimeMs.map { String($0) } ?? "nil"), '\(word.word)'")
+                        logger.info("[Lyrics] word[\(j)]: timeMs=\(word.timeMs), endTimeMs=\(word.endTimeMs.map { String($0) } ?? "nil"), '\(word.word)'")
                     }
                     if words.count > 3 {
-                        self.logger.info("[Lyrics] ... and \(words.count - 3) more words")
+                        logger.info("[Lyrics] ... and \(words.count - 3) more words")
                     }
                 }
             }
             if parsedLyrics.synced.count > 5 {
-                self.logger.info("[Lyrics] ... and \(parsedLyrics.synced.count - 5) more synced lines")
+                logger.info("[Lyrics] ... and \(parsedLyrics.synced.count - 5) more synced lines")
             }
 
             let parsed = LyricsParser.fromParsed(parsedLyrics)
@@ -190,23 +195,23 @@ final class PlayerViewModel: @unchecked Sendable {
             let syncedCount = parsed.synced?.count ?? 0
             let hasPlain = parsed.plain != nil
             let hasWordSync = parsed.synced?.first?.words != nil
-            self.logger.info("[Lyrics] After LyricsParser: isValid=\(isValid), hasSynced=\(hasSynced), syncedCount=\(syncedCount), hasPlain=\(hasPlain), hasWordSync=\(hasWordSync)")
+            logger.info("[Lyrics] After LyricsParser: isValid=\(isValid), hasSynced=\(hasSynced), syncedCount=\(syncedCount), hasPlain=\(hasPlain), hasWordSync=\(hasWordSync)")
 
-            if songId == self.currentSongId {
+            if songId == currentSongId {
                 if isValid {
-                    self.logger.info("[Lyrics] Setting lyrics on view model (valid)")
-                    self.lyrics = parsed
+                    logger.info("[Lyrics] Setting lyrics on view model (valid)")
+                    lyrics = parsed
                 } else {
-                    self.logger.warning("[Lyrics] Lyrics invalid, hiding lyrics panel")
-                    self.showLyrics = false
+                    logger.warning("[Lyrics] Lyrics invalid, hiding lyrics panel")
+                    showLyrics = false
                 }
-        } else {
-            self.logger.info("[Lyrics] Song changed during fetch (was=\(songId ?? "nil"), now=\(self.currentSongId ?? "nil")), discarding result")
+            } else {
+                logger.info("[Lyrics] Song changed during fetch (was=\(songId ?? "nil"), now=\(currentSongId ?? "nil")), discarding result")
+            }
         }
     }
-}
 
-// MARK: - Favorites
+    // MARK: - Favorites
 
     func toggleFavorite() {
         guard let songId = currentSongId else { return }
@@ -233,7 +238,7 @@ final class PlayerViewModel: @unchecked Sendable {
                 }
             } catch {
                 if await !AuthInterceptor.shared.handlePotentialAuthError(error) {
-                    self.logger.error("Failed to toggle favorite: \(error)")
+                    logger.error("Failed to toggle favorite: \(error)")
                     await MainActor.run { self.isFavoriteLoading = false }
                 }
             }

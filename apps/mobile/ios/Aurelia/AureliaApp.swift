@@ -1,5 +1,5 @@
-import SwiftUI
 import AVFoundation
+import SwiftUI
 
 @main
 struct AureliaApp: App {
@@ -39,7 +39,7 @@ struct AureliaApp: App {
             .onAppear {
                 AuthInterceptor.shared.setLogoutCallback { [appViewModel] in
                     Task { @MainActor in
-                        self.playerController = nil
+                        playerController = nil
                         appViewModel.logout()
                     }
                 }
