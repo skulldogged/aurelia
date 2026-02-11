@@ -17,13 +17,20 @@ package uniffi.aurelia_core
 // compile the Rust component. The easiest way to ensure this is to bundle the Kotlin
 // helpers directly inline like we're doing here.
 
-import com.sun.jna.Callback
-import com.sun.jna.IntegerType
 import com.sun.jna.Library
+import com.sun.jna.IntegerType
 import com.sun.jna.Native
 import com.sun.jna.Pointer
 import com.sun.jna.Structure
+import com.sun.jna.Callback
 import com.sun.jna.ptr.*
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.CharBuffer
+import java.nio.charset.CodingErrorAction
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -32,13 +39,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import uniffi.aurelia_lyrics.FfiConverterTypeParsedLyrics
 import uniffi.aurelia_lyrics.ParsedLyrics
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.nio.CharBuffer
-import java.nio.charset.CodingErrorAction
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
-import kotlin.coroutines.resume
 import uniffi.aurelia_lyrics.RustBuffer as RustBufferParsedLyrics
 
 // This is a helper for safely working with byte buffers returned from the Rust code.
@@ -50,62 +50,49 @@ import uniffi.aurelia_lyrics.RustBuffer as RustBufferParsedLyrics
  */
 @Structure.FieldOrder("capacity", "len", "data")
 open class RustBuffer : Structure() {
-  // Note: `capacity` and `len` are actually `ULong` values, but JVM only supports signed values.
-  // When dealing with these fields, make sure to call `toULong()`.
-  @JvmField var capacity: Long = 0
+    // Note: `capacity` and `len` are actually `ULong` values, but JVM only supports signed values.
+    // When dealing with these fields, make sure to call `toULong()`.
+    @JvmField var capacity: Long = 0
+    @JvmField var len: Long = 0
+    @JvmField var data: Pointer? = null
 
-  @JvmField var len: Long = 0
+    class ByValue: RustBuffer(), Structure.ByValue
+    class ByReference: RustBuffer(), Structure.ByReference
 
-  @JvmField var data: Pointer? = null
+   internal fun setValue(other: RustBuffer) {
+        capacity = other.capacity
+        len = other.len
+        data = other.data
+    }
 
-  class ByValue :
-    RustBuffer(),
-    Structure.ByValue
-
-  class ByReference :
-    RustBuffer(),
-    Structure.ByReference
-
-  internal fun setValue(other: RustBuffer) {
-    capacity = other.capacity
-    len = other.len
-    data = other.data
-  }
-
-  companion object {
-    internal fun alloc(size: ULong = 0UL) =
-      uniffiRustCall { status ->
-        // Note: need to convert the size to a `Long` value to make this work with JVM.
-        UniffiLib.ffi_aurelia_core_rustbuffer_alloc(size.toLong(), status)
-      }.also {
-        if (it.data == null) {
-          throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=$size)")
+    companion object {
+        internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
+            // Note: need to convert the size to a `Long` value to make this work with JVM.
+            UniffiLib.ffi_aurelia_core_rustbuffer_alloc(size.toLong(), status)
+        }.also {
+            if(it.data == null) {
+               throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
+           }
         }
-      }
 
-    internal fun create(
-      capacity: ULong,
-      len: ULong,
-      data: Pointer?,
-    ): RustBuffer.ByValue {
-      var buf = RustBuffer.ByValue()
-      buf.capacity = capacity.toLong()
-      buf.len = len.toLong()
-      buf.data = data
-      return buf
+        internal fun create(capacity: ULong, len: ULong, data: Pointer?): RustBuffer.ByValue {
+            var buf = RustBuffer.ByValue()
+            buf.capacity = capacity.toLong()
+            buf.len = len.toLong()
+            buf.data = data
+            return buf
+        }
+
+        internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
+            UniffiLib.ffi_aurelia_core_rustbuffer_free(buf, status)
+        }
     }
 
-    internal fun free(buf: RustBuffer.ByValue) =
-      uniffiRustCall { status ->
-        UniffiLib.ffi_aurelia_core_rustbuffer_free(buf, status)
-      }
-  }
-
-  @Suppress("TooGenericExceptionThrown")
-  fun asByteBuffer() =
-    this.data?.getByteBuffer(0, this.len)?.also {
-      it.order(ByteOrder.BIG_ENDIAN)
-    }
+    @Suppress("TooGenericExceptionThrown")
+    fun asByteBuffer() =
+        this.data?.getByteBuffer(0, this.len)?.also {
+            it.order(ByteOrder.BIG_ENDIAN)
+        }
 }
 
 // This is a helper for safely passing byte references into the rust code.
@@ -116,15 +103,11 @@ open class RustBuffer : Structure() {
 
 @Structure.FieldOrder("len", "data")
 internal open class ForeignBytes : Structure() {
-  @JvmField var len: Int = 0
+    @JvmField var len: Int = 0
+    @JvmField var data: Pointer? = null
 
-  @JvmField var data: Pointer? = null
-
-  class ByValue :
-    ForeignBytes(),
-    Structure.ByValue
+    class ByValue : ForeignBytes(), Structure.ByValue
 }
-
 /**
  * The FfiConverter interface handles converter types to and from the FFI
  *
@@ -134,69 +117,65 @@ internal open class ForeignBytes : Structure() {
  * @suppress
  */
 public interface FfiConverter<KotlinType, FfiType> {
-  // Convert an FFI type to a Kotlin type
-  fun lift(value: FfiType): KotlinType
+    // Convert an FFI type to a Kotlin type
+    fun lift(value: FfiType): KotlinType
 
-  // Convert an Kotlin type to an FFI type
-  fun lower(value: KotlinType): FfiType
+    // Convert an Kotlin type to an FFI type
+    fun lower(value: KotlinType): FfiType
 
-  // Read a Kotlin type from a `ByteBuffer`
-  fun read(buf: ByteBuffer): KotlinType
+    // Read a Kotlin type from a `ByteBuffer`
+    fun read(buf: ByteBuffer): KotlinType
 
-  // Calculate bytes to allocate when creating a `RustBuffer`
-  //
-  // This must return at least as many bytes as the write() function will
-  // write. It can return more bytes than needed, for example when writing
-  // Strings we can't know the exact bytes needed until we the UTF-8
-  // encoding, so we pessimistically allocate the largest size possible (3
-  // bytes per codepoint).  Allocating extra bytes is not really a big deal
-  // because the `RustBuffer` is short-lived.
-  fun allocationSize(value: KotlinType): ULong
+    // Calculate bytes to allocate when creating a `RustBuffer`
+    //
+    // This must return at least as many bytes as the write() function will
+    // write. It can return more bytes than needed, for example when writing
+    // Strings we can't know the exact bytes needed until we the UTF-8
+    // encoding, so we pessimistically allocate the largest size possible (3
+    // bytes per codepoint).  Allocating extra bytes is not really a big deal
+    // because the `RustBuffer` is short-lived.
+    fun allocationSize(value: KotlinType): ULong
 
-  // Write a Kotlin type to a `ByteBuffer`
-  fun write(
-    value: KotlinType,
-    buf: ByteBuffer,
-  )
+    // Write a Kotlin type to a `ByteBuffer`
+    fun write(value: KotlinType, buf: ByteBuffer)
 
-  // Lower a value into a `RustBuffer`
-  //
-  // This method lowers a value into a `RustBuffer` rather than the normal
-  // FfiType.  It's used by the callback interface code.  Callback interface
-  // returns are always serialized into a `RustBuffer` regardless of their
-  // normal FFI type.
-  fun lowerIntoRustBuffer(value: KotlinType): RustBuffer.ByValue {
-    val rbuf = RustBuffer.alloc(allocationSize(value))
-    try {
-      val bbuf =
-        rbuf.data!!.getByteBuffer(0, rbuf.capacity).also {
-          it.order(ByteOrder.BIG_ENDIAN)
+    // Lower a value into a `RustBuffer`
+    //
+    // This method lowers a value into a `RustBuffer` rather than the normal
+    // FfiType.  It's used by the callback interface code.  Callback interface
+    // returns are always serialized into a `RustBuffer` regardless of their
+    // normal FFI type.
+    fun lowerIntoRustBuffer(value: KotlinType): RustBuffer.ByValue {
+        val rbuf = RustBuffer.alloc(allocationSize(value))
+        try {
+            val bbuf = rbuf.data!!.getByteBuffer(0, rbuf.capacity).also {
+                it.order(ByteOrder.BIG_ENDIAN)
+            }
+            write(value, bbuf)
+            rbuf.writeField("len", bbuf.position().toLong())
+            return rbuf
+        } catch (e: Throwable) {
+            RustBuffer.free(rbuf)
+            throw e
         }
-      write(value, bbuf)
-      rbuf.writeField("len", bbuf.position().toLong())
-      return rbuf
-    } catch (e: Throwable) {
-      RustBuffer.free(rbuf)
-      throw e
     }
-  }
 
-  // Lift a value from a `RustBuffer`.
-  //
-  // This here mostly because of the symmetry with `lowerIntoRustBuffer()`.
-  // It's currently only used by the `FfiConverterRustBuffer` class below.
-  fun liftFromRustBuffer(rbuf: RustBuffer.ByValue): KotlinType {
-    val byteBuf = rbuf.asByteBuffer()!!
-    try {
-      val item = read(byteBuf)
-      if (byteBuf.hasRemaining()) {
-        throw RuntimeException("junk remaining in buffer after lifting, something is very wrong!!")
-      }
-      return item
-    } finally {
-      RustBuffer.free(rbuf)
+    // Lift a value from a `RustBuffer`.
+    //
+    // This here mostly because of the symmetry with `lowerIntoRustBuffer()`.
+    // It's currently only used by the `FfiConverterRustBuffer` class below.
+    fun liftFromRustBuffer(rbuf: RustBuffer.ByValue): KotlinType {
+        val byteBuf = rbuf.asByteBuffer()!!
+        try {
+           val item = read(byteBuf)
+           if (byteBuf.hasRemaining()) {
+               throw RuntimeException("junk remaining in buffer after lifting, something is very wrong!!")
+           }
+           return item
+        } finally {
+            RustBuffer.free(rbuf)
+        }
     }
-  }
 }
 
 /**
@@ -204,10 +183,9 @@ public interface FfiConverter<KotlinType, FfiType> {
  *
  * @suppress
  */
-public interface FfiConverterRustBuffer<KotlinType> : FfiConverter<KotlinType, RustBuffer.ByValue> {
-  override fun lift(value: RustBuffer.ByValue) = liftFromRustBuffer(value)
-
-  override fun lower(value: KotlinType) = lowerIntoRustBuffer(value)
+public interface FfiConverterRustBuffer<KotlinType>: FfiConverter<KotlinType, RustBuffer.ByValue> {
+    override fun lift(value: RustBuffer.ByValue) = liftFromRustBuffer(value)
+    override fun lower(value: KotlinType) = lowerIntoRustBuffer(value)
 }
 // A handful of classes and functions to support the generated data structures.
 // This would be a good candidate for isolating in its own ffi-support lib.
@@ -218,36 +196,34 @@ internal const val UNIFFI_CALL_UNEXPECTED_ERROR = 2.toByte()
 
 @Structure.FieldOrder("code", "error_buf")
 internal open class UniffiRustCallStatus : Structure() {
-  @JvmField var code: Byte = 0
+    @JvmField var code: Byte = 0
+    @JvmField var error_buf: RustBuffer.ByValue = RustBuffer.ByValue()
 
-  @JvmField var error_buf: RustBuffer.ByValue = RustBuffer.ByValue()
+    class ByValue: UniffiRustCallStatus(), Structure.ByValue
 
-  class ByValue :
-    UniffiRustCallStatus(),
-    Structure.ByValue
-
-  fun isSuccess(): Boolean = code == UNIFFI_CALL_SUCCESS
-
-  fun isError(): Boolean = code == UNIFFI_CALL_ERROR
-
-  fun isPanic(): Boolean = code == UNIFFI_CALL_UNEXPECTED_ERROR
-
-  companion object {
-    fun create(
-      code: Byte,
-      errorBuf: RustBuffer.ByValue,
-    ): UniffiRustCallStatus.ByValue {
-      val callStatus = UniffiRustCallStatus.ByValue()
-      callStatus.code = code
-      callStatus.error_buf = errorBuf
-      return callStatus
+    fun isSuccess(): Boolean {
+        return code == UNIFFI_CALL_SUCCESS
     }
-  }
+
+    fun isError(): Boolean {
+        return code == UNIFFI_CALL_ERROR
+    }
+
+    fun isPanic(): Boolean {
+        return code == UNIFFI_CALL_UNEXPECTED_ERROR
+    }
+
+    companion object {
+        fun create(code: Byte, errorBuf: RustBuffer.ByValue): UniffiRustCallStatus.ByValue {
+            val callStatus = UniffiRustCallStatus.ByValue()
+            callStatus.code = code
+            callStatus.error_buf = errorBuf
+            return callStatus
+        }
+    }
 }
 
-class InternalException(
-  message: String,
-) : kotlin.Exception(message)
+class InternalException(message: String) : kotlin.Exception(message)
 
 /**
  * Each top-level error class has a companion object that can lift the error from the call status's rust buffer
@@ -255,7 +231,7 @@ class InternalException(
  * @suppress
  */
 interface UniffiRustCallStatusErrorHandler<E> {
-  fun lift(error_buf: RustBuffer.ByValue): E
+    fun lift(error_buf: RustBuffer.ByValue): E;
 }
 
 // Helpers for calling Rust
@@ -263,37 +239,31 @@ interface UniffiRustCallStatusErrorHandler<E> {
 // synchronize itself
 
 // Call a rust function that returns a Result<>.  Pass in the Error class companion that corresponds to the Err
-private inline fun <U, E : kotlin.Exception> uniffiRustCallWithError(
-  errorHandler: UniffiRustCallStatusErrorHandler<E>,
-  callback: (UniffiRustCallStatus) -> U,
-): U {
-  var status = UniffiRustCallStatus()
-  val return_value = callback(status)
-  uniffiCheckCallStatus(errorHandler, status)
-  return return_value
+private inline fun <U, E: kotlin.Exception> uniffiRustCallWithError(errorHandler: UniffiRustCallStatusErrorHandler<E>, callback: (UniffiRustCallStatus) -> U): U {
+    var status = UniffiRustCallStatus()
+    val return_value = callback(status)
+    uniffiCheckCallStatus(errorHandler, status)
+    return return_value
 }
 
 // Check UniffiRustCallStatus and throw an error if the call wasn't successful
-private fun <E : kotlin.Exception> uniffiCheckCallStatus(
-  errorHandler: UniffiRustCallStatusErrorHandler<E>,
-  status: UniffiRustCallStatus,
-) {
-  if (status.isSuccess()) {
-    return
-  } else if (status.isError()) {
-    throw errorHandler.lift(status.error_buf)
-  } else if (status.isPanic()) {
-    // when the rust code sees a panic, it tries to construct a rustbuffer
-    // with the message.  but if that code panics, then it just sends back
-    // an empty buffer.
-    if (status.error_buf.len > 0) {
-      throw InternalException(FfiConverterString.lift(status.error_buf))
+private fun<E: kotlin.Exception> uniffiCheckCallStatus(errorHandler: UniffiRustCallStatusErrorHandler<E>, status: UniffiRustCallStatus) {
+    if (status.isSuccess()) {
+        return
+    } else if (status.isError()) {
+        throw errorHandler.lift(status.error_buf)
+    } else if (status.isPanic()) {
+        // when the rust code sees a panic, it tries to construct a rustbuffer
+        // with the message.  but if that code panics, then it just sends back
+        // an empty buffer.
+        if (status.error_buf.len > 0) {
+            throw InternalException(FfiConverterString.lift(status.error_buf))
+        } else {
+            throw InternalException("Rust panic")
+        }
     } else {
-      throw InternalException("Rust panic")
+        throw InternalException("Unknown rust call status: $status.code")
     }
-  } else {
-    throw InternalException("Unknown rust call status: $status.code")
-  }
 }
 
 /**
@@ -301,62 +271,52 @@ private fun <E : kotlin.Exception> uniffiCheckCallStatus(
  *
  * @suppress
  */
-object UniffiNullRustCallStatusErrorHandler : UniffiRustCallStatusErrorHandler<InternalException> {
-  override fun lift(error_buf: RustBuffer.ByValue): InternalException {
-    RustBuffer.free(error_buf)
-    return InternalException("Unexpected CALL_ERROR")
-  }
+object UniffiNullRustCallStatusErrorHandler: UniffiRustCallStatusErrorHandler<InternalException> {
+    override fun lift(error_buf: RustBuffer.ByValue): InternalException {
+        RustBuffer.free(error_buf)
+        return InternalException("Unexpected CALL_ERROR")
+    }
 }
 
 // Call a rust function that returns a plain value
-private inline fun <U> uniffiRustCall(callback: (UniffiRustCallStatus) -> U): U =
-  uniffiRustCallWithError(UniffiNullRustCallStatusErrorHandler, callback)
-
-internal inline fun <T> uniffiTraitInterfaceCall(
-  callStatus: UniffiRustCallStatus,
-  makeCall: () -> T,
-  writeReturn: (T) -> Unit,
-) {
-  try {
-    writeReturn(makeCall())
-  } catch (e: kotlin.Exception) {
-    val err =
-      try {
-        e.stackTraceToString()
-      } catch (_: Throwable) {
-        ""
-      }
-    callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
-    callStatus.error_buf = FfiConverterString.lower(err)
-  }
+private inline fun <U> uniffiRustCall(callback: (UniffiRustCallStatus) -> U): U {
+    return uniffiRustCallWithError(UniffiNullRustCallStatusErrorHandler, callback)
 }
 
-internal inline fun <T, reified E : Throwable> uniffiTraitInterfaceCallWithError(
-  callStatus: UniffiRustCallStatus,
-  makeCall: () -> T,
-  writeReturn: (T) -> Unit,
-  lowerError: (E) -> RustBuffer.ByValue,
+internal inline fun<T> uniffiTraitInterfaceCall(
+    callStatus: UniffiRustCallStatus,
+    makeCall: () -> T,
+    writeReturn: (T) -> Unit,
 ) {
-  try {
-    writeReturn(makeCall())
-  } catch (e: kotlin.Exception) {
-    if (e is E) {
-      callStatus.code = UNIFFI_CALL_ERROR
-      callStatus.error_buf = lowerError(e)
-    } else {
-      val err =
-        try {
-          e.stackTraceToString()
-        } catch (_: Throwable) {
-          ""
-        }
-      callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
-      callStatus.error_buf = FfiConverterString.lower(err)
+    try {
+        writeReturn(makeCall())
+    } catch(e: kotlin.Exception) {
+        val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
+        callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
+        callStatus.error_buf = FfiConverterString.lower(err)
     }
-  }
 }
 
-// Initial value and increment amount for handles.
+internal inline fun<T, reified E: Throwable> uniffiTraitInterfaceCallWithError(
+    callStatus: UniffiRustCallStatus,
+    makeCall: () -> T,
+    writeReturn: (T) -> Unit,
+    lowerError: (E) -> RustBuffer.ByValue
+) {
+    try {
+        writeReturn(makeCall())
+    } catch(e: kotlin.Exception) {
+        if (e is E) {
+            callStatus.code = UNIFFI_CALL_ERROR
+            callStatus.error_buf = lowerError(e)
+        } else {
+            val err = try { e.stackTraceToString() } catch(_: Throwable) { "" }
+            callStatus.code = UNIFFI_CALL_UNEXPECTED_ERROR
+            callStatus.error_buf = FfiConverterString.lower(err)
+        }
+    }
+}
+// Initial value and increment amount for handles. 
 // These ensure that Kotlin-generated handles always have the lowest bit set
 private const val UNIFFI_HANDLEMAP_INITIAL = 1.toLong()
 private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
@@ -364,368 +324,303 @@ private const val UNIFFI_HANDLEMAP_DELTA = 2.toLong()
 // Map handles to objects
 //
 // This is used pass an opaque 64-bit handle representing a foreign object to the Rust code.
-internal class UniffiHandleMap<T : Any> {
-  private val map = ConcurrentHashMap<Long, T>()
+internal class UniffiHandleMap<T: Any> {
+    private val map = ConcurrentHashMap<Long, T>()
+    // Start 
+    private val counter = java.util.concurrent.atomic.AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
 
-  // Start
-  private val counter =
-    java.util.concurrent.atomic
-      .AtomicLong(UNIFFI_HANDLEMAP_INITIAL)
+    val size: Int
+        get() = map.size
 
-  val size: Int
-    get() = map.size
+    // Insert a new object into the handle map and get a handle for it
+    fun insert(obj: T): Long {
+        val handle = counter.getAndAdd(UNIFFI_HANDLEMAP_DELTA)
+        map.put(handle, obj)
+        return handle
+    }
 
-  // Insert a new object into the handle map and get a handle for it
-  fun insert(obj: T): Long {
-    val handle = counter.getAndAdd(UNIFFI_HANDLEMAP_DELTA)
-    map.put(handle, obj)
-    return handle
-  }
+    // Clone a handle, creating a new one
+    fun clone(handle: Long): Long {
+        val obj = map.get(handle) ?: throw InternalException("UniffiHandleMap.clone: Invalid handle")
+        return insert(obj)
+    }
 
-  // Clone a handle, creating a new one
-  fun clone(handle: Long): Long {
-    val obj = map.get(handle) ?: throw InternalException("UniffiHandleMap.clone: Invalid handle")
-    return insert(obj)
-  }
+    // Get an object from the handle map
+    fun get(handle: Long): T {
+        return map.get(handle) ?: throw InternalException("UniffiHandleMap.get: Invalid handle")
+    }
 
-  // Get an object from the handle map
-  fun get(handle: Long): T = map.get(handle) ?: throw InternalException("UniffiHandleMap.get: Invalid handle")
-
-  // Remove an entry from the handlemap and get the Kotlin object back
-  fun remove(handle: Long): T = map.remove(handle) ?: throw InternalException("UniffiHandleMap: Invalid handle")
+    // Remove an entry from the handlemap and get the Kotlin object back
+    fun remove(handle: Long): T {
+        return map.remove(handle) ?: throw InternalException("UniffiHandleMap: Invalid handle")
+    }
 }
 
 // Contains loading, initialization code,
 // and the FFI Function declarations in a com.sun.jna.Library.
 @Synchronized
 private fun findLibraryName(componentName: String): String {
-  val libOverride = System.getProperty("uniffi.component.$componentName.libraryOverride")
-  if (libOverride != null) {
-    return libOverride
-  }
-  return "aurelia_core"
+    val libOverride = System.getProperty("uniffi.component.$componentName.libraryOverride")
+    if (libOverride != null) {
+        return libOverride
+    }
+    return "aurelia_core"
 }
 
 // Define FFI callback types
 internal interface UniffiRustFutureContinuationCallback : com.sun.jna.Callback {
-  fun callback(
-    `data`: Long,
-    `pollResult`: Byte,
-  )
+    fun callback(`data`: Long,`pollResult`: Byte,)
 }
-
 internal interface UniffiForeignFutureDroppedCallback : com.sun.jna.Callback {
-  fun callback(`handle`: Long)
+    fun callback(`handle`: Long,)
 }
-
 internal interface UniffiCallbackInterfaceFree : com.sun.jna.Callback {
-  fun callback(`handle`: Long)
+    fun callback(`handle`: Long,)
 }
-
 internal interface UniffiCallbackInterfaceClone : com.sun.jna.Callback {
-  fun callback(`handle`: Long): Long
+    fun callback(`handle`: Long,)
+    : Long
 }
-
 @Structure.FieldOrder("handle", "free")
 internal open class UniffiForeignFutureDroppedCallbackStruct(
-  @JvmField internal var `handle`: Long = 0.toLong(),
-  @JvmField internal var `free`: UniffiForeignFutureDroppedCallback? = null,
+    @JvmField internal var `handle`: Long = 0.toLong(),
+    @JvmField internal var `free`: UniffiForeignFutureDroppedCallback? = null,
 ) : Structure() {
-  class UniffiByValue(
-    `handle`: Long = 0.toLong(),
-    `free`: UniffiForeignFutureDroppedCallback? = null,
-  ) : UniffiForeignFutureDroppedCallbackStruct(`handle`, `free`),
-    Structure.ByValue
+    class UniffiByValue(
+        `handle`: Long = 0.toLong(),
+        `free`: UniffiForeignFutureDroppedCallback? = null,
+    ): UniffiForeignFutureDroppedCallbackStruct(`handle`,`free`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
-    `handle` = other.`handle`
-    `free` = other.`free`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureDroppedCallbackStruct) {
+        `handle` = other.`handle`
+        `free` = other.`free`
+    }
+
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU8(
-  @JvmField internal var `returnValue`: Byte = 0.toByte(),
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Byte = 0.toByte(),
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Byte = 0.toByte(),
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultU8(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Byte = 0.toByte(),
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultU8(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU8) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteU8 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultU8.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU8.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI8(
-  @JvmField internal var `returnValue`: Byte = 0.toByte(),
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Byte = 0.toByte(),
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Byte = 0.toByte(),
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultI8(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Byte = 0.toByte(),
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultI8(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI8) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteI8 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultI8.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI8.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU16(
-  @JvmField internal var `returnValue`: Short = 0.toShort(),
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Short = 0.toShort(),
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Short = 0.toShort(),
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultU16(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Short = 0.toShort(),
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultU16(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU16) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteU16 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultU16.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU16.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI16(
-  @JvmField internal var `returnValue`: Short = 0.toShort(),
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Short = 0.toShort(),
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Short = 0.toShort(),
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultI16(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Short = 0.toShort(),
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultI16(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI16) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteI16 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultI16.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI16.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU32(
-  @JvmField internal var `returnValue`: Int = 0,
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Int = 0,
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Int = 0,
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultU32(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Int = 0,
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultU32(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU32) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteU32 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultU32.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI32(
-  @JvmField internal var `returnValue`: Int = 0,
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Int = 0,
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Int = 0,
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultI32(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Int = 0,
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultI32(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI32) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteI32 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultI32.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultU64(
-  @JvmField internal var `returnValue`: Long = 0.toLong(),
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Long = 0.toLong(),
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Long = 0.toLong(),
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultU64(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Long = 0.toLong(),
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultU64(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultU64) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteU64 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultU64.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultU64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultI64(
-  @JvmField internal var `returnValue`: Long = 0.toLong(),
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Long = 0.toLong(),
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Long = 0.toLong(),
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultI64(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Long = 0.toLong(),
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultI64(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultI64) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteI64 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultI64.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultI64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultF32(
-  @JvmField internal var `returnValue`: Float = 0.0f,
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Float = 0.0f,
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Float = 0.0f,
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultF32(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Float = 0.0f,
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultF32(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF32) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteF32 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultF32.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF32.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultF64(
-  @JvmField internal var `returnValue`: Double = 0.0,
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: Double = 0.0,
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: Double = 0.0,
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultF64(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: Double = 0.0,
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultF64(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultF64) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteF64 : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultF64.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultF64.UniffiByValue,)
 }
-
 @Structure.FieldOrder("returnValue", "callStatus")
 internal open class UniffiForeignFutureResultRustBuffer(
-  @JvmField internal var `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultRustBuffer(`returnValue`, `callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `returnValue`: RustBuffer.ByValue = RustBuffer.ByValue(),
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultRustBuffer(`returnValue`,`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
-    `returnValue` = other.`returnValue`
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultRustBuffer) {
+        `returnValue` = other.`returnValue`
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteRustBuffer : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultRustBuffer.UniffiByValue,)
 }
-
 @Structure.FieldOrder("callStatus")
 internal open class UniffiForeignFutureResultVoid(
-  @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    @JvmField internal var `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
 ) : Structure() {
-  class UniffiByValue(
-    `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
-  ) : UniffiForeignFutureResultVoid(`callStatus`),
-    Structure.ByValue
+    class UniffiByValue(
+        `callStatus`: UniffiRustCallStatus.ByValue = UniffiRustCallStatus.ByValue(),
+    ): UniffiForeignFutureResultVoid(`callStatus`,), Structure.ByValue
 
-  internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
-    `callStatus` = other.`callStatus`
-  }
+   internal fun uniffiSetValue(other: UniffiForeignFutureResultVoid) {
+        `callStatus` = other.`callStatus`
+    }
+
 }
-
 internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
-  fun callback(
-    `callbackData`: Long,
-    `result`: UniffiForeignFutureResultVoid.UniffiByValue,
-  )
+    fun callback(`callbackData`: Long,`result`: UniffiForeignFutureResultVoid.UniffiByValue,)
 }
 
 // A JNA Library to expose the extern-C FFI definitions.
@@ -745,698 +640,434 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 // Note: above all written when we used JNA's `loadIndirect` etc.
 // We now use JNA's "direct mapping" - unclear if same considerations apply exactly.
 internal object IntegrityCheckingUniffiLib {
-  init {
-    Native.register(IntegrityCheckingUniffiLib::class.java, findLibraryName(componentName = "aurelia_core"))
-    uniffiCheckContractApiVersion(this)
-    uniffiCheckApiChecksums(this)
-  }
+    init {
+        Native.register(IntegrityCheckingUniffiLib::class.java, findLibraryName(componentName = "aurelia_core"))
+        uniffiCheckContractApiVersion(this)
+        uniffiCheckApiChecksums(this)
+    }
+    external fun uniffi_aurelia_core_checksum_func_add_playlist_items(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_authenticate(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_build_mobile_stream_url(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_build_stream_url(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_cache_songs(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_clear_cache(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_clear_credentials(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_create_playlist(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_delete_playlist(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_delete_setting(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_derive_mobile_home_data(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_fetch_album(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_fetch_artist(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_fetch_songs(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_cached_album(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_cached_artist(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_cached_song(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_instant_mix(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_library_sync_state(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_lyrics(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_parsed_lyrics(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_playlist_items(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_playlists(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_recently_played(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_related_artists(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_song_share_urls(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_sync_state(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_load_cached_songs(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_load_credentials(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_load_setting(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_mark_item_played(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_ping(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_remove_playlist_items(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_save_credentials(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_save_setting(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_set_library_sync_state(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_sync_library_smart(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_sync_songs_only(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_toggle_favorite(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_update_playlist(
+    ): Short
+    external fun ffi_aurelia_core_uniffi_contract_version(
+    ): Int
 
-  external fun uniffi_aurelia_core_checksum_func_add_playlist_items(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_authenticate(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_build_mobile_stream_url(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_build_stream_url(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_cache_songs(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_clear_cache(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_clear_credentials(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_create_playlist(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_delete_playlist(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_delete_setting(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_derive_mobile_home_data(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_fetch_album(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_fetch_artist(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_fetch_songs(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_cached_album(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_cached_artist(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_cached_song(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_instant_mix(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_library_sync_state(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_lyrics(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_parsed_lyrics(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_playlist_items(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_playlists(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_recently_played(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_related_artists(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_song_share_urls(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_get_sync_state(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_load_cached_songs(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_load_credentials(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_load_setting(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_mark_item_played(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_ping(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_remove_playlist_items(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_save_credentials(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_save_setting(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_set_library_sync_state(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_sync_library_smart(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_sync_songs_only(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_toggle_favorite(): Short
-
-  external fun uniffi_aurelia_core_checksum_func_update_playlist(): Short
-
-  external fun ffi_aurelia_core_uniffi_contract_version(): Int
+        
 }
 
 internal object UniffiLib {
-  init {
-    Native.register(UniffiLib::class.java, findLibraryName(componentName = "aurelia_core"))
-    uniffi.aurelia_lyrics.uniffiEnsureInitialized()
-  }
-
-  external fun uniffi_aurelia_core_fn_func_add_playlist_items(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `playlistId`: RustBuffer.ByValue,
-    `itemIds`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_authenticate(
-    `serverUrl`: RustBuffer.ByValue,
-    `username`: RustBuffer.ByValue,
-    `password`: RustBuffer.ByValue,
-    `deviceId`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_build_mobile_stream_url(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `itemId`: RustBuffer.ByValue,
-    `container`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_build_stream_url(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `itemId`: RustBuffer.ByValue,
-    `container`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_cache_songs(
-    `appDataDir`: RustBuffer.ByValue,
-    `songs`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
-
-  external fun uniffi_aurelia_core_fn_func_clear_cache(
-    `appDataDir`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
-
-  external fun uniffi_aurelia_core_fn_func_clear_credentials(
-    `appDataDir`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
-
-  external fun uniffi_aurelia_core_fn_func_create_playlist(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `data`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_delete_playlist(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `playlistId`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_delete_setting(
-    `appDataDir`: RustBuffer.ByValue,
-    `key`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
-
-  external fun uniffi_aurelia_core_fn_func_derive_mobile_home_data(
-    `songs`: RustBuffer.ByValue,
-    `mostPlayedLimit`: Long,
-    `recentlyPlayedLimit`: Long,
-    `albumSectionLimit`: Long,
-    `featuredAlbumsLimit`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_fetch_album(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-    `albumId`: RustBuffer.ByValue,
-    `appDataDir`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_fetch_artist(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-    `artistId`: RustBuffer.ByValue,
-    `appDataDir`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_fetch_songs(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-    `appDataDir`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_cached_album(
-    `appDataDir`: RustBuffer.ByValue,
-    `albumId`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_get_cached_artist(
-    `appDataDir`: RustBuffer.ByValue,
-    `artistId`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_get_cached_song(
-    `appDataDir`: RustBuffer.ByValue,
-    `songId`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_get_instant_mix(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `itemId`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_library_sync_state(
-    `appDataDir`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_get_lyrics(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `itemId`: RustBuffer.ByValue,
-    `artist`: RustBuffer.ByValue,
-    `title`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_parsed_lyrics(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `itemId`: RustBuffer.ByValue,
-    `artist`: RustBuffer.ByValue,
-    `title`: RustBuffer.ByValue,
-    `path`: RustBuffer.ByValue,
-    `lyricsServerUrl`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_playlist_items(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `playlistId`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_playlists(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_recently_played(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_related_artists(
-    `appDataDir`: RustBuffer.ByValue,
-    `artistId`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_song_share_urls(`song`: RustBuffer.ByValue): Long
-
-  external fun uniffi_aurelia_core_fn_func_get_sync_state(
-    `appDataDir`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_load_cached_songs(
-    `appDataDir`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_load_credentials(
-    `appDataDir`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_load_setting(
-    `appDataDir`: RustBuffer.ByValue,
-    `key`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_mark_item_played(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-    `itemId`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_ping(uniffi_out_err: UniffiRustCallStatus): RustBuffer.ByValue
-
-  external fun uniffi_aurelia_core_fn_func_remove_playlist_items(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `playlistId`: RustBuffer.ByValue,
-    `itemIds`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_save_credentials(
-    `appDataDir`: RustBuffer.ByValue,
-    `credentials`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
-
-  external fun uniffi_aurelia_core_fn_func_save_setting(
-    `appDataDir`: RustBuffer.ByValue,
-    `key`: RustBuffer.ByValue,
-    `value`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
-
-  external fun uniffi_aurelia_core_fn_func_set_library_sync_state(
-    `appDataDir`: RustBuffer.ByValue,
-    `stateJson`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
-
-  external fun uniffi_aurelia_core_fn_func_sync_library_smart(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-    `appDataDir`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_sync_songs_only(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-    `appDataDir`: RustBuffer.ByValue,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_toggle_favorite(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `userId`: RustBuffer.ByValue,
-    `itemId`: RustBuffer.ByValue,
-    `isFavorite`: Byte,
-  ): Long
-
-  external fun uniffi_aurelia_core_fn_func_update_playlist(
-    `serverUrl`: RustBuffer.ByValue,
-    `token`: RustBuffer.ByValue,
-    `playlistId`: RustBuffer.ByValue,
-    `updates`: RustBuffer.ByValue,
-  ): Long
-
-  external fun ffi_aurelia_core_rustbuffer_alloc(
-    `size`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun ffi_aurelia_core_rustbuffer_from_bytes(
-    `bytes`: ForeignBytes.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun ffi_aurelia_core_rustbuffer_free(
-    `buf`: RustBuffer.ByValue,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
-
-  external fun ffi_aurelia_core_rustbuffer_reserve(
-    `buf`: RustBuffer.ByValue,
-    `additional`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun ffi_aurelia_core_rust_future_poll_u8(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_u8(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_u8(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_u8(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Byte
-
-  external fun ffi_aurelia_core_rust_future_poll_i8(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_i8(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_i8(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_i8(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Byte
-
-  external fun ffi_aurelia_core_rust_future_poll_u16(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_u16(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_u16(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_u16(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Short
-
-  external fun ffi_aurelia_core_rust_future_poll_i16(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_i16(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_i16(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_i16(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Short
-
-  external fun ffi_aurelia_core_rust_future_poll_u32(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_u32(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_u32(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_u32(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Int
-
-  external fun ffi_aurelia_core_rust_future_poll_i32(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_i32(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_i32(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_i32(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Int
-
-  external fun ffi_aurelia_core_rust_future_poll_u64(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_u64(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_u64(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_u64(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Long
-
-  external fun ffi_aurelia_core_rust_future_poll_i64(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_i64(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_i64(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_i64(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Long
-
-  external fun ffi_aurelia_core_rust_future_poll_f32(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_f32(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_f32(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_f32(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Float
-
-  external fun ffi_aurelia_core_rust_future_poll_f64(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_f64(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_f64(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_f64(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Double
-
-  external fun ffi_aurelia_core_rust_future_poll_rust_buffer(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_rust_buffer(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_rust_buffer(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_rust_buffer(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): RustBuffer.ByValue
-
-  external fun ffi_aurelia_core_rust_future_poll_void(
-    `handle`: Long,
-    `callback`: UniffiRustFutureContinuationCallback,
-    `callbackData`: Long,
-  ): Unit
-
-  external fun ffi_aurelia_core_rust_future_cancel_void(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_free_void(`handle`: Long): Unit
-
-  external fun ffi_aurelia_core_rust_future_complete_void(
-    `handle`: Long,
-    uniffi_out_err: UniffiRustCallStatus,
-  ): Unit
+    
+
+    init {
+        Native.register(UniffiLib::class.java, findLibraryName(componentName = "aurelia_core"))
+        uniffi.aurelia_lyrics.uniffiEnsureInitialized()
+        
+    }
+    external fun uniffi_aurelia_core_fn_func_add_playlist_items(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,`itemIds`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_authenticate(`serverUrl`: RustBuffer.ByValue,`username`: RustBuffer.ByValue,`password`: RustBuffer.ByValue,`deviceId`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_build_mobile_stream_url(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`container`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_build_stream_url(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`container`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_cache_songs(`appDataDir`: RustBuffer.ByValue,`songs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_clear_cache(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_clear_credentials(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_create_playlist(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`data`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_delete_playlist(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_delete_setting(`appDataDir`: RustBuffer.ByValue,`key`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_derive_mobile_home_data(`songs`: RustBuffer.ByValue,`mostPlayedLimit`: Long,`recentlyPlayedLimit`: Long,`albumSectionLimit`: Long,`featuredAlbumsLimit`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_fetch_album(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`albumId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_fetch_artist(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`artistId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_fetch_songs(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_cached_album(`appDataDir`: RustBuffer.ByValue,`albumId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_get_cached_artist(`appDataDir`: RustBuffer.ByValue,`artistId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_get_cached_song(`appDataDir`: RustBuffer.ByValue,`songId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_get_instant_mix(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_library_sync_state(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_get_lyrics(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`artist`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_parsed_lyrics(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`artist`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`path`: RustBuffer.ByValue,`lyricsServerUrl`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_playlist_items(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_playlists(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_recently_played(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_related_artists(`appDataDir`: RustBuffer.ByValue,`artistId`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_song_share_urls(`song`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_get_sync_state(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_load_cached_songs(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_load_credentials(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_load_setting(`appDataDir`: RustBuffer.ByValue,`key`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_mark_item_played(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_ping(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_remove_playlist_items(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,`itemIds`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_save_credentials(`appDataDir`: RustBuffer.ByValue,`credentials`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_save_setting(`appDataDir`: RustBuffer.ByValue,`key`: RustBuffer.ByValue,`value`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_set_library_sync_state(`appDataDir`: RustBuffer.ByValue,`stateJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_sync_library_smart(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_sync_songs_only(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_toggle_favorite(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`isFavorite`: Byte,
+): Long
+external fun uniffi_aurelia_core_fn_func_update_playlist(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,`updates`: RustBuffer.ByValue,
+): Long
+external fun ffi_aurelia_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun ffi_aurelia_core_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun ffi_aurelia_core_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun ffi_aurelia_core_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun ffi_aurelia_core_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_u8(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_u8(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+external fun ffi_aurelia_core_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_i8(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_i8(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Byte
+external fun ffi_aurelia_core_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_u16(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_u16(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Short
+external fun ffi_aurelia_core_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_i16(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_i16(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Short
+external fun ffi_aurelia_core_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_u32(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_u32(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Int
+external fun ffi_aurelia_core_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_i32(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_i32(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Int
+external fun ffi_aurelia_core_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_u64(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_u64(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun ffi_aurelia_core_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_i64(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_i64(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Long
+external fun ffi_aurelia_core_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_f32(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_f32(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Float
+external fun ffi_aurelia_core_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_f64(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_f64(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Double
+external fun ffi_aurelia_core_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_rust_buffer(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_rust_buffer(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun ffi_aurelia_core_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_cancel_void(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_free_void(`handle`: Long,
+): Unit
+external fun ffi_aurelia_core_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+
+    
 }
 
 private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
-  // Get the bindings contract version from our ComponentInterface
-  val bindings_contract_version = 30
-  // Get the scaffolding contract version by calling the into the dylib
-  val scaffolding_contract_version = lib.ffi_aurelia_core_uniffi_contract_version()
-  if (bindings_contract_version != scaffolding_contract_version) {
-    throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
-  }
+    // Get the bindings contract version from our ComponentInterface
+    val bindings_contract_version = 30
+    // Get the scaffolding contract version by calling the into the dylib
+    val scaffolding_contract_version = lib.ffi_aurelia_core_uniffi_contract_version()
+    if (bindings_contract_version != scaffolding_contract_version) {
+        throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
+    }
 }
-
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-  if (lib.uniffi_aurelia_core_checksum_func_add_playlist_items() != 46373.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_authenticate() != 60022.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_build_mobile_stream_url() != 27250.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_build_stream_url() != 58828.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_cache_songs() != 10571.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_clear_cache() != 40058.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_clear_credentials() != 41651.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_create_playlist() != 58760.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_delete_playlist() != 65389.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_delete_setting() != 48470.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_derive_mobile_home_data() != 22516.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_fetch_album() != 8785.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_fetch_artist() != 47144.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_fetch_songs() != 49218.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_cached_album() != 1296.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_cached_artist() != 36059.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_cached_song() != 35126.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_instant_mix() != 9719.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_library_sync_state() != 52280.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_lyrics() != 56114.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 62359.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_playlist_items() != 51827.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_playlists() != 13349.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_recently_played() != 2943.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_related_artists() != 7847.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_song_share_urls() != 18046.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_get_sync_state() != 52332.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_load_cached_songs() != 48653.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_load_credentials() != 1313.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_load_setting() != 26154.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_mark_item_played() != 53251.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_ping() != 25925.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_remove_playlist_items() != 51993.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_save_credentials() != 2487.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_save_setting() != 21497.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_sync_library_smart() != 54797.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_sync_songs_only() != 43201.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_toggle_favorite() != 55632.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
-  if (lib.uniffi_aurelia_core_checksum_func_update_playlist() != 21304.toShort()) {
-    throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-  }
+    if (lib.uniffi_aurelia_core_checksum_func_add_playlist_items() != 46373.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_authenticate() != 60022.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_build_mobile_stream_url() != 27250.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_build_stream_url() != 58828.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_cache_songs() != 10571.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_clear_cache() != 40058.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_clear_credentials() != 41651.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_create_playlist() != 58760.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_delete_playlist() != 65389.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_delete_setting() != 48470.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_derive_mobile_home_data() != 22516.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_fetch_album() != 8785.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_fetch_artist() != 47144.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_fetch_songs() != 49218.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_cached_album() != 1296.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_cached_artist() != 36059.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_cached_song() != 35126.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_instant_mix() != 9719.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_library_sync_state() != 52280.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_lyrics() != 56114.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 62359.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_playlist_items() != 51827.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_playlists() != 13349.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_recently_played() != 2943.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_related_artists() != 7847.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_song_share_urls() != 18046.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_sync_state() != 52332.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_load_cached_songs() != 48653.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_load_credentials() != 1313.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_load_setting() != 26154.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_mark_item_played() != 53251.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_ping() != 25925.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_remove_playlist_items() != 51993.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_save_credentials() != 2487.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_save_setting() != 21497.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_sync_library_smart() != 54797.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_sync_songs_only() != 43201.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_toggle_favorite() != 55632.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_update_playlist() != 21304.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
 }
 
 /**
  * @suppress
  */
 public fun uniffiEnsureInitialized() {
-  IntegrityCheckingUniffiLib
-  // UniffiLib() initialized as objects are used, but we still need to explicitly
-  // reference it so initialization across crates works as expected.
-  UniffiLib
+    IntegrityCheckingUniffiLib
+    // UniffiLib() initialized as objects are used, but we still need to explicitly
+    // reference it so initialization across crates works as expected.
+    UniffiLib
 }
 
 // Async support
@@ -1448,44 +1079,41 @@ internal const val UNIFFI_RUST_FUTURE_POLL_WAKE = 1.toByte()
 internal val uniffiContinuationHandleMap = UniffiHandleMap<CancellableContinuation<Byte>>()
 
 // FFI type for Rust future continuations
-internal object uniffiRustFutureContinuationCallbackImpl : UniffiRustFutureContinuationCallback {
-  override fun callback(
-    data: Long,
-    pollResult: Byte,
-  ) {
-    uniffiContinuationHandleMap.remove(data).resume(pollResult)
-  }
+internal object uniffiRustFutureContinuationCallbackImpl: UniffiRustFutureContinuationCallback {
+    override fun callback(data: Long, pollResult: Byte) {
+        uniffiContinuationHandleMap.remove(data).resume(pollResult)
+    }
 }
 
-internal suspend fun <T, F, E : kotlin.Exception> uniffiRustCallAsync(
-  rustFuture: Long,
-  pollFunc: (Long, UniffiRustFutureContinuationCallback, Long) -> Unit,
-  completeFunc: (Long, UniffiRustCallStatus) -> F,
-  freeFunc: (Long) -> Unit,
-  liftFunc: (F) -> T,
-  errorHandler: UniffiRustCallStatusErrorHandler<E>,
+internal suspend fun<T, F, E: kotlin.Exception> uniffiRustCallAsync(
+    rustFuture: Long,
+    pollFunc: (Long, UniffiRustFutureContinuationCallback, Long) -> Unit,
+    completeFunc: (Long, UniffiRustCallStatus) -> F,
+    freeFunc: (Long) -> Unit,
+    liftFunc: (F) -> T,
+    errorHandler: UniffiRustCallStatusErrorHandler<E>
 ): T {
-  try {
-    do {
-      val pollResult =
-        suspendCancellableCoroutine<Byte> { continuation ->
-          pollFunc(
-            rustFuture,
-            uniffiRustFutureContinuationCallbackImpl,
-            uniffiContinuationHandleMap.insert(continuation),
-          )
-        }
-    } while (pollResult != UNIFFI_RUST_FUTURE_POLL_READY)
+    try {
+        do {
+            val pollResult = suspendCancellableCoroutine<Byte> { continuation ->
+                pollFunc(
+                    rustFuture,
+                    uniffiRustFutureContinuationCallbackImpl,
+                    uniffiContinuationHandleMap.insert(continuation)
+                )
+            }
+        } while (pollResult != UNIFFI_RUST_FUTURE_POLL_READY);
 
-    return liftFunc(
-      uniffiRustCallWithError(errorHandler, { status -> completeFunc(rustFuture, status) }),
-    )
-  } finally {
-    freeFunc(rustFuture)
-  }
+        return liftFunc(
+            uniffiRustCallWithError(errorHandler, { status -> completeFunc(rustFuture, status) })
+        )
+    } finally {
+        freeFunc(rustFuture)
+    }
 }
 
 // Public interface members begin here.
+
 
 // Interface implemented by anything that can contain an object reference.
 //
@@ -1496,62 +1124,56 @@ internal suspend fun <T, F, E : kotlin.Exception> uniffiRustCallAsync(
 // The easiest way to ensure this method is called is to use the `.use`
 // helper method to execute a block and destroy the object at the end.
 interface Disposable {
-  fun destroy()
-
-  companion object {
-    fun destroy(vararg args: Any?) {
-      for (arg in args) {
-        when (arg) {
-          is Disposable -> {
-            arg.destroy()
-          }
-
-          is ArrayList<*> -> {
-            for (idx in arg.indices) {
-              val element = arg[idx]
-              if (element is Disposable) {
-                element.destroy()
-              }
+    fun destroy()
+    companion object {
+        fun destroy(vararg args: Any?) {
+            for (arg in args) {
+                when (arg) {
+                    is Disposable -> arg.destroy()
+                    is ArrayList<*> -> {
+                        for (idx in arg.indices) {
+                            val element = arg[idx]
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                    is Map<*, *> -> {
+                        for (element in arg.values) {
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                    is Iterable<*> -> {
+                        for (element in arg) {
+                            if (element is Disposable) {
+                                element.destroy()
+                            }
+                        }
+                    }
+                }
             }
-          }
-
-          is Map<*, *> -> {
-            for (element in arg.values) {
-              if (element is Disposable) {
-                element.destroy()
-              }
-            }
-          }
-
-          is Iterable<*> -> {
-            for (element in arg) {
-              if (element is Disposable) {
-                element.destroy()
-              }
-            }
-          }
         }
-      }
     }
-  }
 }
 
 /**
  * @suppress
  */
 inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
-  try {
-    block(this)
-  } finally {
     try {
-      // N.B. our implementation is on the nullable type `Disposable?`.
-      this?.destroy()
-    } catch (e: Throwable) {
-      // swallow
+        block(this)
+    } finally {
+        try {
+            // N.B. our implementation is on the nullable type `Disposable?`.
+            this?.destroy()
+        } catch (e: Throwable) {
+            // swallow
+        }
     }
-  }
 
-/**
+/** 
  * Placeholder object used to signal that we're constructing an interface with a FFI handle.
  *
  * This is the first argument for interface constructors that input a raw handle. It exists is that
@@ -1562,7 +1184,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
  * */
 object UniffiWithHandle
 
-/**
+/** 
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
@@ -1572,3364 +1194,3230 @@ object NoHandle
 /**
  * @suppress
  */
-public object FfiConverterUShort : FfiConverter<UShort, Short> {
-  override fun lift(value: Short): UShort = value.toUShort()
-
-  override fun read(buf: ByteBuffer): UShort = lift(buf.getShort())
-
-  override fun lower(value: UShort): Short = value.toShort()
-
-  override fun allocationSize(value: UShort) = 2UL
-
-  override fun write(
-    value: UShort,
-    buf: ByteBuffer,
-  ) {
-    buf.putShort(value.toShort())
-  }
-}
-
-/**
- * @suppress
- */
-public object FfiConverterUInt : FfiConverter<UInt, Int> {
-  override fun lift(value: Int): UInt = value.toUInt()
-
-  override fun read(buf: ByteBuffer): UInt = lift(buf.getInt())
-
-  override fun lower(value: UInt): Int = value.toInt()
-
-  override fun allocationSize(value: UInt) = 4UL
-
-  override fun write(
-    value: UInt,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.toInt())
-  }
-}
-
-/**
- * @suppress
- */
-public object FfiConverterInt : FfiConverter<Int, Int> {
-  override fun lift(value: Int): Int = value
-
-  override fun read(buf: ByteBuffer): Int = buf.getInt()
-
-  override fun lower(value: Int): Int = value
-
-  override fun allocationSize(value: Int) = 4UL
-
-  override fun write(
-    value: Int,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value)
-  }
-}
-
-/**
- * @suppress
- */
-public object FfiConverterULong : FfiConverter<ULong, Long> {
-  override fun lift(value: Long): ULong = value.toULong()
-
-  override fun read(buf: ByteBuffer): ULong = lift(buf.getLong())
-
-  override fun lower(value: ULong): Long = value.toLong()
-
-  override fun allocationSize(value: ULong) = 8UL
-
-  override fun write(
-    value: ULong,
-    buf: ByteBuffer,
-  ) {
-    buf.putLong(value.toLong())
-  }
-}
-
-/**
- * @suppress
- */
-public object FfiConverterLong : FfiConverter<Long, Long> {
-  override fun lift(value: Long): Long = value
-
-  override fun read(buf: ByteBuffer): Long = buf.getLong()
-
-  override fun lower(value: Long): Long = value
-
-  override fun allocationSize(value: Long) = 8UL
-
-  override fun write(
-    value: Long,
-    buf: ByteBuffer,
-  ) {
-    buf.putLong(value)
-  }
-}
-
-/**
- * @suppress
- */
-public object FfiConverterDouble : FfiConverter<Double, Double> {
-  override fun lift(value: Double): Double = value
-
-  override fun read(buf: ByteBuffer): Double = buf.getDouble()
-
-  override fun lower(value: Double): Double = value
-
-  override fun allocationSize(value: Double) = 8UL
-
-  override fun write(
-    value: Double,
-    buf: ByteBuffer,
-  ) {
-    buf.putDouble(value)
-  }
-}
-
-/**
- * @suppress
- */
-public object FfiConverterBoolean : FfiConverter<Boolean, Byte> {
-  override fun lift(value: Byte): Boolean = value.toInt() != 0
-
-  override fun read(buf: ByteBuffer): Boolean = lift(buf.get())
-
-  override fun lower(value: Boolean): Byte = if (value) 1.toByte() else 0.toByte()
-
-  override fun allocationSize(value: Boolean) = 1UL
-
-  override fun write(
-    value: Boolean,
-    buf: ByteBuffer,
-  ) {
-    buf.put(lower(value))
-  }
-}
-
-/**
- * @suppress
- */
-public object FfiConverterString : FfiConverter<String, RustBuffer.ByValue> {
-  // Note: we don't inherit from FfiConverterRustBuffer, because we use a
-  // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
-  // store our length and avoid writing it out to the buffer.
-  override fun lift(value: RustBuffer.ByValue): String {
-    try {
-      val byteArr = ByteArray(value.len.toInt())
-      value.asByteBuffer()!!.get(byteArr)
-      return byteArr.toString(Charsets.UTF_8)
-    } finally {
-      RustBuffer.free(value)
+public object FfiConverterUShort: FfiConverter<UShort, Short> {
+    override fun lift(value: Short): UShort {
+        return value.toUShort()
     }
-  }
 
-  override fun read(buf: ByteBuffer): String {
-    val len = buf.getInt()
-    val byteArr = ByteArray(len)
-    buf.get(byteArr)
-    return byteArr.toString(Charsets.UTF_8)
-  }
-
-  fun toUtf8(value: String): ByteBuffer {
-    // Make sure we don't have invalid UTF-16, check for lone surrogates.
-    return Charsets.UTF_8.newEncoder().run {
-      onMalformedInput(CodingErrorAction.REPORT)
-      encode(CharBuffer.wrap(value))
+    override fun read(buf: ByteBuffer): UShort {
+        return lift(buf.getShort())
     }
-  }
 
-  override fun lower(value: String): RustBuffer.ByValue {
-    val byteBuf = toUtf8(value)
-    // Ideally we'd pass these bytes to `ffi_bytebuffer_from_bytes`, but doing so would require us
-    // to copy them into a JNA `Memory`. So we might as well directly copy them into a `RustBuffer`.
-    val rbuf = RustBuffer.alloc(byteBuf.limit().toULong())
-    rbuf.asByteBuffer()!!.put(byteBuf)
-    return rbuf
-  }
+    override fun lower(value: UShort): Short {
+        return value.toShort()
+    }
 
-  // We aren't sure exactly how many bytes our string will be once it's UTF-8
-  // encoded.  Allocate 3 bytes per UTF-16 code unit which will always be
-  // enough.
-  override fun allocationSize(value: String): ULong {
-    val sizeForLength = 4UL
-    val sizeForString = value.length.toULong() * 3UL
-    return sizeForLength + sizeForString
-  }
+    override fun allocationSize(value: UShort) = 2UL
 
-  override fun write(
-    value: String,
-    buf: ByteBuffer,
-  ) {
-    val byteBuf = toUtf8(value)
-    buf.putInt(byteBuf.limit())
-    buf.put(byteBuf)
-  }
+    override fun write(value: UShort, buf: ByteBuffer) {
+        buf.putShort(value.toShort())
+    }
 }
+
+/**
+ * @suppress
+ */
+public object FfiConverterUInt: FfiConverter<UInt, Int> {
+    override fun lift(value: Int): UInt {
+        return value.toUInt()
+    }
+
+    override fun read(buf: ByteBuffer): UInt {
+        return lift(buf.getInt())
+    }
+
+    override fun lower(value: UInt): Int {
+        return value.toInt()
+    }
+
+    override fun allocationSize(value: UInt) = 4UL
+
+    override fun write(value: UInt, buf: ByteBuffer) {
+        buf.putInt(value.toInt())
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterInt: FfiConverter<Int, Int> {
+    override fun lift(value: Int): Int {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Int {
+        return buf.getInt()
+    }
+
+    override fun lower(value: Int): Int {
+        return value
+    }
+
+    override fun allocationSize(value: Int) = 4UL
+
+    override fun write(value: Int, buf: ByteBuffer) {
+        buf.putInt(value)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterULong: FfiConverter<ULong, Long> {
+    override fun lift(value: Long): ULong {
+        return value.toULong()
+    }
+
+    override fun read(buf: ByteBuffer): ULong {
+        return lift(buf.getLong())
+    }
+
+    override fun lower(value: ULong): Long {
+        return value.toLong()
+    }
+
+    override fun allocationSize(value: ULong) = 8UL
+
+    override fun write(value: ULong, buf: ByteBuffer) {
+        buf.putLong(value.toLong())
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterLong: FfiConverter<Long, Long> {
+    override fun lift(value: Long): Long {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Long {
+        return buf.getLong()
+    }
+
+    override fun lower(value: Long): Long {
+        return value
+    }
+
+    override fun allocationSize(value: Long) = 8UL
+
+    override fun write(value: Long, buf: ByteBuffer) {
+        buf.putLong(value)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterDouble: FfiConverter<Double, Double> {
+    override fun lift(value: Double): Double {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Double {
+        return buf.getDouble()
+    }
+
+    override fun lower(value: Double): Double {
+        return value
+    }
+
+    override fun allocationSize(value: Double) = 8UL
+
+    override fun write(value: Double, buf: ByteBuffer) {
+        buf.putDouble(value)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterBoolean: FfiConverter<Boolean, Byte> {
+    override fun lift(value: Byte): Boolean {
+        return value.toInt() != 0
+    }
+
+    override fun read(buf: ByteBuffer): Boolean {
+        return lift(buf.get())
+    }
+
+    override fun lower(value: Boolean): Byte {
+        return if (value) 1.toByte() else 0.toByte()
+    }
+
+    override fun allocationSize(value: Boolean) = 1UL
+
+    override fun write(value: Boolean, buf: ByteBuffer) {
+        buf.put(lower(value))
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
+    // Note: we don't inherit from FfiConverterRustBuffer, because we use a
+    // special encoding when lowering/lifting.  We can use `RustBuffer.len` to
+    // store our length and avoid writing it out to the buffer.
+    override fun lift(value: RustBuffer.ByValue): String {
+        try {
+            val byteArr = ByteArray(value.len.toInt())
+            value.asByteBuffer()!!.get(byteArr)
+            return byteArr.toString(Charsets.UTF_8)
+        } finally {
+            RustBuffer.free(value)
+        }
+    }
+
+    override fun read(buf: ByteBuffer): String {
+        val len = buf.getInt()
+        val byteArr = ByteArray(len)
+        buf.get(byteArr)
+        return byteArr.toString(Charsets.UTF_8)
+    }
+
+    fun toUtf8(value: String): ByteBuffer {
+        // Make sure we don't have invalid UTF-16, check for lone surrogates.
+        return Charsets.UTF_8.newEncoder().run {
+            onMalformedInput(CodingErrorAction.REPORT)
+            encode(CharBuffer.wrap(value))
+        }
+    }
+
+    override fun lower(value: String): RustBuffer.ByValue {
+        val byteBuf = toUtf8(value)
+        // Ideally we'd pass these bytes to `ffi_bytebuffer_from_bytes`, but doing so would require us
+        // to copy them into a JNA `Memory`. So we might as well directly copy them into a `RustBuffer`.
+        val rbuf = RustBuffer.alloc(byteBuf.limit().toULong())
+        rbuf.asByteBuffer()!!.put(byteBuf)
+        return rbuf
+    }
+
+    // We aren't sure exactly how many bytes our string will be once it's UTF-8
+    // encoded.  Allocate 3 bytes per UTF-16 code unit which will always be
+    // enough.
+    override fun allocationSize(value: String): ULong {
+        val sizeForLength = 4UL
+        val sizeForString = value.length.toULong() * 3UL
+        return sizeForLength + sizeForString
+    }
+
+    override fun write(value: String, buf: ByteBuffer) {
+        val byteBuf = toUtf8(value)
+        buf.putInt(byteBuf.limit())
+        buf.put(byteBuf)
+    }
+}
+
+
 
 /**
  * Consolidated album type with all information
  */
-data class Album(
-  /**
-   * Album ID from Jellyfin
-   */
-  var `id`: kotlin.String?,
-  /**
-   * Album name
-   */
-  var `name`: kotlin.String,
-  /**
-   * Primary artist name
-   */
-  var `artist`: kotlin.String,
-  /**
-   * Primary artist ID
-   */
-  var `artistId`: kotlin.String?,
-  /**
-   * URL to album artwork
-   */
-  var `albumArtUrl`: kotlin.String?,
-  /**
-   * Number of songs in album
-   */
-  var `songCount`: kotlin.Long,
-  /**
-   * Optional list of songs in this album (only populated when needed)
-   */
-  var `songs`: List<Song>?,
-  /**
-   * Image tags
-   */
-  var `imageTags`: Map<kotlin.String, kotlin.String>?,
-  /**
-   * External provider IDs (`MusicBrainz`, etc.)
-   */
-  var `providerIds`: Map<kotlin.String, kotlin.String>?,
-  /**
-   * Date created (when added to server)
-   */
-  var `dateCreated`: kotlin.String?,
-  /**
-   * Date last modified on server
-   */
-  var `dateModified`: kotlin.String?,
-) {
-  companion object
+data class Album (
+    /**
+     * Album ID from Jellyfin
+     */
+    var `id`: kotlin.String?
+    , 
+    /**
+     * Album name
+     */
+    var `name`: kotlin.String
+    , 
+    /**
+     * Primary artist name
+     */
+    var `artist`: kotlin.String
+    , 
+    /**
+     * Primary artist ID
+     */
+    var `artistId`: kotlin.String?
+    , 
+    /**
+     * URL to album artwork
+     */
+    var `albumArtUrl`: kotlin.String?
+    , 
+    /**
+     * Number of songs in album
+     */
+    var `songCount`: kotlin.Long
+    , 
+    /**
+     * Optional list of songs in this album (only populated when needed)
+     */
+    var `songs`: List<Song>?
+    , 
+    /**
+     * Image tags
+     */
+    var `imageTags`: Map<kotlin.String, kotlin.String>?
+    , 
+    /**
+     * External provider IDs (`MusicBrainz`, etc.)
+     */
+    var `providerIds`: Map<kotlin.String, kotlin.String>?
+    , 
+    /**
+     * Date created (when added to server)
+     */
+    var `dateCreated`: kotlin.String?
+    , 
+    /**
+     * Date last modified on server
+     */
+    var `dateModified`: kotlin.String?
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeAlbum : FfiConverterRustBuffer<Album> {
-  override fun read(buf: ByteBuffer): Album =
-    Album(
-      FfiConverterOptionalString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterLong.read(buf),
-      FfiConverterOptionalSequenceTypeSong.read(buf),
-      FfiConverterOptionalMapStringString.read(buf),
-      FfiConverterOptionalMapStringString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
+public object FfiConverterTypeAlbum: FfiConverterRustBuffer<Album> {
+    override fun read(buf: ByteBuffer): Album {
+        return Album(
+            FfiConverterOptionalString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterOptionalSequenceTypeSong.read(buf),
+            FfiConverterOptionalMapStringString.read(buf),
+            FfiConverterOptionalMapStringString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Album) = (
+            FfiConverterOptionalString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterString.allocationSize(value.`artist`) +
+            FfiConverterOptionalString.allocationSize(value.`artistId`) +
+            FfiConverterOptionalString.allocationSize(value.`albumArtUrl`) +
+            FfiConverterLong.allocationSize(value.`songCount`) +
+            FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`) +
+            FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
+            FfiConverterOptionalMapStringString.allocationSize(value.`providerIds`) +
+            FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
+            FfiConverterOptionalString.allocationSize(value.`dateModified`)
     )
 
-  override fun allocationSize(value: Album) =
-    (
-      FfiConverterOptionalString.allocationSize(value.`id`) +
-        FfiConverterString.allocationSize(value.`name`) +
-        FfiConverterString.allocationSize(value.`artist`) +
-        FfiConverterOptionalString.allocationSize(value.`artistId`) +
-        FfiConverterOptionalString.allocationSize(value.`albumArtUrl`) +
-        FfiConverterLong.allocationSize(value.`songCount`) +
-        FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`) +
-        FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
-        FfiConverterOptionalMapStringString.allocationSize(value.`providerIds`) +
-        FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
-        FfiConverterOptionalString.allocationSize(value.`dateModified`)
-    )
-
-  override fun write(
-    value: Album,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterOptionalString.write(value.`id`, buf)
-    FfiConverterString.write(value.`name`, buf)
-    FfiConverterString.write(value.`artist`, buf)
-    FfiConverterOptionalString.write(value.`artistId`, buf)
-    FfiConverterOptionalString.write(value.`albumArtUrl`, buf)
-    FfiConverterLong.write(value.`songCount`, buf)
-    FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
-    FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
-    FfiConverterOptionalMapStringString.write(value.`providerIds`, buf)
-    FfiConverterOptionalString.write(value.`dateCreated`, buf)
-    FfiConverterOptionalString.write(value.`dateModified`, buf)
-  }
+    override fun write(value: Album, buf: ByteBuffer) {
+            FfiConverterOptionalString.write(value.`id`, buf)
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterString.write(value.`artist`, buf)
+            FfiConverterOptionalString.write(value.`artistId`, buf)
+            FfiConverterOptionalString.write(value.`albumArtUrl`, buf)
+            FfiConverterLong.write(value.`songCount`, buf)
+            FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
+            FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+            FfiConverterOptionalMapStringString.write(value.`providerIds`, buf)
+            FfiConverterOptionalString.write(value.`dateCreated`, buf)
+            FfiConverterOptionalString.write(value.`dateModified`, buf)
+    }
 }
+
+
 
 /**
  * Consolidated artist type with all information
  */
-data class Artist(
-  /**
-   * Artist name
-   */
-  var `name`: kotlin.String,
-  /**
-   * Artist ID
-   */
-  var `id`: kotlin.String,
-  /**
-   * Image tags (metadata about available images)
-   */
-  var `imageTags`: Map<kotlin.String, kotlin.String>?,
-  /**
-   * URL to artist image
-   */
-  var `imageUrl`: kotlin.String?,
-  /**
-   * Artist biography/description
-   */
-  var `overview`: kotlin.String?,
-  /**
-   * External provider IDs (`MusicBrainz`, etc.)
-   */
-  var `providerIds`: Map<kotlin.String, kotlin.String>?,
-  /**
-   * Community rating
-   */
-  var `communityRating`: kotlin.Double?,
-  /**
-   * Number of songs by this artist
-   */
-  var `songCount`: kotlin.Long?,
-  /**
-   * Date last modified on server
-   */
-  var `dateModified`: kotlin.String?,
-  /**
-   * Optional list of songs by this artist (only populated when needed)
-   */
-  var `songs`: List<Song>?,
-) {
-  companion object
+data class Artist (
+    /**
+     * Artist name
+     */
+    var `name`: kotlin.String
+    , 
+    /**
+     * Artist ID
+     */
+    var `id`: kotlin.String
+    , 
+    /**
+     * Image tags (metadata about available images)
+     */
+    var `imageTags`: Map<kotlin.String, kotlin.String>?
+    , 
+    /**
+     * URL to artist image
+     */
+    var `imageUrl`: kotlin.String?
+    , 
+    /**
+     * Artist biography/description
+     */
+    var `overview`: kotlin.String?
+    , 
+    /**
+     * External provider IDs (`MusicBrainz`, etc.)
+     */
+    var `providerIds`: Map<kotlin.String, kotlin.String>?
+    , 
+    /**
+     * Community rating
+     */
+    var `communityRating`: kotlin.Double?
+    , 
+    /**
+     * Number of songs by this artist
+     */
+    var `songCount`: kotlin.Long?
+    , 
+    /**
+     * Date last modified on server
+     */
+    var `dateModified`: kotlin.String?
+    , 
+    /**
+     * Optional list of songs by this artist (only populated when needed)
+     */
+    var `songs`: List<Song>?
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeArtist : FfiConverterRustBuffer<Artist> {
-  override fun read(buf: ByteBuffer): Artist =
-    Artist(
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterOptionalMapStringString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalMapStringString.read(buf),
-      FfiConverterOptionalDouble.read(buf),
-      FfiConverterOptionalLong.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalSequenceTypeSong.read(buf),
+public object FfiConverterTypeArtist: FfiConverterRustBuffer<Artist> {
+    override fun read(buf: ByteBuffer): Artist {
+        return Artist(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalMapStringString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalMapStringString.read(buf),
+            FfiConverterOptionalDouble.read(buf),
+            FfiConverterOptionalLong.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalSequenceTypeSong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Artist) = (
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
+            FfiConverterOptionalString.allocationSize(value.`imageUrl`) +
+            FfiConverterOptionalString.allocationSize(value.`overview`) +
+            FfiConverterOptionalMapStringString.allocationSize(value.`providerIds`) +
+            FfiConverterOptionalDouble.allocationSize(value.`communityRating`) +
+            FfiConverterOptionalLong.allocationSize(value.`songCount`) +
+            FfiConverterOptionalString.allocationSize(value.`dateModified`) +
+            FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`)
     )
 
-  override fun allocationSize(value: Artist) =
-    (
-      FfiConverterString.allocationSize(value.`name`) +
-        FfiConverterString.allocationSize(value.`id`) +
-        FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
-        FfiConverterOptionalString.allocationSize(value.`imageUrl`) +
-        FfiConverterOptionalString.allocationSize(value.`overview`) +
-        FfiConverterOptionalMapStringString.allocationSize(value.`providerIds`) +
-        FfiConverterOptionalDouble.allocationSize(value.`communityRating`) +
-        FfiConverterOptionalLong.allocationSize(value.`songCount`) +
-        FfiConverterOptionalString.allocationSize(value.`dateModified`) +
-        FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`)
-    )
-
-  override fun write(
-    value: Artist,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`name`, buf)
-    FfiConverterString.write(value.`id`, buf)
-    FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
-    FfiConverterOptionalString.write(value.`imageUrl`, buf)
-    FfiConverterOptionalString.write(value.`overview`, buf)
-    FfiConverterOptionalMapStringString.write(value.`providerIds`, buf)
-    FfiConverterOptionalDouble.write(value.`communityRating`, buf)
-    FfiConverterOptionalLong.write(value.`songCount`, buf)
-    FfiConverterOptionalString.write(value.`dateModified`, buf)
-    FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
-  }
+    override fun write(value: Artist, buf: ByteBuffer) {
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+            FfiConverterOptionalString.write(value.`imageUrl`, buf)
+            FfiConverterOptionalString.write(value.`overview`, buf)
+            FfiConverterOptionalMapStringString.write(value.`providerIds`, buf)
+            FfiConverterOptionalDouble.write(value.`communityRating`, buf)
+            FfiConverterOptionalLong.write(value.`songCount`, buf)
+            FfiConverterOptionalString.write(value.`dateModified`, buf)
+            FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
+    }
 }
+
+
 
 /**
  * User credentials for Jellyfin authentication
  */
-data class Credentials(
-  /**
-   * Jellyfin server URL
-   */
-  var `serverUrl`: kotlin.String,
-  /**
-   * Username
-   */
-  var `username`: kotlin.String,
-  /**
-   * Authentication token
-   */
-  var `token`: kotlin.String,
-  /**
-   * User ID
-   */
-  var `userId`: kotlin.String,
-) {
-  companion object
+data class Credentials (
+    /**
+     * Jellyfin server URL
+     */
+    var `serverUrl`: kotlin.String
+    , 
+    /**
+     * Username
+     */
+    var `username`: kotlin.String
+    , 
+    /**
+     * Authentication token
+     */
+    var `token`: kotlin.String
+    , 
+    /**
+     * User ID
+     */
+    var `userId`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeCredentials : FfiConverterRustBuffer<Credentials> {
-  override fun read(buf: ByteBuffer): Credentials =
-    Credentials(
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
+public object FfiConverterTypeCredentials: FfiConverterRustBuffer<Credentials> {
+    override fun read(buf: ByteBuffer): Credentials {
+        return Credentials(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Credentials) = (
+            FfiConverterString.allocationSize(value.`serverUrl`) +
+            FfiConverterString.allocationSize(value.`username`) +
+            FfiConverterString.allocationSize(value.`token`) +
+            FfiConverterString.allocationSize(value.`userId`)
     )
 
-  override fun allocationSize(value: Credentials) =
-    (
-      FfiConverterString.allocationSize(value.`serverUrl`) +
-        FfiConverterString.allocationSize(value.`username`) +
-        FfiConverterString.allocationSize(value.`token`) +
-        FfiConverterString.allocationSize(value.`userId`)
-    )
-
-  override fun write(
-    value: Credentials,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`serverUrl`, buf)
-    FfiConverterString.write(value.`username`, buf)
-    FfiConverterString.write(value.`token`, buf)
-    FfiConverterString.write(value.`userId`, buf)
-  }
+    override fun write(value: Credentials, buf: ByteBuffer) {
+            FfiConverterString.write(value.`serverUrl`, buf)
+            FfiConverterString.write(value.`username`, buf)
+            FfiConverterString.write(value.`token`, buf)
+            FfiConverterString.write(value.`userId`, buf)
+    }
 }
 
-data class HomeViewData(
-  var `recentlyPlayed`: List<Song>,
-  var `recentlyAdded`: List<Album>,
-  var `randomAlbums`: List<Album>,
-  var `featuredAlbums`: List<Album>,
-) {
-  companion object
+
+
+data class HomeViewData (
+    var `recentlyPlayed`: List<Song>
+    , 
+    var `recentlyAdded`: List<Album>
+    , 
+    var `randomAlbums`: List<Album>
+    , 
+    var `featuredAlbums`: List<Album>
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeHomeViewData : FfiConverterRustBuffer<HomeViewData> {
-  override fun read(buf: ByteBuffer): HomeViewData =
-    HomeViewData(
-      FfiConverterSequenceTypeSong.read(buf),
-      FfiConverterSequenceTypeAlbum.read(buf),
-      FfiConverterSequenceTypeAlbum.read(buf),
-      FfiConverterSequenceTypeAlbum.read(buf),
+public object FfiConverterTypeHomeViewData: FfiConverterRustBuffer<HomeViewData> {
+    override fun read(buf: ByteBuffer): HomeViewData {
+        return HomeViewData(
+            FfiConverterSequenceTypeSong.read(buf),
+            FfiConverterSequenceTypeAlbum.read(buf),
+            FfiConverterSequenceTypeAlbum.read(buf),
+            FfiConverterSequenceTypeAlbum.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: HomeViewData) = (
+            FfiConverterSequenceTypeSong.allocationSize(value.`recentlyPlayed`) +
+            FfiConverterSequenceTypeAlbum.allocationSize(value.`recentlyAdded`) +
+            FfiConverterSequenceTypeAlbum.allocationSize(value.`randomAlbums`) +
+            FfiConverterSequenceTypeAlbum.allocationSize(value.`featuredAlbums`)
     )
 
-  override fun allocationSize(value: HomeViewData) =
-    (
-      FfiConverterSequenceTypeSong.allocationSize(value.`recentlyPlayed`) +
-        FfiConverterSequenceTypeAlbum.allocationSize(value.`recentlyAdded`) +
-        FfiConverterSequenceTypeAlbum.allocationSize(value.`randomAlbums`) +
-        FfiConverterSequenceTypeAlbum.allocationSize(value.`featuredAlbums`)
-    )
-
-  override fun write(
-    value: HomeViewData,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterSequenceTypeSong.write(value.`recentlyPlayed`, buf)
-    FfiConverterSequenceTypeAlbum.write(value.`recentlyAdded`, buf)
-    FfiConverterSequenceTypeAlbum.write(value.`randomAlbums`, buf)
-    FfiConverterSequenceTypeAlbum.write(value.`featuredAlbums`, buf)
-  }
+    override fun write(value: HomeViewData, buf: ByteBuffer) {
+            FfiConverterSequenceTypeSong.write(value.`recentlyPlayed`, buf)
+            FfiConverterSequenceTypeAlbum.write(value.`recentlyAdded`, buf)
+            FfiConverterSequenceTypeAlbum.write(value.`randomAlbums`, buf)
+            FfiConverterSequenceTypeAlbum.write(value.`featuredAlbums`, buf)
+    }
 }
+
+
 
 /**
  * Limits used when deriving home sections from a song list.
  */
-data class HomeViewLimits(
-  var `featuredAlbums`: kotlin.UInt,
-  var `randomAlbums`: kotlin.UInt,
-  var `recentlyAddedAlbums`: kotlin.UInt,
-) {
-  companion object
+data class HomeViewLimits (
+    var `featuredAlbums`: kotlin.UInt
+    , 
+    var `randomAlbums`: kotlin.UInt
+    , 
+    var `recentlyAddedAlbums`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeHomeViewLimits : FfiConverterRustBuffer<HomeViewLimits> {
-  override fun read(buf: ByteBuffer): HomeViewLimits =
-    HomeViewLimits(
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
+public object FfiConverterTypeHomeViewLimits: FfiConverterRustBuffer<HomeViewLimits> {
+    override fun read(buf: ByteBuffer): HomeViewLimits {
+        return HomeViewLimits(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: HomeViewLimits) = (
+            FfiConverterUInt.allocationSize(value.`featuredAlbums`) +
+            FfiConverterUInt.allocationSize(value.`randomAlbums`) +
+            FfiConverterUInt.allocationSize(value.`recentlyAddedAlbums`)
     )
 
-  override fun allocationSize(value: HomeViewLimits) =
-    (
-      FfiConverterUInt.allocationSize(value.`featuredAlbums`) +
-        FfiConverterUInt.allocationSize(value.`randomAlbums`) +
-        FfiConverterUInt.allocationSize(value.`recentlyAddedAlbums`)
-    )
-
-  override fun write(
-    value: HomeViewLimits,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterUInt.write(value.`featuredAlbums`, buf)
-    FfiConverterUInt.write(value.`randomAlbums`, buf)
-    FfiConverterUInt.write(value.`recentlyAddedAlbums`, buf)
-  }
+    override fun write(value: HomeViewLimits, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`featuredAlbums`, buf)
+            FfiConverterUInt.write(value.`randomAlbums`, buf)
+            FfiConverterUInt.write(value.`recentlyAddedAlbums`, buf)
+    }
 }
 
-data class LibraryData(
-  var `albums`: List<Album>,
-  var `artists`: List<Artist>,
-  var `songs`: List<Song>,
-) {
-  companion object
+
+
+data class LibraryData (
+    var `albums`: List<Album>
+    , 
+    var `artists`: List<Artist>
+    , 
+    var `songs`: List<Song>
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeLibraryData : FfiConverterRustBuffer<LibraryData> {
-  override fun read(buf: ByteBuffer): LibraryData =
-    LibraryData(
-      FfiConverterSequenceTypeAlbum.read(buf),
-      FfiConverterSequenceTypeArtist.read(buf),
-      FfiConverterSequenceTypeSong.read(buf),
+public object FfiConverterTypeLibraryData: FfiConverterRustBuffer<LibraryData> {
+    override fun read(buf: ByteBuffer): LibraryData {
+        return LibraryData(
+            FfiConverterSequenceTypeAlbum.read(buf),
+            FfiConverterSequenceTypeArtist.read(buf),
+            FfiConverterSequenceTypeSong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: LibraryData) = (
+            FfiConverterSequenceTypeAlbum.allocationSize(value.`albums`) +
+            FfiConverterSequenceTypeArtist.allocationSize(value.`artists`) +
+            FfiConverterSequenceTypeSong.allocationSize(value.`songs`)
     )
 
-  override fun allocationSize(value: LibraryData) =
-    (
-      FfiConverterSequenceTypeAlbum.allocationSize(value.`albums`) +
-        FfiConverterSequenceTypeArtist.allocationSize(value.`artists`) +
-        FfiConverterSequenceTypeSong.allocationSize(value.`songs`)
-    )
-
-  override fun write(
-    value: LibraryData,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterSequenceTypeAlbum.write(value.`albums`, buf)
-    FfiConverterSequenceTypeArtist.write(value.`artists`, buf)
-    FfiConverterSequenceTypeSong.write(value.`songs`, buf)
-  }
+    override fun write(value: LibraryData, buf: ByteBuffer) {
+            FfiConverterSequenceTypeAlbum.write(value.`albums`, buf)
+            FfiConverterSequenceTypeArtist.write(value.`artists`, buf)
+            FfiConverterSequenceTypeSong.write(value.`songs`, buf)
+    }
 }
+
+
 
 /**
  * Response from successful Jellyfin login
  */
-data class LoginResponse(
-  /**
-   * User authentication token
-   */
-  var `token`: kotlin.String,
-  /**
-   * User ID
-   */
-  var `userId`: kotlin.String,
-) {
-  companion object
+data class LoginResponse (
+    /**
+     * User authentication token
+     */
+    var `token`: kotlin.String
+    , 
+    /**
+     * User ID
+     */
+    var `userId`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeLoginResponse : FfiConverterRustBuffer<LoginResponse> {
-  override fun read(buf: ByteBuffer): LoginResponse =
-    LoginResponse(
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
+public object FfiConverterTypeLoginResponse: FfiConverterRustBuffer<LoginResponse> {
+    override fun read(buf: ByteBuffer): LoginResponse {
+        return LoginResponse(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: LoginResponse) = (
+            FfiConverterString.allocationSize(value.`token`) +
+            FfiConverterString.allocationSize(value.`userId`)
     )
 
-  override fun allocationSize(value: LoginResponse) =
-    (
-      FfiConverterString.allocationSize(value.`token`) +
-        FfiConverterString.allocationSize(value.`userId`)
-    )
-
-  override fun write(
-    value: LoginResponse,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`token`, buf)
-    FfiConverterString.write(value.`userId`, buf)
-  }
+    override fun write(value: LoginResponse, buf: ByteBuffer) {
+            FfiConverterString.write(value.`token`, buf)
+            FfiConverterString.write(value.`userId`, buf)
+    }
 }
+
+
 
 /**
  * Home view sections used by mobile clients.
  */
-data class MobileHomeData(
-  var `mostPlayed`: List<Song>,
-  var `recentlyPlayed`: List<Song>,
-  var `recentlyAdded`: List<Album>,
-  var `randomAlbums`: List<Album>,
-  var `featuredAlbums`: List<Album>,
-) {
-  companion object
+data class MobileHomeData (
+    var `mostPlayed`: List<Song>
+    , 
+    var `recentlyPlayed`: List<Song>
+    , 
+    var `recentlyAdded`: List<Album>
+    , 
+    var `randomAlbums`: List<Album>
+    , 
+    var `featuredAlbums`: List<Album>
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeMobileHomeData : FfiConverterRustBuffer<MobileHomeData> {
-  override fun read(buf: ByteBuffer): MobileHomeData =
-    MobileHomeData(
-      FfiConverterSequenceTypeSong.read(buf),
-      FfiConverterSequenceTypeSong.read(buf),
-      FfiConverterSequenceTypeAlbum.read(buf),
-      FfiConverterSequenceTypeAlbum.read(buf),
-      FfiConverterSequenceTypeAlbum.read(buf),
+public object FfiConverterTypeMobileHomeData: FfiConverterRustBuffer<MobileHomeData> {
+    override fun read(buf: ByteBuffer): MobileHomeData {
+        return MobileHomeData(
+            FfiConverterSequenceTypeSong.read(buf),
+            FfiConverterSequenceTypeSong.read(buf),
+            FfiConverterSequenceTypeAlbum.read(buf),
+            FfiConverterSequenceTypeAlbum.read(buf),
+            FfiConverterSequenceTypeAlbum.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: MobileHomeData) = (
+            FfiConverterSequenceTypeSong.allocationSize(value.`mostPlayed`) +
+            FfiConverterSequenceTypeSong.allocationSize(value.`recentlyPlayed`) +
+            FfiConverterSequenceTypeAlbum.allocationSize(value.`recentlyAdded`) +
+            FfiConverterSequenceTypeAlbum.allocationSize(value.`randomAlbums`) +
+            FfiConverterSequenceTypeAlbum.allocationSize(value.`featuredAlbums`)
     )
 
-  override fun allocationSize(value: MobileHomeData) =
-    (
-      FfiConverterSequenceTypeSong.allocationSize(value.`mostPlayed`) +
-        FfiConverterSequenceTypeSong.allocationSize(value.`recentlyPlayed`) +
-        FfiConverterSequenceTypeAlbum.allocationSize(value.`recentlyAdded`) +
-        FfiConverterSequenceTypeAlbum.allocationSize(value.`randomAlbums`) +
-        FfiConverterSequenceTypeAlbum.allocationSize(value.`featuredAlbums`)
-    )
-
-  override fun write(
-    value: MobileHomeData,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterSequenceTypeSong.write(value.`mostPlayed`, buf)
-    FfiConverterSequenceTypeSong.write(value.`recentlyPlayed`, buf)
-    FfiConverterSequenceTypeAlbum.write(value.`recentlyAdded`, buf)
-    FfiConverterSequenceTypeAlbum.write(value.`randomAlbums`, buf)
-    FfiConverterSequenceTypeAlbum.write(value.`featuredAlbums`, buf)
-  }
+    override fun write(value: MobileHomeData, buf: ByteBuffer) {
+            FfiConverterSequenceTypeSong.write(value.`mostPlayed`, buf)
+            FfiConverterSequenceTypeSong.write(value.`recentlyPlayed`, buf)
+            FfiConverterSequenceTypeAlbum.write(value.`recentlyAdded`, buf)
+            FfiConverterSequenceTypeAlbum.write(value.`randomAlbums`, buf)
+            FfiConverterSequenceTypeAlbum.write(value.`featuredAlbums`, buf)
+    }
 }
+
+
 
 /**
  * Limits used when deriving mobile home sections from a song list.
  */
-data class MobileHomeViewLimits(
-  var `mostPlayed`: kotlin.UInt,
-  var `recentlyPlayed`: kotlin.UInt,
-  var `albumSection`: kotlin.UInt,
-  var `featuredAlbums`: kotlin.UInt,
-) {
-  companion object
+data class MobileHomeViewLimits (
+    var `mostPlayed`: kotlin.UInt
+    , 
+    var `recentlyPlayed`: kotlin.UInt
+    , 
+    var `albumSection`: kotlin.UInt
+    , 
+    var `featuredAlbums`: kotlin.UInt
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeMobileHomeViewLimits : FfiConverterRustBuffer<MobileHomeViewLimits> {
-  override fun read(buf: ByteBuffer): MobileHomeViewLimits =
-    MobileHomeViewLimits(
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
+public object FfiConverterTypeMobileHomeViewLimits: FfiConverterRustBuffer<MobileHomeViewLimits> {
+    override fun read(buf: ByteBuffer): MobileHomeViewLimits {
+        return MobileHomeViewLimits(
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: MobileHomeViewLimits) = (
+            FfiConverterUInt.allocationSize(value.`mostPlayed`) +
+            FfiConverterUInt.allocationSize(value.`recentlyPlayed`) +
+            FfiConverterUInt.allocationSize(value.`albumSection`) +
+            FfiConverterUInt.allocationSize(value.`featuredAlbums`)
     )
 
-  override fun allocationSize(value: MobileHomeViewLimits) =
-    (
-      FfiConverterUInt.allocationSize(value.`mostPlayed`) +
-        FfiConverterUInt.allocationSize(value.`recentlyPlayed`) +
-        FfiConverterUInt.allocationSize(value.`albumSection`) +
-        FfiConverterUInt.allocationSize(value.`featuredAlbums`)
-    )
-
-  override fun write(
-    value: MobileHomeViewLimits,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterUInt.write(value.`mostPlayed`, buf)
-    FfiConverterUInt.write(value.`recentlyPlayed`, buf)
-    FfiConverterUInt.write(value.`albumSection`, buf)
-    FfiConverterUInt.write(value.`featuredAlbums`, buf)
-  }
+    override fun write(value: MobileHomeViewLimits, buf: ByteBuffer) {
+            FfiConverterUInt.write(value.`mostPlayed`, buf)
+            FfiConverterUInt.write(value.`recentlyPlayed`, buf)
+            FfiConverterUInt.write(value.`albumSection`, buf)
+            FfiConverterUInt.write(value.`featuredAlbums`, buf)
+    }
 }
+
+
 
 /**
  * Generic name-ID pair used for artists and other entities
  */
-data class NameIdPair(
-  /**
-   * Display name
-   */
-  var `name`: kotlin.String,
-  /**
-   * Unique identifier
-   */
-  var `id`: kotlin.String,
-) {
-  companion object
+data class NameIdPair (
+    /**
+     * Display name
+     */
+    var `name`: kotlin.String
+    , 
+    /**
+     * Unique identifier
+     */
+    var `id`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeNameIdPair : FfiConverterRustBuffer<NameIdPair> {
-  override fun read(buf: ByteBuffer): NameIdPair =
-    NameIdPair(
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
+public object FfiConverterTypeNameIdPair: FfiConverterRustBuffer<NameIdPair> {
+    override fun read(buf: ByteBuffer): NameIdPair {
+        return NameIdPair(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: NameIdPair) = (
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterString.allocationSize(value.`id`)
     )
 
-  override fun allocationSize(value: NameIdPair) =
-    (
-      FfiConverterString.allocationSize(value.`name`) +
-        FfiConverterString.allocationSize(value.`id`)
-    )
-
-  override fun write(
-    value: NameIdPair,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`name`, buf)
-    FfiConverterString.write(value.`id`, buf)
-  }
+    override fun write(value: NameIdPair, buf: ByteBuffer) {
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterString.write(value.`id`, buf)
+    }
 }
+
+
 
 /**
  * Playlist representing a collection of items
  */
-data class Playlist(
-  /**
-   * Playlist name
-   */
-  var `name`: kotlin.String,
-  /**
-   * Server ID
-   */
-  var `serverId`: kotlin.String,
-  /**
-   * Playlist ID
-   */
-  var `id`: kotlin.String,
-  /**
-   * Whether playlist can be deleted
-   */
-  var `canDelete`: kotlin.Boolean?,
-  /**
-   * Sort name
-   */
-  var `sortName`: kotlin.String?,
-  /**
-   * Whether this is a folder (playlists are folders containing items)
-   */
-  var `isFolder`: kotlin.Boolean,
-  /**
-   * Item type (should be "Playlist")
-   */
-  var `itemType`: kotlin.String,
-  /**
-   * User data
-   */
-  var `userData`: UserData?,
-  /**
-   * Runtime ticks (total duration)
-   */
-  var `runTimeTicks`: kotlin.Long?,
-  /**
-   * Child count (number of items in playlist)
-   */
-  var `childCount`: kotlin.Int?,
-  /**
-   * Image tags
-   */
-  var `imageTags`: Map<kotlin.String, kotlin.String>?,
-  /**
-   * Backdrop image tags
-   */
-  var `backdropImageTags`: List<kotlin.String>?,
-  /**
-   * Image blur hashes
-   */
-  var `imageBlurHashes`: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?,
-  /**
-   * Location type
-   */
-  var `locationType`: kotlin.String,
-  /**
-   * Media type
-   */
-  var `mediaType`: kotlin.String?,
-  /**
-   * Date created
-   */
-  var `dateCreated`: kotlin.String?,
-  /**
-   * Date last modified
-   */
-  var `dateLastSaved`: kotlin.String?,
-  /**
-   * Whether playlist is favorited
-   */
-  var `isFavorite`: kotlin.Boolean?,
-  /**
-   * Playlist description
-   */
-  var `description`: kotlin.String?,
-  /**
-   * Songs in the playlist
-   */
-  var `songs`: List<Song>?,
-) {
-  companion object
+data class Playlist (
+    /**
+     * Playlist name
+     */
+    var `name`: kotlin.String
+    , 
+    /**
+     * Server ID
+     */
+    var `serverId`: kotlin.String
+    , 
+    /**
+     * Playlist ID
+     */
+    var `id`: kotlin.String
+    , 
+    /**
+     * Whether playlist can be deleted
+     */
+    var `canDelete`: kotlin.Boolean?
+    , 
+    /**
+     * Sort name
+     */
+    var `sortName`: kotlin.String?
+    , 
+    /**
+     * Whether this is a folder (playlists are folders containing items)
+     */
+    var `isFolder`: kotlin.Boolean
+    , 
+    /**
+     * Item type (should be "Playlist")
+     */
+    var `itemType`: kotlin.String
+    , 
+    /**
+     * User data
+     */
+    var `userData`: UserData?
+    , 
+    /**
+     * Runtime ticks (total duration)
+     */
+    var `runTimeTicks`: kotlin.Long?
+    , 
+    /**
+     * Child count (number of items in playlist)
+     */
+    var `childCount`: kotlin.Int?
+    , 
+    /**
+     * Image tags
+     */
+    var `imageTags`: Map<kotlin.String, kotlin.String>?
+    , 
+    /**
+     * Backdrop image tags
+     */
+    var `backdropImageTags`: List<kotlin.String>?
+    , 
+    /**
+     * Image blur hashes
+     */
+    var `imageBlurHashes`: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?
+    , 
+    /**
+     * Location type
+     */
+    var `locationType`: kotlin.String
+    , 
+    /**
+     * Media type
+     */
+    var `mediaType`: kotlin.String?
+    , 
+    /**
+     * Date created
+     */
+    var `dateCreated`: kotlin.String?
+    , 
+    /**
+     * Date last modified
+     */
+    var `dateLastSaved`: kotlin.String?
+    , 
+    /**
+     * Whether playlist is favorited
+     */
+    var `isFavorite`: kotlin.Boolean?
+    , 
+    /**
+     * Playlist description
+     */
+    var `description`: kotlin.String?
+    , 
+    /**
+     * Songs in the playlist
+     */
+    var `songs`: List<Song>?
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypePlaylist : FfiConverterRustBuffer<Playlist> {
-  override fun read(buf: ByteBuffer): Playlist =
-    Playlist(
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterOptionalBoolean.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterBoolean.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterOptionalTypeUserData.read(buf),
-      FfiConverterOptionalLong.read(buf),
-      FfiConverterOptionalInt.read(buf),
-      FfiConverterOptionalMapStringString.read(buf),
-      FfiConverterOptionalSequenceString.read(buf),
-      FfiConverterOptionalMapStringMapStringString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalBoolean.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalSequenceTypeSong.read(buf),
+public object FfiConverterTypePlaylist: FfiConverterRustBuffer<Playlist> {
+    override fun read(buf: ByteBuffer): Playlist {
+        return Playlist(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalTypeUserData.read(buf),
+            FfiConverterOptionalLong.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalMapStringString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterOptionalMapStringMapStringString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalSequenceTypeSong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Playlist) = (
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterString.allocationSize(value.`serverId`) +
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`canDelete`) +
+            FfiConverterOptionalString.allocationSize(value.`sortName`) +
+            FfiConverterBoolean.allocationSize(value.`isFolder`) +
+            FfiConverterString.allocationSize(value.`itemType`) +
+            FfiConverterOptionalTypeUserData.allocationSize(value.`userData`) +
+            FfiConverterOptionalLong.allocationSize(value.`runTimeTicks`) +
+            FfiConverterOptionalInt.allocationSize(value.`childCount`) +
+            FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
+            FfiConverterOptionalSequenceString.allocationSize(value.`backdropImageTags`) +
+            FfiConverterOptionalMapStringMapStringString.allocationSize(value.`imageBlurHashes`) +
+            FfiConverterString.allocationSize(value.`locationType`) +
+            FfiConverterOptionalString.allocationSize(value.`mediaType`) +
+            FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
+            FfiConverterOptionalString.allocationSize(value.`dateLastSaved`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`) +
+            FfiConverterOptionalString.allocationSize(value.`description`) +
+            FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`)
     )
 
-  override fun allocationSize(value: Playlist) =
-    (
-      FfiConverterString.allocationSize(value.`name`) +
-        FfiConverterString.allocationSize(value.`serverId`) +
-        FfiConverterString.allocationSize(value.`id`) +
-        FfiConverterOptionalBoolean.allocationSize(value.`canDelete`) +
-        FfiConverterOptionalString.allocationSize(value.`sortName`) +
-        FfiConverterBoolean.allocationSize(value.`isFolder`) +
-        FfiConverterString.allocationSize(value.`itemType`) +
-        FfiConverterOptionalTypeUserData.allocationSize(value.`userData`) +
-        FfiConverterOptionalLong.allocationSize(value.`runTimeTicks`) +
-        FfiConverterOptionalInt.allocationSize(value.`childCount`) +
-        FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`) +
-        FfiConverterOptionalSequenceString.allocationSize(value.`backdropImageTags`) +
-        FfiConverterOptionalMapStringMapStringString.allocationSize(value.`imageBlurHashes`) +
-        FfiConverterString.allocationSize(value.`locationType`) +
-        FfiConverterOptionalString.allocationSize(value.`mediaType`) +
-        FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
-        FfiConverterOptionalString.allocationSize(value.`dateLastSaved`) +
-        FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`) +
-        FfiConverterOptionalString.allocationSize(value.`description`) +
-        FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`)
-    )
-
-  override fun write(
-    value: Playlist,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`name`, buf)
-    FfiConverterString.write(value.`serverId`, buf)
-    FfiConverterString.write(value.`id`, buf)
-    FfiConverterOptionalBoolean.write(value.`canDelete`, buf)
-    FfiConverterOptionalString.write(value.`sortName`, buf)
-    FfiConverterBoolean.write(value.`isFolder`, buf)
-    FfiConverterString.write(value.`itemType`, buf)
-    FfiConverterOptionalTypeUserData.write(value.`userData`, buf)
-    FfiConverterOptionalLong.write(value.`runTimeTicks`, buf)
-    FfiConverterOptionalInt.write(value.`childCount`, buf)
-    FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
-    FfiConverterOptionalSequenceString.write(value.`backdropImageTags`, buf)
-    FfiConverterOptionalMapStringMapStringString.write(value.`imageBlurHashes`, buf)
-    FfiConverterString.write(value.`locationType`, buf)
-    FfiConverterOptionalString.write(value.`mediaType`, buf)
-    FfiConverterOptionalString.write(value.`dateCreated`, buf)
-    FfiConverterOptionalString.write(value.`dateLastSaved`, buf)
-    FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
-    FfiConverterOptionalString.write(value.`description`, buf)
-    FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
-  }
+    override fun write(value: Playlist, buf: ByteBuffer) {
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterString.write(value.`serverId`, buf)
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterOptionalBoolean.write(value.`canDelete`, buf)
+            FfiConverterOptionalString.write(value.`sortName`, buf)
+            FfiConverterBoolean.write(value.`isFolder`, buf)
+            FfiConverterString.write(value.`itemType`, buf)
+            FfiConverterOptionalTypeUserData.write(value.`userData`, buf)
+            FfiConverterOptionalLong.write(value.`runTimeTicks`, buf)
+            FfiConverterOptionalInt.write(value.`childCount`, buf)
+            FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+            FfiConverterOptionalSequenceString.write(value.`backdropImageTags`, buf)
+            FfiConverterOptionalMapStringMapStringString.write(value.`imageBlurHashes`, buf)
+            FfiConverterString.write(value.`locationType`, buf)
+            FfiConverterOptionalString.write(value.`mediaType`, buf)
+            FfiConverterOptionalString.write(value.`dateCreated`, buf)
+            FfiConverterOptionalString.write(value.`dateLastSaved`, buf)
+            FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
+            FfiConverterOptionalString.write(value.`description`, buf)
+            FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
+    }
 }
+
+
 
 /**
  * Data for creating a new playlist
  */
-data class PlaylistCreateData(
-  /**
-   * Playlist name
-   */
-  var `name`: kotlin.String,
-  /**
-   * Item IDs to include in the playlist
-   */
-  var `ids`: List<kotlin.String>?,
-  /**
-   * User ID creating the playlist
-   */
-  var `userId`: kotlin.String,
-  /**
-   * Whether playlist is public
-   */
-  var `isPublic`: kotlin.Boolean?,
-) {
-  companion object
+data class PlaylistCreateData (
+    /**
+     * Playlist name
+     */
+    var `name`: kotlin.String
+    , 
+    /**
+     * Item IDs to include in the playlist
+     */
+    var `ids`: List<kotlin.String>?
+    , 
+    /**
+     * User ID creating the playlist
+     */
+    var `userId`: kotlin.String
+    , 
+    /**
+     * Whether playlist is public
+     */
+    var `isPublic`: kotlin.Boolean?
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypePlaylistCreateData : FfiConverterRustBuffer<PlaylistCreateData> {
-  override fun read(buf: ByteBuffer): PlaylistCreateData =
-    PlaylistCreateData(
-      FfiConverterString.read(buf),
-      FfiConverterOptionalSequenceString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterOptionalBoolean.read(buf),
+public object FfiConverterTypePlaylistCreateData: FfiConverterRustBuffer<PlaylistCreateData> {
+    override fun read(buf: ByteBuffer): PlaylistCreateData {
+        return PlaylistCreateData(
+            FfiConverterString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: PlaylistCreateData) = (
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterOptionalSequenceString.allocationSize(value.`ids`) +
+            FfiConverterString.allocationSize(value.`userId`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`isPublic`)
     )
 
-  override fun allocationSize(value: PlaylistCreateData) =
-    (
-      FfiConverterString.allocationSize(value.`name`) +
-        FfiConverterOptionalSequenceString.allocationSize(value.`ids`) +
-        FfiConverterString.allocationSize(value.`userId`) +
-        FfiConverterOptionalBoolean.allocationSize(value.`isPublic`)
-    )
-
-  override fun write(
-    value: PlaylistCreateData,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`name`, buf)
-    FfiConverterOptionalSequenceString.write(value.`ids`, buf)
-    FfiConverterString.write(value.`userId`, buf)
-    FfiConverterOptionalBoolean.write(value.`isPublic`, buf)
-  }
+    override fun write(value: PlaylistCreateData, buf: ByteBuffer) {
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterOptionalSequenceString.write(value.`ids`, buf)
+            FfiConverterString.write(value.`userId`, buf)
+            FfiConverterOptionalBoolean.write(value.`isPublic`, buf)
+    }
 }
+
+
 
 /**
  * Data for updating a playlist
  */
-data class PlaylistUpdateData(
-  /**
-   * New playlist name
-   */
-  var `name`: kotlin.String?,
-  /**
-   * Item IDs to set for the playlist
-   */
-  var `ids`: List<kotlin.String>?,
-  /**
-   * User ID updating the playlist
-   */
-  var `userId`: kotlin.String?,
-  /**
-   * Whether playlist is public
-   */
-  var `isPublic`: kotlin.Boolean?,
-  /**
-   * Songs to set for the playlist
-   */
-  var `songs`: List<Song>?,
-  /**
-   * Whether playlist is favorited
-   */
-  var `isFavorite`: kotlin.Boolean?,
-) {
-  companion object
+data class PlaylistUpdateData (
+    /**
+     * New playlist name
+     */
+    var `name`: kotlin.String?
+    , 
+    /**
+     * Item IDs to set for the playlist
+     */
+    var `ids`: List<kotlin.String>?
+    , 
+    /**
+     * User ID updating the playlist
+     */
+    var `userId`: kotlin.String?
+    , 
+    /**
+     * Whether playlist is public
+     */
+    var `isPublic`: kotlin.Boolean?
+    , 
+    /**
+     * Songs to set for the playlist
+     */
+    var `songs`: List<Song>?
+    , 
+    /**
+     * Whether playlist is favorited
+     */
+    var `isFavorite`: kotlin.Boolean?
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypePlaylistUpdateData : FfiConverterRustBuffer<PlaylistUpdateData> {
-  override fun read(buf: ByteBuffer): PlaylistUpdateData =
-    PlaylistUpdateData(
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalSequenceString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalBoolean.read(buf),
-      FfiConverterOptionalSequenceTypeSong.read(buf),
-      FfiConverterOptionalBoolean.read(buf),
+public object FfiConverterTypePlaylistUpdateData: FfiConverterRustBuffer<PlaylistUpdateData> {
+    override fun read(buf: ByteBuffer): PlaylistUpdateData {
+        return PlaylistUpdateData(
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalSequenceTypeSong.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: PlaylistUpdateData) = (
+            FfiConverterOptionalString.allocationSize(value.`name`) +
+            FfiConverterOptionalSequenceString.allocationSize(value.`ids`) +
+            FfiConverterOptionalString.allocationSize(value.`userId`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`isPublic`) +
+            FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`)
     )
 
-  override fun allocationSize(value: PlaylistUpdateData) =
-    (
-      FfiConverterOptionalString.allocationSize(value.`name`) +
-        FfiConverterOptionalSequenceString.allocationSize(value.`ids`) +
-        FfiConverterOptionalString.allocationSize(value.`userId`) +
-        FfiConverterOptionalBoolean.allocationSize(value.`isPublic`) +
-        FfiConverterOptionalSequenceTypeSong.allocationSize(value.`songs`) +
-        FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`)
-    )
-
-  override fun write(
-    value: PlaylistUpdateData,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterOptionalString.write(value.`name`, buf)
-    FfiConverterOptionalSequenceString.write(value.`ids`, buf)
-    FfiConverterOptionalString.write(value.`userId`, buf)
-    FfiConverterOptionalBoolean.write(value.`isPublic`, buf)
-    FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
-    FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
-  }
+    override fun write(value: PlaylistUpdateData, buf: ByteBuffer) {
+            FfiConverterOptionalString.write(value.`name`, buf)
+            FfiConverterOptionalSequenceString.write(value.`ids`, buf)
+            FfiConverterOptionalString.write(value.`userId`, buf)
+            FfiConverterOptionalBoolean.write(value.`isPublic`, buf)
+            FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
+            FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
+    }
 }
+
+
 
 /**
  * Song representing a music track or audio file
  */
-data class Song(
-  /**
-   * Unique identifier
-   */
-  var `id`: kotlin.String,
-  /**
-   * Song title
-   */
-  var `name`: kotlin.String,
-  /**
-   * Type of item (usually "Audio")
-   */
-  var `itemType`: kotlin.String,
-  /**
-   * Album name
-   */
-  var `album`: kotlin.String?,
-  /**
-   * Album ID
-   */
-  var `albumId`: kotlin.String?,
-  /**
-   * List of artist names
-   */
-  var `artists`: List<kotlin.String>?,
-  /**
-   * List of artist IDs corresponding to artists
-   */
-  var `artistIds`: List<kotlin.String>?,
-  /**
-   * File path
-   */
-  var `path`: kotlin.String?,
-  /**
-   * Duration in seconds
-   */
-  var `duration`: kotlin.Double?,
-  /**
-   * URL to album artwork
-   */
-  var `albumArtUrl`: kotlin.String?,
-  /**
-   * Release year
-   */
-  var `year`: kotlin.Int?,
-  /**
-   * Number of times played
-   */
-  var `playCount`: kotlin.Int?,
-  /**
-   * Whether this item is marked as favorite
-   */
-  var `isFavorite`: kotlin.Boolean?,
-  /**
-   * Disc number in album
-   */
-  var `discNumber`: kotlin.Int?,
-  /**
-   * Track number in album
-   */
-  var `trackNumber`: kotlin.Int?,
-  /**
-   * Audio container/format
-   */
-  var `container`: kotlin.String?,
-  /**
-   * Audio bitrate
-   */
-  var `bitRate`: kotlin.Int?,
-  /**
-   * Audio sample rate
-   */
-  var `sampleRate`: kotlin.Int?,
-  /**
-   * Audio codec
-   */
-  var `codec`: kotlin.String?,
-  /**
-   * Music genres
-   */
-  var `genres`: List<kotlin.String>?,
-  /**
-   * Premiere/release date
-   */
-  var `premiereDate`: kotlin.String?,
-  /**
-   * Last played date
-   */
-  var `datePlayed`: kotlin.String?,
-  /**
-   * Date created (when added to server)
-   */
-  var `dateCreated`: kotlin.String?,
-  /**
-   * Date last modified on server
-   */
-  var `dateModified`: kotlin.String?,
-  /**
-   * Album artists (different from track artists)
-   */
-  var `albumArtists`: List<NameIdPair>?,
-  /**
-   * Song lyrics
-   */
-  var `lyrics`: kotlin.String?,
-  /**
-   * Image tags
-   */
-  var `imageTags`: Map<kotlin.String, kotlin.String>?,
-) {
-  companion object
+data class Song (
+    /**
+     * Unique identifier
+     */
+    var `id`: kotlin.String
+    , 
+    /**
+     * Song title
+     */
+    var `name`: kotlin.String
+    , 
+    /**
+     * Type of item (usually "Audio")
+     */
+    var `itemType`: kotlin.String
+    , 
+    /**
+     * Album name
+     */
+    var `album`: kotlin.String?
+    , 
+    /**
+     * Album ID
+     */
+    var `albumId`: kotlin.String?
+    , 
+    /**
+     * List of artist names
+     */
+    var `artists`: List<kotlin.String>?
+    , 
+    /**
+     * List of artist IDs corresponding to artists
+     */
+    var `artistIds`: List<kotlin.String>?
+    , 
+    /**
+     * File path
+     */
+    var `path`: kotlin.String?
+    , 
+    /**
+     * Duration in seconds
+     */
+    var `duration`: kotlin.Double?
+    , 
+    /**
+     * URL to album artwork
+     */
+    var `albumArtUrl`: kotlin.String?
+    , 
+    /**
+     * Release year
+     */
+    var `year`: kotlin.Int?
+    , 
+    /**
+     * Number of times played
+     */
+    var `playCount`: kotlin.Int?
+    , 
+    /**
+     * Whether this item is marked as favorite
+     */
+    var `isFavorite`: kotlin.Boolean?
+    , 
+    /**
+     * Disc number in album
+     */
+    var `discNumber`: kotlin.Int?
+    , 
+    /**
+     * Track number in album
+     */
+    var `trackNumber`: kotlin.Int?
+    , 
+    /**
+     * Audio container/format
+     */
+    var `container`: kotlin.String?
+    , 
+    /**
+     * Audio bitrate
+     */
+    var `bitRate`: kotlin.Int?
+    , 
+    /**
+     * Audio sample rate
+     */
+    var `sampleRate`: kotlin.Int?
+    , 
+    /**
+     * Audio codec
+     */
+    var `codec`: kotlin.String?
+    , 
+    /**
+     * Music genres
+     */
+    var `genres`: List<kotlin.String>?
+    , 
+    /**
+     * Premiere/release date
+     */
+    var `premiereDate`: kotlin.String?
+    , 
+    /**
+     * Last played date
+     */
+    var `datePlayed`: kotlin.String?
+    , 
+    /**
+     * Date created (when added to server)
+     */
+    var `dateCreated`: kotlin.String?
+    , 
+    /**
+     * Date last modified on server
+     */
+    var `dateModified`: kotlin.String?
+    , 
+    /**
+     * Album artists (different from track artists)
+     */
+    var `albumArtists`: List<NameIdPair>?
+    , 
+    /**
+     * Song lyrics
+     */
+    var `lyrics`: kotlin.String?
+    , 
+    /**
+     * Image tags
+     */
+    var `imageTags`: Map<kotlin.String, kotlin.String>?
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeSong : FfiConverterRustBuffer<Song> {
-  override fun read(buf: ByteBuffer): Song =
-    Song(
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalSequenceString.read(buf),
-      FfiConverterOptionalSequenceString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalDouble.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalInt.read(buf),
-      FfiConverterOptionalInt.read(buf),
-      FfiConverterOptionalBoolean.read(buf),
-      FfiConverterOptionalInt.read(buf),
-      FfiConverterOptionalInt.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalInt.read(buf),
-      FfiConverterOptionalInt.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalSequenceString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalSequenceTypeNameIdPair.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalMapStringString.read(buf),
+public object FfiConverterTypeSong: FfiConverterRustBuffer<Song> {
+    override fun read(buf: ByteBuffer): Song {
+        return Song(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalDouble.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalBoolean.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalInt.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalSequenceString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalSequenceTypeNameIdPair.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalMapStringString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Song) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterString.allocationSize(value.`itemType`) +
+            FfiConverterOptionalString.allocationSize(value.`album`) +
+            FfiConverterOptionalString.allocationSize(value.`albumId`) +
+            FfiConverterOptionalSequenceString.allocationSize(value.`artists`) +
+            FfiConverterOptionalSequenceString.allocationSize(value.`artistIds`) +
+            FfiConverterOptionalString.allocationSize(value.`path`) +
+            FfiConverterOptionalDouble.allocationSize(value.`duration`) +
+            FfiConverterOptionalString.allocationSize(value.`albumArtUrl`) +
+            FfiConverterOptionalInt.allocationSize(value.`year`) +
+            FfiConverterOptionalInt.allocationSize(value.`playCount`) +
+            FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`) +
+            FfiConverterOptionalInt.allocationSize(value.`discNumber`) +
+            FfiConverterOptionalInt.allocationSize(value.`trackNumber`) +
+            FfiConverterOptionalString.allocationSize(value.`container`) +
+            FfiConverterOptionalInt.allocationSize(value.`bitRate`) +
+            FfiConverterOptionalInt.allocationSize(value.`sampleRate`) +
+            FfiConverterOptionalString.allocationSize(value.`codec`) +
+            FfiConverterOptionalSequenceString.allocationSize(value.`genres`) +
+            FfiConverterOptionalString.allocationSize(value.`premiereDate`) +
+            FfiConverterOptionalString.allocationSize(value.`datePlayed`) +
+            FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
+            FfiConverterOptionalString.allocationSize(value.`dateModified`) +
+            FfiConverterOptionalSequenceTypeNameIdPair.allocationSize(value.`albumArtists`) +
+            FfiConverterOptionalString.allocationSize(value.`lyrics`) +
+            FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`)
     )
 
-  override fun allocationSize(value: Song) =
-    (
-      FfiConverterString.allocationSize(value.`id`) +
-        FfiConverterString.allocationSize(value.`name`) +
-        FfiConverterString.allocationSize(value.`itemType`) +
-        FfiConverterOptionalString.allocationSize(value.`album`) +
-        FfiConverterOptionalString.allocationSize(value.`albumId`) +
-        FfiConverterOptionalSequenceString.allocationSize(value.`artists`) +
-        FfiConverterOptionalSequenceString.allocationSize(value.`artistIds`) +
-        FfiConverterOptionalString.allocationSize(value.`path`) +
-        FfiConverterOptionalDouble.allocationSize(value.`duration`) +
-        FfiConverterOptionalString.allocationSize(value.`albumArtUrl`) +
-        FfiConverterOptionalInt.allocationSize(value.`year`) +
-        FfiConverterOptionalInt.allocationSize(value.`playCount`) +
-        FfiConverterOptionalBoolean.allocationSize(value.`isFavorite`) +
-        FfiConverterOptionalInt.allocationSize(value.`discNumber`) +
-        FfiConverterOptionalInt.allocationSize(value.`trackNumber`) +
-        FfiConverterOptionalString.allocationSize(value.`container`) +
-        FfiConverterOptionalInt.allocationSize(value.`bitRate`) +
-        FfiConverterOptionalInt.allocationSize(value.`sampleRate`) +
-        FfiConverterOptionalString.allocationSize(value.`codec`) +
-        FfiConverterOptionalSequenceString.allocationSize(value.`genres`) +
-        FfiConverterOptionalString.allocationSize(value.`premiereDate`) +
-        FfiConverterOptionalString.allocationSize(value.`datePlayed`) +
-        FfiConverterOptionalString.allocationSize(value.`dateCreated`) +
-        FfiConverterOptionalString.allocationSize(value.`dateModified`) +
-        FfiConverterOptionalSequenceTypeNameIdPair.allocationSize(value.`albumArtists`) +
-        FfiConverterOptionalString.allocationSize(value.`lyrics`) +
-        FfiConverterOptionalMapStringString.allocationSize(value.`imageTags`)
-    )
-
-  override fun write(
-    value: Song,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`id`, buf)
-    FfiConverterString.write(value.`name`, buf)
-    FfiConverterString.write(value.`itemType`, buf)
-    FfiConverterOptionalString.write(value.`album`, buf)
-    FfiConverterOptionalString.write(value.`albumId`, buf)
-    FfiConverterOptionalSequenceString.write(value.`artists`, buf)
-    FfiConverterOptionalSequenceString.write(value.`artistIds`, buf)
-    FfiConverterOptionalString.write(value.`path`, buf)
-    FfiConverterOptionalDouble.write(value.`duration`, buf)
-    FfiConverterOptionalString.write(value.`albumArtUrl`, buf)
-    FfiConverterOptionalInt.write(value.`year`, buf)
-    FfiConverterOptionalInt.write(value.`playCount`, buf)
-    FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
-    FfiConverterOptionalInt.write(value.`discNumber`, buf)
-    FfiConverterOptionalInt.write(value.`trackNumber`, buf)
-    FfiConverterOptionalString.write(value.`container`, buf)
-    FfiConverterOptionalInt.write(value.`bitRate`, buf)
-    FfiConverterOptionalInt.write(value.`sampleRate`, buf)
-    FfiConverterOptionalString.write(value.`codec`, buf)
-    FfiConverterOptionalSequenceString.write(value.`genres`, buf)
-    FfiConverterOptionalString.write(value.`premiereDate`, buf)
-    FfiConverterOptionalString.write(value.`datePlayed`, buf)
-    FfiConverterOptionalString.write(value.`dateCreated`, buf)
-    FfiConverterOptionalString.write(value.`dateModified`, buf)
-    FfiConverterOptionalSequenceTypeNameIdPair.write(value.`albumArtists`, buf)
-    FfiConverterOptionalString.write(value.`lyrics`, buf)
-    FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
-  }
+    override fun write(value: Song, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterString.write(value.`itemType`, buf)
+            FfiConverterOptionalString.write(value.`album`, buf)
+            FfiConverterOptionalString.write(value.`albumId`, buf)
+            FfiConverterOptionalSequenceString.write(value.`artists`, buf)
+            FfiConverterOptionalSequenceString.write(value.`artistIds`, buf)
+            FfiConverterOptionalString.write(value.`path`, buf)
+            FfiConverterOptionalDouble.write(value.`duration`, buf)
+            FfiConverterOptionalString.write(value.`albumArtUrl`, buf)
+            FfiConverterOptionalInt.write(value.`year`, buf)
+            FfiConverterOptionalInt.write(value.`playCount`, buf)
+            FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
+            FfiConverterOptionalInt.write(value.`discNumber`, buf)
+            FfiConverterOptionalInt.write(value.`trackNumber`, buf)
+            FfiConverterOptionalString.write(value.`container`, buf)
+            FfiConverterOptionalInt.write(value.`bitRate`, buf)
+            FfiConverterOptionalInt.write(value.`sampleRate`, buf)
+            FfiConverterOptionalString.write(value.`codec`, buf)
+            FfiConverterOptionalSequenceString.write(value.`genres`, buf)
+            FfiConverterOptionalString.write(value.`premiereDate`, buf)
+            FfiConverterOptionalString.write(value.`datePlayed`, buf)
+            FfiConverterOptionalString.write(value.`dateCreated`, buf)
+            FfiConverterOptionalString.write(value.`dateModified`, buf)
+            FfiConverterOptionalSequenceTypeNameIdPair.write(value.`albumArtists`, buf)
+            FfiConverterOptionalString.write(value.`lyrics`, buf)
+            FfiConverterOptionalMapStringString.write(value.`imageTags`, buf)
+    }
 }
+
+
 
 /**
  * Progress update during sync (for UI feedback)
  */
-data class SyncProgress(
-  /**
-   * Current stage of sync (e.g., "Fetching songs", "Saving to database")
-   */
-  var `stage`: kotlin.String,
-  /**
-   * Current item being processed
-   */
-  var `current`: kotlin.UInt,
-  /**
-   * Total items to process
-   */
-  var `total`: kotlin.UInt,
-  /**
-   * Whether sync is complete
-   */
-  var `isComplete`: kotlin.Boolean,
-) {
-  companion object
+data class SyncProgress (
+    /**
+     * Current stage of sync (e.g., "Fetching songs", "Saving to database")
+     */
+    var `stage`: kotlin.String
+    , 
+    /**
+     * Current item being processed
+     */
+    var `current`: kotlin.UInt
+    , 
+    /**
+     * Total items to process
+     */
+    var `total`: kotlin.UInt
+    , 
+    /**
+     * Whether sync is complete
+     */
+    var `isComplete`: kotlin.Boolean
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeSyncProgress : FfiConverterRustBuffer<SyncProgress> {
-  override fun read(buf: ByteBuffer): SyncProgress =
-    SyncProgress(
-      FfiConverterString.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterBoolean.read(buf),
+public object FfiConverterTypeSyncProgress: FfiConverterRustBuffer<SyncProgress> {
+    override fun read(buf: ByteBuffer): SyncProgress {
+        return SyncProgress(
+            FfiConverterString.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SyncProgress) = (
+            FfiConverterString.allocationSize(value.`stage`) +
+            FfiConverterUInt.allocationSize(value.`current`) +
+            FfiConverterUInt.allocationSize(value.`total`) +
+            FfiConverterBoolean.allocationSize(value.`isComplete`)
     )
 
-  override fun allocationSize(value: SyncProgress) =
-    (
-      FfiConverterString.allocationSize(value.`stage`) +
-        FfiConverterUInt.allocationSize(value.`current`) +
-        FfiConverterUInt.allocationSize(value.`total`) +
-        FfiConverterBoolean.allocationSize(value.`isComplete`)
-    )
-
-  override fun write(
-    value: SyncProgress,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`stage`, buf)
-    FfiConverterUInt.write(value.`current`, buf)
-    FfiConverterUInt.write(value.`total`, buf)
-    FfiConverterBoolean.write(value.`isComplete`, buf)
-  }
+    override fun write(value: SyncProgress, buf: ByteBuffer) {
+            FfiConverterString.write(value.`stage`, buf)
+            FfiConverterUInt.write(value.`current`, buf)
+            FfiConverterUInt.write(value.`total`, buf)
+            FfiConverterBoolean.write(value.`isComplete`, buf)
+    }
 }
 
-data class SyncReport(
-  var `fullSync`: kotlin.Boolean,
-  var `songsUpdated`: kotlin.UInt,
-  var `artistsUpdated`: kotlin.UInt,
-  var `albumsUpdated`: kotlin.UInt,
-  var `durationMs`: kotlin.ULong,
-) {
-  companion object
+
+
+data class SyncReport (
+    var `fullSync`: kotlin.Boolean
+    , 
+    var `songsUpdated`: kotlin.UInt
+    , 
+    var `artistsUpdated`: kotlin.UInt
+    , 
+    var `albumsUpdated`: kotlin.UInt
+    , 
+    var `durationMs`: kotlin.ULong
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeSyncReport : FfiConverterRustBuffer<SyncReport> {
-  override fun read(buf: ByteBuffer): SyncReport =
-    SyncReport(
-      FfiConverterBoolean.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterULong.read(buf),
+public object FfiConverterTypeSyncReport: FfiConverterRustBuffer<SyncReport> {
+    override fun read(buf: ByteBuffer): SyncReport {
+        return SyncReport(
+            FfiConverterBoolean.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterULong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SyncReport) = (
+            FfiConverterBoolean.allocationSize(value.`fullSync`) +
+            FfiConverterUInt.allocationSize(value.`songsUpdated`) +
+            FfiConverterUInt.allocationSize(value.`artistsUpdated`) +
+            FfiConverterUInt.allocationSize(value.`albumsUpdated`) +
+            FfiConverterULong.allocationSize(value.`durationMs`)
     )
 
-  override fun allocationSize(value: SyncReport) =
-    (
-      FfiConverterBoolean.allocationSize(value.`fullSync`) +
-        FfiConverterUInt.allocationSize(value.`songsUpdated`) +
-        FfiConverterUInt.allocationSize(value.`artistsUpdated`) +
-        FfiConverterUInt.allocationSize(value.`albumsUpdated`) +
-        FfiConverterULong.allocationSize(value.`durationMs`)
-    )
-
-  override fun write(
-    value: SyncReport,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterBoolean.write(value.`fullSync`, buf)
-    FfiConverterUInt.write(value.`songsUpdated`, buf)
-    FfiConverterUInt.write(value.`artistsUpdated`, buf)
-    FfiConverterUInt.write(value.`albumsUpdated`, buf)
-    FfiConverterULong.write(value.`durationMs`, buf)
-  }
+    override fun write(value: SyncReport, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`fullSync`, buf)
+            FfiConverterUInt.write(value.`songsUpdated`, buf)
+            FfiConverterUInt.write(value.`artistsUpdated`, buf)
+            FfiConverterUInt.write(value.`albumsUpdated`, buf)
+            FfiConverterULong.write(value.`durationMs`, buf)
+    }
 }
+
+
 
 /**
  * Sync state persisted to track library sync history
  */
-data class SyncState(
-  var `lastSyncTime`: kotlin.String,
-  var `lastFullSyncTime`: kotlin.String?,
-  var `lastSyncVersion`: kotlin.String?,
-  var `songCount`: kotlin.UInt,
-  var `artistCount`: kotlin.UInt,
-  var `albumCount`: kotlin.UInt,
-  /**
-   * Whether a full sync is currently in progress (for resumability)
-   */
-  var `fullSyncInProgress`: kotlin.Boolean,
-  /**
-   * The last page index that was successfully committed during a full sync
-   */
-  var `fullSyncLastPageIndex`: kotlin.UInt,
-  /**
-   * Which entity type the in-progress full sync is on: "songs", "albums", "artists", or "done"
-   */
-  var `fullSyncEntityType`: kotlin.String?,
-) {
-  companion object
+data class SyncState (
+    var `lastSyncTime`: kotlin.String
+    , 
+    var `lastFullSyncTime`: kotlin.String?
+    , 
+    var `lastSyncVersion`: kotlin.String?
+    , 
+    var `songCount`: kotlin.UInt
+    , 
+    var `artistCount`: kotlin.UInt
+    , 
+    var `albumCount`: kotlin.UInt
+    , 
+    /**
+     * Whether a full sync is currently in progress (for resumability)
+     */
+    var `fullSyncInProgress`: kotlin.Boolean
+    , 
+    /**
+     * The last page index that was successfully committed during a full sync
+     */
+    var `fullSyncLastPageIndex`: kotlin.UInt
+    , 
+    /**
+     * Which entity type the in-progress full sync is on: "songs", "albums", "artists", or "done"
+     */
+    var `fullSyncEntityType`: kotlin.String?
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeSyncState : FfiConverterRustBuffer<SyncState> {
-  override fun read(buf: ByteBuffer): SyncState =
-    SyncState(
-      FfiConverterString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterOptionalString.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterBoolean.read(buf),
-      FfiConverterUInt.read(buf),
-      FfiConverterOptionalString.read(buf),
+public object FfiConverterTypeSyncState: FfiConverterRustBuffer<SyncState> {
+    override fun read(buf: ByteBuffer): SyncState {
+        return SyncState(
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SyncState) = (
+            FfiConverterString.allocationSize(value.`lastSyncTime`) +
+            FfiConverterOptionalString.allocationSize(value.`lastFullSyncTime`) +
+            FfiConverterOptionalString.allocationSize(value.`lastSyncVersion`) +
+            FfiConverterUInt.allocationSize(value.`songCount`) +
+            FfiConverterUInt.allocationSize(value.`artistCount`) +
+            FfiConverterUInt.allocationSize(value.`albumCount`) +
+            FfiConverterBoolean.allocationSize(value.`fullSyncInProgress`) +
+            FfiConverterUInt.allocationSize(value.`fullSyncLastPageIndex`) +
+            FfiConverterOptionalString.allocationSize(value.`fullSyncEntityType`)
     )
 
-  override fun allocationSize(value: SyncState) =
-    (
-      FfiConverterString.allocationSize(value.`lastSyncTime`) +
-        FfiConverterOptionalString.allocationSize(value.`lastFullSyncTime`) +
-        FfiConverterOptionalString.allocationSize(value.`lastSyncVersion`) +
-        FfiConverterUInt.allocationSize(value.`songCount`) +
-        FfiConverterUInt.allocationSize(value.`artistCount`) +
-        FfiConverterUInt.allocationSize(value.`albumCount`) +
-        FfiConverterBoolean.allocationSize(value.`fullSyncInProgress`) +
-        FfiConverterUInt.allocationSize(value.`fullSyncLastPageIndex`) +
-        FfiConverterOptionalString.allocationSize(value.`fullSyncEntityType`)
-    )
-
-  override fun write(
-    value: SyncState,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterString.write(value.`lastSyncTime`, buf)
-    FfiConverterOptionalString.write(value.`lastFullSyncTime`, buf)
-    FfiConverterOptionalString.write(value.`lastSyncVersion`, buf)
-    FfiConverterUInt.write(value.`songCount`, buf)
-    FfiConverterUInt.write(value.`artistCount`, buf)
-    FfiConverterUInt.write(value.`albumCount`, buf)
-    FfiConverterBoolean.write(value.`fullSyncInProgress`, buf)
-    FfiConverterUInt.write(value.`fullSyncLastPageIndex`, buf)
-    FfiConverterOptionalString.write(value.`fullSyncEntityType`, buf)
-  }
+    override fun write(value: SyncState, buf: ByteBuffer) {
+            FfiConverterString.write(value.`lastSyncTime`, buf)
+            FfiConverterOptionalString.write(value.`lastFullSyncTime`, buf)
+            FfiConverterOptionalString.write(value.`lastSyncVersion`, buf)
+            FfiConverterUInt.write(value.`songCount`, buf)
+            FfiConverterUInt.write(value.`artistCount`, buf)
+            FfiConverterUInt.write(value.`albumCount`, buf)
+            FfiConverterBoolean.write(value.`fullSyncInProgress`, buf)
+            FfiConverterUInt.write(value.`fullSyncLastPageIndex`, buf)
+            FfiConverterOptionalString.write(value.`fullSyncEntityType`, buf)
+    }
 }
+
+
 
 /**
  * User data for items (play count, favorites, etc.)
  */
-data class UserData(
-  var `playbackPositionTicks`: kotlin.Long,
-  var `playCount`: kotlin.Int,
-  var `isFavorite`: kotlin.Boolean,
-  var `played`: kotlin.Boolean,
-  var `lastPlayedDate`: kotlin.String?,
-) {
-  companion object
+data class UserData (
+    var `playbackPositionTicks`: kotlin.Long
+    , 
+    var `playCount`: kotlin.Int
+    , 
+    var `isFavorite`: kotlin.Boolean
+    , 
+    var `played`: kotlin.Boolean
+    , 
+    var `lastPlayedDate`: kotlin.String?
+    
+){
+    
+
+    
+
+    
+    companion object
 }
 
 /**
  * @suppress
  */
-public object FfiConverterTypeUserData : FfiConverterRustBuffer<UserData> {
-  override fun read(buf: ByteBuffer): UserData =
-    UserData(
-      FfiConverterLong.read(buf),
-      FfiConverterInt.read(buf),
-      FfiConverterBoolean.read(buf),
-      FfiConverterBoolean.read(buf),
-      FfiConverterOptionalString.read(buf),
+public object FfiConverterTypeUserData: FfiConverterRustBuffer<UserData> {
+    override fun read(buf: ByteBuffer): UserData {
+        return UserData(
+            FfiConverterLong.read(buf),
+            FfiConverterInt.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: UserData) = (
+            FfiConverterLong.allocationSize(value.`playbackPositionTicks`) +
+            FfiConverterInt.allocationSize(value.`playCount`) +
+            FfiConverterBoolean.allocationSize(value.`isFavorite`) +
+            FfiConverterBoolean.allocationSize(value.`played`) +
+            FfiConverterOptionalString.allocationSize(value.`lastPlayedDate`)
     )
 
-  override fun allocationSize(value: UserData) =
-    (
-      FfiConverterLong.allocationSize(value.`playbackPositionTicks`) +
-        FfiConverterInt.allocationSize(value.`playCount`) +
-        FfiConverterBoolean.allocationSize(value.`isFavorite`) +
-        FfiConverterBoolean.allocationSize(value.`played`) +
-        FfiConverterOptionalString.allocationSize(value.`lastPlayedDate`)
-    )
-
-  override fun write(
-    value: UserData,
-    buf: ByteBuffer,
-  ) {
-    FfiConverterLong.write(value.`playbackPositionTicks`, buf)
-    FfiConverterInt.write(value.`playCount`, buf)
-    FfiConverterBoolean.write(value.`isFavorite`, buf)
-    FfiConverterBoolean.write(value.`played`, buf)
-    FfiConverterOptionalString.write(value.`lastPlayedDate`, buf)
-  }
+    override fun write(value: UserData, buf: ByteBuffer) {
+            FfiConverterLong.write(value.`playbackPositionTicks`, buf)
+            FfiConverterInt.write(value.`playCount`, buf)
+            FfiConverterBoolean.write(value.`isFavorite`, buf)
+            FfiConverterBoolean.write(value.`played`, buf)
+            FfiConverterOptionalString.write(value.`lastPlayedDate`, buf)
+    }
 }
+
+
+
+
 
 /**
  * Application-specific error type using thiserror
  */
-sealed class AppException : kotlin.Exception() {
-  class Network(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
+sealed class AppException: kotlin.Exception() {
+    
+    class Network(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class Auth(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class Database(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class Serialization(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class FileSystem(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class ApiParse(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class Config(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class Http(
+        
+        val `status`: kotlin.UShort, 
+        
+        val `detail`: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "status=${ `status` }, detail=${ `detail` }"
+    }
+    
+    class General(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
+    class UniFfi(
+        
+        val v1: kotlin.String
+        ) : AppException() {
+        override val message
+            get() = "v1=${ v1 }"
+    }
+    
 
-  class Auth(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
+    
 
-  class Database(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
 
-  class Serialization(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<AppException> {
+        override fun lift(error_buf: RustBuffer.ByValue): AppException = FfiConverterTypeAppError.lift(error_buf)
+    }
 
-  class FileSystem(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
-
-  class ApiParse(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
-
-  class Config(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
-
-  class Http(
-    val `status`: kotlin.UShort,
-    val `detail`: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "status=${ `status` }, detail=${ `detail` }"
-  }
-
-  class General(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
-
-  class UniFfi(
-    val v1: kotlin.String,
-  ) : AppException() {
-    override val message
-      get() = "v1=${ v1 }"
-  }
-
-  companion object ErrorHandler : UniffiRustCallStatusErrorHandler<AppException> {
-    override fun lift(error_buf: RustBuffer.ByValue): AppException = FfiConverterTypeAppError.lift(error_buf)
-  }
+    
 }
 
 /**
  * @suppress
  */
 public object FfiConverterTypeAppError : FfiConverterRustBuffer<AppException> {
-  override fun read(buf: ByteBuffer): AppException =
-    when (buf.getInt()) {
-      1 -> {
-        AppException.Network(
-          FfiConverterString.read(buf),
-        )
-      }
+    override fun read(buf: ByteBuffer): AppException {
+        
 
-      2 -> {
-        AppException.Auth(
-          FfiConverterString.read(buf),
-        )
-      }
-
-      3 -> {
-        AppException.Database(
-          FfiConverterString.read(buf),
-        )
-      }
-
-      4 -> {
-        AppException.Serialization(
-          FfiConverterString.read(buf),
-        )
-      }
-
-      5 -> {
-        AppException.FileSystem(
-          FfiConverterString.read(buf),
-        )
-      }
-
-      6 -> {
-        AppException.ApiParse(
-          FfiConverterString.read(buf),
-        )
-      }
-
-      7 -> {
-        AppException.Config(
-          FfiConverterString.read(buf),
-        )
-      }
-
-      8 -> {
-        AppException.Http(
-          FfiConverterUShort.read(buf),
-          FfiConverterString.read(buf),
-        )
-      }
-
-      9 -> {
-        AppException.General(
-          FfiConverterString.read(buf),
-        )
-      }
-
-      10 -> {
-        AppException.UniFfi(
-          FfiConverterString.read(buf),
-        )
-      }
-
-      else -> {
-        throw RuntimeException("invalid error enum value, something is very wrong!!")
-      }
+        return when(buf.getInt()) {
+            1 -> AppException.Network(
+                FfiConverterString.read(buf),
+                )
+            2 -> AppException.Auth(
+                FfiConverterString.read(buf),
+                )
+            3 -> AppException.Database(
+                FfiConverterString.read(buf),
+                )
+            4 -> AppException.Serialization(
+                FfiConverterString.read(buf),
+                )
+            5 -> AppException.FileSystem(
+                FfiConverterString.read(buf),
+                )
+            6 -> AppException.ApiParse(
+                FfiConverterString.read(buf),
+                )
+            7 -> AppException.Config(
+                FfiConverterString.read(buf),
+                )
+            8 -> AppException.Http(
+                FfiConverterUShort.read(buf),
+                FfiConverterString.read(buf),
+                )
+            9 -> AppException.General(
+                FfiConverterString.read(buf),
+                )
+            10 -> AppException.UniFfi(
+                FfiConverterString.read(buf),
+                )
+            else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
+        }
     }
 
-  override fun allocationSize(value: AppException): ULong =
-    when (value) {
-      is AppException.Network -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
-
-      is AppException.Auth -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
-
-      is AppException.Database -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
-
-      is AppException.Serialization -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
-
-      is AppException.FileSystem -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
-
-      is AppException.ApiParse -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
-
-      is AppException.Config -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
-
-      is AppException.Http -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterUShort.allocationSize(value.`status`) +
-          FfiConverterString.allocationSize(value.`detail`)
-      )
-
-      is AppException.General -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
-
-      is AppException.UniFfi -> (
-        // Add the size for the Int that specifies the variant plus the size needed for all fields
-        4UL +
-          FfiConverterString.allocationSize(value.v1)
-      )
+    override fun allocationSize(value: AppException): ULong {
+        return when(value) {
+            is AppException.Network -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is AppException.Auth -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is AppException.Database -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is AppException.Serialization -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is AppException.FileSystem -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is AppException.ApiParse -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is AppException.Config -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is AppException.Http -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterUShort.allocationSize(value.`status`)
+                + FfiConverterString.allocationSize(value.`detail`)
+            )
+            is AppException.General -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+            is AppException.UniFfi -> (
+                // Add the size for the Int that specifies the variant plus the size needed for all fields
+                4UL
+                + FfiConverterString.allocationSize(value.v1)
+            )
+        }
     }
 
-  override fun write(
-    value: AppException,
-    buf: ByteBuffer,
-  ) {
-    when (value) {
-      is AppException.Network -> {
-        buf.putInt(1)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
+    override fun write(value: AppException, buf: ByteBuffer) {
+        when(value) {
+            is AppException.Network -> {
+                buf.putInt(1)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is AppException.Auth -> {
+                buf.putInt(2)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is AppException.Database -> {
+                buf.putInt(3)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is AppException.Serialization -> {
+                buf.putInt(4)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is AppException.FileSystem -> {
+                buf.putInt(5)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is AppException.ApiParse -> {
+                buf.putInt(6)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is AppException.Config -> {
+                buf.putInt(7)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is AppException.Http -> {
+                buf.putInt(8)
+                FfiConverterUShort.write(value.`status`, buf)
+                FfiConverterString.write(value.`detail`, buf)
+                Unit
+            }
+            is AppException.General -> {
+                buf.putInt(9)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+            is AppException.UniFfi -> {
+                buf.putInt(10)
+                FfiConverterString.write(value.v1, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
 
-      is AppException.Auth -> {
-        buf.putInt(2)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
-
-      is AppException.Database -> {
-        buf.putInt(3)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
-
-      is AppException.Serialization -> {
-        buf.putInt(4)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
-
-      is AppException.FileSystem -> {
-        buf.putInt(5)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
-
-      is AppException.ApiParse -> {
-        buf.putInt(6)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
-
-      is AppException.Config -> {
-        buf.putInt(7)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
-
-      is AppException.Http -> {
-        buf.putInt(8)
-        FfiConverterUShort.write(value.`status`, buf)
-        FfiConverterString.write(value.`detail`, buf)
-        Unit
-      }
-
-      is AppException.General -> {
-        buf.putInt(9)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
-
-      is AppException.UniFfi -> {
-        buf.putInt(10)
-        FfiConverterString.write(value.v1, buf)
-        Unit
-      }
-    }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalInt : FfiConverterRustBuffer<kotlin.Int?> {
-  override fun read(buf: ByteBuffer): kotlin.Int? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalInt: FfiConverterRustBuffer<kotlin.Int?> {
+    override fun read(buf: ByteBuffer): kotlin.Int? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterInt.read(buf)
     }
-    return FfiConverterInt.read(buf)
-  }
 
-  override fun allocationSize(value: kotlin.Int?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterInt.allocationSize(value)
+    override fun allocationSize(value: kotlin.Int?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterInt.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: kotlin.Int?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterInt.write(value, buf)
+    override fun write(value: kotlin.Int?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterInt.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalLong : FfiConverterRustBuffer<kotlin.Long?> {
-  override fun read(buf: ByteBuffer): kotlin.Long? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalLong: FfiConverterRustBuffer<kotlin.Long?> {
+    override fun read(buf: ByteBuffer): kotlin.Long? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterLong.read(buf)
     }
-    return FfiConverterLong.read(buf)
-  }
 
-  override fun allocationSize(value: kotlin.Long?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterLong.allocationSize(value)
+    override fun allocationSize(value: kotlin.Long?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterLong.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: kotlin.Long?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterLong.write(value, buf)
+    override fun write(value: kotlin.Long?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterLong.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalDouble : FfiConverterRustBuffer<kotlin.Double?> {
-  override fun read(buf: ByteBuffer): kotlin.Double? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalDouble: FfiConverterRustBuffer<kotlin.Double?> {
+    override fun read(buf: ByteBuffer): kotlin.Double? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterDouble.read(buf)
     }
-    return FfiConverterDouble.read(buf)
-  }
 
-  override fun allocationSize(value: kotlin.Double?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterDouble.allocationSize(value)
+    override fun allocationSize(value: kotlin.Double?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterDouble.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: kotlin.Double?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterDouble.write(value, buf)
+    override fun write(value: kotlin.Double?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterDouble.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalBoolean : FfiConverterRustBuffer<kotlin.Boolean?> {
-  override fun read(buf: ByteBuffer): kotlin.Boolean? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalBoolean: FfiConverterRustBuffer<kotlin.Boolean?> {
+    override fun read(buf: ByteBuffer): kotlin.Boolean? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterBoolean.read(buf)
     }
-    return FfiConverterBoolean.read(buf)
-  }
 
-  override fun allocationSize(value: kotlin.Boolean?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterBoolean.allocationSize(value)
+    override fun allocationSize(value: kotlin.Boolean?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterBoolean.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: kotlin.Boolean?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterBoolean.write(value, buf)
+    override fun write(value: kotlin.Boolean?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterBoolean.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalString : FfiConverterRustBuffer<kotlin.String?> {
-  override fun read(buf: ByteBuffer): kotlin.String? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?> {
+    override fun read(buf: ByteBuffer): kotlin.String? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterString.read(buf)
     }
-    return FfiConverterString.read(buf)
-  }
 
-  override fun allocationSize(value: kotlin.String?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterString.allocationSize(value)
+    override fun allocationSize(value: kotlin.String?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterString.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: kotlin.String?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterString.write(value, buf)
+    override fun write(value: kotlin.String?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterString.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalTypeAlbum : FfiConverterRustBuffer<Album?> {
-  override fun read(buf: ByteBuffer): Album? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalTypeAlbum: FfiConverterRustBuffer<Album?> {
+    override fun read(buf: ByteBuffer): Album? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeAlbum.read(buf)
     }
-    return FfiConverterTypeAlbum.read(buf)
-  }
 
-  override fun allocationSize(value: Album?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterTypeAlbum.allocationSize(value)
+    override fun allocationSize(value: Album?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeAlbum.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: Album?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterTypeAlbum.write(value, buf)
+    override fun write(value: Album?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeAlbum.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalTypeArtist : FfiConverterRustBuffer<Artist?> {
-  override fun read(buf: ByteBuffer): Artist? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalTypeArtist: FfiConverterRustBuffer<Artist?> {
+    override fun read(buf: ByteBuffer): Artist? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeArtist.read(buf)
     }
-    return FfiConverterTypeArtist.read(buf)
-  }
 
-  override fun allocationSize(value: Artist?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterTypeArtist.allocationSize(value)
+    override fun allocationSize(value: Artist?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeArtist.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: Artist?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterTypeArtist.write(value, buf)
+    override fun write(value: Artist?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeArtist.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalTypeCredentials : FfiConverterRustBuffer<Credentials?> {
-  override fun read(buf: ByteBuffer): Credentials? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalTypeCredentials: FfiConverterRustBuffer<Credentials?> {
+    override fun read(buf: ByteBuffer): Credentials? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeCredentials.read(buf)
     }
-    return FfiConverterTypeCredentials.read(buf)
-  }
 
-  override fun allocationSize(value: Credentials?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterTypeCredentials.allocationSize(value)
+    override fun allocationSize(value: Credentials?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeCredentials.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: Credentials?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterTypeCredentials.write(value, buf)
+    override fun write(value: Credentials?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeCredentials.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalTypeSong : FfiConverterRustBuffer<Song?> {
-  override fun read(buf: ByteBuffer): Song? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalTypeSong: FfiConverterRustBuffer<Song?> {
+    override fun read(buf: ByteBuffer): Song? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeSong.read(buf)
     }
-    return FfiConverterTypeSong.read(buf)
-  }
 
-  override fun allocationSize(value: Song?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterTypeSong.allocationSize(value)
+    override fun allocationSize(value: Song?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeSong.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: Song?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterTypeSong.write(value, buf)
+    override fun write(value: Song?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeSong.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalTypeUserData : FfiConverterRustBuffer<UserData?> {
-  override fun read(buf: ByteBuffer): UserData? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalTypeUserData: FfiConverterRustBuffer<UserData?> {
+    override fun read(buf: ByteBuffer): UserData? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeUserData.read(buf)
     }
-    return FfiConverterTypeUserData.read(buf)
-  }
 
-  override fun allocationSize(value: UserData?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterTypeUserData.allocationSize(value)
+    override fun allocationSize(value: UserData?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeUserData.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: UserData?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterTypeUserData.write(value, buf)
+    override fun write(value: UserData?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeUserData.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalSequenceString : FfiConverterRustBuffer<List<kotlin.String>?> {
-  override fun read(buf: ByteBuffer): List<kotlin.String>? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalSequenceString: FfiConverterRustBuffer<List<kotlin.String>?> {
+    override fun read(buf: ByteBuffer): List<kotlin.String>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterSequenceString.read(buf)
     }
-    return FfiConverterSequenceString.read(buf)
-  }
 
-  override fun allocationSize(value: List<kotlin.String>?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterSequenceString.allocationSize(value)
+    override fun allocationSize(value: List<kotlin.String>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterSequenceString.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: List<kotlin.String>?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterSequenceString.write(value, buf)
+    override fun write(value: List<kotlin.String>?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterSequenceString.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalSequenceTypeNameIdPair : FfiConverterRustBuffer<List<NameIdPair>?> {
-  override fun read(buf: ByteBuffer): List<NameIdPair>? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalSequenceTypeNameIdPair: FfiConverterRustBuffer<List<NameIdPair>?> {
+    override fun read(buf: ByteBuffer): List<NameIdPair>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterSequenceTypeNameIdPair.read(buf)
     }
-    return FfiConverterSequenceTypeNameIdPair.read(buf)
-  }
 
-  override fun allocationSize(value: List<NameIdPair>?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterSequenceTypeNameIdPair.allocationSize(value)
+    override fun allocationSize(value: List<NameIdPair>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterSequenceTypeNameIdPair.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: List<NameIdPair>?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterSequenceTypeNameIdPair.write(value, buf)
+    override fun write(value: List<NameIdPair>?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterSequenceTypeNameIdPair.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalSequenceTypeSong : FfiConverterRustBuffer<List<Song>?> {
-  override fun read(buf: ByteBuffer): List<Song>? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalSequenceTypeSong: FfiConverterRustBuffer<List<Song>?> {
+    override fun read(buf: ByteBuffer): List<Song>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterSequenceTypeSong.read(buf)
     }
-    return FfiConverterSequenceTypeSong.read(buf)
-  }
 
-  override fun allocationSize(value: List<Song>?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterSequenceTypeSong.allocationSize(value)
+    override fun allocationSize(value: List<Song>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterSequenceTypeSong.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: List<Song>?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterSequenceTypeSong.write(value, buf)
+    override fun write(value: List<Song>?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterSequenceTypeSong.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalMapStringString : FfiConverterRustBuffer<Map<kotlin.String, kotlin.String>?> {
-  override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.String>? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalMapStringString: FfiConverterRustBuffer<Map<kotlin.String, kotlin.String>?> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.String>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterMapStringString.read(buf)
     }
-    return FfiConverterMapStringString.read(buf)
-  }
 
-  override fun allocationSize(value: Map<kotlin.String, kotlin.String>?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterMapStringString.allocationSize(value)
+    override fun allocationSize(value: Map<kotlin.String, kotlin.String>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterMapStringString.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: Map<kotlin.String, kotlin.String>?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterMapStringString.write(value, buf)
+    override fun write(value: Map<kotlin.String, kotlin.String>?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterMapStringString.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterOptionalMapStringMapStringString : FfiConverterRustBuffer<Map<kotlin.String, Map<kotlin.String, kotlin.String>>?> {
-  override fun read(buf: ByteBuffer): Map<kotlin.String, Map<kotlin.String, kotlin.String>>? {
-    if (buf.get().toInt() == 0) {
-      return null
+public object FfiConverterOptionalMapStringMapStringString: FfiConverterRustBuffer<Map<kotlin.String, Map<kotlin.String, kotlin.String>>?> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, Map<kotlin.String, kotlin.String>>? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterMapStringMapStringString.read(buf)
     }
-    return FfiConverterMapStringMapStringString.read(buf)
-  }
 
-  override fun allocationSize(value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?): ULong {
-    if (value == null) {
-      return 1UL
-    } else {
-      return 1UL + FfiConverterMapStringMapStringString.allocationSize(value)
+    override fun allocationSize(value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterMapStringMapStringString.allocationSize(value)
+        }
     }
-  }
 
-  override fun write(
-    value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?,
-    buf: ByteBuffer,
-  ) {
-    if (value == null) {
-      buf.put(0)
-    } else {
-      buf.put(1)
-      FfiConverterMapStringMapStringString.write(value, buf)
+    override fun write(value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterMapStringMapStringString.write(value, buf)
+        }
     }
-  }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterSequenceString : FfiConverterRustBuffer<List<kotlin.String>> {
-  override fun read(buf: ByteBuffer): List<kotlin.String> {
-    val len = buf.getInt()
-    return List<kotlin.String>(len) {
-      FfiConverterString.read(buf)
+public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.String>> {
+    override fun read(buf: ByteBuffer): List<kotlin.String> {
+        val len = buf.getInt()
+        return List<kotlin.String>(len) {
+            FfiConverterString.read(buf)
+        }
     }
-  }
 
-  override fun allocationSize(value: List<kotlin.String>): ULong {
-    val sizeForLength = 4UL
-    val sizeForItems = value.map { FfiConverterString.allocationSize(it) }.sum()
-    return sizeForLength + sizeForItems
-  }
-
-  override fun write(
-    value: List<kotlin.String>,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.size)
-    value.iterator().forEach {
-      FfiConverterString.write(it, buf)
+    override fun allocationSize(value: List<kotlin.String>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterString.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
     }
-  }
+
+    override fun write(value: List<kotlin.String>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterString.write(it, buf)
+        }
+    }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeAlbum : FfiConverterRustBuffer<List<Album>> {
-  override fun read(buf: ByteBuffer): List<Album> {
-    val len = buf.getInt()
-    return List<Album>(len) {
-      FfiConverterTypeAlbum.read(buf)
+public object FfiConverterSequenceTypeAlbum: FfiConverterRustBuffer<List<Album>> {
+    override fun read(buf: ByteBuffer): List<Album> {
+        val len = buf.getInt()
+        return List<Album>(len) {
+            FfiConverterTypeAlbum.read(buf)
+        }
     }
-  }
 
-  override fun allocationSize(value: List<Album>): ULong {
-    val sizeForLength = 4UL
-    val sizeForItems = value.map { FfiConverterTypeAlbum.allocationSize(it) }.sum()
-    return sizeForLength + sizeForItems
-  }
-
-  override fun write(
-    value: List<Album>,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.size)
-    value.iterator().forEach {
-      FfiConverterTypeAlbum.write(it, buf)
+    override fun allocationSize(value: List<Album>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeAlbum.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
     }
-  }
+
+    override fun write(value: List<Album>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeAlbum.write(it, buf)
+        }
+    }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeArtist : FfiConverterRustBuffer<List<Artist>> {
-  override fun read(buf: ByteBuffer): List<Artist> {
-    val len = buf.getInt()
-    return List<Artist>(len) {
-      FfiConverterTypeArtist.read(buf)
+public object FfiConverterSequenceTypeArtist: FfiConverterRustBuffer<List<Artist>> {
+    override fun read(buf: ByteBuffer): List<Artist> {
+        val len = buf.getInt()
+        return List<Artist>(len) {
+            FfiConverterTypeArtist.read(buf)
+        }
     }
-  }
 
-  override fun allocationSize(value: List<Artist>): ULong {
-    val sizeForLength = 4UL
-    val sizeForItems = value.map { FfiConverterTypeArtist.allocationSize(it) }.sum()
-    return sizeForLength + sizeForItems
-  }
-
-  override fun write(
-    value: List<Artist>,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.size)
-    value.iterator().forEach {
-      FfiConverterTypeArtist.write(it, buf)
+    override fun allocationSize(value: List<Artist>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeArtist.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
     }
-  }
+
+    override fun write(value: List<Artist>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeArtist.write(it, buf)
+        }
+    }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeNameIdPair : FfiConverterRustBuffer<List<NameIdPair>> {
-  override fun read(buf: ByteBuffer): List<NameIdPair> {
-    val len = buf.getInt()
-    return List<NameIdPair>(len) {
-      FfiConverterTypeNameIdPair.read(buf)
+public object FfiConverterSequenceTypeNameIdPair: FfiConverterRustBuffer<List<NameIdPair>> {
+    override fun read(buf: ByteBuffer): List<NameIdPair> {
+        val len = buf.getInt()
+        return List<NameIdPair>(len) {
+            FfiConverterTypeNameIdPair.read(buf)
+        }
     }
-  }
 
-  override fun allocationSize(value: List<NameIdPair>): ULong {
-    val sizeForLength = 4UL
-    val sizeForItems = value.map { FfiConverterTypeNameIdPair.allocationSize(it) }.sum()
-    return sizeForLength + sizeForItems
-  }
-
-  override fun write(
-    value: List<NameIdPair>,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.size)
-    value.iterator().forEach {
-      FfiConverterTypeNameIdPair.write(it, buf)
+    override fun allocationSize(value: List<NameIdPair>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeNameIdPair.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
     }
-  }
+
+    override fun write(value: List<NameIdPair>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeNameIdPair.write(it, buf)
+        }
+    }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypePlaylist : FfiConverterRustBuffer<List<Playlist>> {
-  override fun read(buf: ByteBuffer): List<Playlist> {
-    val len = buf.getInt()
-    return List<Playlist>(len) {
-      FfiConverterTypePlaylist.read(buf)
+public object FfiConverterSequenceTypePlaylist: FfiConverterRustBuffer<List<Playlist>> {
+    override fun read(buf: ByteBuffer): List<Playlist> {
+        val len = buf.getInt()
+        return List<Playlist>(len) {
+            FfiConverterTypePlaylist.read(buf)
+        }
     }
-  }
 
-  override fun allocationSize(value: List<Playlist>): ULong {
-    val sizeForLength = 4UL
-    val sizeForItems = value.map { FfiConverterTypePlaylist.allocationSize(it) }.sum()
-    return sizeForLength + sizeForItems
-  }
-
-  override fun write(
-    value: List<Playlist>,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.size)
-    value.iterator().forEach {
-      FfiConverterTypePlaylist.write(it, buf)
+    override fun allocationSize(value: List<Playlist>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypePlaylist.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
     }
-  }
+
+    override fun write(value: List<Playlist>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypePlaylist.write(it, buf)
+        }
+    }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterSequenceTypeSong : FfiConverterRustBuffer<List<Song>> {
-  override fun read(buf: ByteBuffer): List<Song> {
-    val len = buf.getInt()
-    return List<Song>(len) {
-      FfiConverterTypeSong.read(buf)
+public object FfiConverterSequenceTypeSong: FfiConverterRustBuffer<List<Song>> {
+    override fun read(buf: ByteBuffer): List<Song> {
+        val len = buf.getInt()
+        return List<Song>(len) {
+            FfiConverterTypeSong.read(buf)
+        }
     }
-  }
 
-  override fun allocationSize(value: List<Song>): ULong {
-    val sizeForLength = 4UL
-    val sizeForItems = value.map { FfiConverterTypeSong.allocationSize(it) }.sum()
-    return sizeForLength + sizeForItems
-  }
-
-  override fun write(
-    value: List<Song>,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.size)
-    value.iterator().forEach {
-      FfiConverterTypeSong.write(it, buf)
+    override fun allocationSize(value: List<Song>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeSong.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
     }
-  }
+
+    override fun write(value: List<Song>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeSong.write(it, buf)
+        }
+    }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterMapStringString : FfiConverterRustBuffer<Map<kotlin.String, kotlin.String>> {
-  override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.String> {
-    val len = buf.getInt()
-    return buildMap<kotlin.String, kotlin.String>(len) {
-      repeat(len) {
-        val k = FfiConverterString.read(buf)
-        val v = FfiConverterString.read(buf)
-        this[k] = v
-      }
+public object FfiConverterMapStringString: FfiConverterRustBuffer<Map<kotlin.String, kotlin.String>> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, kotlin.String> {
+        val len = buf.getInt()
+        return buildMap<kotlin.String, kotlin.String>(len) {
+            repeat(len) {
+                val k = FfiConverterString.read(buf)
+                val v = FfiConverterString.read(buf)
+                this[k] = v
+            }
+        }
     }
-  }
 
-  override fun allocationSize(value: Map<kotlin.String, kotlin.String>): ULong {
-    val spaceForMapSize = 4UL
-    val spaceForChildren =
-      value
-        .map { (k, v) ->
-          FfiConverterString.allocationSize(k) +
+    override fun allocationSize(value: Map<kotlin.String, kotlin.String>): ULong {
+        val spaceForMapSize = 4UL
+        val spaceForChildren = value.map { (k, v) ->
+            FfiConverterString.allocationSize(k) +
             FfiConverterString.allocationSize(v)
         }.sum()
-    return spaceForMapSize + spaceForChildren
-  }
-
-  override fun write(
-    value: Map<kotlin.String, kotlin.String>,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.size)
-    // The parens on `(k, v)` here ensure we're calling the right method,
-    // which is important for compatibility with older android devices.
-    // Ref https://blog.danlew.net/2017/03/16/kotlin-puzzler-whose-line-is-it-anyways/
-    value.forEach { (k, v) ->
-      FfiConverterString.write(k, buf)
-      FfiConverterString.write(v, buf)
+        return spaceForMapSize + spaceForChildren
     }
-  }
+
+    override fun write(value: Map<kotlin.String, kotlin.String>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        // The parens on `(k, v)` here ensure we're calling the right method,
+        // which is important for compatibility with older android devices.
+        // Ref https://blog.danlew.net/2017/03/16/kotlin-puzzler-whose-line-is-it-anyways/
+        value.forEach { (k, v) ->
+            FfiConverterString.write(k, buf)
+            FfiConverterString.write(v, buf)
+        }
+    }
 }
+
+
+
 
 /**
  * @suppress
  */
-public object FfiConverterMapStringMapStringString : FfiConverterRustBuffer<Map<kotlin.String, Map<kotlin.String, kotlin.String>>> {
-  override fun read(buf: ByteBuffer): Map<kotlin.String, Map<kotlin.String, kotlin.String>> {
-    val len = buf.getInt()
-    return buildMap<kotlin.String, Map<kotlin.String, kotlin.String>>(len) {
-      repeat(len) {
-        val k = FfiConverterString.read(buf)
-        val v = FfiConverterMapStringString.read(buf)
-        this[k] = v
-      }
+public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<kotlin.String, Map<kotlin.String, kotlin.String>>> {
+    override fun read(buf: ByteBuffer): Map<kotlin.String, Map<kotlin.String, kotlin.String>> {
+        val len = buf.getInt()
+        return buildMap<kotlin.String, Map<kotlin.String, kotlin.String>>(len) {
+            repeat(len) {
+                val k = FfiConverterString.read(buf)
+                val v = FfiConverterMapStringString.read(buf)
+                this[k] = v
+            }
+        }
     }
-  }
 
-  override fun allocationSize(value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>): ULong {
-    val spaceForMapSize = 4UL
-    val spaceForChildren =
-      value
-        .map { (k, v) ->
-          FfiConverterString.allocationSize(k) +
+    override fun allocationSize(value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>): ULong {
+        val spaceForMapSize = 4UL
+        val spaceForChildren = value.map { (k, v) ->
+            FfiConverterString.allocationSize(k) +
             FfiConverterMapStringString.allocationSize(v)
         }.sum()
-    return spaceForMapSize + spaceForChildren
-  }
-
-  override fun write(
-    value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>,
-    buf: ByteBuffer,
-  ) {
-    buf.putInt(value.size)
-    // The parens on `(k, v)` here ensure we're calling the right method,
-    // which is important for compatibility with older android devices.
-    // Ref https://blog.danlew.net/2017/03/16/kotlin-puzzler-whose-line-is-it-anyways/
-    value.forEach { (k, v) ->
-      FfiConverterString.write(k, buf)
-      FfiConverterMapStringString.write(v, buf)
+        return spaceForMapSize + spaceForChildren
     }
-  }
+
+    override fun write(value: Map<kotlin.String, Map<kotlin.String, kotlin.String>>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        // The parens on `(k, v)` here ensure we're calling the right method,
+        // which is important for compatibility with older android devices.
+        // Ref https://blog.danlew.net/2017/03/16/kotlin-puzzler-whose-line-is-it-anyways/
+        value.forEach { (k, v) ->
+            FfiConverterString.write(k, buf)
+            FfiConverterMapStringString.write(v, buf)
+        }
+    }
 }
 
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `addPlaylistItems`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `playlistId`: kotlin.String,
-  `itemIds`: List<kotlin.String>,
-) = uniffiRustCallAsync(
-  UniffiLib.uniffi_aurelia_core_fn_func_add_playlist_items(
-    FfiConverterString.lower(`serverUrl`),
-    FfiConverterString.lower(`token`),
-    FfiConverterString.lower(`playlistId`),
-    FfiConverterSequenceString.lower(`itemIds`),
-  ),
-  {
-    future,
-    callback,
-    continuation,
-    ->
-    UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation)
-  },
-  { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
-  { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
-  // lift function
-  { Unit },
-  // Error FFI converter
-  AppException.ErrorHandler,
-)
 
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `authenticate`(
-  `serverUrl`: kotlin.String,
-  `username`: kotlin.String,
-  `password`: kotlin.String,
-  `deviceId`: kotlin.String,
-): LoginResponse =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_authenticate(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`username`),
-      FfiConverterString.lower(`password`),
-      FfiConverterString.lower(`deviceId`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterTypeLoginResponse.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
 
-/**
- * Build a stream URL optimized for mobile playback.
- * Uses HLS transcoding for non-seekable containers so that Media3/ExoPlayer can seek natively.
- */
-fun `buildMobileStreamUrl`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `itemId`: kotlin.String,
-  `container`: kotlin.String?,
-): kotlin.String =
-  FfiConverterString.lift(
-    uniffiRustCall { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_build_mobile_stream_url(
-        FfiConverterString.lower(`serverUrl`),
-        FfiConverterString.lower(`token`),
-        FfiConverterString.lower(`itemId`),
-        FfiConverterOptionalString.lower(`container`),
-        _status,
-      )
-    },
-  )
 
-fun `buildStreamUrl`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `itemId`: kotlin.String,
-  `container`: kotlin.String?,
-): kotlin.String =
-  FfiConverterString.lift(
-    uniffiRustCall { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_build_stream_url(
-        FfiConverterString.lower(`serverUrl`),
-        FfiConverterString.lower(`token`),
-        FfiConverterString.lower(`itemId`),
-        FfiConverterOptionalString.lower(`container`),
-        _status,
-      )
-    },
-  )
 
-@Throws(AppException::class)
-fun `cacheSongs`(
-  `appDataDir`: kotlin.String,
-  `songs`: List<Song>,
-) = uniffiRustCallWithError(AppException) { _status ->
-  UniffiLib.uniffi_aurelia_core_fn_func_cache_songs(
-    FfiConverterString.lower(`appDataDir`),
-    FfiConverterSequenceTypeSong.lower(`songs`),
-    _status,
-  )
+
+
+
+
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `addPlaylistItems`(`serverUrl`: kotlin.String, `token`: kotlin.String, `playlistId`: kotlin.String, `itemIds`: List<kotlin.String>) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_add_playlist_items(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`playlistId`),FfiConverterSequenceString.lower(`itemIds`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `authenticate`(`serverUrl`: kotlin.String, `username`: kotlin.String, `password`: kotlin.String, `deviceId`: kotlin.String) : LoginResponse {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_authenticate(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`username`),FfiConverterString.lower(`password`),FfiConverterString.lower(`deviceId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeLoginResponse.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Build a stream URL optimized for mobile playback.
+         * Uses HLS transcoding for non-seekable containers so that Media3/ExoPlayer can seek natively.
+         */ fun `buildMobileStreamUrl`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String, `container`: kotlin.String?): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_build_mobile_stream_url(
+    
+        FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),FfiConverterOptionalString.lower(`container`),_status)
 }
-
-@Throws(AppException::class)
-fun `clearCache`(`appDataDir`: kotlin.String) =
-  uniffiRustCallWithError(AppException) { _status ->
-    UniffiLib.uniffi_aurelia_core_fn_func_clear_cache(FfiConverterString.lower(`appDataDir`), _status)
-  }
-
-@Throws(AppException::class)
-fun `clearCredentials`(`appDataDir`: kotlin.String) =
-  uniffiRustCallWithError(AppException) { _status ->
-    UniffiLib.uniffi_aurelia_core_fn_func_clear_credentials(FfiConverterString.lower(`appDataDir`), _status)
-  }
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `createPlaylist`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `data`: PlaylistCreateData,
-): Playlist =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_create_playlist(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterTypePlaylistCreateData.lower(`data`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterTypePlaylist.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `deletePlaylist`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `playlistId`: kotlin.String,
-) = uniffiRustCallAsync(
-  UniffiLib.uniffi_aurelia_core_fn_func_delete_playlist(
-    FfiConverterString.lower(`serverUrl`),
-    FfiConverterString.lower(`token`),
-    FfiConverterString.lower(`playlistId`),
-  ),
-  {
-    future,
-    callback,
-    continuation,
-    ->
-    UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation)
-  },
-  { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
-  { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
-  // lift function
-  { Unit },
-  // Error FFI converter
-  AppException.ErrorHandler,
-)
-
-@Throws(AppException::class)
-fun `deleteSetting`(
-  `appDataDir`: kotlin.String,
-  `key`: kotlin.String,
-) = uniffiRustCallWithError(AppException) { _status ->
-  UniffiLib.uniffi_aurelia_core_fn_func_delete_setting(
-    FfiConverterString.lower(`appDataDir`),
-    FfiConverterString.lower(`key`),
-    _status,
-  )
+    )
+    }
+    
+ fun `buildStreamUrl`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String, `container`: kotlin.String?): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_build_stream_url(
+    
+        FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),FfiConverterOptionalString.lower(`container`),_status)
 }
+    )
+    }
+    
 
-/**
- * Derive mobile home sections from an in-memory song list.
- */
-fun `deriveMobileHomeData`(
-  `songs`: List<Song>,
-  `mostPlayedLimit`: kotlin.Long,
-  `recentlyPlayedLimit`: kotlin.Long,
-  `albumSectionLimit`: kotlin.Long,
-  `featuredAlbumsLimit`: kotlin.Long,
-): MobileHomeData =
-  FfiConverterTypeMobileHomeData.lift(
-    uniffiRustCall { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_derive_mobile_home_data(
-        FfiConverterSequenceTypeSong.lower(`songs`),
-        FfiConverterLong.lower(`mostPlayedLimit`),
-        FfiConverterLong.lower(`recentlyPlayedLimit`),
-        FfiConverterLong.lower(`albumSectionLimit`),
-        FfiConverterLong.lower(`featuredAlbumsLimit`),
-        _status,
-      )
-    },
-  )
-
-/**
- * Fetch a single album from server and cache it
- */
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `fetchAlbum`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-  `albumId`: kotlin.String,
-  `appDataDir`: kotlin.String,
-): Album =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_fetch_album(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`userId`),
-      FfiConverterString.lower(`albumId`),
-      FfiConverterString.lower(`appDataDir`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterTypeAlbum.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-/**
- * Fetch a single artist from server and cache it
- */
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `fetchArtist`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-  `artistId`: kotlin.String,
-  `appDataDir`: kotlin.String,
-): Artist =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_fetch_artist(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`userId`),
-      FfiConverterString.lower(`artistId`),
-      FfiConverterString.lower(`appDataDir`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterTypeArtist.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `fetchSongs`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-  `appDataDir`: kotlin.String,
-): List<Song> =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_fetch_songs(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`userId`),
-      FfiConverterString.lower(`appDataDir`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterSequenceTypeSong.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-/**
- * Get a cached album from local database
- */
-@Throws(AppException::class)
-fun `getCachedAlbum`(
-  `appDataDir`: kotlin.String,
-  `albumId`: kotlin.String,
-): Album? =
-  FfiConverterOptionalTypeAlbum.lift(
+    @Throws(AppException::class) fun `cacheSongs`(`appDataDir`: kotlin.String, `songs`: List<Song>)
+        = 
     uniffiRustCallWithError(AppException) { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_get_cached_album(
-        FfiConverterString.lower(`appDataDir`),
-        FfiConverterString.lower(`albumId`),
-        _status,
-      )
-    },
-  )
-
-/**
- * Get a cached artist from local database
- */
-@Throws(AppException::class)
-fun `getCachedArtist`(
-  `appDataDir`: kotlin.String,
-  `artistId`: kotlin.String,
-): Artist? =
-  FfiConverterOptionalTypeArtist.lift(
-    uniffiRustCallWithError(AppException) { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_get_cached_artist(
-        FfiConverterString.lower(`appDataDir`),
-        FfiConverterString.lower(`artistId`),
-        _status,
-      )
-    },
-  )
-
-/**
- * Get a cached song from local database
- */
-@Throws(AppException::class)
-fun `getCachedSong`(
-  `appDataDir`: kotlin.String,
-  `songId`: kotlin.String,
-): Song? =
-  FfiConverterOptionalTypeSong.lift(
-    uniffiRustCallWithError(AppException) { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_get_cached_song(
-        FfiConverterString.lower(`appDataDir`),
-        FfiConverterString.lower(`songId`),
-        _status,
-      )
-    },
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `getInstantMix`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `itemId`: kotlin.String,
-): List<Song> =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_get_instant_mix(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`itemId`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterSequenceTypeSong.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-@Throws(AppException::class)
-fun `getLibrarySyncState`(`appDataDir`: kotlin.String): kotlin.String =
-  FfiConverterString.lift(
-    uniffiRustCallWithError(AppException) { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_get_library_sync_state(FfiConverterString.lower(`appDataDir`), _status)
-    },
-  )
-
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `getLyrics`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `itemId`: kotlin.String,
-  `artist`: kotlin.String,
-  `title`: kotlin.String,
-): kotlin.String =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_get_lyrics(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`itemId`),
-      FfiConverterString.lower(`artist`),
-      FfiConverterString.lower(`title`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterString.lift(it) },
-    // Error FFI converter
-    UniffiNullRustCallStatusErrorHandler,
-  )
-
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `getParsedLyrics`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `itemId`: kotlin.String,
-  `artist`: kotlin.String,
-  `title`: kotlin.String,
-  `path`: kotlin.String?,
-  `lyricsServerUrl`: kotlin.String?,
-): ParsedLyrics =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_get_parsed_lyrics(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`itemId`),
-      FfiConverterString.lower(`artist`),
-      FfiConverterString.lower(`title`),
-      FfiConverterOptionalString.lower(`path`),
-      FfiConverterOptionalString.lower(`lyricsServerUrl`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    {
-      future,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation).let {
-        RustBufferParsedLyrics.create(it.capacity.toULong(), it.len.toULong(), it.data)
-      }
-    },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterTypeParsedLyrics.lift(it) },
-    // Error FFI converter
-    UniffiNullRustCallStatusErrorHandler,
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `getPlaylistItems`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `playlistId`: kotlin.String,
-): List<Song> =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_get_playlist_items(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`playlistId`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterSequenceTypeSong.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `getPlaylists`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-): List<Playlist> =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_get_playlists(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`userId`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterSequenceTypePlaylist.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `getRecentlyPlayed`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-): List<Song> =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_get_recently_played(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`userId`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterSequenceTypeSong.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `getRelatedArtists`(
-  `appDataDir`: kotlin.String,
-  `artistId`: kotlin.String,
-): List<Artist> =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_get_related_artists(
-      FfiConverterString.lower(`appDataDir`),
-      FfiConverterString.lower(`artistId`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterSequenceTypeArtist.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `getSongShareUrls`(`song`: Song): Map<kotlin.String, kotlin.String> =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_get_song_share_urls(FfiConverterTypeSong.lower(`song`)),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterMapStringString.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
-
-/**
- * Get sync state as a typed struct (better for UI binding)
- */
-@Throws(AppException::class)
-fun `getSyncState`(`appDataDir`: kotlin.String): SyncState =
-  FfiConverterTypeSyncState.lift(
-    uniffiRustCallWithError(AppException) { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_get_sync_state(FfiConverterString.lower(`appDataDir`), _status)
-    },
-  )
-
-@Throws(AppException::class)
-fun `loadCachedSongs`(`appDataDir`: kotlin.String): List<Song> =
-  FfiConverterSequenceTypeSong.lift(
-    uniffiRustCallWithError(AppException) { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_load_cached_songs(FfiConverterString.lower(`appDataDir`), _status)
-    },
-  )
-
-@Throws(AppException::class)
-fun `loadCredentials`(`appDataDir`: kotlin.String): Credentials? =
-  FfiConverterOptionalTypeCredentials.lift(
-    uniffiRustCallWithError(AppException) { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_load_credentials(FfiConverterString.lower(`appDataDir`), _status)
-    },
-  )
-
-@Throws(AppException::class)
-fun `loadSetting`(
-  `appDataDir`: kotlin.String,
-  `key`: kotlin.String,
-): kotlin.String? =
-  FfiConverterOptionalString.lift(
-    uniffiRustCallWithError(AppException) { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_load_setting(
-        FfiConverterString.lower(`appDataDir`),
-        FfiConverterString.lower(`key`),
-        _status,
-      )
-    },
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `markItemPlayed`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-  `itemId`: kotlin.String,
-) = uniffiRustCallAsync(
-  UniffiLib.uniffi_aurelia_core_fn_func_mark_item_played(
-    FfiConverterString.lower(`serverUrl`),
-    FfiConverterString.lower(`token`),
-    FfiConverterString.lower(`userId`),
-    FfiConverterString.lower(`itemId`),
-  ),
-  {
-    future,
-    callback,
-    continuation,
-    ->
-    UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation)
-  },
-  { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
-  { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
-  // lift function
-  { Unit },
-  // Error FFI converter
-  AppException.ErrorHandler,
-)
-
-fun `ping`(): kotlin.String =
-  FfiConverterString.lift(
-    uniffiRustCall { _status ->
-      UniffiLib.uniffi_aurelia_core_fn_func_ping(_status)
-    },
-  )
-
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `removePlaylistItems`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `playlistId`: kotlin.String,
-  `itemIds`: List<kotlin.String>,
-) = uniffiRustCallAsync(
-  UniffiLib.uniffi_aurelia_core_fn_func_remove_playlist_items(
-    FfiConverterString.lower(`serverUrl`),
-    FfiConverterString.lower(`token`),
-    FfiConverterString.lower(`playlistId`),
-    FfiConverterSequenceString.lower(`itemIds`),
-  ),
-  {
-    future,
-    callback,
-    continuation,
-    ->
-    UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation)
-  },
-  { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
-  { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
-  // lift function
-  { Unit },
-  // Error FFI converter
-  AppException.ErrorHandler,
-)
-
-@Throws(AppException::class)
-fun `saveCredentials`(
-  `appDataDir`: kotlin.String,
-  `credentials`: Credentials,
-) = uniffiRustCallWithError(AppException) { _status ->
-  UniffiLib.uniffi_aurelia_core_fn_func_save_credentials(
-    FfiConverterString.lower(`appDataDir`),
-    FfiConverterTypeCredentials.lower(`credentials`),
-    _status,
-  )
+    UniffiLib.uniffi_aurelia_core_fn_func_cache_songs(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterSequenceTypeSong.lower(`songs`),_status)
 }
+    
+    
 
-@Throws(AppException::class)
-fun `saveSetting`(
-  `appDataDir`: kotlin.String,
-  `key`: kotlin.String,
-  `value`: kotlin.String,
-) = uniffiRustCallWithError(AppException) { _status ->
-  UniffiLib.uniffi_aurelia_core_fn_func_save_setting(
-    FfiConverterString.lower(`appDataDir`),
-    FfiConverterString.lower(`key`),
-    FfiConverterString.lower(`value`),
-    _status,
-  )
+    @Throws(AppException::class) fun `clearCache`(`appDataDir`: kotlin.String)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_clear_cache(
+    
+        FfiConverterString.lower(`appDataDir`),_status)
 }
+    
+    
 
-@Throws(AppException::class)
-fun `setLibrarySyncState`(
-  `appDataDir`: kotlin.String,
-  `stateJson`: kotlin.String,
-) = uniffiRustCallWithError(AppException) { _status ->
-  UniffiLib.uniffi_aurelia_core_fn_func_set_library_sync_state(
-    FfiConverterString.lower(`appDataDir`),
-    FfiConverterString.lower(`stateJson`),
-    _status,
-  )
+    @Throws(AppException::class) fun `clearCredentials`(`appDataDir`: kotlin.String)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_clear_credentials(
+    
+        FfiConverterString.lower(`appDataDir`),_status)
 }
+    
+    
 
-/**
- * Smart sync: paginated + incremental. Decides whether to do a full or delta sync
- * based on the existing SyncState. Handles large libraries without OOM and
- * resumes interrupted full syncs.
- */
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `syncLibrarySmart`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-  `appDataDir`: kotlin.String,
-): SyncReport =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_sync_library_smart(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`userId`),
-      FfiConverterString.lower(`appDataDir`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterTypeSyncReport.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `createPlaylist`(`serverUrl`: kotlin.String, `token`: kotlin.String, `data`: PlaylistCreateData) : Playlist {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_create_playlist(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterTypePlaylistCreateData.lower(`data`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypePlaylist.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
 
-/**
- * Sync only songs (fast startup). Artists/albums are fetched on-demand.
- * DEPRECATED: Use sync_library_smart() instead for paginated + incremental sync.
- */
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `syncSongsOnly`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-  `appDataDir`: kotlin.String,
-): kotlin.Boolean =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_sync_songs_only(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`userId`),
-      FfiConverterString.lower(`appDataDir`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_i8(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_i8(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_i8(future) },
-    // lift function
-    { FfiConverterBoolean.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `deletePlaylist`(`serverUrl`: kotlin.String, `token`: kotlin.String, `playlistId`: kotlin.String) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_delete_playlist(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`playlistId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
 
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `toggleFavorite`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `userId`: kotlin.String,
-  `itemId`: kotlin.String,
-  `isFavorite`: kotlin.Boolean,
-): kotlin.Boolean =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_toggle_favorite(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`userId`),
-      FfiConverterString.lower(`itemId`),
-      FfiConverterBoolean.lower(`isFavorite`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_i8(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_i8(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_i8(future) },
-    // lift function
-    { FfiConverterBoolean.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
+    @Throws(AppException::class) fun `deleteSetting`(`appDataDir`: kotlin.String, `key`: kotlin.String)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_delete_setting(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterString.lower(`key`),_status)
+}
+    
+    
 
-@Throws(AppException::class)
-@Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-suspend fun `updatePlaylist`(
-  `serverUrl`: kotlin.String,
-  `token`: kotlin.String,
-  `playlistId`: kotlin.String,
-  `updates`: PlaylistUpdateData,
-): Playlist =
-  uniffiRustCallAsync(
-    UniffiLib.uniffi_aurelia_core_fn_func_update_playlist(
-      FfiConverterString.lower(`serverUrl`),
-      FfiConverterString.lower(`token`),
-      FfiConverterString.lower(`playlistId`),
-      FfiConverterTypePlaylistUpdateData.lower(`updates`),
-    ),
-    {
-      future,
-      callback,
-      continuation,
-      ->
-      UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation)
-    },
-    { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
-    { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
-    // lift function
-    { FfiConverterTypePlaylist.lift(it) },
-    // Error FFI converter
-    AppException.ErrorHandler,
-  )
+        /**
+         * Derive mobile home sections from an in-memory song list.
+         */ fun `deriveMobileHomeData`(`songs`: List<Song>, `mostPlayedLimit`: kotlin.Long, `recentlyPlayedLimit`: kotlin.Long, `albumSectionLimit`: kotlin.Long, `featuredAlbumsLimit`: kotlin.Long): MobileHomeData {
+            return FfiConverterTypeMobileHomeData.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_derive_mobile_home_data(
+    
+        FfiConverterSequenceTypeSong.lower(`songs`),FfiConverterLong.lower(`mostPlayedLimit`),FfiConverterLong.lower(`recentlyPlayedLimit`),FfiConverterLong.lower(`albumSectionLimit`),FfiConverterLong.lower(`featuredAlbumsLimit`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Fetch a single album from server and cache it
+         */
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `fetchAlbum`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `albumId`: kotlin.String, `appDataDir`: kotlin.String) : Album {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_fetch_album(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`albumId`),FfiConverterString.lower(`appDataDir`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeAlbum.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Fetch a single artist from server and cache it
+         */
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `fetchArtist`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `artistId`: kotlin.String, `appDataDir`: kotlin.String) : Artist {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_fetch_artist(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`artistId`),FfiConverterString.lower(`appDataDir`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeArtist.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `fetchSongs`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `appDataDir`: kotlin.String) : List<Song> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_fetch_songs(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`appDataDir`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceTypeSong.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Get a cached album from local database
+         */
+    @Throws(AppException::class) fun `getCachedAlbum`(`appDataDir`: kotlin.String, `albumId`: kotlin.String): Album? {
+            return FfiConverterOptionalTypeAlbum.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_get_cached_album(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterString.lower(`albumId`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Get a cached artist from local database
+         */
+    @Throws(AppException::class) fun `getCachedArtist`(`appDataDir`: kotlin.String, `artistId`: kotlin.String): Artist? {
+            return FfiConverterOptionalTypeArtist.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_get_cached_artist(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterString.lower(`artistId`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Get a cached song from local database
+         */
+    @Throws(AppException::class) fun `getCachedSong`(`appDataDir`: kotlin.String, `songId`: kotlin.String): Song? {
+            return FfiConverterOptionalTypeSong.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_get_cached_song(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterString.lower(`songId`),_status)
+}
+    )
+    }
+    
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getInstantMix`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String) : List<Song> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_instant_mix(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceTypeSong.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class) fun `getLibrarySyncState`(`appDataDir`: kotlin.String): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_get_library_sync_state(
+    
+        FfiConverterString.lower(`appDataDir`),_status)
+}
+    )
+    }
+    
+
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getLyrics`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String, `artist`: kotlin.String, `title`: kotlin.String) : kotlin.String {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_lyrics(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),FfiConverterString.lower(`artist`),FfiConverterString.lower(`title`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterString.lift(it) },
+        // Error FFI converter
+        UniffiNullRustCallStatusErrorHandler,
+    )
+    }
+
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getParsedLyrics`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String, `artist`: kotlin.String, `title`: kotlin.String, `path`: kotlin.String?, `lyricsServerUrl`: kotlin.String?) : ParsedLyrics {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),FfiConverterString.lower(`artist`),FfiConverterString.lower(`title`),FfiConverterOptionalString.lower(`path`),FfiConverterOptionalString.lower(`lyricsServerUrl`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation).let { RustBufferParsedLyrics.create(it.capacity.toULong(), it.len.toULong(), it.data) } },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeParsedLyrics.lift(it) },
+        // Error FFI converter
+        UniffiNullRustCallStatusErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getPlaylistItems`(`serverUrl`: kotlin.String, `token`: kotlin.String, `playlistId`: kotlin.String) : List<Song> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_playlist_items(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`playlistId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceTypeSong.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getPlaylists`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String) : List<Playlist> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_playlists(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceTypePlaylist.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getRecentlyPlayed`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String) : List<Song> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_recently_played(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceTypeSong.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getRelatedArtists`(`appDataDir`: kotlin.String, `artistId`: kotlin.String) : List<Artist> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_related_artists(FfiConverterString.lower(`appDataDir`),FfiConverterString.lower(`artistId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceTypeArtist.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getSongShareUrls`(`song`: Song) : Map<kotlin.String, kotlin.String> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_song_share_urls(FfiConverterTypeSong.lower(`song`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterMapStringString.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Get sync state as a typed struct (better for UI binding)
+         */
+    @Throws(AppException::class) fun `getSyncState`(`appDataDir`: kotlin.String): SyncState {
+            return FfiConverterTypeSyncState.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_get_sync_state(
+    
+        FfiConverterString.lower(`appDataDir`),_status)
+}
+    )
+    }
+    
+
+    @Throws(AppException::class) fun `loadCachedSongs`(`appDataDir`: kotlin.String): List<Song> {
+            return FfiConverterSequenceTypeSong.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_load_cached_songs(
+    
+        FfiConverterString.lower(`appDataDir`),_status)
+}
+    )
+    }
+    
+
+    @Throws(AppException::class) fun `loadCredentials`(`appDataDir`: kotlin.String): Credentials? {
+            return FfiConverterOptionalTypeCredentials.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_load_credentials(
+    
+        FfiConverterString.lower(`appDataDir`),_status)
+}
+    )
+    }
+    
+
+    @Throws(AppException::class) fun `loadSetting`(`appDataDir`: kotlin.String, `key`: kotlin.String): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_load_setting(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterString.lower(`key`),_status)
+}
+    )
+    }
+    
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `markItemPlayed`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `itemId`: kotlin.String) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_mark_item_played(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`itemId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+ fun `ping`(): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_ping(
+    
+        _status)
+}
+    )
+    }
+    
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `removePlaylistItems`(`serverUrl`: kotlin.String, `token`: kotlin.String, `playlistId`: kotlin.String, `itemIds`: List<kotlin.String>) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_remove_playlist_items(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`playlistId`),FfiConverterSequenceString.lower(`itemIds`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class) fun `saveCredentials`(`appDataDir`: kotlin.String, `credentials`: Credentials)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_save_credentials(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterTypeCredentials.lower(`credentials`),_status)
+}
+    
+    
+
+    @Throws(AppException::class) fun `saveSetting`(`appDataDir`: kotlin.String, `key`: kotlin.String, `value`: kotlin.String)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_save_setting(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterString.lower(`key`),FfiConverterString.lower(`value`),_status)
+}
+    
+    
+
+    @Throws(AppException::class) fun `setLibrarySyncState`(`appDataDir`: kotlin.String, `stateJson`: kotlin.String)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_set_library_sync_state(
+    
+        FfiConverterString.lower(`appDataDir`),FfiConverterString.lower(`stateJson`),_status)
+}
+    
+    
+
+        /**
+         * Smart sync: paginated + incremental. Decides whether to do a full or delta sync
+         * based on the existing SyncState. Handles large libraries without OOM and
+         * resumes interrupted full syncs.
+         */
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `syncLibrarySmart`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `appDataDir`: kotlin.String) : SyncReport {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_sync_library_smart(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`appDataDir`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeSyncReport.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+        /**
+         * Sync only songs (fast startup). Artists/albums are fetched on-demand.
+         * DEPRECATED: Use sync_library_smart() instead for paginated + incremental sync.
+         */
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `syncSongsOnly`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `appDataDir`: kotlin.String) : kotlin.Boolean {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_sync_songs_only(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`appDataDir`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_i8(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_i8(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_i8(future) },
+        // lift function
+        { FfiConverterBoolean.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `toggleFavorite`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `itemId`: kotlin.String, `isFavorite`: kotlin.Boolean) : kotlin.Boolean {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_toggle_favorite(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`itemId`),FfiConverterBoolean.lower(`isFavorite`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_i8(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_i8(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_i8(future) },
+        // lift function
+        { FfiConverterBoolean.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `updatePlaylist`(`serverUrl`: kotlin.String, `token`: kotlin.String, `playlistId`: kotlin.String, `updates`: PlaylistUpdateData) : Playlist {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_update_playlist(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`playlistId`),FfiConverterTypePlaylistUpdateData.lower(`updates`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypePlaylist.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+

@@ -48,6 +48,9 @@ IOS_SIM_TARGET="aarch64-apple-ios-sim"
 CATALYST_TARGETS=("aarch64-apple-ios-macabi" "x86_64-apple-ios-macabi")
 HOST_ARCH="$(uname -m)"
 
+# Set deployment target for iOS builds to match Xcode project
+export IPHONEOS_DEPLOYMENT_TARGET=18.0
+
 ensure_rust_target "$IOS_DEVICE_TARGET"
 ensure_rust_target "$IOS_SIM_TARGET"
 
@@ -66,7 +69,7 @@ export CFLAGS="-isysroot $SDKROOT"
 for CATALYST_TARGET in "${CATALYST_TARGETS[@]}"; do
     ensure_rust_target "$CATALYST_TARGET"
     echo "==> Building aurelia-core for Mac Catalyst ($CATALYST_TARGET)..."
-    IPHONEOS_DEPLOYMENT_TARGET=26.0 cargo build -p "$CORE_CRATE" --target "$CATALYST_TARGET" "${CARGO_FLAGS[@]}"
+    cargo build -p "$CORE_CRATE" --target "$CATALYST_TARGET" "${CARGO_FLAGS[@]}"
 done
 
 # Build macOS target for SwiftPM tests (host architecture)
