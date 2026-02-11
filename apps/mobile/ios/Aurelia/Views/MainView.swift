@@ -140,8 +140,32 @@ struct MainView: View {
 
 #if targetEnvironment(macCatalyst)
     private func configureCatalystTitlebar() {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else { return }
         windowScene.titlebar?.titleVisibility = .visible
+        
+        if let splitVC = window.rootViewController as? UISplitViewController {
+            splitVC.preferredDisplayMode = .oneBesideSecondary
+            splitVC.preferredSplitBehavior = .tile
+            splitVC.primaryBackgroundStyle = .sidebar
+        } else if let hostVC = window.rootViewController,
+                  let splitVC = findSplitViewController(in: hostVC) {
+            splitVC.preferredDisplayMode = .oneBesideSecondary
+            splitVC.preferredSplitBehavior = .tile
+            splitVC.primaryBackgroundStyle = .sidebar
+        }
+    }
+    
+    private func findSplitViewController(in viewController: UIViewController) -> UISplitViewController? {
+        if let splitVC = viewController as? UISplitViewController {
+            return splitVC
+        }
+        for child in viewController.children {
+            if let found = findSplitViewController(in: child) {
+                return found
+            }
+        }
+        return nil
     }
 #endif
 }

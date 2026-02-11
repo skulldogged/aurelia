@@ -145,66 +145,68 @@ final class PlayerViewModel: @unchecked Sendable {
 
     private func fetchLyrics(songId: String?, artist: String, title: String) {
         lyrics = nil
+        
+        Task { @MainActor [self] in
+            let serverUrl = self.sessionStore.serverUrl ?? ""
+            let token = self.sessionStore.token ?? ""
+            let lyricsServerUrl = self.sessionStore.lyricsServerUrl
+            let itemId = songId ?? ""
 
-        Task.detached { [self, songId] in
-                let serverUrl = await self.sessionStore.serverUrl ?? ""
-                let token = await self.sessionStore.token ?? ""
-                let itemId = songId ?? ""
+            self.logger.info("[Lyrics] Fetching lyrics for '\(title)' by '\(artist)' (itemId=\(itemId), serverUrl=\(serverUrl.prefix(30))..., hasToken=\(!token.isEmpty))")
 
-                self.logger.info("[Lyrics] Fetching lyrics for '\(title)' by '\(artist)' (itemId=\(itemId), serverUrl=\(serverUrl.prefix(30))..., hasToken=\(!token.isEmpty))")
+            self.logger.info("[Lyrics] Debug: lyricsServerUrl = '\(lyricsServerUrl ?? "nil")'")
+            let parsedLyrics = await getParsedLyrics(
+                serverUrl: serverUrl,
+                token: token,
+                itemId: itemId,
+                artist: artist,
+                title: title,
+                path: nil,
+                lyricsServerUrl: lyricsServerUrl
+            )
 
-                let lyricsServerUrl = await self.sessionStore.lyricsServerUrl
-                self.logger.info("[Lyrics] Debug: lyricsServerUrl = '\(lyricsServerUrl ?? "nil")'")
-                let parsedLyrics = await getParsedLyrics(
-                    serverUrl: serverUrl,
-                    token: token,
-                    itemId: itemId,
-                    artist: artist,
-                    title: title,
-                    path: nil,
-                    lyricsServerUrl: lyricsServerUrl
-                )
+            self.logger.info("[Lyrics] Got ParsedLyrics from core: syncedLines=\(parsedLyrics.synced.count), plainLines=\(parsedLyrics.plain.count), areFromRemote=\(parsedLyrics.areFromRemote), hasSections=\(parsedLyrics.sections != nil), hasAgents=\(parsedLyrics.agents != nil), hasSongwriters=\(parsedLyrics.songwriters != nil), language=\(parsedLyrics.language ?? "nil")")
 
-                self.logger.info("[Lyrics] Got ParsedLyrics from core: syncedLines=\(parsedLyrics.synced.count), plainLines=\(parsedLyrics.plain.count), areFromRemote=\(parsedLyrics.areFromRemote), hasSections=\(parsedLyrics.sections != nil), hasAgents=\(parsedLyrics.agents != nil), hasSongwriters=\(parsedLyrics.songwriters != nil), language=\(parsedLyrics.language ?? "nil")")
-
-                // Log first few synced lines for debugging
-                for (i, line) in parsedLyrics.synced.prefix(5).enumerated() {
-                    let wordCount = line.words?.count ?? 0
-                    self.logger.info("[Lyrics]   synced[\(i)]: timeMs=\(line.timeMs), endTimeMs=\(line.endTimeMs.map { String($0) } ?? "nil"), words=\(wordCount), agentId=\(line.agentId ?? "nil"), text='\(line.line.prefix(60))'")
-                    if let words = line.words {
-                        for (j, word) in words.prefix(3).enumerated() {
-                            self.logger.info("[Lyrics]     word[\(j)]: timeMs=\(word.timeMs), endTimeMs=\(word.endTimeMs.map { String($0) } ?? "nil"), '\(word.word)'")
-                        }
-                        if words.count > 3 {
-                            self.logger.info("[Lyrics]     ... and \(words.count - 3) more words")
-                        }
+            // Log first few synced lines for debugging
+            for (i, line) in parsedLyrics.synced.prefix(5).enumerated() {
+                let wordCount = line.words?.count ?? 0
+                self.logger.info("[Lyrics] synced[\(i)]: timeMs=\(line.timeMs), endTimeMs=\(line.endTimeMs.map { String($0) } ?? "nil"), words=\(wordCount), agentId=\(line.agentId ?? "nil"), text='\(line.line.prefix(60))'")
+                if let words = line.words {
+                    for (j, word) in words.prefix(3).enumerated() {
+                        self.logger.info("[Lyrics] word[\(j)]: timeMs=\(word.timeMs), endTimeMs=\(word.endTimeMs.map { String($0) } ?? "nil"), '\(word.word)'")
+                    }
+                    if words.count > 3 {
+                        self.logger.info("[Lyrics] ... and \(words.count - 3) more words")
                     }
                 }
-                if parsedLyrics.synced.count > 5 {
-                    self.logger.info("[Lyrics]   ... and \(parsedLyrics.synced.count - 5) more synced lines")
+            }
+            if parsedLyrics.synced.count > 5 {
+                self.logger.info("[Lyrics] ... and \(parsedLyrics.synced.count - 5) more synced lines")
+            }
+
+            let parsed = LyricsParser.fromParsed(parsedLyrics)
+            let isValid = parsed.isValid
+            let hasSynced = parsed.synced != nil
+            let syncedCount = parsed.synced?.count ?? 0
+            let hasPlain = parsed.plain != nil
+            let hasWordSync = parsed.synced?.first?.words != nil
+            self.logger.info("[Lyrics] After LyricsParser: isValid=\(isValid), hasSynced=\(hasSynced), syncedCount=\(syncedCount), hasPlain=\(hasPlain), hasWordSync=\(hasWordSync)")
+
+            if songId == self.currentSongId {
+                if isValid {
+                    self.logger.info("[Lyrics] Setting lyrics on view model (valid)")
+                    self.lyrics = parsed
+                } else {
+                    self.logger.warning("[Lyrics] Lyrics invalid, hiding lyrics panel")
+                    self.showLyrics = false
                 }
-
-            let parsed = await LyricsParser.fromParsed(parsedLyrics)
-
-                self.logger.info("[Lyrics] After LyricsParser: isValid=\(parsed.isValid), hasSynced=\(parsed.synced != nil), syncedCount=\(parsed.synced?.count ?? 0), hasPlain=\(parsed.plain != nil), hasWordSync=\(parsed.synced?.first?.words != nil)")
-
-                await MainActor.run {
-                    if songId == self.currentSongId {
-                        if parsed.isValid {
-                            self.logger.info("[Lyrics] Setting lyrics on view model (valid)")
-                            self.lyrics = parsed
-                        } else {
-                            self.logger.warning("[Lyrics] Lyrics invalid, hiding lyrics panel")
-                            self.showLyrics = false
-                        }
-                    } else {
-                        self.logger.info("[Lyrics] Song changed during fetch (was=\(songId ?? "nil"), now=\(self.currentSongId ?? "nil")), discarding result")
-                    }
-                }
+        } else {
+            self.logger.info("[Lyrics] Song changed during fetch (was=\(songId ?? "nil"), now=\(self.currentSongId ?? "nil")), discarding result")
         }
     }
+}
 
-    // MARK: - Favorites
+// MARK: - Favorites
 
     func toggleFavorite() {
         guard let songId = currentSongId else { return }

@@ -654,14 +654,9 @@ struct LyricsView: View {
 
     /// Describes a line's visual state for rendering.
     /// - `active`: the primary line being sung — words fill with karaoke animation.
-    /// - `finishing`: a line that was preempted by an overlapping vocal but whose
-    ///   end time hasn't been reached yet. Words that were already sung stay bright
-    ///   and the fill continues, but scale/glow animate down so focus shifts to the
-    ///   new active line.
-    /// - `inactive`: fully past — uniform dim opacity.
+    /// - `inactive`: not the current line — uniform dim opacity, no glow.
     private enum LineState: Equatable {
         case active
-        case finishing
         case inactive
     }
 
@@ -676,6 +671,9 @@ struct LyricsView: View {
         var high = synced.count - 1
         var bestIndex: Int?
 
+        // Binary search for the last line whose start time <= currentTime.
+        // If we're in a gap between lines, this keeps the previous line active
+        // for continuity (matching Apple Music behavior).
         while low <= high {
             let mid = (low + high) / 2
             if synced[mid].time <= currentTime + tolerance {
@@ -686,47 +684,15 @@ struct LyricsView: View {
             }
         }
 
-        if let idx = bestIndex, let endTime = synced[idx].endTime {
-            if currentTime > endTime {
-                if idx + 1 < synced.count && synced[idx + 1].time <= currentTime + tolerance {
-                    // Next line is active, binary search already found it
-                } else {
-                    // In a gap — keep current as active for continuity
-                }
-            }
-        }
-
         return bestIndex
     }
 
     /// Determine the visual state of a line given its index and the active line.
-    /// A line is "finishing" when it was preempted by an overlapping line but
-    /// its end time hasn't been reached yet — its word highlights should keep
-    /// animating rather than snapping to inactive.
-    private func lineState(for index: Int, line: SyncedLine, activeIdx: Int?, currentPositionMs: Int64) -> LineState {
+    /// Like Apple Music, once a line is no longer the primary active line it
+    /// immediately becomes inactive — there is no lingering "finishing" state.
+    private func lineState(for index: Int, activeIdx: Int?) -> LineState {
         guard let activeIdx else { return .inactive }
-        if index == activeIdx { return .active }
-
-        // Only lines *before* the active line can be "finishing".
-        guard index < activeIdx else { return .inactive }
-
-        let currentTime = Double(currentPositionMs) / 1000.0
-
-        // Determine when this line's content actually ends.
-        // Prefer the last word's end time for precision, fall back to line endTime.
-        let lineContentEnd: TimeInterval? = {
-            if let words = line.words, let lastWord = words.last {
-                return lastWord.endTime ?? line.endTime
-            }
-            return line.endTime
-        }()
-
-        if let endTime = lineContentEnd, currentTime <= endTime {
-            // Line hasn't finished its content yet — keep it animating
-            return .finishing
-        }
-
-        return .inactive
+        return index == activeIdx ? .active : .inactive
     }
 
     /// For a line, determine which word is currently being sung.
@@ -787,8 +753,9 @@ struct LyricsView: View {
                                 proxy.scrollTo(index, anchor: .center)
                             }
                         } label: {
-                            let state = lineState(for: index, line: line, activeIdx: activeIdx, currentPositionMs: currentPositionMs)
+                            let state = lineState(for: index, activeIdx: activeIdx)
                             let isBackground = lyrics.isBackgroundVocal(line.agentId)
+                            let isSecondary = lyrics.isSecondaryVocalist(line.agentId)
                             let isWordSynced = line.words != nil && !line.words!.isEmpty
 
                             if isWordSynced {
@@ -796,6 +763,7 @@ struct LyricsView: View {
                                     line: line,
                                     state: state,
                                     isBackground: isBackground,
+                                    isSecondary: isSecondary,
                                     currentPositionMs: currentPositionMs
                                 )
                                 .contentShape(Rectangle())
@@ -803,7 +771,8 @@ struct LyricsView: View {
                                 lyricLineWithTranslation(
                                     line: line,
                                     isActive: state == .active,
-                                    isBackground: isBackground
+                                    isBackground: isBackground,
+                                    isSecondary: isSecondary
                                 )
                                 .contentShape(Rectangle())
                             }
@@ -841,42 +810,25 @@ struct LyricsView: View {
     /// 2. Words wrap naturally across visual lines.
     /// 3. Repeated words ("la la la") maintain stable identity via their index.
     ///
-    /// Three visual states driven by `LineState`:
+    /// Two visual states driven by `LineState`:
     /// - **active**: full karaoke — words fill progressively, glow, scale up.
-    /// - **finishing**: line was preempted by an overlap but its words keep
-    ///   animating. Sung words stay bright, the current word's fill continues,
-    ///   but scale and glow ease down so focus shifts to the new active line.
-    /// - **inactive**: fully past — uniform dim opacity, no glow.
-    private func wordSyncedLine(line: SyncedLine, state: LineState, isBackground: Bool, currentPositionMs: Int64) -> some View {
+    /// - **inactive**: not the current line — uniform dim opacity, no glow.
+    ///   Like Apple Music, when a new line starts the previous line dims
+    ///   immediately with no lingering highlight.
+    private func wordSyncedLine(line: SyncedLine, state: LineState, isBackground: Bool, isSecondary: Bool, currentPositionMs: Int64) -> some View {
         let words = line.words!
-        let isAnimating = state == .active || state == .finishing
-        let activeWord = isAnimating ? activeWordIndex(in: line, currentPositionMs: currentPositionMs) : nil
+        let isActive = state == .active
+        let activeWord = isActive ? activeWordIndex(in: line, currentPositionMs: currentPositionMs) : nil
 
         let brightOpacity: Double = isBackground ? 0.75 : 0.98
         let inactiveOpacity: Double = isBackground ? 0.25 : 0.50
 
-        // Word colors are the same for active and finishing states — the
-        // finishing fade is handled by an overall opacity on the container,
-        // not by changing individual word colors. This avoids a jarring
-        // color jump when the state changes.
-        let brightColor: Color = .white.opacity(brightOpacity)
-        let dimColor: Color = .white.opacity(inactiveOpacity)
-        let inactiveColor: Color = .white.opacity(inactiveOpacity)
-
-        // Overall opacity:
-        // We keep opacity 1.0 even for finishing lines so the "sung" parts
-        // remain bright and visible (acting "active") while the "unsung" parts
-        // (0.5 opacity) match the inactive lines (looking "inactive").
-        let containerOpacity: Double = 1.0
-
-        // Glow: active lines glow proportionally to progress; finishing lines don't glow.
-        let glowRadius: CGFloat = if let aw = activeWord, state == .active {
+        // Glow: active lines glow proportionally to progress.
+        let glowRadius: CGFloat = if let aw = activeWord, isActive {
             CGFloat(6.0 * Double(aw + 1) / Double(words.count))
         } else {
             0
         }
-
-        let isScaledUp = state == .active
 
         // Precompute which words have a leading space (inter-word gap from TTML/LRC).
         // We strip it from the display text and let the layout handle spacing,
@@ -887,69 +839,69 @@ struct LyricsView: View {
             return (text: trimmed, hasGap: hasGap)
         }
 
-        return VStack(alignment: .leading, spacing: 4) {
-            WordFlowLayout {
+        // Ratio between dim and bright — used inside the sweep gradient
+        // so the gradient stays purely relative while .opacity() on each
+        // word handles the actual brightness level (and is animatable).
+        let dimRatio: Double = inactiveOpacity / brightOpacity
+
+        // Secondary vocalist lines are right-aligned (Apple Music duet style).
+        let alignment: HorizontalAlignment = isSecondary ? .trailing : .leading
+        let frameAlignment: Alignment = isSecondary ? .trailing : .leading
+        let scaleAnchor: UnitPoint = isSecondary ? .trailing : .leading
+
+        return VStack(alignment: alignment, spacing: 4) {
+            WordFlowLayout(alignTrailing: isSecondary) {
                 ForEach(Array(words.enumerated()), id: \.offset) { wIdx, word in
                     let entry = wordEntries[wIdx]
-                    // Determine the solid color for this word.
-                    // "Sung" words use the bright color. Words after the active
-                    // word use the dim color.
-                    let isSung: Bool = if let aw = activeWord {
-                        wIdx < aw
-                    } else {
-                        false
-                    }
-                    let wordColor: Color = if !isAnimating {
-                        inactiveColor
-                    } else if isSung {
-                        brightColor
-                    } else if activeWord != wIdx {
-                        dimColor
-                    } else {
-                        dimColor // placeholder; active word gradient below
-                    }
 
-                    // Only the active line gets the sweep gradient on the
-                    // The active word gets a sweep gradient to animate the fill.
-                    // We keep animating this even in the finishing state so the
-                    // fill doesn't snap to full/empty when the line transitions.
-                    if activeWord == wIdx, (state == .active || state == .finishing) {
+                    // Per-word opacity drives brightness and IS animatable
+                    // by SwiftUI, giving us a smooth fade on state transitions.
+                    let wordOpacity: Double = {
+                        guard isActive, let aw = activeWord else {
+                            return inactiveOpacity
+                        }
+                        return wIdx <= aw ? brightOpacity : inactiveOpacity
+                    }()
+
+                    // Gradient stops — only the active word gets a sweep;
+                    // all others are solid white (brightness via opacity above).
+                    let stops: [Gradient.Stop] = {
+                        guard isActive, let aw = activeWord, wIdx == aw else {
+                            return [.init(color: .white, location: 0)]
+                        }
                         let nextWord = wIdx + 1 < words.count ? words[wIdx + 1] : nil
                         let progress = wordProgress(word: word, nextWord: nextWord, lineEndTime: line.endTime, currentPositionMs: currentPositionMs)
-                        Text(entry.text)
-                            .foregroundStyle(
-                                .linearGradient(
-                                    stops: [
-                                        .init(color: brightColor, location: max(0, progress - 0.01)),
-                                        .init(color: dimColor, location: min(1, progress + 0.01)),
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
+                        return [
+                            .init(color: .white, location: max(0, progress - 0.01)),
+                            .init(color: .white.opacity(dimRatio), location: min(1, progress + 0.01)),
+                        ]
+                    }()
+
+                    // The sweep word's gradient snaps instantly (gradients
+                    // aren't animatable), so its .opacity() must also snap
+                    // to avoid a brief double-dim.  Other words keep the
+                    // smooth fade for active→inactive transitions.
+                    let isSweepWord = isActive && wIdx == activeWord
+
+                    Text(entry.text)
+                        .foregroundStyle(
+                            .linearGradient(
+                                stops: stops,
+                                startPoint: .leading,
+                                endPoint: .trailing
                             )
-                            .layoutValue(key: WordGapKey.self, value: entry.hasGap)
-                            .animation(.easeOut(duration: 0.15), value: state)
-                    } else {
-                        Text(entry.text)
-                            .foregroundStyle(
-                                .linearGradient(
-                                    stops: [.init(color: wordColor, location: 0)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .layoutValue(key: WordGapKey.self, value: entry.hasGap)
-                            .animation(.easeOut(duration: 0.15), value: state)
-                    }
+                        )
+                        .opacity(wordOpacity)
+                        .layoutValue(key: WordGapKey.self, value: entry.hasGap)
+                        .animation(isSweepWord ? nil : .easeOut(duration: 0.35), value: state)
                 }
             }
             .font(.system(size: 25, weight: .semibold, design: .rounded))
             .italic(isBackground)
-            .opacity(containerOpacity)
-            .shadow(color: .white.opacity(state == .active ? 0.45 : 0), radius: glowRadius, x: 0, y: 0)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .shadow(color: .white.opacity(isActive ? 0.45 : 0), radius: glowRadius, x: 0, y: 0)
+            .frame(maxWidth: .infinity, alignment: frameAlignment)
             .fixedSize(horizontal: false, vertical: true)
-            .scaleEffect(isScaledUp ? 1.015 : 1.0, anchor: .leading)
+            .scaleEffect(isActive ? 1.015 : 1.0, anchor: scaleAnchor)
             .animation(.easeInOut(duration: 0.35), value: state)
 
             // Translation text below the word-synced line
@@ -957,10 +909,10 @@ struct LyricsView: View {
                 Text(translation)
                     .font(.system(size: 17, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(state == .active ? 0.65 : 0.35))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: frameAlignment)
+                    .multilineTextAlignment(isSecondary ? .trailing : .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                    .scaleEffect(isScaledUp ? 1.015 : 1.0, anchor: .leading)
+                    .scaleEffect(isActive ? 1.015 : 1.0, anchor: scaleAnchor)
                     .animation(.easeInOut(duration: 0.35), value: state)
             }
         }
@@ -979,37 +931,45 @@ struct LyricsView: View {
         }
     }
 
-    private func lyricLine(_ text: String, isActive: Bool, isBackground: Bool = false) -> some View {
+    private func lyricLine(_ text: String, isActive: Bool, isBackground: Bool = false, isSecondary: Bool = false) -> some View {
         let opacity: Double = if isActive {
             isBackground ? 0.75 : 0.98
         } else {
             isBackground ? 0.25 : 0.50
         }
+        let frameAlignment: Alignment = isSecondary ? .trailing : .leading
+        let textAlignment: TextAlignment = isSecondary ? .trailing : .leading
+        let scaleAnchor: UnitPoint = isSecondary ? .trailing : .leading
 
         return Text(text.isEmpty ? " " : text)
             .font(.system(size: 25, weight: .semibold, design: .rounded))
             .italic(isBackground)
             .foregroundStyle(.white.opacity(opacity))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: frameAlignment)
+            .multilineTextAlignment(textAlignment)
             .fixedSize(horizontal: false, vertical: true)
-            .scaleEffect(isActive ? 1.015 : 1.0, anchor: .leading)
+            .scaleEffect(isActive ? 1.015 : 1.0, anchor: scaleAnchor)
             .animation(.easeInOut(duration: 0.35), value: isActive)
     }
 
     /// Renders a lyric line with optional translation below it (Apple Music style).
-    private func lyricLineWithTranslation(line: SyncedLine, isActive: Bool, isBackground: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            lyricLine(line.line, isActive: isActive, isBackground: isBackground)
+    private func lyricLineWithTranslation(line: SyncedLine, isActive: Bool, isBackground: Bool = false, isSecondary: Bool = false) -> some View {
+        let alignment: HorizontalAlignment = isSecondary ? .trailing : .leading
+        let frameAlignment: Alignment = isSecondary ? .trailing : .leading
+        let textAlignment: TextAlignment = isSecondary ? .trailing : .leading
+        let scaleAnchor: UnitPoint = isSecondary ? .trailing : .leading
+
+        return VStack(alignment: alignment, spacing: 4) {
+            lyricLine(line.line, isActive: isActive, isBackground: isBackground, isSecondary: isSecondary)
             
             if let translation = line.translation, !translation.isEmpty {
                 Text(translation)
                     .font(.system(size: 17, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(isActive ? 0.65 : 0.35))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: frameAlignment)
+                    .multilineTextAlignment(textAlignment)
                     .fixedSize(horizontal: false, vertical: true)
-                    .scaleEffect(isActive ? 1.015 : 1.0, anchor: .leading)
+                    .scaleEffect(isActive ? 1.015 : 1.0, anchor: scaleAnchor)
                     .animation(.easeInOut(duration: 0.35), value: isActive)
             }
         }
@@ -1040,9 +1000,9 @@ struct LyricsView: View {
 /// Used by `WordFlowLayout` to add spacing only between words that originally had
 /// a space separator — and to suppress that space at the start of a wrapped row
 /// so there's no visible indentation.
-private struct WordGapKey: LayoutValueKey {
-    static let defaultValue: Bool = false
-}
+    private nonisolated struct WordGapKey: LayoutValueKey {
+        nonisolated static let defaultValue: Bool = false
+    }
 
 /// A custom `Layout` that arranges children inline like text, wrapping to the
 /// next line when children exceed the available width. Used for word-synced
@@ -1052,12 +1012,15 @@ private struct WordGapKey: LayoutValueKey {
 /// Uses `WordGapKey` to determine inter-word spacing: words that had a leading
 /// space in the source data get a space-width gap before them, except when they
 /// land at the start of a wrapped row.
-private struct WordFlowLayout: Layout {
+private struct WordFlowLayout: Layout, @unchecked Sendable {
+    /// When true, rows are right-aligned within the container (for secondary vocalist).
+    var alignTrailing: Bool = false
+
     /// Approximate width of a space in the lyrics font.
     /// Measured for .system(size: 25, weight: .semibold, design: .rounded).
     private static let spaceWidth: CGFloat = 7.5
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    nonisolated func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let rows = computeRows(proposal: proposal, subviews: subviews)
         guard let lastRow = rows.last else { return .zero }
         let height = lastRow.yOffset + lastRow.height
@@ -1065,11 +1028,15 @@ private struct WordFlowLayout: Layout {
         return CGSize(width: min(width, proposal.width ?? .infinity), height: height)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    nonisolated func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let rows = computeRows(proposal: proposal, subviews: subviews)
         var subviewIndex = 0
         for row in rows {
-            var x = bounds.minX
+            // Leading-aligned rows start at bounds.minX;
+            // trailing-aligned rows are pushed to the right edge.
+            let rowOriginX = alignTrailing ? bounds.maxX - row.width : bounds.minX
+
+            var x = rowOriginX
             for posInRow in 0..<row.count {
                 let subview = subviews[subviewIndex]
                 let size = subview.sizeThatFits(.unspecified)
@@ -1092,7 +1059,7 @@ private struct WordFlowLayout: Layout {
         var yOffset: CGFloat
     }
 
-    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
+    private nonisolated func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [Row] {
         let maxWidth = proposal.width ?? .infinity
         var rows: [Row] = []
         var currentRow = Row(count: 0, width: 0, height: 0, yOffset: 0)

@@ -124,6 +124,16 @@ struct Lyrics: Equatable {
         guard let agentId = agentId, let agents = agents else { return false }
         return agents.first(where: { $0.id == agentId })?.agentType == "other"
     }
+
+    /// Check if an agent ID refers to a secondary vocalist — a `person` agent
+    /// that is NOT the first (primary) person in the agents list.
+    /// Apple Music right-aligns these lines to visually distinguish duet parts.
+    func isSecondaryVocalist(_ agentId: String?) -> Bool {
+        guard let agentId = agentId, let agents = agents else { return false }
+        guard let firstPerson = agents.first(where: { $0.agentType == "person" }) else { return false }
+        if agentId == firstPerson.id { return false }
+        return agents.first(where: { $0.id == agentId })?.agentType == "person"
+    }
 }
 
 // MARK: - UI Constants

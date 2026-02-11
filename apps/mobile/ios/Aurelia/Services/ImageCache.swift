@@ -8,7 +8,6 @@ final class ImageCache {
     static let shared = ImageCache()
 
     private let memoryCache = NSCache<NSString, UIImage>()
-    private let fileManager = FileManager.default
     private let ioQueue = DispatchQueue(label: "com.aurelia.imagecache", qos: .utility)
     private let logger = Logger(subsystem: "com.aurelia.app", category: "ImageCache")
     private let defaultMaxPixelSize = 1024
@@ -102,10 +101,11 @@ final class ImageCache {
 
     func clear() {
         memoryCache.removeAllObjects()
-        ioQueue.async {
-            guard let appDataDir = SessionStore.shared.getAppDataDir(), !appDataDir.isEmpty else { return }
+        Task {
+            let appDataDir = await MainActor.run { SessionStore.shared.getAppDataDir() }
+            guard let appDataDir, !appDataDir.isEmpty else { return }
             let dir = URL(fileURLWithPath: appDataDir).appendingPathComponent("image-cache", isDirectory: true)
-            try? self.fileManager.removeItem(at: dir)
+            try? FileManager.default.removeItem(at: dir)
         }
     }
 
@@ -116,12 +116,12 @@ final class ImageCache {
             ioQueue.async {
                 do {
                     let directory = diskURL.deletingLastPathComponent()
-                    if !self.fileManager.fileExists(atPath: directory.path) {
-                        try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+                    if !FileManager.default.fileExists(atPath: directory.path) {
+                        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                     }
                     try data.write(to: diskURL, options: .atomic)
                 } catch {
-                    self.logger.error("Failed to write image cache: \(error)")
+                    Logger(subsystem: "com.aurelia.app", category: "ImageCache").error("Failed to write image cache: \(error)")
                 }
                 continuation.resume(returning: ())
             }
@@ -138,29 +138,32 @@ final class ImageCache {
 
     private func decodeImageAsync(from data: Data, maxPixelSize: Int) async -> UIImage? {
         await withCheckedContinuation { continuation in
-            ioQueue.async {
+            ioQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(returning: nil)
+                    return
+                }
                 continuation.resume(returning: self.decodeImage(from: data, maxPixelSize: maxPixelSize))
             }
         }
     }
 
     private func storeDataAsync(_ data: Data, for url: URL) {
-        ioQueue.async { [weak self] in
-            guard let self else { return }
-            guard let diskURL = self.diskURL(for: url) else { return }
+        guard let diskURL = diskURL(for: url) else { return }
+        ioQueue.async {
             do {
                 let directory = diskURL.deletingLastPathComponent()
-                if !self.fileManager.fileExists(atPath: directory.path) {
-                    try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+                if !FileManager.default.fileExists(atPath: directory.path) {
+                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 }
                 try data.write(to: diskURL, options: .atomic)
             } catch {
-                self.logger.error("Failed to write image cache: \(error)")
+                Logger(subsystem: "com.aurelia.app", category: "ImageCache").error("Failed to write image cache: \(error)")
             }
         }
     }
 
-    private func decodeImage(from data: Data, maxPixelSize: Int) -> UIImage? {
+    private nonisolated func decodeImage(from data: Data, maxPixelSize: Int) -> UIImage? {
         let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else {
             return nil

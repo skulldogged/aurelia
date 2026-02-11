@@ -7,9 +7,6 @@ struct MainTabView: View {
     @Environment(AudioPlayerController.self) private var playerController
 
     var body: some View {
-#if targetEnvironment(macCatalyst)
-        CatalystSplitView(selectedTab: $selectedTab)
-#else
         if useSidebarAdaptable {
             tabs
                 .tabViewStyle(.sidebarAdaptable)
@@ -24,10 +21,8 @@ struct MainTabView: View {
                 }
                 .background(Color.clear)
         }
-#endif
     }
 
-#if !targetEnvironment(macCatalyst)
     private var tabs: some View {
         TabView(selection: $selectedTab) {
             SwiftUI.Tab(value: MainDestination.home) {
@@ -85,13 +80,9 @@ struct MainTabView: View {
     }
 
     private var useSidebarAdaptable: Bool {
-        return UIDevice.current.userInterfaceIdiom == .pad
+        return UIDevice.current.userInterfaceIdiom == .pad || ProcessInfo.processInfo.isMacCatalystApp
     }
 
-    /// A dedicated view for the tab bar bottom accessory miniplayer.
-    /// Isolating this into its own struct ensures that `@State` in child views
-    /// (like `AlbumArtView`) persists across `AudioPlayerController` snapshot updates,
-    /// preventing album art flickering.
     private struct TabBarMiniPlayer: View {
         @Binding var playerPresentationProgress: CGFloat
         var onTap: () -> Void
@@ -110,10 +101,8 @@ struct MainTabView: View {
         content()
             .modifier(SidebarSlideModifier())
     }
-#endif
 }
 
-#if !targetEnvironment(macCatalyst)
 private struct SidebarSlideModifier: ViewModifier {
     @Environment(\.tabBarPlacement) private var tabBarPlacement
     @State private var animatedWidth: CGFloat = 0
@@ -140,10 +129,6 @@ private struct SidebarSlideModifier: ViewModifier {
                 }
 
                 if isTransitioning {
-                    // Don't update animatedWidth yet - keep it at old value.
-                    // Schedule the animation for the next frame so SwiftUI
-                    // has committed the layout pass and our withAnimation
-                    // actually takes effect.
                     pendingWidth = newWidth
                     DispatchQueue.main.async {
                         guard let target = pendingWidth else { return }
@@ -177,69 +162,3 @@ private struct ContainerWidthKey: PreferenceKey {
         value = nextValue()
     }
 }
-#endif
-
-#if targetEnvironment(macCatalyst)
-private struct CatalystSplitView: View {
-    @Binding var selectedTab: MainDestination
-    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
-    @State private var contentWidth: CGFloat = 0
-
-    var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            sidebarContent
-        } detail: {
-            detailContent
-        }
-        .navigationSplitViewStyle(.automatic)
-    }
-
-    private var sidebarContent: some View {
-        List {
-            ForEach(MainDestination.allCases) { destination in
-                sidebarRow(for: destination)
-            }
-        }
-        .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(ideal: 200, max: 240)
-    }
-
-    private func sidebarRow(for destination: MainDestination) -> some View {
-        let isSelected = selectedTab == destination
-        return Button {
-            selectedTab = destination
-        } label: {
-            Label {
-                Text(destination.title)
-                    .font(.body)
-            } icon: {
-                Image(systemName: destination.systemImage)
-                    .font(.body)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .listRowBackground(
-            isSelected
-                ? RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.15))
-                : nil
-        )
-        .foregroundStyle(isSelected ? Color.accentColor : .primary)
-    }
-
-    @ViewBuilder
-    private var detailContent: some View {
-        switch selectedTab {
-        case .home: HomeView().navigationTitle(selectedTab.title)
-        case .songs: LibraryView().navigationTitle(selectedTab.title)
-        case .albums: AlbumsView().navigationTitle(selectedTab.title)
-        case .artists: ArtistsView().navigationTitle(selectedTab.title)
-        case .search: SearchView().navigationTitle(selectedTab.title)
-        case .settings: SettingsView().navigationTitle(selectedTab.title)
-        }
-    }
-}
-#endif

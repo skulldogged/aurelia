@@ -21,7 +21,7 @@ final class HomeViewModel: @unchecked Sendable {
     private var hasLoadedInitialData = false
     private var allSongs: [Song] = []
     private var songIdByTitleArtist: [String: String] = [:]
-    private static let useSharedHomeDerivation = true
+    private nonisolated static let useSharedHomeDerivation = true
     
     private struct HomeSections {
         let mostPlayed: [Song]

@@ -1102,6 +1102,9 @@ private fun LyricsView(
         itemsIndexed(syncedLines) { index, line ->
           val isCurrentLine = index == currentLineIndex
           val isBackground = lyrics?.isBackgroundVocal(line.agentId) == true
+          val isSecondary = lyrics?.isSecondaryVocalist(line.agentId) == true
+          val lineAlignment = if (isSecondary) Alignment.End else Alignment.Start
+          val lineTextAlign = if (isSecondary) TextAlign.End else TextAlign.Start
 
           // Section label divider
           val sectionLabel = sectionLabelsAtIndex[index]
@@ -1133,7 +1136,7 @@ private fun LyricsView(
           )
 
           Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = lineAlignment,
             modifier =
               Modifier
                 .fillMaxWidth()
@@ -1156,6 +1159,7 @@ private fun LyricsView(
                 currentPosition = currentPosition,
                 isActive = isCurrentLine,
                 isBackground = isBackground,
+                isSecondary = isSecondary,
                 activeColor = Color.White,
                 inactiveColor = Color.White.copy(alpha = 0.55f),
               )
@@ -1169,7 +1173,8 @@ private fun LyricsView(
                 ),
                 fontWeight = FontWeight.Bold,
                 color = textColor,
-                textAlign = TextAlign.Center,
+                textAlign = lineTextAlign,
+                modifier = Modifier.fillMaxWidth(),
               )
             }
 
@@ -1182,8 +1187,8 @@ private fun LyricsView(
                 ),
                 fontWeight = FontWeight.Medium,
                 color = if (isCurrentLine) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.40f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp),
+                textAlign = lineTextAlign,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
               )
             }
           }
@@ -1242,6 +1247,7 @@ private fun WordSyncedLine(
   currentPosition: Long,
   isActive: Boolean,
   isBackground: Boolean,
+  isSecondary: Boolean = false,
   activeColor: Color,
   inactiveColor: Color,
 ) {
@@ -1388,6 +1394,8 @@ private fun WordSyncedLine(
     textStyle
   }
 
+  val wordTextAlign = if (isSecondary) TextAlign.End else TextAlign.Start
+
   Box(modifier = Modifier.fillMaxWidth()) {
     // Base layer: all words in dim color
     Text(
@@ -1395,7 +1403,7 @@ private fun WordSyncedLine(
       style = textStyle,
       fontWeight = FontWeight.Bold,
       color = dimColor,
-      textAlign = TextAlign.Center,
+      textAlign = wordTextAlign,
       modifier = Modifier.fillMaxWidth(),
       onTextLayout = { result ->
         textLayoutResult = result
@@ -1409,7 +1417,7 @@ private fun WordSyncedLine(
         style = glowStyle,
         fontWeight = FontWeight.Bold,
         color = brightColor,
-        textAlign = TextAlign.Center,
+        textAlign = wordTextAlign,
         modifier = Modifier
           .fillMaxWidth()
           .drawWithContent {

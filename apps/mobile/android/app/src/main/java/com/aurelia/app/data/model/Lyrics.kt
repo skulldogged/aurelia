@@ -44,4 +44,14 @@ data class Lyrics(
     if (agentId == null || agents == null) return false
     return agents.find { it.id == agentId }?.agentType == "other"
   }
+
+  /** Check if an agent ID refers to a secondary vocalist — a `person` agent
+   *  that is NOT the first (primary) person in the agents list.
+   *  Apple Music right-aligns these lines to visually distinguish duet parts. */
+  fun isSecondaryVocalist(agentId: String?): Boolean {
+    if (agentId == null || agents == null) return false
+    val firstPerson = agents.firstOrNull { it.agentType == "person" } ?: return false
+    if (agentId == firstPerson.id) return false
+    return agents.any { it.id == agentId && it.agentType == "person" }
+  }
 }

@@ -45,6 +45,7 @@ final class AudioPlayerController: @unchecked Sendable {
         UIApplication.shared.beginReceivingRemoteControlEvents()
     }
 
+    @MainActor
     deinit {
         if let observer = timeObserver {
             player.removeTimeObserver(observer)
@@ -122,55 +123,70 @@ final class AudioPlayerController: @unchecked Sendable {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self,
-                  let item = notification.object as? AVPlayerItem,
-                  item == self.player.currentItem else { return }
-            self.handleTrackEnded()
+            guard let self else { return }
+            // Extract Sendable values before entering isolated context
+            let notificationObject = notification.object as? AVPlayerItem
+            Task { @MainActor in
+                guard let item = notificationObject,
+                      item == self.player.currentItem else { return }
+                self.handleTrackEnded()
+            }
         }
-        
+
         // Handle audio session interruptions
         NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            self?.handleAudioSessionInterruption(notification)
+            guard let self else { return }
+            // Extract Sendable values before entering isolated context
+            let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let optionsValue = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt
+            Task { @MainActor in
+                self.handleAudioSessionInterruption(typeValue: typeValue, optionsValue: optionsValue)
+            }
         }
-        
+
         // Handle app lifecycle
         NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.logger.info("App entered background, ensuring audio session stays active")
-            self?.ensureAudioSessionActive()
+            guard let self else { return }
+            Task { @MainActor in
+                self.logger.info("App entered background, ensuring audio session stays active")
+                self.ensureAudioSessionActive()
+            }
         }
-        
+
         NotificationCenter.default.addObserver(
             forName: UIApplication.willEnterForegroundNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.logger.info("App will enter foreground")
-            self?.ensureAudioSessionActive()
+            guard let self else { return }
+            Task { @MainActor in
+                self.logger.info("App will enter foreground")
+                self.ensureAudioSessionActive()
+            }
         }
     }
     
-    private func handleAudioSessionInterruption(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+    private func handleAudioSessionInterruption(typeValue: UInt?, optionsValue: UInt?) {
+        guard let typeValue,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
             return
         }
-        
+
         switch type {
         case .began:
             logger.info("Audio session interruption began")
             // Interruption began, audio will pause automatically
         case .ended:
             logger.info("Audio session interruption ended")
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+            if let optionsValue {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                 if options.contains(.shouldResume) && snapshot.isPlaying {
                     logger.info("Resuming playback after interruption")
@@ -199,14 +215,18 @@ final class AudioPlayerController: @unchecked Sendable {
     private func setupTimeObserver() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            self?.updateSnapshot()
+            MainActor.assumeIsolated {
+                self?.updateSnapshot()
+            }
         }
-        
+
         // Observe rate changes to detect unexpected pauses
-        player.observe(\.rate, options: [.new]) { [weak self] player, change in
-            guard let self = self else { return }
-            let newRate = change.newValue ?? 0
-            self.logger.info("Player rate changed to: \(newRate)")
+        _ = player.observe(\.rate, options: [.new]) { [weak self] player, change in
+            MainActor.assumeIsolated {
+                guard let self = self else { return }
+                let newRate = change.newValue ?? 0
+                self.logger.info("Player rate changed to: \(newRate)")
+            }
         }
     }
 

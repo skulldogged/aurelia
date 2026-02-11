@@ -26,6 +26,13 @@ done
 
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT_DIR/target}"
 
+# Set SDK path for C compiler (needed for ring crate on macOS)
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
+  export SDKROOT
+  export CFLAGS="-isysroot $SDKROOT"
+fi
+
 if [[ "$RUN_IOS" == "auto" ]]; then
   if [[ "$(uname -s)" == "Darwin" ]]; then
     RUN_IOS="true"

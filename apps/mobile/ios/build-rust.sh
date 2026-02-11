@@ -59,6 +59,10 @@ cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" "${CARGO_FLAGS[@]}"
 
 # Build Mac Catalyst for both Apple Silicon and Intel so Xcode can build
 # "Any Mac" without missing-architecture slice failures.
+# Get SDK path for C compiler to find TargetConditionals.h
+SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
+export SDKROOT
+export CFLAGS="-isysroot $SDKROOT"
 for CATALYST_TARGET in "${CATALYST_TARGETS[@]}"; do
     ensure_rust_target "$CATALYST_TARGET"
     echo "==> Building aurelia-core for Mac Catalyst ($CATALYST_TARGET)..."
