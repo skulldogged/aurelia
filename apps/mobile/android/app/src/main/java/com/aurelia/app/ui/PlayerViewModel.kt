@@ -12,6 +12,7 @@ import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.PlayerSnapshot
 import com.aurelia.app.storage.SessionStore
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -33,31 +34,33 @@ class PlayerViewModel(
     private var favoriteCache: MutableMap<String, Boolean> = mutableMapOf()
 
     init {
-        playerController.observe { snapshot ->
-            val previousSongId = mutableState.value.currentSongId
-            val newSongId = snapshot.currentSongId
+        viewModelScope.launch {
+            playerController.snapshots.collect { snapshot ->
+                val previousSongId = mutableState.value.currentSongId
+                val newSongId = snapshot.currentSongId
 
-            // Update favorite cache from queue songs
-            val queue = playerController.getQueue()
-            queue.forEach { song ->
-                if (!favoriteCache.containsKey(song.id)) {
-                    favoriteCache[song.id] = song.isFavorite ?: false
+                // Update favorite cache from queue songs
+                val queue = playerController.getQueue()
+                queue.forEach { song ->
+                    if (!favoriteCache.containsKey(song.id)) {
+                        favoriteCache[song.id] = song.isFavorite ?: false
+                    }
                 }
-            }
 
-            mutableState.update { current ->
-                val isFavorite = newSongId?.let { favoriteCache[it] } ?: false
-                current.fromSnapshot(snapshot, isFavorite)
-            }
+                mutableState.update { current ->
+                    val isFavorite = newSongId?.let { favoriteCache[it] } ?: false
+                    current.fromSnapshot(snapshot, isFavorite)
+                }
 
-            // Mark the previous song as played when transitioning to a new song
-            if (previousSongId != null && newSongId != null && newSongId != previousSongId) {
-                markSongAsPlayed(previousSongId)
-            }
+                // Mark the previous song as played when transitioning to a new song
+                if (previousSongId != null && newSongId != null && newSongId != previousSongId) {
+                    markSongAsPlayed(previousSongId)
+                }
 
-            if (newSongId != null && newSongId.isNotBlank() && newSongId != lastFetchedSongId) {
-                lastFetchedSongId = newSongId
-                fetchLyrics(newSongId, snapshot.artist, snapshot.title)
+                if (newSongId != null && newSongId.isNotBlank() && newSongId != lastFetchedSongId) {
+                    lastFetchedSongId = newSongId
+                    fetchLyrics(newSongId, snapshot.artist, snapshot.title)
+                }
             }
         }
     }
@@ -158,7 +161,20 @@ class PlayerViewModel(
             codec = snapshot.codec,
             bitRate = snapshot.bitRate,
             sampleRate = snapshot.sampleRate,
+            formatInfo = formatAudioInfo(snapshot.codec, snapshot.sampleRate, snapshot.bitRate),
         )
+
+    private fun formatAudioInfo(
+        codec: String?,
+        sampleRate: Int?,
+        bitRate: Int?,
+    ): String? {
+        val parts = mutableListOf<String>()
+        codec?.let { parts.add(it.uppercase()) }
+        sampleRate?.let { parts.add("${it / 1000.0} kHz") }
+        bitRate?.let { parts.add("${it / 1000} kbps") }
+        return if (parts.isEmpty()) null else parts.joinToString(" / ")
+    }
 
     private fun ParsedLyricsLine.toUiSyncedLine(): SyncedLine =
         SyncedLine(

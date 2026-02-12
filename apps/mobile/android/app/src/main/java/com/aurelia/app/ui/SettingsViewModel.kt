@@ -170,12 +170,20 @@ class SettingsViewModel(
 
   fun setVisualizerEnabled(enabled: Boolean) {
     AudioManager.setVisualizerEnabled(enabled, sessionStore)
-    mutableState.update { it.copy(visualizerEnabled = enabled) }
+    val appliedValue = sessionStore.getVisualizerEnabled()
+    mutableState.update { it.copy(visualizerEnabled = appliedValue) }
   }
 
   fun setVisualizerStyle(style: String) {
     sessionStore.setVisualizerStyle(style)
     mutableState.update { it.copy(visualizerStyle = style) }
+  }
+
+  fun onVisualizerPermissionChanged(hasPermission: Boolean) {
+    AudioManager.onVisualizerPermissionChanged(hasPermission, sessionStore)
+    if (!hasPermission) {
+      mutableState.update { it.copy(visualizerEnabled = false) }
+    }
   }
 
   private fun loadVisualizerState() {

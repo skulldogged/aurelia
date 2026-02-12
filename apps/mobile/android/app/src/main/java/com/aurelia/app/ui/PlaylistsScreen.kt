@@ -38,7 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,14 +66,14 @@ fun PlaylistsScreen(
   onNavigateToPlaylist: (Screen.PlaylistDetail) -> Unit,
   hasPlayerBar: Boolean = false,
 ) {
-  val state by viewModel.state.collectAsState()
+  val state by viewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
 
   var showCreateDialog by remember { mutableStateOf(false) }
   var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
 
   LaunchedEffect(Unit) {
-    viewModel.loadPlaylists()
+    viewModel.ensureLoaded()
   }
 
   val systemNavBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -133,7 +133,7 @@ fun PlaylistsScreen(
                 textAlign = TextAlign.Center,
               )
               Spacer(modifier = Modifier.height(16.dp))
-              TextButton(onClick = { viewModel.loadPlaylists() }) {
+              TextButton(onClick = { viewModel.ensureLoaded(force = true) }) {
                 Text("Retry")
               }
             }

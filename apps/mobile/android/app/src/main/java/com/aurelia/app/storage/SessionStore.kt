@@ -140,6 +140,28 @@ class SessionStore(
 
   fun getVisualizerStyle(): String = prefs.getString("visualizer_style", "BARS") ?: "BARS"
 
+  // Debug performance toggles (debug builds only UI)
+  fun setDebugDisablePlayerBackdropBlur(disabled: Boolean) {
+    prefs.edit { putBoolean("debug_disable_player_backdrop_blur", disabled) }
+  }
+
+  fun getDebugDisablePlayerBackdropBlur(): Boolean =
+    prefs.getBoolean("debug_disable_player_backdrop_blur", false)
+
+  fun setDebugDisablePlayerBackdropImageLayer(disabled: Boolean) {
+    prefs.edit { putBoolean("debug_disable_player_backdrop_image_layer", disabled) }
+  }
+
+  fun getDebugDisablePlayerBackdropImageLayer(): Boolean =
+    prefs.getBoolean("debug_disable_player_backdrop_image_layer", false)
+
+  fun setDebugDisablePlayerTransitions(disabled: Boolean) {
+    prefs.edit { putBoolean("debug_disable_player_transitions", disabled) }
+  }
+
+  fun getDebugDisablePlayerTransitions(): Boolean =
+    prefs.getBoolean("debug_disable_player_transitions", false)
+
   fun getDeviceId(): String {
     val savedId = prefs.getString("device_id", null)
     if (savedId != null) return savedId

@@ -3,8 +3,14 @@ package com.aurelia.app.ui
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import android.os.SystemClock
+import android.content.pm.ApplicationInfo
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -67,14 +73,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.State
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -117,14 +126,20 @@ import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.AudioVisualizer
+import com.aurelia.app.ui.components.VisualizerFrameMetrics
 import com.aurelia.app.ui.components.WavyMusicSlider
 import com.aurelia.app.ui.navigation.Screen
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberNowPlayingStyle
 import com.aurelia.app.utils.formatDuration
+import com.aurelia.app.utils.optimizedArtworkUrl
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 import uniffi.aurelia_core.Song
 
 private enum class ControlButton { NONE, PREVIOUS, PLAY_PAUSE, NEXT }
@@ -147,6 +162,7 @@ private data class AlbumArtColors(
 @Composable
 private fun rememberAlbumArtColors(albumArtUrl: String?): AlbumArtColors {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val imageLoader = remember(context) { ImageLoader(context) }
     var colors by remember { mutableStateOf(AlbumArtColors()) }
     
     LaunchedEffect(albumArtUrl) {
@@ -156,48 +172,51 @@ private fun rememberAlbumArtColors(albumArtUrl: String?): AlbumArtColors {
         }
         
         try {
-            val loader = ImageLoader(context)
             // Use smaller size for palette extraction - 200px is plenty for color analysis
             val request = ImageRequest.Builder(context)
-                .data(albumArtUrl)
+                .data(optimizedArtworkUrl(albumArtUrl, 200))
                 .allowHardware(false)
                 .size(200)
                 .build()
-            
-            val result = (loader.execute(request) as? SuccessResult)?.drawable
+
+            val result = withContext(Dispatchers.IO) {
+              (imageLoader.execute(request) as? SuccessResult)?.drawable
+            }
             val bitmap = (result as? BitmapDrawable)?.bitmap
-            
+
             if (bitmap != null) {
-                val palette = Palette.from(bitmap).generate()
-                
-                // Use dominant swatch as the base color (most representative color)
-                val dominant = palette.dominantSwatch
-                
-                // For primary, prefer muted or dark muted for better aesthetics
-                // Fall back to dominant if those aren't available
-                val primaryColor = palette.mutedSwatch?.rgb?.let { Color(it) }
+                colors = withContext(Dispatchers.Default) {
+                  val palette = Palette.from(bitmap).generate()
+
+                  // Use dominant swatch as the base color (most representative color)
+                  val dominant = palette.dominantSwatch
+
+                  // For primary, prefer muted or dark muted for better aesthetics
+                  // Fall back to dominant if those aren't available
+                  val primaryColor = palette.mutedSwatch?.rgb?.let { Color(it) }
                     ?: palette.darkMutedSwatch?.rgb?.let { Color(it) }
                     ?: dominant?.rgb?.let { Color(it) }
                     ?: Color(0xFF9B6DFF)
-                
-                // For secondary/accent, use vibrant but ensure it's not too neon
-                val secondaryColor = palette.lightMutedSwatch?.rgb?.let { Color(it) }
+
+                  // For secondary/accent, use vibrant but ensure it's not too neon
+                  val secondaryColor = palette.lightMutedSwatch?.rgb?.let { Color(it) }
                     ?: palette.vibrantSwatch?.rgb?.let { Color(it) }
                     ?: dominant?.rgb?.let { Color(it) }
                     ?: Color(0xFFFF6EB4)
-                
-                // Determine if the primary color is light or dark for text contrast
-                val hsl = FloatArray(3)
-                android.graphics.Color.colorToHSV(primaryColor.toArgb(), hsl)
-                val isLight = hsl[2] > 0.6f
-                
-                colors = AlbumArtColors(
+
+                  // Determine if the primary color is light or dark for text contrast
+                  val hsl = FloatArray(3)
+                  android.graphics.Color.colorToHSV(primaryColor.toArgb(), hsl)
+                  val isLight = hsl[2] > 0.6f
+
+                  AlbumArtColors(
                     primary = primaryColor,
                     secondary = secondaryColor,
                     accent = primaryColor,
                     onPrimary = if (isLight) Color.Black else Color.White,
                     isLight = isLight,
-                )
+                  )
+                }
             } else {
                 colors = AlbumArtColors()
             }
@@ -217,6 +236,9 @@ private fun rememberAlbumArtColors(albumArtUrl: String?): AlbumArtColors {
 @Composable
 private fun PlayerBackdrop(
     albumArtUrl: String?,
+    disableBlur: Boolean,
+    disableImageLayer: Boolean,
+    disableTransitions: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val isDark = isSystemInDarkTheme()
@@ -251,34 +273,63 @@ private fun PlayerBackdrop(
                     ),
         )
 
-        // Blurred album art layer with smooth crossfade
-        Crossfade(
-            targetState = albumArtUrl,
-            animationSpec = tween(500),
-            label = "album-art-background",
-        ) { artUrl ->
-            if (!artUrl.isNullOrBlank()) {
-                SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(artUrl)
-                        .crossfade(true)
-                        .size(backdropSize)
-                        .build(),
-                    contentDescription = null,
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .blur(48.dp)
-                            .graphicsLayer {
-                                alpha = if (isDark) 0.32f else 0.40f
-                                scaleX = 1.14f
-                                scaleY = 1.14f
-                            },
-                    contentScale = ContentScale.Crop,
-                )
+        if (!disableImageLayer) {
+            if (disableTransitions) {
+                if (!albumArtUrl.isNullOrBlank()) {
+                    SubcomposeAsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(optimizedArtworkUrl(albumArtUrl, backdropSize))
+                            .crossfade(false)
+                            .size(backdropSize)
+                            .build(),
+                        contentDescription = null,
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .let {
+                                    if (disableBlur) it else it.blur(48.dp)
+                                }
+                                .graphicsLayer {
+                                    alpha = if (isDark) 0.32f else 0.40f
+                                    scaleX = 1.14f
+                                    scaleY = 1.14f
+                                },
+                        contentScale = ContentScale.Crop,
+                    )
+                }
             } else {
-                // Empty box when no art to allow smooth fade out
-                Box(modifier = Modifier.fillMaxSize())
+                // Blurred album art layer with smooth crossfade
+                Crossfade(
+                    targetState = albumArtUrl,
+                    animationSpec = tween(500),
+                    label = "album-art-background",
+                ) { artUrl ->
+                    if (!artUrl.isNullOrBlank()) {
+                        SubcomposeAsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(optimizedArtworkUrl(artUrl, backdropSize))
+                                .crossfade(true)
+                                .size(backdropSize)
+                                .build(),
+                            contentDescription = null,
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .let {
+                                        if (disableBlur) it else it.blur(48.dp)
+                                    }
+                                    .graphicsLayer {
+                                        alpha = if (isDark) 0.32f else 0.40f
+                                        scaleX = 1.14f
+                                        scaleY = 1.14f
+                                    },
+                            contentScale = ContentScale.Crop,
+                        )
+                    } else {
+                        // Empty box when no art to allow smooth fade out
+                        Box(modifier = Modifier.fillMaxSize())
+                    }
+                }
             }
         }
 
@@ -311,13 +362,35 @@ fun PlayerScreen(
   onNavigateToArtist: (Screen.ArtistDetail) -> Unit = {},
   modifier: Modifier = Modifier,
   isEmbedded: Boolean = false,
+  isVisible: Boolean = true,
 ) {
+  val context = LocalContext.current
+  val isDebuggable = remember(context) {
+    (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+  }
+  val disableBackdropBlur = remember(sessionStore, isDebuggable) {
+    isDebuggable && sessionStore.getDebugDisablePlayerBackdropBlur()
+  }
+  val disableBackdropImageLayer = remember(sessionStore, isDebuggable) {
+    isDebuggable && sessionStore.getDebugDisablePlayerBackdropImageLayer()
+  }
+  val disablePlayerTransitions = remember(sessionStore, isDebuggable) {
+    isDebuggable && sessionStore.getDebugDisablePlayerTransitions()
+  }
+
   val viewModel: PlayerViewModel =
     viewModel(
       factory = viewModelFactory { PlayerViewModel(playerController, sessionStore) },
     )
-  val state by viewModel.state.collectAsState()
-  val currentPositionMs = rememberCurrentPosition(state)
+  val state by viewModel.state.collectAsStateWithLifecycle()
+  val playbackPositionState = rememberPlaybackPositionState(
+    anchorPositionMs = state.positionMs,
+    isPlaying = state.isPlaying,
+    playbackSpeed = state.playbackSpeed,
+    updateTimeMs = state.updateTimeMs,
+    isActive = isVisible,
+    targetFps = if (state.showLyrics) 60 else 30,
+  )
 
   var showQueueSheet by remember { mutableStateOf(false) }
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -326,30 +399,32 @@ fun PlayerScreen(
   val colors = MaterialTheme.colorScheme
   
   // Visualizer state
-  val visualizerState by AudioManager.visualizerState.collectAsState()
-  val visualizerEnabled = sessionStore.getVisualizerEnabled()
-  val visualizerStyleName = sessionStore.getVisualizerStyle()
+  val visualizerState by AudioManager.visualizerState.collectAsStateWithLifecycle()
+  val visualizerEnabled = remember(sessionStore) { sessionStore.getVisualizerEnabled() }
+  val visualizerStyleName = remember(sessionStore) { sessionStore.getVisualizerStyle() }
   val visualizerStyle = remember(visualizerStyleName) {
     try { VisualizerStyle.valueOf(visualizerStyleName) } catch (_: Exception) { VisualizerStyle.BARS }
   }
+  val shouldShowVisualizer = visualizerEnabled && visualizerState.enabled && state.isPlaying && visualizerState.frequencyData.isNotEmpty()
   
   // Extract dynamic colors from album art
   val albumColors = rememberAlbumArtColors(state.albumArtUrl)
   
   // Animate color transitions
+  val colorAnimationSpec = tween<Color>(durationMillis = if (disablePlayerTransitions) 0 else 500)
   val primaryColor by animateColorAsState(
     targetValue = albumColors.primary,
-    animationSpec = tween(500),
+    animationSpec = colorAnimationSpec,
     label = "primaryColor",
   )
   val secondaryColor by animateColorAsState(
     targetValue = albumColors.secondary,
-    animationSpec = tween(500),
+    animationSpec = colorAnimationSpec,
     label = "secondaryColor",
   )
   val accentColor by animateColorAsState(
     targetValue = albumColors.accent,
-    animationSpec = tween(500),
+    animationSpec = colorAnimationSpec,
     label = "accentColor",
   )
   
@@ -362,21 +437,35 @@ fun PlayerScreen(
     // Blurred album art background
     PlayerBackdrop(
       albumArtUrl = state.albumArtUrl,
+      disableBlur = disableBackdropBlur,
+      disableImageLayer = disableBackdropImageLayer,
+      disableTransitions = disablePlayerTransitions,
       modifier = Modifier.fillMaxSize(),
     )
 
-    // Visualizer overlay (when enabled and playing)
-    if (visualizerEnabled && visualizerState.enabled && state.isPlaying) {
-      AudioVisualizer(
-        frequencyData = visualizerState.frequencyData,
-        timeDomainData = visualizerState.waveform,
-        isPlaying = state.isPlaying,
-        style = visualizerStyle,
-        accentColor = primaryColor,
-        modifier = Modifier.fillMaxSize(),
-        boost = 1.0f,
-      )
+    AnimatedVisibility(
+      visible = shouldShowVisualizer,
+      modifier = Modifier.align(Alignment.BottomCenter),
+      enter = if (disablePlayerTransitions) EnterTransition.None else fadeIn(animationSpec = tween(300)),
+      exit = if (disablePlayerTransitions) ExitTransition.None else fadeOut(animationSpec = tween(300)),
+    ) {
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(160.dp)
+          .graphicsLayer { alpha = 0.40f },
+      ) {
+        AudioVisualizer(
+          frequencyData = visualizerState.frequencyData,
+          timeDomainData = visualizerState.waveform,
+          style = visualizerStyle,
+          accentColor = primaryColor,
+          modifier = Modifier.fillMaxSize(),
+          boost = 1.0f,
+        )
+      }
     }
+    VisualizerFrameMetrics(tag = "FullscreenVisualizer", enabled = shouldShowVisualizer)
 
     Column(
       modifier =
@@ -460,9 +549,9 @@ fun PlayerScreen(
       verticalArrangement = Arrangement.SpaceEvenly,
     ) {
       if (state.showLyrics) {
-        LyricsView(
+        SyncedLyricsPanel(
           lyrics = state.lyrics,
-          currentPosition = currentPositionMs,
+          positionState = playbackPositionState,
           onLineClick = { timeMs -> viewModel.seekTo(timeMs.toLong()) },
           primaryColor = primaryColor,
           modifier =
@@ -520,7 +609,7 @@ fun PlayerScreen(
               val artworkSize = with(LocalDensity.current) { minOf(400.dp, screenWidth.dp).toPx().toInt() }
               SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
-                  .data(state.albumArtUrl)
+                  .data(optimizedArtworkUrl(state.albumArtUrl, artworkSize))
                   .crossfade(true)
                   .size(artworkSize)
                   .build(),
@@ -609,56 +698,15 @@ fun PlayerScreen(
       Spacer(modifier = Modifier.height(24.dp))
 
       if (!isEmbedded) {
-        Column(
+        PlaybackProgressSection(
+          positionState = playbackPositionState,
+          durationMs = state.durationMs,
+          isPlaying = state.isPlaying,
+          accentColor = primaryColor,
+          isVisible = isVisible,
+          onSeekTo = { targetPosition -> viewModel.seekTo(targetPosition) },
           modifier = Modifier.fillMaxWidth(),
-        ) {
-          Row(
-            modifier =
-              Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-          ) {
-            Text(
-              text = formatDuration(currentPositionMs, clampNegative = true),
-              style = MaterialTheme.typography.labelMedium,
-              fontWeight = FontWeight.Medium,
-              color = Color.White.copy(alpha = 0.72f),
-              modifier = Modifier.widthIn(min = 40.dp),
-            )
-            val durationMs = state.durationMs
-            val progressFraction =
-              if (durationMs > 0L) {
-                (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
-              } else {
-                0f
-              }
-
-            WavyMusicSlider(
-              value = progressFraction,
-              onValueChange = { newFraction: Float ->
-                viewModel.seekTo((newFraction * durationMs).toLong())
-              },
-              modifier = Modifier.weight(1f),
-              trackHeight = 6.dp,
-              thumbRadius = 8.dp,
-              activeTrackColor = primaryColor,
-              inactiveTrackColor = primaryColor.copy(alpha = 0.2f),
-              thumbColor = primaryColor,
-              waveLength = 30.dp,
-              isPlaying = state.isPlaying,
-              isWaveEligible = true,
-            )
-            Text(
-              text = formatDuration(state.durationMs, clampNegative = true),
-              style = MaterialTheme.typography.labelMedium,
-              fontWeight = FontWeight.Medium,
-              color = Color.White.copy(alpha = 0.72f),
-              modifier = Modifier.widthIn(min = 40.dp),
-            )
-          }
-        }
+        )
       }
 
       Spacer(modifier = Modifier.height(24.dp))
@@ -749,34 +797,126 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun rememberCurrentPosition(state: PlayerState): Long {
-  var currentPosition by remember(state.positionMs, state.isPlaying, state.playbackSpeed, state.updateTimeMs) {
-    mutableStateOf(state.positionMs)
-  }
+private fun rememberPlaybackPositionState(
+  anchorPositionMs: Long,
+  isPlaying: Boolean,
+  playbackSpeed: Float,
+  updateTimeMs: Long,
+  isActive: Boolean,
+  targetFps: Int,
+): State<Long> =
+  produceState(
+    initialValue = anchorPositionMs,
+    anchorPositionMs,
+    isPlaying,
+    playbackSpeed,
+    updateTimeMs,
+    isActive,
+    targetFps,
+  ) {
+    value = anchorPositionMs
+    if (!isActive || !isPlaying) return@produceState
 
-  if (state.isPlaying) {
-    LaunchedEffect(state.positionMs, state.isPlaying, state.playbackSpeed, state.updateTimeMs) {
-      val startTime = SystemClock.elapsedRealtime()
-      val startPosition = state.positionMs
-      while (true) {
-        SystemClock.elapsedRealtime() - state.updateTimeMs
-        // If we have a valid update time, use it. Otherwise fall back to local delta
-        // But state.updateTimeMs comes from the snapshot time.
-        // Wait, if we use state.updateTimeMs, we trust the snapshot time.
-        // If state.updateTimeMs is 0 (initial), we shouldn't use it.
-        if (state.updateTimeMs > 0) {
-          currentPosition =
-            startPosition + ((SystemClock.elapsedRealtime() - state.updateTimeMs) * state.playbackSpeed).toLong()
-        } else {
-          // Fallback for when we don't have a reliable server timestamp yet
-          currentPosition = startPosition + ((SystemClock.elapsedRealtime() - startTime) * state.playbackSpeed).toLong()
+    val frameIntervalNanos = (1_000_000_000L / targetFps.coerceAtLeast(1)).coerceAtLeast(1L)
+    val startRealtime = SystemClock.elapsedRealtime()
+    var lastEmitNanos = 0L
+
+    while (currentCoroutineContext().isActive) {
+      withFrameNanos { frameNanos ->
+        if (lastEmitNanos == 0L || frameNanos - lastEmitNanos >= frameIntervalNanos) {
+          val now = SystemClock.elapsedRealtime()
+          val elapsedMs =
+            if (updateTimeMs > 0L) {
+              now - updateTimeMs
+            } else {
+              now - startRealtime
+            }
+          value = anchorPositionMs + (elapsedMs * playbackSpeed).toLong()
+          lastEmitNanos = frameNanos
         }
-        delay(16L)
       }
     }
   }
 
-  return currentPosition
+@Composable
+private fun SyncedLyricsPanel(
+  lyrics: Lyrics?,
+  positionState: State<Long>,
+  onLineClick: (Int) -> Unit,
+  primaryColor: Color,
+  modifier: Modifier = Modifier,
+) {
+  val currentPositionMs = positionState.value
+  LyricsView(
+    lyrics = lyrics,
+    currentPosition = currentPositionMs,
+    onLineClick = onLineClick,
+    primaryColor = primaryColor,
+    modifier = modifier,
+  )
+}
+
+@Composable
+private fun PlaybackProgressSection(
+  positionState: State<Long>,
+  durationMs: Long,
+  isPlaying: Boolean,
+  accentColor: Color,
+  isVisible: Boolean,
+  onSeekTo: (Long) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val currentPositionMs = positionState.value
+  val progressFraction =
+    if (durationMs > 0L) {
+      (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+    } else {
+      0f
+    }
+
+  Column(modifier = modifier) {
+    Row(
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 8.dp, vertical = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Text(
+        text = formatDuration(currentPositionMs, clampNegative = true),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Medium,
+        color = Color.White.copy(alpha = 0.72f),
+        modifier = Modifier.widthIn(min = 40.dp),
+      )
+
+      WavyMusicSlider(
+        value = progressFraction,
+        onValueChange = { newFraction ->
+          onSeekTo((newFraction * durationMs).toLong())
+        },
+        modifier = Modifier.weight(1f),
+        trackHeight = 6.dp,
+        thumbRadius = 8.dp,
+        activeTrackColor = accentColor,
+        inactiveTrackColor = accentColor.copy(alpha = 0.2f),
+        thumbColor = accentColor,
+        waveLength = 30.dp,
+        isPlaying = isPlaying,
+        isWaveEligible = true,
+        animateWave = isVisible,
+      )
+
+      Text(
+        text = formatDuration(durationMs, clampNegative = true),
+        style = MaterialTheme.typography.labelMedium,
+        fontWeight = FontWeight.Medium,
+        color = Color.White.copy(alpha = 0.72f),
+        modifier = Modifier.widthIn(min = 40.dp),
+      )
+    }
+  }
 }
 
 @Composable
@@ -1604,4 +1744,3 @@ private fun QueueItemRow(
     }
   }
 }
-

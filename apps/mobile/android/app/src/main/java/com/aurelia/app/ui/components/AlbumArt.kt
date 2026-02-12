@@ -22,8 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.aurelia.app.utils.optimizedArtworkUrl
 
 enum class AlbumArtStyle {
   Song,
@@ -62,23 +63,19 @@ fun AlbumArt(
     } else {
       val context = LocalContext.current
       val pxSize = with(LocalDensity.current) { size.toPx().toInt() }
-
-      SubcomposeAsyncImage(
-        model = ImageRequest.Builder(context)
-          .data(imageUrl)
-          .crossfade(true)
-          .size(pxSize)
-          .build(),
-        contentDescription = "Album art",
-        modifier = Modifier.fillMaxSize(),
-        contentScale = ContentScale.Crop,
-        loading = {
-          PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
-        },
-        error = {
-          PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
-        },
-      )
+      Box(modifier = Modifier.fillMaxSize()) {
+        PlaceholderIcon(icon = icon, contentColor = contentColor, size = size)
+        AsyncImage(
+          model = ImageRequest.Builder(context)
+            .data(optimizedArtworkUrl(imageUrl, pxSize))
+            .crossfade(false)
+            .size(pxSize)
+            .build(),
+          contentDescription = "Album art",
+          modifier = Modifier.fillMaxSize(),
+          contentScale = ContentScale.Crop,
+        )
+      }
     }
   }
 }

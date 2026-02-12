@@ -1,5 +1,6 @@
 package com.aurelia.app.ui
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aurelia.app.auth.AuthInterceptor
@@ -7,6 +8,7 @@ import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.utils.validateSession
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -28,8 +30,15 @@ class PlaylistViewModel(
 
   private val mutableDetailState = MutableStateFlow(PlaylistDetailState())
   val detailState: StateFlow<PlaylistDetailState> = mutableDetailState
+  private var loadJob: Job? = null
+  private var lastLoadedAtMs: Long = 0L
 
-  fun loadPlaylists() {
+  fun ensureLoaded(force: Boolean = false) {
+    if (!force && loadJob?.isActive == true) return
+    val hasPlaylists = mutableState.value.playlists.isNotEmpty()
+    val isFresh = SystemClock.elapsedRealtime() - lastLoadedAtMs < LOAD_FRESHNESS_MS
+    if (!force && hasPlaylists && isFresh) return
+
     val session = validateSession(sessionStore)
     if (session == null) {
       mutableState.update { it.copy(error = "Missing session data", isLoading = false) }
@@ -38,10 +47,11 @@ class PlaylistViewModel(
 
     mutableState.update { it.copy(isLoading = true, error = null) }
 
-    viewModelScope.launch(Dispatchers.IO) {
+    loadJob = viewModelScope.launch(Dispatchers.IO) {
       try {
         val playlists = getPlaylists(session.serverUrl, session.token, session.userId)
         mutableState.update { it.copy(isLoading = false, playlists = playlists) }
+        lastLoadedAtMs = SystemClock.elapsedRealtime()
       } catch (error: AppException) {
         if (!AuthInterceptor.handlePotentialAuthError(error.message)) {
           mutableState.update { it.copy(isLoading = false, error = error.message ?: "Failed to load playlists") }
@@ -52,6 +62,10 @@ class PlaylistViewModel(
         }
       }
     }
+  }
+
+  fun loadPlaylists() {
+    ensureLoaded(force = false)
   }
 
   fun createPlaylist(
@@ -152,7 +166,7 @@ class PlaylistViewModel(
         // Reload playlist detail to reflect changes
         loadPlaylistDetail(playlistId, "")
         // Also reload playlists to update child count
-        loadPlaylists()
+        ensureLoaded(force = true)
       } catch (error: Exception) {
         android.util.Log.e("PlaylistViewModel", "Failed to add songs to playlist", error)
         mutableState.update { it.copy(error = "Failed to add songs to playlist") }
@@ -185,3 +199,5 @@ class PlaylistViewModel(
     mutableDetailState.update { it.copy(error = null) }
   }
 }
+
+private const val LOAD_FRESHNESS_MS = 60_000L

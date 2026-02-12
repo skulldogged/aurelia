@@ -33,7 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,7 +47,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
@@ -79,6 +78,7 @@ sealed class SearchResult {
 
 @Composable
 fun SearchScreen(
+  libraryViewModel: LibraryViewModel,
   sessionStore: SessionStore,
   playerController: PlayerController,
   playlistViewModel: PlaylistViewModel,
@@ -87,12 +87,9 @@ fun SearchScreen(
   onNavigateToArtist: ((Screen.ArtistDetail) -> Unit)? = null,
   hasPlayerBar: Boolean = false,
 ) {
-  val libraryViewModel: LibraryViewModel =
-    viewModel(
-      factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
-    )
-  val state by libraryViewModel.state.collectAsState()
-  val playlistState by playlistViewModel.state.collectAsState()
+  val state by libraryViewModel.state.collectAsStateWithLifecycle()
+  val results by libraryViewModel.searchResults.collectAsStateWithLifecycle()
+  val playlistState by playlistViewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val keyboardController = LocalSoftwareKeyboardController.current
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
@@ -102,65 +99,8 @@ fun SearchScreen(
   val contextMenu = rememberContextMenuState()
 
   LaunchedEffect(Unit) {
-    libraryViewModel.loadLibrary()
-    playlistViewModel.loadPlaylists()
+    libraryViewModel.updateSearchQuery(searchQuery)
   }
-
-  // Search results
-  val results =
-    remember(searchQuery, state.songs) {
-      if (searchQuery.length < UiConstants.MIN_SEARCH_LENGTH) {
-        emptyList()
-      } else {
-        val query = searchQuery.lowercase()
-        val songResults =
-          state.songs
-            .filter { song ->
-              song.name.lowercase().contains(query) ||
-                song.artists?.any { it.lowercase().contains(query) } == true ||
-                song.album?.lowercase()?.contains(query) == true
-            }.take(UiConstants.SEARCH_RESULTS_LIMIT)
-            .map { SearchResult.SongResult(it) }
-
-        // Get unique albums matching query
-        val albumResults =
-          state.songs
-            .filter { it.album?.lowercase()?.contains(query) == true }
-            .mapNotNull { song ->
-              song.albumId?.let { id ->
-                Triple(id, song.album ?: "", song.albumArtUrl)
-              }
-            }.distinctBy { it.first }
-            .take(UiConstants.SEARCH_ALBUMS_LIMIT)
-            .map { (id, name, artUrl) -> SearchResult.Album(id, name, "", artUrl) }
-
-        // Get unique artists matching query
-        val artistResults =
-          state.songs
-            .filter { it.artists?.any { artist -> artist.lowercase().contains(query) } == true }
-            .flatMap { song ->
-              song.artists?.mapIndexedNotNull { index, artist ->
-                if (artist.lowercase().contains(query)) {
-                  val artistId = song.artistIds?.getOrNull(index)
-                  Triple(artistId, artist, song)
-                } else {
-                  null
-                }
-              } ?: emptyList()
-            }
-            .groupBy { it.second }
-            .map { (name, entries) ->
-              SearchResult.Artist(
-                id = entries.firstOrNull()?.first,
-                name = name,
-                songCount = entries.size,
-              )
-            }
-            .take(UiConstants.SEARCH_ARTISTS_LIMIT)
-
-        artistResults + albumResults + songResults
-      }
-    }
 
   Column(
     modifier =
@@ -184,7 +124,10 @@ fun SearchScreen(
 
       OutlinedTextField(
         value = searchQuery,
-        onValueChange = { searchQuery = it },
+        onValueChange = {
+          searchQuery = it
+          libraryViewModel.updateSearchQuery(it)
+        },
         modifier = Modifier.fillMaxWidth(),
         placeholder = { Text("Songs, albums, artists...") },
         leadingIcon = {

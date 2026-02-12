@@ -23,23 +23,23 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.SubcomposeAsyncImage
-import com.aurelia.app.player.PlayerController
-import com.aurelia.app.storage.SessionStore
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.aurelia.app.ui.components.BottomBarDimensions
 import com.aurelia.app.ui.navigation.Screen
+import com.aurelia.app.utils.optimizedArtworkUrl
 
 data class AlbumItem(
   val id: String,
@@ -51,22 +51,13 @@ data class AlbumItem(
 
 @Composable
 fun AlbumsScreen(
-  sessionStore: SessionStore,
-  playerController: PlayerController,
+  libraryViewModel: LibraryViewModel,
   onNavigateToAlbum: (Screen.AlbumDetail) -> Unit = {},
   hasPlayerBar: Boolean = false,
 ) {
-  val libraryViewModel: LibraryViewModel =
-    viewModel(
-      factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
-    )
-  val state by libraryViewModel.state.collectAsState()
+  val state by libraryViewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
-
-  LaunchedEffect(Unit) {
-    libraryViewModel.loadLibrary()
-  }
 
   // Group songs by album
   val albums =
@@ -187,44 +178,26 @@ private fun AlbumCard(
             modifier = Modifier.fillMaxSize(0.4f),
           )
         } else {
-          SubcomposeAsyncImage(
-            model = album.albumArtUrl,
-            contentDescription = album.name,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            loading = {
-              Box(
-                modifier =
-                  Modifier
-                    .fillMaxSize()
-                    .background(colors.surfaceVariant),
-                contentAlignment = Alignment.Center,
-              ) {
-                Icon(
-                  imageVector = Icons.Filled.Album,
-                  contentDescription = null,
-                  tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-                  modifier = Modifier.fillMaxSize(0.4f),
-                )
-              }
-            },
-            error = {
-              Box(
-                modifier =
-                  Modifier
-                    .fillMaxSize()
-                    .background(colors.surfaceVariant),
-                contentAlignment = Alignment.Center,
-              ) {
-                Icon(
-                  imageVector = Icons.Filled.Album,
-                  contentDescription = null,
-                  tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-                  modifier = Modifier.fillMaxSize(0.4f),
-                )
-              }
-            },
-          )
+          val context = LocalContext.current
+          val pxSize = with(LocalDensity.current) { 220.dp.toPx().toInt() }
+          Box(modifier = Modifier.fillMaxSize()) {
+            Icon(
+              imageVector = Icons.Filled.Album,
+              contentDescription = null,
+              tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
+              modifier = Modifier.fillMaxSize(0.4f).align(Alignment.Center),
+            )
+            AsyncImage(
+              model = ImageRequest.Builder(context)
+                .data(optimizedArtworkUrl(album.albumArtUrl, pxSize))
+                .crossfade(false)
+                .size(pxSize)
+                .build(),
+              contentDescription = album.name,
+              modifier = Modifier.fillMaxSize(),
+              contentScale = ContentScale.Crop,
+            )
+          }
         }
       }
 

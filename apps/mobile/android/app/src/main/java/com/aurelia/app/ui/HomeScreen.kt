@@ -43,8 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,7 +62,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
@@ -78,6 +77,7 @@ import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberContextualStyle
 import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
 import com.aurelia.app.ui.theme.rememberPressScale
+import com.aurelia.app.utils.optimizedArtworkUrl
 import uniffi.aurelia_core.Song
 @Composable
 fun HomeScreen(
@@ -90,17 +90,12 @@ fun HomeScreen(
   onNavigateToArtist: (Screen.ArtistDetail) -> Unit = {},
   hasPlayerBar: Boolean = false,
 ) {
-  val state by viewModel.state.collectAsState()
-  val playlistState by playlistViewModel.state.collectAsState()
+  val state by viewModel.state.collectAsStateWithLifecycle()
+  val playlistState by playlistViewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
 
   val contextMenu = rememberContextMenuState()
-
-  LaunchedEffect(Unit) {
-    viewModel.loadHomeData()
-    playlistViewModel.loadPlaylists()
-  }
 
   when {
     state.isLoading && state.recentlyPlayed.isEmpty() && state.mostPlayed.isEmpty() -> {
@@ -436,38 +431,23 @@ private fun ContinueListeningHero(
         val context = LocalContext.current
         // Use a larger size for full width image
         val pxSize = with(LocalDensity.current) { 400.dp.toPx().toInt() }
-        SubcomposeAsyncImage(
-          model = ImageRequest.Builder(context)
-            .data(song.albumArtUrl)
-            .crossfade(true)
-            .size(pxSize)
-            .build(),
-          contentDescription = song.name,
-          modifier = Modifier.fillMaxSize(),
-          contentScale = ContentScale.Crop,
-          loading = {
-            Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .background(colors.surfaceVariant),
-            )
-          },
-          error = {
-            Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .background(colors.surfaceVariant),
-              contentAlignment = Alignment.Center,
-            ) {
-              Icon(
-                imageVector = Icons.Filled.MusicNote,
-                contentDescription = null,
-                tint = colors.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(64.dp),
-              )
-            }
-          },
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+          Box(
+            modifier = Modifier
+              .fillMaxSize()
+              .background(colors.surfaceVariant),
+          )
+          AsyncImage(
+            model = ImageRequest.Builder(context)
+              .data(optimizedArtworkUrl(song.albumArtUrl, pxSize))
+              .crossfade(false)
+              .size(pxSize)
+              .build(),
+            contentDescription = song.name,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+          )
+        }
       }
     }
 
@@ -602,38 +582,23 @@ private fun QuickPickCard(
           } else {
             val context = LocalContext.current
             val pxSize = with(LocalDensity.current) { 64.dp.toPx().toInt() }
-            SubcomposeAsyncImage(
-              model = ImageRequest.Builder(context)
-                .data(song.albumArtUrl)
-                .crossfade(true)
-                .size(pxSize)
-                .build(),
-              contentDescription = song.name,
-              modifier = Modifier.fillMaxSize(),
-              contentScale = ContentScale.Crop,
-              loading = {
-                Box(
-                  modifier = Modifier
-                    .fillMaxSize()
-                    .background(colors.surfaceVariant),
-                )
-              },
-              error = {
-                Box(
-                  modifier = Modifier
-                    .fillMaxSize()
-                    .background(colors.surfaceVariant),
-                  contentAlignment = Alignment.Center,
-                ) {
-                  Icon(
-                    imageVector = Icons.Filled.MusicNote,
-                    contentDescription = null,
-                    tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-                    modifier = Modifier.size(24.dp),
-                  )
-                }
-              },
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+              Box(
+                modifier = Modifier
+                  .fillMaxSize()
+                  .background(colors.surfaceVariant),
+              )
+              AsyncImage(
+                model = ImageRequest.Builder(context)
+                  .data(optimizedArtworkUrl(song.albumArtUrl, pxSize))
+                  .crossfade(false)
+                  .size(pxSize)
+                  .build(),
+                contentDescription = song.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+              )
+            }
           }
         }
 
@@ -742,36 +707,23 @@ private fun CompactAlbumCard(
         } else {
           val context = LocalContext.current
           val pxSize = with(LocalDensity.current) { 140.dp.toPx().toInt() }
-          SubcomposeAsyncImage(
-            model = ImageRequest.Builder(context)
-              .data(album.albumArtUrl)
-              .crossfade(true)
-              .size(pxSize)
-              .build(),
-            contentDescription = album.name,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            loading = {
-              Box(
-                modifier = Modifier
-                  .fillMaxSize()
-                  .background(colors.surfaceVariant),
-              )
-            },
-            error = {
-              Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center,
-              ) {
-                Icon(
-                  imageVector = Icons.Filled.Album,
-                  contentDescription = null,
-                  tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-                  modifier = Modifier.fillMaxSize(0.4f),
-                )
-              }
-            },
-          )
+          Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+              modifier = Modifier
+                .fillMaxSize()
+                .background(colors.surfaceVariant),
+            )
+            AsyncImage(
+              model = ImageRequest.Builder(context)
+                .data(optimizedArtworkUrl(album.albumArtUrl, pxSize))
+                .crossfade(false)
+                .size(pxSize)
+                .build(),
+              contentDescription = album.name,
+              modifier = Modifier.fillMaxSize(),
+              contentScale = ContentScale.Crop,
+            )
+          }
         }
       }
 

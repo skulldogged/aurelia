@@ -35,8 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,7 +54,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.player.PlayerController
 
@@ -67,11 +65,13 @@ import com.aurelia.app.ui.components.rememberContextMenuState
 import com.aurelia.app.ui.navigation.Screen
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.utils.formatDuration
+import com.aurelia.app.utils.optimizedArtworkUrl
 import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
 import uniffi.aurelia_core.Song
 
 @Composable
 fun AlbumDetailScreen(
+  libraryViewModel: LibraryViewModel,
   albumId: String,
   albumName: String,
   sessionStore: SessionStore,
@@ -82,12 +82,8 @@ fun AlbumDetailScreen(
   onNavigateToArtist: ((Screen.ArtistDetail) -> Unit)? = null,
   hasPlayerBar: Boolean = false,
 ) {
-  val libraryViewModel: LibraryViewModel =
-    viewModel(
-      factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
-    )
-  val state by libraryViewModel.state.collectAsState()
-  val playlistState by playlistViewModel.state.collectAsState()
+  val state by libraryViewModel.state.collectAsStateWithLifecycle()
+  val playlistState by playlistViewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val wideFont = rememberGoogleSansFlexWideFont()
 
@@ -95,11 +91,6 @@ fun AlbumDetailScreen(
 
   // Calculate bottom padding for miniplayer
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
-
-  LaunchedEffect(Unit) {
-    libraryViewModel.loadLibrary()
-    playlistViewModel.loadPlaylists()
-  }
 
   // Filter songs for this album and sort by disc then track
   val albumSongs =
@@ -218,7 +209,7 @@ fun AlbumDetailScreen(
               val artworkSize = with(LocalDensity.current) { 300.dp.toPx().toInt() }
               SubcomposeAsyncImage(
                 model = ImageRequest.Builder(context)
-                  .data(albumArtUrl)
+                  .data(optimizedArtworkUrl(albumArtUrl, artworkSize))
                   .crossfade(true)
                   .size(artworkSize)
                   .build(),

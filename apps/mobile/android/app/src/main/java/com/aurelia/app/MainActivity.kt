@@ -10,7 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,7 +65,7 @@ private fun AureliaApp() {
     viewModel(
       factory = viewModelFactory { AppViewModel(sessionStore) },
     )
-  val appState by appViewModel.state.collectAsState()
+  val appState by appViewModel.state.collectAsStateWithLifecycle()
 
   // Track dynamic color preference changes
   var useDynamicColor by remember { mutableStateOf(sessionStore.getUseDynamicColor()) }

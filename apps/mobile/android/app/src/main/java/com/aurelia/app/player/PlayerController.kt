@@ -56,12 +56,41 @@ class PlayerController(
   // Connection state tracking
   private val _isConnected = MutableStateFlow(false)
   val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
+  private val _snapshots = MutableStateFlow(PlayerSnapshot())
+  val snapshots: StateFlow<PlayerSnapshot> = _snapshots.asStateFlow()
 
   // Pending actions to run once connected
   private val pendingActions = mutableListOf<(MediaController) -> Unit>()
 
   // Track if we're in the process of connecting
   private var isConnecting = false
+  private var reconnectJob: kotlinx.coroutines.Job? = null
+
+  private val controllerListener =
+    object : Player.Listener {
+      override fun onEvents(player: Player, events: Player.Events) {
+        val controller = mediaController ?: return
+        val wasConnected = _isConnected.value
+        val nowConnected = controller.isConnected
+
+        if (nowConnected && !wasConnected) {
+          onControllerConnected(controller)
+        } else if (!nowConnected && wasConnected) {
+          Log.d(TAG, "MediaController disconnected - will reconnect")
+          _isConnected.value = false
+          isConnecting = false
+          scheduleReconnect()
+        }
+
+        publishSnapshot(controller)
+      }
+
+      override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
+          seekOffsetMs = 0L
+        }
+      }
+    }
 
   init {
     connectToService()
@@ -82,27 +111,8 @@ class PlayerController(
         try {
           val controller = future.get()
           mediaController = controller
-
-          // Add listener to track connection state changes
-          controller.addListener(object : Player.Listener {
-            override fun onEvents(player: Player, events: Player.Events) {
-              val wasConnected = _isConnected.value
-              val nowConnected = controller.isConnected
-
-              if (nowConnected && !wasConnected) {
-                onControllerConnected(controller)
-              } else if (!nowConnected && wasConnected) {
-                Log.d(TAG, "MediaController disconnected - will reconnect")
-                _isConnected.value = false
-                isConnecting = false
-                // Reconnect after a short delay
-                CoroutineScope(Dispatchers.Main).launch {
-                  delay(100)
-                  connectToService()
-                }
-              }
-            }
-          })
+          controller.removeListener(controllerListener)
+          controller.addListener(controllerListener)
 
           // Check if already connected
           if (controller.isConnected) {
@@ -119,10 +129,20 @@ class PlayerController(
     )
   }
 
+  private fun scheduleReconnect() {
+    reconnectJob?.cancel()
+    reconnectJob =
+      CoroutineScope(Dispatchers.Main).launch {
+        delay(100)
+        connectToService()
+      }
+  }
+
   private fun onControllerConnected(controller: MediaController) {
     Log.d(TAG, "MediaController connected")
     _isConnected.value = true
     isConnecting = false
+    publishSnapshot(controller)
     // Execute any pending actions
     synchronized(pendingActions) {
       pendingActions.forEach { action ->
@@ -327,62 +347,21 @@ class PlayerController(
   fun getCurrentState(): PlayerSnapshot {
     val controller = mediaController
     return if (controller == null) {
-      PlayerSnapshot()
+      snapshots.value
     } else {
       snapshotFrom(controller)
     }
   }
 
-  fun observe(onUpdate: (PlayerSnapshot) -> Unit) {
-    withController { controller ->
-      val listener =
-        object : Player.Listener {
-          override fun onIsPlayingChanged(isPlaying: Boolean) {
-            onUpdate(snapshotFrom(controller))
-          }
-
-          override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            // Reset seek offset when track changes (auto-advance, skip, etc.)
-            if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED) {
-              seekOffsetMs = 0L
-            }
-            onUpdate(snapshotFrom(controller))
-          }
-
-          override fun onPlaybackStateChanged(playbackState: Int) {
-            onUpdate(snapshotFrom(controller))
-          }
-
-          override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-            onUpdate(snapshotFrom(controller))
-          }
-
-          override fun onPositionDiscontinuity(
-            oldPosition: Player.PositionInfo,
-            newPosition: Player.PositionInfo,
-            reason: Int,
-          ) {
-            onUpdate(snapshotFrom(controller))
-          }
-
-          override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            onUpdate(snapshotFrom(controller))
-          }
-
-          override fun onRepeatModeChanged(repeatMode: Int) {
-            onUpdate(snapshotFrom(controller))
-          }
-        }
-      controller.addListener(listener)
-      onUpdate(snapshotFrom(controller))
-    }
-  }
-
   fun release() {
+    reconnectJob?.cancel()
+    reconnectJob = null
+    mediaController?.removeListener(controllerListener)
     controllerFuture?.let { MediaController.releaseFuture(it) }
     controllerFuture = null
     mediaController = null
     _isConnected.value = false
+    _snapshots.value = PlayerSnapshot()
   }
 
   private fun buildMediaItem(song: Song, serverUrl: String, token: String): MediaItem {
@@ -463,6 +442,10 @@ class PlayerController(
       bitRate = song?.bitRate,
       sampleRate = song?.sampleRate,
     )
+  }
+
+  private fun publishSnapshot(controller: MediaController) {
+    _snapshots.value = snapshotFrom(controller)
   }
 
   private fun withController(action: (MediaController) -> Unit) {

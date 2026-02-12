@@ -29,20 +29,8 @@ data class PlayerState(
   val codec: String? = null,
   val bitRate: Int? = null,
   val sampleRate: Int? = null,
+  val formatInfo: String? = null,
 ) {
   val hasPrevious: Boolean get() = currentQueueIndex > 0
   val hasNext: Boolean get() = currentQueueIndex >= 0 && currentQueueIndex < queue.size - 1
-
-  /**
-   * Returns formatted audio info string (e.g., "FLAC / 44.1 kHz / 320 kbps")
-   * Returns null if no format info is available.
-   */
-  val formatInfo: String?
-    get() {
-      val parts = mutableListOf<String>()
-      codec?.let { parts.add(it.uppercase()) }
-      sampleRate?.let { parts.add("${it / 1000.0} kHz") }
-      bitRate?.let { parts.add("${it / 1000} kbps") }
-      return if (parts.isEmpty()) null else parts.joinToString(" / ")
-    }
 }

@@ -35,8 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,7 +49,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
@@ -65,6 +63,7 @@ import uniffi.aurelia_core.Song
 
 @Composable
 fun ArtistDetailScreen(
+  libraryViewModel: LibraryViewModel,
   artistId: String,
   artistName: String,
   sessionStore: SessionStore,
@@ -75,11 +74,8 @@ fun ArtistDetailScreen(
   onNavigateToAlbum: ((Screen.AlbumDetail) -> Unit)? = null,
   hasPlayerBar: Boolean = false,
 ) {
-  val libraryViewModel: LibraryViewModel = viewModel(
-    factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
-  )
-  val state by libraryViewModel.state.collectAsState()
-  val playlistState by playlistViewModel.state.collectAsState()
+  val state by libraryViewModel.state.collectAsStateWithLifecycle()
+  val playlistState by playlistViewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val wideFont = rememberGoogleSansFlexWideFont()
 
@@ -87,11 +83,6 @@ fun ArtistDetailScreen(
 
   // Calculate bottom padding for miniplayer
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
-
-  LaunchedEffect(Unit) {
-    libraryViewModel.loadLibrary()
-    playlistViewModel.loadPlaylists()
-  }
 
   // Filter songs for this artist
   val artistSongs = remember(state.songs, artistId) {
@@ -463,4 +454,3 @@ private fun ArtistSongItem(
     }
   }
 }
-

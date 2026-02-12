@@ -29,8 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
@@ -54,6 +52,7 @@ import com.aurelia.app.ui.navigation.Screen
 import uniffi.aurelia_core.Song
 @Composable
 fun LibraryScreen(
+  libraryViewModel: LibraryViewModel,
   sessionStore: SessionStore,
   playerController: PlayerController,
   playlistViewModel: PlaylistViewModel,
@@ -62,21 +61,12 @@ fun LibraryScreen(
   onNavigateToArtist: ((Screen.ArtistDetail) -> Unit)? = null,
   hasPlayerBar: Boolean = false,
 ) {
-  val viewModel: LibraryViewModel =
-    viewModel(
-      factory = viewModelFactory { LibraryViewModel(sessionStore, playerController) },
-    )
-  val state by viewModel.state.collectAsState()
-  val playlistState by playlistViewModel.state.collectAsState()
+  val state by libraryViewModel.state.collectAsStateWithLifecycle()
+  val playlistState by playlistViewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
 
   val contextMenu = rememberContextMenuState()
-
-  LaunchedEffect(Unit) {
-    viewModel.loadLibrary()
-    playlistViewModel.loadPlaylists()
-  }
 
   Column(
     modifier =
@@ -164,7 +154,7 @@ fun LibraryScreen(
               isPlaying = isPlaying && isCurrentSong,
               isCurrentSong = isCurrentSong,
               onClick = {
-                viewModel.playFromList(song.id)
+                libraryViewModel.playFromList(song.id)
                 onOpenPlayer()
               },
               onLongClick = { contextMenu.openContextMenu(song) },

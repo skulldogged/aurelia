@@ -1,6 +1,7 @@
 package com.aurelia.app.ui
 
 import android.Manifest
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -43,7 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,11 +73,18 @@ fun SettingsScreen(
   onLogout: () -> Unit,
   hasPlayerBar: Boolean = false,
 ) {
+  val context = LocalContext.current
   val colors = MaterialTheme.colorScheme
-  val settingsState by settingsViewModel.state.collectAsState()
+  val isDebuggable = remember(context) {
+    (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+  }
+  val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
   var showLogoutDialog by remember { mutableStateOf(false) }
   var showClearCacheDialog by remember { mutableStateOf(false) }
   var useDynamicColor by remember { mutableStateOf(sessionStore.getUseDynamicColor()) }
+  var disableBackdropBlur by remember { mutableStateOf(sessionStore.getDebugDisablePlayerBackdropBlur()) }
+  var disableBackdropImageLayer by remember { mutableStateOf(sessionStore.getDebugDisablePlayerBackdropImageLayer()) }
+  var disablePlayerTransitions by remember { mutableStateOf(sessionStore.getDebugDisablePlayerTransitions()) }
   val snackbarHostState = remember { SnackbarHostState() }
 
   // Show snackbar for sync/clear results
@@ -209,6 +217,49 @@ fun SettingsScreen(
           )
         }
 
+        if (isDebuggable) {
+          SettingsSection(title = "Performance Debug") {
+            SettingsToggleItem(
+              icon = Icons.Filled.Info,
+              title = "Disable backdrop blur",
+              subtitle = "Player screen: remove album art blur layer",
+              checked = disableBackdropBlur,
+              onCheckedChange = {
+                disableBackdropBlur = it
+                sessionStore.setDebugDisablePlayerBackdropBlur(it)
+              },
+            )
+            HorizontalDivider(
+              modifier = Modifier.padding(start = 56.dp),
+              color = colors.outline.copy(alpha = 0.2f),
+            )
+            SettingsToggleItem(
+              icon = Icons.Filled.Info,
+              title = "Disable backdrop image",
+              subtitle = "Player screen: hide album art background image layer",
+              checked = disableBackdropImageLayer,
+              onCheckedChange = {
+                disableBackdropImageLayer = it
+                sessionStore.setDebugDisablePlayerBackdropImageLayer(it)
+              },
+            )
+            HorizontalDivider(
+              modifier = Modifier.padding(start = 56.dp),
+              color = colors.outline.copy(alpha = 0.2f),
+            )
+            SettingsToggleItem(
+              icon = Icons.Filled.Info,
+              title = "Disable player transitions",
+              subtitle = "Player screen: turn off fades/color tween animations",
+              checked = disablePlayerTransitions,
+              onCheckedChange = {
+                disablePlayerTransitions = it
+                sessionStore.setDebugDisablePlayerTransitions(it)
+              },
+            )
+          }
+        }
+
         // Equalizer section
         EqualizerSection(
           state = com.aurelia.app.audio.EqualizerState(
@@ -229,13 +280,26 @@ fun SettingsScreen(
         )
 
         // Visualizer section
-        val context = LocalContext.current
+        val hasVisualizerPermission = ContextCompat.checkSelfPermission(
+          context,
+          Manifest.permission.RECORD_AUDIO,
+        ) == PackageManager.PERMISSION_GRANTED
+
+        LaunchedEffect(hasVisualizerPermission, settingsState.visualizerEnabled) {
+          if (!hasVisualizerPermission && settingsState.visualizerEnabled) {
+            settingsViewModel.onVisualizerPermissionChanged(false)
+          }
+        }
+
         var showPermissionRationale by remember { mutableStateOf(false) }
         val permissionLauncher = rememberLauncherForActivityResult(
           contract = ActivityResultContracts.RequestPermission(),
         ) { isGranted ->
           if (isGranted) {
+            settingsViewModel.onVisualizerPermissionChanged(true)
             settingsViewModel.setVisualizerEnabled(true)
+          } else {
+            settingsViewModel.onVisualizerPermissionChanged(false)
           }
         }
 
@@ -265,11 +329,8 @@ fun SettingsScreen(
           style = settingsState.visualizerStyle,
           onEnabledChange = { enabled ->
             if (enabled) {
-              val hasPermission = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.RECORD_AUDIO,
-              ) == PackageManager.PERMISSION_GRANTED
-              if (hasPermission) {
+              if (hasVisualizerPermission) {
+                settingsViewModel.onVisualizerPermissionChanged(true)
                 settingsViewModel.setVisualizerEnabled(true)
               } else {
                 showPermissionRationale = true

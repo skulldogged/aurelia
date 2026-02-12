@@ -21,6 +21,7 @@ object AudioManager {
 
     private var currentAudioSessionId: Int = -1
     private var isInitialized = false
+    private var isPlaybackActive = false
 
     fun initialize(
         context: Context,
@@ -54,6 +55,16 @@ object AudioManager {
 
         visualizerManager = VisualizerManager(context, audioSessionId).also { manager ->
             manager.stateCallback = { newState -> _visualizerState.value = newState }
+
+            // If permission was revoked while setting stayed enabled, force-disable.
+            if (!manager.state.value.hasPermission && sessionStore.getVisualizerEnabled()) {
+                Log.w(TAG, "Visualizer permission missing - disabling saved visualizer preference")
+                sessionStore.setVisualizerEnabled(false)
+            }
+
+            if (isPlaybackActive && sessionStore.getVisualizerEnabled() && manager.state.value.hasPermission) {
+                manager.setEnabled(true)
+            }
         }
 
         isInitialized = true
@@ -82,9 +93,35 @@ object AudioManager {
     }
 
     fun setVisualizerEnabled(enabled: Boolean, sessionStore: SessionStore) {
-        visualizerManager?.setEnabled(enabled)
+        val manager = visualizerManager
+        if (enabled) {
+            if (manager != null && !manager.state.value.hasPermission) {
+                Log.w(TAG, "Cannot enable visualizer - RECORD_AUDIO permission missing")
+                manager?.setEnabled(false)
+                sessionStore.setVisualizerEnabled(false)
+                _visualizerState.value = manager?.state?.value ?: _visualizerState.value
+                return
+            }
+        }
+
         sessionStore.setVisualizerEnabled(enabled)
+        if (enabled && isPlaybackActive) {
+            manager?.setEnabled(true)
+        } else {
+            manager?.setEnabled(false)
+        }
         // _visualizerState is kept in sync via stateCallback set during initialize()
+    }
+
+    fun onVisualizerPermissionChanged(
+        hasPermission: Boolean,
+        sessionStore: SessionStore,
+    ) {
+        visualizerManager?.updatePermissionStatus(hasPermission)
+        if (!hasPermission) {
+            sessionStore.setVisualizerEnabled(false)
+            visualizerManager?.setEnabled(false)
+        }
     }
 
     fun syncState() {
@@ -93,15 +130,27 @@ object AudioManager {
     }
 
     fun onPlaybackStarted(sessionStore: SessionStore) {
-        // Visualizer auto-enable disabled - causes crashes
-        // Users can manually enable via settings if needed
-        Log.d(TAG, "Playback started - visualizer auto-enable is disabled")
+        isPlaybackActive = true
+        // Auto-enable visualizer if user has it enabled in settings
+        if (sessionStore.getVisualizerEnabled()) {
+            val hasPermission = visualizerManager?.state?.value?.hasPermission == true
+            if (hasPermission) {
+                Log.d(TAG, "Auto-enabling visualizer on playback start (user has it enabled in settings)")
+                visualizerManager?.setEnabled(true)
+            } else {
+                Log.w(TAG, "Playback started but visualizer permission missing - disabling visualizer preference")
+                sessionStore.setVisualizerEnabled(false)
+                visualizerManager?.setEnabled(false)
+            }
+        }
     }
 
     fun onPlaybackStopped(sessionStore: SessionStore) {
+        isPlaybackActive = false
+        // Stop analyzer work while paused/stopped to match desktop/web behavior.
         if (visualizerManager?.state?.value?.enabled == true) {
-            Log.d(TAG, "Disabling visualizer on playback stop")
-            setVisualizerEnabled(false, sessionStore)
+            Log.d(TAG, "Playback stopped - disabling active visualizer capture")
+            visualizerManager?.setEnabled(false)
         }
     }
 
@@ -112,6 +161,7 @@ object AudioManager {
         equalizerManager = null
         visualizerManager = null
         isInitialized = false
+        isPlaybackActive = false
         currentAudioSessionId = -1
         _eqState.value = EqualizerState()
         _visualizerState.value = VisualizerState()

@@ -1,5 +1,6 @@
 package com.aurelia.app.ui
 
+import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,6 +10,8 @@ import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.utils.buildSongIdCache
 import com.aurelia.app.utils.validateSession
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -26,29 +29,35 @@ class HomeViewModel(
   private val mutableState = MutableStateFlow(HomeState())
   val state: StateFlow<HomeState> = mutableState
 
-  // Track if initial data load has been performed
-  private var hasLoadedInitialData = false
-
   // All songs cache for queue building
   private var allSongs: List<Song> = emptyList()
   private val useSharedHomeDerivation = true
 
   // Cache for song ID lookup
   private var songIdByTitleArtist: Map<Pair<String, String>, String> = emptyMap()
+  private var loadJob: Job? = null
+  private var lastLoadedAtMs: Long = 0L
 
   private val nowPlayingMapper = NowPlayingMapper()
 
   init {
-    playerController.observe { snapshot ->
-      if (!nowPlayingMapper.shouldUpdate(snapshot)) return@observe
-      val (nowPlaying, songId) = nowPlayingMapper.mapToNowPlaying(snapshot, songIdByTitleArtist)
-      mutableState.update { it.copy(nowPlaying = nowPlaying, currentSongId = songId) }
+    viewModelScope.launch {
+      playerController.snapshots.collect { snapshot ->
+        if (!nowPlayingMapper.shouldUpdate(snapshot)) return@collect
+        val (nowPlaying, songId) = nowPlayingMapper.mapToNowPlaying(snapshot, songIdByTitleArtist)
+        mutableState.update { it.copy(nowPlaying = nowPlaying, currentSongId = songId) }
+      }
     }
   }
 
-  fun loadHomeData() {
-    // Skip if already loaded
-    if (hasLoadedInitialData) return
+  fun ensureLoaded(force: Boolean = false) {
+    if (!force && loadJob?.isActive == true) return
+    val hasData =
+      mutableState.value.featuredAlbums.isNotEmpty() ||
+        mutableState.value.mostPlayed.isNotEmpty() ||
+        mutableState.value.recentlyPlayed.isNotEmpty()
+    val isFresh = SystemClock.elapsedRealtime() - lastLoadedAtMs < LOAD_FRESHNESS_MS
+    if (!force && hasData && isFresh) return
 
     val session = validateSession(sessionStore)
     if (session == null) {
@@ -58,9 +67,9 @@ class HomeViewModel(
 
     mutableState.update { it.copy(isLoading = true, error = null) }
 
-    // Try loading from cache first
-    if (!session.appDataDir.isNullOrBlank()) {
-      viewModelScope.launch(Dispatchers.IO) {
+    loadJob = viewModelScope.launch(Dispatchers.IO) {
+      // Try loading from cache first
+      if (!session.appDataDir.isNullOrBlank()) {
         try {
           val cachedSongs = loadCachedSongs(session.appDataDir)
           if (cachedSongs.isNotEmpty()) {
@@ -72,16 +81,14 @@ class HomeViewModel(
           Log.w("HomeViewModel", "Failed to load cached songs", e)
         }
       }
-    }
 
-    // Fetch fresh data
-    viewModelScope.launch(Dispatchers.IO) {
+      // Fetch fresh data
       try {
         val songs = fetchSongs(session.serverUrl, session.token, session.userId, session.appDataDir ?: "")
         allSongs = songs
         songIdByTitleArtist = buildSongIdCache(songs)
         processHomeData(songs)
-        hasLoadedInitialData = true
+        lastLoadedAtMs = SystemClock.elapsedRealtime()
       } catch (error: AppException) {
         if (!AuthInterceptor.handlePotentialAuthError(error.message)) {
           mutableState.update { it.copy(isLoading = false, error = error.message ?: "Failed to load") }
@@ -92,6 +99,10 @@ class HomeViewModel(
         }
       }
     }
+  }
+
+  fun loadHomeData() {
+    ensureLoaded(force = false)
   }
 
   private fun processHomeData(songs: List<Song>) {
@@ -330,3 +341,5 @@ private data class AlbumItemWithDate(
   val album: AlbumItem,
   val dateCreated: String,
 )
+
+private const val LOAD_FRESHNESS_MS = 60_000L

@@ -2,7 +2,10 @@ package com.aurelia.app.ui
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -54,10 +57,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -93,6 +98,7 @@ import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
 import com.aurelia.app.ui.components.AudioVisualizer
+import com.aurelia.app.ui.components.VisualizerFrameMetrics
 import com.aurelia.app.ui.navigation.Screen
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -142,12 +148,14 @@ fun MainScreen(
   val libraryViewModel: LibraryViewModel = viewModel(
     factory = remember { viewModelFactory { LibraryViewModel(sessionStore, playerController) } },
   )
-  val libraryState by libraryViewModel.state.collectAsState()
+  val libraryState by libraryViewModel.state.collectAsStateWithLifecycle()
   val scope = rememberCoroutineScope()
 
-  // Load home data once when ViewModel is created (not on every tab switch)
-  LaunchedEffect(homeViewModel) {
-    homeViewModel.loadHomeData()
+  // Prime screen data once, viewmodels dedupe and freshness-gate repeated calls.
+  LaunchedEffect(homeViewModel, libraryViewModel, playlistViewModel) {
+    homeViewModel.ensureLoaded()
+    libraryViewModel.ensureLoaded()
+    playlistViewModel.ensureLoaded()
   }
 
   // --- NAVIGATION HELPERS ---
@@ -193,6 +201,15 @@ fun MainScreen(
     val sheetHorizontalPadding = lerp(12.dp, 0.dp, dragProgress)
     val sheetHeightPx = miniPlayerHeightPx + (screenHeightPx - miniPlayerHeightPx) * dragProgress
     val sheetHeightDp = with(density) { sheetHeightPx.toDp() }
+    var shouldComposeFullPlayer by remember { mutableStateOf(false) }
+    val fullPlayerVisible = dragProgress >= 0.55f
+
+    LaunchedEffect(dragProgress, playerDragOffset.isRunning) {
+      when {
+        playerDragOffset.isRunning || dragProgress > 0.06f -> shouldComposeFullPlayer = true
+        dragProgress < 0.015f -> shouldComposeFullPlayer = false
+      }
+    }
 
     // Keep collapsed position in sync when layout changes (e.g., initial measurement)
     LaunchedEffect(collapsedSheetY) {
@@ -268,9 +285,9 @@ fun MainScreen(
     }
 
     // 1. SCAFFOLD / CONTENT AREA
-    Box(
-      modifier =
-        Modifier
+	        Box(
+	          modifier =
+	            Modifier
           .fillMaxSize()
           .background(MaterialTheme.colorScheme.background),
     ) {
@@ -300,6 +317,7 @@ fun MainScreen(
 
         composable<Screen.Songs> {
           LibraryScreen(
+            libraryViewModel = libraryViewModel,
             sessionStore = sessionStore,
             playerController = playerController,
             playlistViewModel = playlistViewModel,
@@ -312,8 +330,7 @@ fun MainScreen(
 
         composable<Screen.Albums> {
           AlbumsScreen(
-            sessionStore = sessionStore,
-            playerController = playerController,
+            libraryViewModel = libraryViewModel,
             onNavigateToAlbum = { navController.navigate(it) },
             hasPlayerBar = libraryState.nowPlaying != null,
           )
@@ -321,8 +338,7 @@ fun MainScreen(
 
         composable<Screen.Artists> {
           ArtistsScreen(
-            sessionStore = sessionStore,
-            playerController = playerController,
+            libraryViewModel = libraryViewModel,
             onNavigateToArtist = { navController.navigate(it) },
             hasPlayerBar = libraryState.nowPlaying != null,
           )
@@ -339,6 +355,7 @@ fun MainScreen(
 
         composable<Screen.Search> {
           SearchScreen(
+            libraryViewModel = libraryViewModel,
             sessionStore = sessionStore,
             playerController = playerController,
             onOpenPlayer = { openPlayerAnimated() },
@@ -360,6 +377,7 @@ fun MainScreen(
         composable<Screen.AlbumDetail> { backStackEntry ->
           val args = backStackEntry.toRoute<Screen.AlbumDetail>()
           AlbumDetailScreen(
+            libraryViewModel = libraryViewModel,
             albumId = args.albumId,
             albumName = args.albumName,
             sessionStore = sessionStore,
@@ -375,6 +393,7 @@ fun MainScreen(
         composable<Screen.ArtistDetail> { backStackEntry ->
           val args = backStackEntry.toRoute<Screen.ArtistDetail>()
           ArtistDetailScreen(
+            libraryViewModel = libraryViewModel,
             artistId = args.artistId,
             artistName = args.artistName,
             sessionStore = sessionStore,
@@ -523,25 +542,28 @@ fun MainScreen(
                 scaleY = lerp(0.92f, 1f, dragProgress)
                 transformOrigin = TransformOrigin(0.5f, 1f)
               }
-              .zIndex(if (dragProgress >= 0.5f) 1f else 0f),
-        ) {
-          PlayerScreen(
-            playerController = playerController,
-            sessionStore = sessionStore,
-            onBack = { closePlayer() },
-            modifier = Modifier.fillMaxSize(),
-            onNavigateToAlbum = {
-              closePlayer()
-              navController.navigate(it)
-            },
-            onNavigateToArtist = {
-              closePlayer()
-              navController.navigate(it)
-            },
-          )
-        }
-      }
-    }
+	              .zIndex(if (dragProgress >= 0.5f) 1f else 0f),
+	        ) {
+            if (shouldComposeFullPlayer) {
+	            PlayerScreen(
+	              playerController = playerController,
+	              sessionStore = sessionStore,
+	              onBack = { closePlayer() },
+	              modifier = Modifier.fillMaxSize(),
+                isVisible = fullPlayerVisible,
+	              onNavigateToAlbum = {
+	                closePlayer()
+	                navController.navigate(it)
+	              },
+	              onNavigateToArtist = {
+	                closePlayer()
+	                navController.navigate(it)
+	              },
+	            )
+            }
+	        }
+	      }
+	    }
   }
 }
 
@@ -700,12 +722,13 @@ fun MiniPlayerBar(
 ) {
   val colors = MaterialTheme.colorScheme
 
-  val visualizerState by AudioManager.visualizerState.collectAsState()
-  val visualizerEnabled = sessionStore?.getVisualizerEnabled() ?: false
-  val visualizerStyleName = sessionStore?.getVisualizerStyle() ?: "BARS"
+  val visualizerState by AudioManager.visualizerState.collectAsStateWithLifecycle()
+  val visualizerEnabled = remember(sessionStore) { sessionStore?.getVisualizerEnabled() ?: false }
+  val visualizerStyleName = remember(sessionStore) { sessionStore?.getVisualizerStyle() ?: "BARS" }
   val visualizerStyle = remember(visualizerStyleName) {
     try { VisualizerStyle.valueOf(visualizerStyleName) } catch (_: Exception) { VisualizerStyle.BARS }
   }
+  val shouldShowVisualizer = visualizerEnabled && visualizerState.enabled && isPlaying && visualizerState.frequencyData.isNotEmpty()
 
   Box(
     modifier =
@@ -730,25 +753,31 @@ fun MiniPlayerBar(
           )
         }
         .height(MiniPlayerHeight)
-        .padding(horizontal = 18.dp),
+        ,
   ) {
-    // Mini visualizer background
-    if (visualizerEnabled && visualizerState.enabled && isPlaying) {
+    AnimatedVisibility(
+      visible = shouldShowVisualizer,
+      enter = fadeIn(animationSpec = tween(250)),
+      exit = fadeOut(animationSpec = tween(250)),
+    ) {
       AudioVisualizer(
         frequencyData = visualizerState.frequencyData,
         timeDomainData = visualizerState.waveform,
-        isPlaying = isPlaying,
-        style = VisualizerStyle.BARS,
+        style = visualizerStyle,
         accentColor = colors.primary,
         modifier = Modifier
           .fillMaxSize()
-          .graphicsLayer { alpha = 0.15f },
-        boost = 0.5f,
+          .graphicsLayer { alpha = 0.25f },
+        boost = 1.0f,
       )
     }
+    VisualizerFrameMetrics(tag = "MiniPlayerVisualizer", enabled = shouldShowVisualizer)
 
     Row(
-      modifier = Modifier.fillMaxSize(),
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .padding(horizontal = 18.dp),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       // Clickable area for opening player (album art + text)

@@ -62,6 +62,7 @@ fun WavyMusicSlider(
   waveAnimationDuration: Int = 2000,
   hideInactiveTrackPortion: Boolean = true,
   isPlaying: Boolean = true,
+  animateWave: Boolean = true,
   thumbLineHeightWhenInteracting: Dp = 24.dp,
   isWaveEligible: Boolean = true,
 ) {
@@ -75,7 +76,7 @@ fun WavyMusicSlider(
     label = "thumbInteraction",
   )
 
-  val shouldShowWave = isWaveEligible && isPlaying && !isInteracting
+  val shouldShowWave = animateWave && isWaveEligible && isPlaying && !isInteracting
 
   val animatedWaveAmplitude by animateDpAsState(
     targetValue = if (shouldShowWave) waveAmplitudeWhenPlaying else 0.dp,
