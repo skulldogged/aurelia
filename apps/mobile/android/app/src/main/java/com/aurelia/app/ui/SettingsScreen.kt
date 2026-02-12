@@ -1,5 +1,9 @@
 package com.aurelia.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,9 +51,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.aurelia.app.audio.EQPresets
+import com.aurelia.app.audio.VisualizerStyle
 import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.ui.components.EqualizerSection
+import com.aurelia.app.ui.components.VisualizerSection
 
 // Heights matching MainScreen
 private val MiniPlayerHeight = 64.dp
@@ -199,6 +209,78 @@ fun SettingsScreen(
           )
         }
 
+        // Equalizer section
+        EqualizerSection(
+          state = com.aurelia.app.audio.EqualizerState(
+            enabled = settingsState.eqEnabled,
+            bands = settingsState.eqBands.mapIndexed { index, gain ->
+              com.aurelia.app.audio.EQBand(
+                frequency = listOf(60, 250, 1000, 4000, 16000)[index],
+                gain = gain,
+              )
+            },
+            currentPreset = settingsState.eqPreset,
+            available = true,
+          ),
+          onEnabledChange = { settingsViewModel.setEQEnabled(it) },
+          onBandGainChange = { index, gain -> settingsViewModel.setEQBandGain(index, gain) },
+          onPresetSelected = { preset -> settingsViewModel.applyEQPreset(preset.name) },
+          onReset = { settingsViewModel.resetEQ() },
+        )
+
+        // Visualizer section
+        val context = LocalContext.current
+        var showPermissionRationale by remember { mutableStateOf(false) }
+        val permissionLauncher = rememberLauncherForActivityResult(
+          contract = ActivityResultContracts.RequestPermission(),
+        ) { isGranted ->
+          if (isGranted) {
+            settingsViewModel.setVisualizerEnabled(true)
+          }
+        }
+
+        if (showPermissionRationale) {
+          AlertDialog(
+            onDismissRequest = { showPermissionRationale = false },
+            title = { Text("Microphone permission needed") },
+            text = { Text("The visualizer needs microphone access to analyze audio. This is only used locally and never recorded or sent anywhere.") },
+            confirmButton = {
+              Button(onClick = {
+                showPermissionRationale = false
+                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+              }) {
+                Text("Continue")
+              }
+            },
+            dismissButton = {
+              TextButton(onClick = { showPermissionRationale = false }) {
+                Text("Cancel")
+              }
+            },
+          )
+        }
+
+        VisualizerSection(
+          enabled = settingsState.visualizerEnabled,
+          style = settingsState.visualizerStyle,
+          onEnabledChange = { enabled ->
+            if (enabled) {
+              val hasPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO,
+              ) == PackageManager.PERMISSION_GRANTED
+              if (hasPermission) {
+                settingsViewModel.setVisualizerEnabled(true)
+              } else {
+                showPermissionRationale = true
+              }
+            } else {
+              settingsViewModel.setVisualizerEnabled(false)
+            }
+          },
+          onStyleChange = { settingsViewModel.setVisualizerStyle(it) },
+        )
+
         // Library section
         SettingsSection(title = "Library") {
           val lastSyncedText = when {
@@ -228,13 +310,13 @@ fun SettingsScreen(
 
         // Auto-sync section
         SettingsSection(title = "Background Sync") {
-          val context = androidx.compose.ui.platform.LocalContext.current
+          val syncContext = LocalContext.current
           SettingsToggleItem(
             icon = Icons.Filled.Sync,
             title = "Auto-sync",
             subtitle = "Sync library automatically on WiFi",
             checked = settingsState.autoSyncEnabled,
-            onCheckedChange = { settingsViewModel.setAutoSyncEnabled(context, it) },
+            onCheckedChange = { settingsViewModel.setAutoSyncEnabled(syncContext, it) },
           )
           if (settingsState.autoSyncEnabled) {
             HorizontalDivider(
@@ -264,7 +346,7 @@ fun SettingsScreen(
                     listOf(6L to "Every 6 hours", 12L to "Every 12 hours", 24L to "Daily", 168L to "Weekly").forEach { (hours, label) ->
                       TextButton(
                         onClick = {
-                          settingsViewModel.setSyncInterval(context, hours)
+                          settingsViewModel.setSyncInterval(syncContext, hours)
                           showIntervalPicker = false
                         },
                         modifier = Modifier.fillMaxWidth(),

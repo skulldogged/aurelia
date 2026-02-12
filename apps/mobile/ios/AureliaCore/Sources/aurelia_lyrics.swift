@@ -8,11 +8,11 @@ import Foundation
 // might be in a separate module, or it might be compiled inline into
 // this module. This is a bit of light hackery to work with both.
 #if canImport(aurelia_lyricsFFI)
-    import aurelia_lyricsFFI
+import aurelia_lyricsFFI
 #endif
 
-private extension RustBuffer {
-    /// Allocate a new buffer, copying the contents of a `UInt8` array.
+fileprivate extension RustBuffer {
+    // Allocate a new buffer, copying the contents of a `UInt8` array.
     init(bytes: [UInt8]) {
         let rbuf = bytes.withUnsafeBufferPointer { ptr in
             RustBuffer.from(ptr)
@@ -21,21 +21,21 @@ private extension RustBuffer {
     }
 
     static func empty() -> RustBuffer {
-        RustBuffer(capacity: 0, len: 0, data: nil)
+        RustBuffer(capacity: 0, len:0, data: nil)
     }
 
     static func from(_ ptr: UnsafeBufferPointer<UInt8>) -> RustBuffer {
         try! rustCall { ffi_aurelia_lyrics_rustbuffer_from_bytes(ForeignBytes(bufferPointer: ptr), $0) }
     }
 
-    /// Frees the buffer in place.
-    /// The buffer must not be used after this is called.
+    // Frees the buffer in place.
+    // The buffer must not be used after this is called.
     func deallocate() {
         try! rustCall { ffi_aurelia_lyrics_rustbuffer_free(self, $0) }
     }
 }
 
-private extension ForeignBytes {
+fileprivate extension ForeignBytes {
     init(bufferPointer: UnsafeBufferPointer<UInt8>) {
         self.init(len: Int32(bufferPointer.count), data: bufferPointer.baseAddress)
     }
@@ -48,7 +48,7 @@ private extension ForeignBytes {
 // Helper classes/extensions that don't change.
 // Someday, this will be in a library of its own.
 
-private extension Data {
+fileprivate extension Data {
     init(rustBuffer: RustBuffer) {
         self.init(
             bytesNoCopy: rustBuffer.data!,
@@ -72,15 +72,15 @@ private extension Data {
 //
 // Instead, the read() method and these helper functions input a tuple of data
 
-private func createReader(data: Data) -> (data: Data, offset: Data.Index) {
+fileprivate func createReader(data: Data) -> (data: Data, offset: Data.Index) {
     (data: data, offset: 0)
 }
 
-/// Reads an integer at the current offset, in big-endian order, and advances
-/// the offset on success. Throws if reading the integer would move the
-/// offset past the end of the buffer.
-private func readInt<T: FixedWidthInteger>(_ reader: inout (data: Data, offset: Data.Index)) throws -> T {
-    let range = reader.offset ..< reader.offset + MemoryLayout<T>.size
+// Reads an integer at the current offset, in big-endian order, and advances
+// the offset on success. Throws if reading the integer would move the
+// offset past the end of the buffer.
+fileprivate func readInt<T: FixedWidthInteger>(_ reader: inout (data: Data, offset: Data.Index)) throws -> T {
+    let range = reader.offset..<reader.offset + MemoryLayout<T>.size
     guard reader.data.count >= range.upperBound else {
         throw UniffiInternalError.bufferOverflow
     }
@@ -90,73 +90,73 @@ private func readInt<T: FixedWidthInteger>(_ reader: inout (data: Data, offset: 
         return value as! T
     }
     var value: T = 0
-    let _ = withUnsafeMutableBytes(of: &value) { reader.data.copyBytes(to: $0, from: range) }
+    let _ = withUnsafeMutableBytes(of: &value, { reader.data.copyBytes(to: $0, from: range)})
     reader.offset = range.upperBound
     return value.bigEndian
 }
 
-/// Reads an arbitrary number of bytes, to be used to read
-/// raw bytes, this is useful when lifting strings
-private func readBytes(_ reader: inout (data: Data, offset: Data.Index), count: Int) throws -> [UInt8] {
-    let range = reader.offset ..< (reader.offset + count)
+// Reads an arbitrary number of bytes, to be used to read
+// raw bytes, this is useful when lifting strings
+fileprivate func readBytes(_ reader: inout (data: Data, offset: Data.Index), count: Int) throws -> Array<UInt8> {
+    let range = reader.offset..<(reader.offset+count)
     guard reader.data.count >= range.upperBound else {
         throw UniffiInternalError.bufferOverflow
     }
     var value = [UInt8](repeating: 0, count: count)
-    value.withUnsafeMutableBufferPointer { buffer in
+    value.withUnsafeMutableBufferPointer({ buffer in
         reader.data.copyBytes(to: buffer, from: range)
-    }
+    })
     reader.offset = range.upperBound
     return value
 }
 
-/// Reads a float at the current offset.
-private func readFloat(_ reader: inout (data: Data, offset: Data.Index)) throws -> Float {
-    try Float(bitPattern: readInt(&reader))
+// Reads a float at the current offset.
+fileprivate func readFloat(_ reader: inout (data: Data, offset: Data.Index)) throws -> Float {
+    return Float(bitPattern: try readInt(&reader))
 }
 
-/// Reads a float at the current offset.
-private func readDouble(_ reader: inout (data: Data, offset: Data.Index)) throws -> Double {
-    try Double(bitPattern: readInt(&reader))
+// Reads a float at the current offset.
+fileprivate func readDouble(_ reader: inout (data: Data, offset: Data.Index)) throws -> Double {
+    return Double(bitPattern: try readInt(&reader))
 }
 
-/// Indicates if the offset has reached the end of the buffer.
-private func hasRemaining(_ reader: (data: Data, offset: Data.Index)) -> Bool {
-    reader.offset < reader.data.count
+// Indicates if the offset has reached the end of the buffer.
+fileprivate func hasRemaining(_ reader: (data: Data, offset: Data.Index)) -> Bool {
+    return reader.offset < reader.data.count
 }
 
 // Define writer functionality.  Normally this would be defined in a class or
 // struct, but we use standalone functions instead in order to make external
 // types work.  See the above discussion on Readers for details.
 
-private func createWriter() -> [UInt8] {
-    []
+fileprivate func createWriter() -> [UInt8] {
+    return []
 }
 
-private func writeBytes(_ writer: inout [UInt8], _ byteArr: some Sequence<UInt8>) {
+fileprivate func writeBytes<S>(_ writer: inout [UInt8], _ byteArr: S) where S: Sequence, S.Element == UInt8 {
     writer.append(contentsOf: byteArr)
 }
 
-/// Writes an integer in big-endian order.
-///
-/// Warning: make sure what you are trying to write
-/// is in the correct type!
-private func writeInt(_ writer: inout [UInt8], _ value: some FixedWidthInteger) {
+// Writes an integer in big-endian order.
+//
+// Warning: make sure what you are trying to write
+// is in the correct type!
+fileprivate func writeInt<T: FixedWidthInteger>(_ writer: inout [UInt8], _ value: T) {
     var value = value.bigEndian
     withUnsafeBytes(of: &value) { writer.append(contentsOf: $0) }
 }
 
-private func writeFloat(_ writer: inout [UInt8], _ value: Float) {
+fileprivate func writeFloat(_ writer: inout [UInt8], _ value: Float) {
     writeInt(&writer, value.bitPattern)
 }
 
-private func writeDouble(_ writer: inout [UInt8], _ value: Double) {
+fileprivate func writeDouble(_ writer: inout [UInt8], _ value: Double) {
     writeInt(&writer, value.bitPattern)
 }
 
-/// Protocol for types that transfer other types across the FFI. This is
-/// analogous to the Rust trait of the same name.
-private protocol FfiConverter {
+// Protocol for types that transfer other types across the FFI. This is
+// analogous to the Rust trait of the same name.
+fileprivate protocol FfiConverter {
     associatedtype FfiType
     associatedtype SwiftType
 
@@ -166,33 +166,33 @@ private protocol FfiConverter {
     static func write(_ value: SwiftType, into buf: inout [UInt8])
 }
 
-/// Types conforming to `Primitive` pass themselves directly over the FFI.
-private protocol FfiConverterPrimitive: FfiConverter where FfiType == SwiftType {}
+// Types conforming to `Primitive` pass themselves directly over the FFI.
+fileprivate protocol FfiConverterPrimitive: FfiConverter where FfiType == SwiftType { }
 
 extension FfiConverterPrimitive {
-    #if swift(>=5.8)
-        @_documentation(visibility: private)
-    #endif
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lift(_ value: FfiType) throws -> SwiftType {
-        value
+        return value
     }
 
-    #if swift(>=5.8)
-        @_documentation(visibility: private)
-    #endif
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lower(_ value: SwiftType) -> FfiType {
-        value
+        return value
     }
 }
 
-/// Types conforming to `FfiConverterRustBuffer` lift and lower into a `RustBuffer`.
-/// Used for complex types where it's hard to write a custom lift/lower.
-private protocol FfiConverterRustBuffer: FfiConverter where FfiType == RustBuffer {}
+// Types conforming to `FfiConverterRustBuffer` lift and lower into a `RustBuffer`.
+// Used for complex types where it's hard to write a custom lift/lower.
+fileprivate protocol FfiConverterRustBuffer: FfiConverter where FfiType == RustBuffer {}
 
 extension FfiConverterRustBuffer {
-    #if swift(>=5.8)
-        @_documentation(visibility: private)
-    #endif
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lift(_ buf: RustBuffer) throws -> SwiftType {
         var reader = createReader(data: Data(rustBuffer: buf))
         let value = try read(from: &reader)
@@ -203,19 +203,18 @@ extension FfiConverterRustBuffer {
         return value
     }
 
-    #if swift(>=5.8)
-        @_documentation(visibility: private)
-    #endif
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
     public static func lower(_ value: SwiftType) -> RustBuffer {
-        var writer = createWriter()
-        write(value, into: &writer)
-        return RustBuffer(bytes: writer)
+          var writer = createWriter()
+          write(value, into: &writer)
+          return RustBuffer(bytes: writer)
     }
 }
-
-/// An error type for FFI errors. These errors occur at the UniFFI level, not
-/// the library level.
-private enum UniffiInternalError: LocalizedError {
+// An error type for FFI errors. These errors occur at the UniFFI level, not
+// the library level.
+fileprivate enum UniffiInternalError: LocalizedError {
     case bufferOverflow
     case incompleteData
     case unexpectedOptionalTag
@@ -226,39 +225,39 @@ private enum UniffiInternalError: LocalizedError {
     case unexpectedStaleHandle
     case rustPanic(_ message: String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
-        case .bufferOverflow: "Reading the requested value would read past the end of the buffer"
-        case .incompleteData: "The buffer still has data after lifting its containing value"
-        case .unexpectedOptionalTag: "Unexpected optional tag; should be 0 or 1"
-        case .unexpectedEnumCase: "Raw enum value doesn't match any cases"
-        case .unexpectedNullPointer: "Raw pointer value was null"
-        case .unexpectedRustCallStatusCode: "Unexpected RustCallStatus code"
-        case .unexpectedRustCallError: "CALL_ERROR but no errorClass specified"
-        case .unexpectedStaleHandle: "The object in the handle map has been dropped already"
-        case let .rustPanic(message): message
+        case .bufferOverflow: return "Reading the requested value would read past the end of the buffer"
+        case .incompleteData: return "The buffer still has data after lifting its containing value"
+        case .unexpectedOptionalTag: return "Unexpected optional tag; should be 0 or 1"
+        case .unexpectedEnumCase: return "Raw enum value doesn't match any cases"
+        case .unexpectedNullPointer: return "Raw pointer value was null"
+        case .unexpectedRustCallStatusCode: return "Unexpected RustCallStatus code"
+        case .unexpectedRustCallError: return "CALL_ERROR but no errorClass specified"
+        case .unexpectedStaleHandle: return "The object in the handle map has been dropped already"
+        case let .rustPanic(message): return message
         }
     }
 }
 
-private extension NSLock {
+fileprivate extension NSLock {
     func withLock<T>(f: () throws -> T) rethrows -> T {
-        lock()
+        self.lock()
         defer { self.unlock() }
         return try f()
     }
 }
 
-private let CALL_SUCCESS: Int8 = 0
-private let CALL_ERROR: Int8 = 1
-private let CALL_UNEXPECTED_ERROR: Int8 = 2
-private let CALL_CANCELLED: Int8 = 3
+fileprivate let CALL_SUCCESS: Int8 = 0
+fileprivate let CALL_ERROR: Int8 = 1
+fileprivate let CALL_UNEXPECTED_ERROR: Int8 = 2
+fileprivate let CALL_CANCELLED: Int8 = 3
 
-private extension RustCallStatus {
+fileprivate extension RustCallStatus {
     init() {
         self.init(
             code: CALL_SUCCESS,
-            errorBuf: RustBuffer(
+            errorBuf: RustBuffer.init(
                 capacity: 0,
                 len: 0,
                 data: nil
@@ -272,67 +271,66 @@ private func rustCall<T>(_ callback: (UnsafeMutablePointer<RustCallStatus>) -> T
     return try makeRustCall(callback, errorHandler: neverThrow)
 }
 
-private func rustCallWithError<T>(
-    _ errorHandler: @escaping (RustBuffer) throws -> some Swift.Error,
-    _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T
-) throws -> T {
+private func rustCallWithError<T, E: Swift.Error>(
+    _ errorHandler: @escaping (RustBuffer) throws -> E,
+    _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T) throws -> T {
     try makeRustCall(callback, errorHandler: errorHandler)
 }
 
-private func makeRustCall<T>(
+private func makeRustCall<T, E: Swift.Error>(
     _ callback: (UnsafeMutablePointer<RustCallStatus>) -> T,
-    errorHandler: ((RustBuffer) throws -> some Swift.Error)?
+    errorHandler: ((RustBuffer) throws -> E)?
 ) throws -> T {
     uniffiEnsureAureliaLyricsInitialized()
-    var callStatus = RustCallStatus()
+    var callStatus = RustCallStatus.init()
     let returnedVal = callback(&callStatus)
     try uniffiCheckCallStatus(callStatus: callStatus, errorHandler: errorHandler)
     return returnedVal
 }
 
-private func uniffiCheckCallStatus(
+private func uniffiCheckCallStatus<E: Swift.Error>(
     callStatus: RustCallStatus,
-    errorHandler: ((RustBuffer) throws -> some Swift.Error)?
+    errorHandler: ((RustBuffer) throws -> E)?
 ) throws {
     switch callStatus.code {
-    case CALL_SUCCESS:
-        return
+        case CALL_SUCCESS:
+            return
 
-    case CALL_ERROR:
-        if let errorHandler {
-            throw try errorHandler(callStatus.errorBuf)
-        } else {
-            callStatus.errorBuf.deallocate()
-            throw UniffiInternalError.unexpectedRustCallError
-        }
+        case CALL_ERROR:
+            if let errorHandler = errorHandler {
+                throw try errorHandler(callStatus.errorBuf)
+            } else {
+                callStatus.errorBuf.deallocate()
+                throw UniffiInternalError.unexpectedRustCallError
+            }
 
-    case CALL_UNEXPECTED_ERROR:
-        // When the rust code sees a panic, it tries to construct a RustBuffer
-        // with the message.  But if that code panics, then it just sends back
-        // an empty buffer.
-        if callStatus.errorBuf.len > 0 {
-            throw try UniffiInternalError.rustPanic(FfiConverterString.lift(callStatus.errorBuf))
-        } else {
-            callStatus.errorBuf.deallocate()
-            throw UniffiInternalError.rustPanic("Rust panic")
-        }
+        case CALL_UNEXPECTED_ERROR:
+            // When the rust code sees a panic, it tries to construct a RustBuffer
+            // with the message.  But if that code panics, then it just sends back
+            // an empty buffer.
+            if callStatus.errorBuf.len > 0 {
+                throw UniffiInternalError.rustPanic(try FfiConverterString.lift(callStatus.errorBuf))
+            } else {
+                callStatus.errorBuf.deallocate()
+                throw UniffiInternalError.rustPanic("Rust panic")
+            }
 
-    case CALL_CANCELLED:
-        fatalError("Cancellation not supported yet")
+        case CALL_CANCELLED:
+            fatalError("Cancellation not supported yet")
 
-    default:
-        throw UniffiInternalError.unexpectedRustCallStatusCode
+        default:
+            throw UniffiInternalError.unexpectedRustCallStatusCode
     }
 }
 
 private func uniffiTraitInterfaceCall<T>(
     callStatus: UnsafeMutablePointer<RustCallStatus>,
     makeCall: () throws -> T,
-    writeReturn: (T) -> Void
+    writeReturn: (T) -> ()
 ) {
     do {
         try writeReturn(makeCall())
-    } catch {
+    } catch let error {
         callStatus.pointee.code = CALL_UNEXPECTED_ERROR
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
@@ -341,7 +339,7 @@ private func uniffiTraitInterfaceCall<T>(
 private func uniffiTraitInterfaceCallWithError<T, E>(
     callStatus: UnsafeMutablePointer<RustCallStatus>,
     makeCall: () throws -> T,
-    writeReturn: (T) -> Void,
+    writeReturn: (T) -> (),
     lowerError: (E) -> RustBuffer
 ) {
     do {
@@ -354,13 +352,12 @@ private func uniffiTraitInterfaceCallWithError<T, E>(
         callStatus.pointee.errorBuf = FfiConverterString.lower(String(describing: error))
     }
 }
-
-// Initial value and increment amount for handles.
+// Initial value and increment amount for handles. 
 // These ensure that SWIFT handles always have the lowest bit set
-private let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
-private let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
+fileprivate let UNIFFI_HANDLEMAP_INITIAL: UInt64 = 1
+fileprivate let UNIFFI_HANDLEMAP_DELTA: UInt64 = 2
 
-private final class UniffiHandleMap<T>: @unchecked Sendable {
+fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
     // All mutation happens with this lock held, which is why we implement @unchecked Sendable.
     private let lock = NSLock()
     private var map: [UInt64: T] = [:]
@@ -368,11 +365,11 @@ private final class UniffiHandleMap<T>: @unchecked Sendable {
 
     func insert(obj: T) -> UInt64 {
         lock.withLock {
-            doInsert(obj)
+            return doInsert(obj)
         }
     }
 
-    /// Low-level insert function, this assumes `lock` is held.
+    // Low-level insert function, this assumes `lock` is held.
     private func doInsert(_ obj: T) -> UInt64 {
         let handle = currentHandle
         currentHandle += UNIFFI_HANDLEMAP_DELTA
@@ -380,7 +377,7 @@ private final class UniffiHandleMap<T>: @unchecked Sendable {
         return handle
     }
 
-    func get(handle: UInt64) throws -> T {
+     func get(handle: UInt64) throws -> T {
         try lock.withLock {
             guard let obj = map[handle] else {
                 throw UniffiInternalError.unexpectedStaleHandle
@@ -389,7 +386,7 @@ private final class UniffiHandleMap<T>: @unchecked Sendable {
         }
     }
 
-    func clone(handle: UInt64) throws -> UInt64 {
+     func clone(handle: UInt64) throws -> UInt64 {
         try lock.withLock {
             guard let obj = map[handle] else {
                 throw UniffiInternalError.unexpectedStaleHandle
@@ -409,60 +406,64 @@ private final class UniffiHandleMap<T>: @unchecked Sendable {
     }
 
     var count: Int {
-        map.count
+        get {
+            map.count
+        }
     }
 }
+
 
 // Public interface members begin here.
 
+
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterInt64: FfiConverterPrimitive {
+fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
     typealias FfiType = Int64
     typealias SwiftType = Int64
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int64 {
-        try lift(readInt(&buf))
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int64 {
+        return try lift(readInt(&buf))
     }
 
-    static func write(_ value: Int64, into buf: inout [UInt8]) {
+    public static func write(_ value: Int64, into buf: inout [UInt8]) {
         writeInt(&buf, lower(value))
     }
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterBool: FfiConverter {
+fileprivate struct FfiConverterBool : FfiConverter {
     typealias FfiType = Int8
     typealias SwiftType = Bool
 
-    static func lift(_ value: Int8) throws -> Bool {
-        value != 0
+    public static func lift(_ value: Int8) throws -> Bool {
+        return value != 0
     }
 
-    static func lower(_ value: Bool) -> Int8 {
-        value ? 1 : 0
+    public static func lower(_ value: Bool) -> Int8 {
+        return value ? 1 : 0
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
-        try lift(readInt(&buf))
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Bool {
+        return try lift(readInt(&buf))
     }
 
-    static func write(_ value: Bool, into buf: inout [UInt8]) {
+    public static func write(_ value: Bool, into buf: inout [UInt8]) {
         writeInt(&buf, lower(value))
     }
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterString: FfiConverter {
+fileprivate struct FfiConverterString: FfiConverter {
     typealias SwiftType = String
     typealias FfiType = RustBuffer
 
-    static func lift(_ value: RustBuffer) throws -> String {
+    public static func lift(_ value: RustBuffer) throws -> String {
         defer {
             value.deallocate()
         }
@@ -473,8 +474,8 @@ private struct FfiConverterString: FfiConverter {
         return String(bytes: bytes, encoding: String.Encoding.utf8)!
     }
 
-    static func lower(_ value: String) -> RustBuffer {
-        value.utf8CString.withUnsafeBufferPointer { ptr in
+    public static func lower(_ value: String) -> RustBuffer {
+        return value.utf8CString.withUnsafeBufferPointer { ptr in
             // The swift string gives us int8_t, we want uint8_t.
             ptr.withMemoryRebound(to: UInt8.self) { ptr in
                 // The swift string gives us a trailing null byte, we don't want it.
@@ -484,17 +485,18 @@ private struct FfiConverterString: FfiConverter {
         }
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> String {
         let len: Int32 = try readInt(&buf)
-        return try String(bytes: readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
+        return String(bytes: try readBytes(&buf, count: Int(len)), encoding: String.Encoding.utf8)!
     }
 
-    static func write(_ value: String, into buf: inout [UInt8]) {
+    public static func write(_ value: String, into buf: inout [UInt8]) {
         let len = Int32(value.utf8.count)
         writeInt(&buf, len)
         writeBytes(&buf, value.utf8)
     }
 }
+
 
 /**
  * Parsed lyrics payload returned by shared parser.
@@ -508,8 +510,8 @@ public struct ParsedLyrics: Equatable, Hashable {
     public var language: String?
     public var areFromRemote: Bool
 
-    /// Default memberwise initializers are never public by default, so we
-    /// declare one manually.
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
     public init(plain: [String], synced: [ParsedLyricsLine], sections: [ParsedLyricsSection]?, agents: [ParsedLyricsAgent]?, songwriters: [String]?, language: String?, areFromRemote: Bool) {
         self.plain = plain
         self.synced = synced
@@ -519,25 +521,30 @@ public struct ParsedLyrics: Equatable, Hashable {
         self.language = language
         self.areFromRemote = areFromRemote
     }
+
+    
+
+    
 }
 
 #if compiler(>=6)
-    extension ParsedLyrics: Sendable {}
+extension ParsedLyrics: Sendable {}
 #endif
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeParsedLyrics: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyrics {
-        try ParsedLyrics(
-            plain: FfiConverterSequenceString.read(from: &buf),
-            synced: FfiConverterSequenceTypeParsedLyricsLine.read(from: &buf),
-            sections: FfiConverterOptionSequenceTypeParsedLyricsSection.read(from: &buf),
-            agents: FfiConverterOptionSequenceTypeParsedLyricsAgent.read(from: &buf),
-            songwriters: FfiConverterOptionSequenceString.read(from: &buf),
-            language: FfiConverterOptionString.read(from: &buf),
-            areFromRemote: FfiConverterBool.read(from: &buf)
+        return
+            try ParsedLyrics(
+                plain: FfiConverterSequenceString.read(from: &buf), 
+                synced: FfiConverterSequenceTypeParsedLyricsLine.read(from: &buf), 
+                sections: FfiConverterOptionSequenceTypeParsedLyricsSection.read(from: &buf), 
+                agents: FfiConverterOptionSequenceTypeParsedLyricsAgent.read(from: &buf), 
+                songwriters: FfiConverterOptionSequenceString.read(from: &buf), 
+                language: FfiConverterOptionString.read(from: &buf), 
+                areFromRemote: FfiConverterBool.read(from: &buf)
         )
     }
 
@@ -552,19 +559,21 @@ public struct FfiConverterTypeParsedLyrics: FfiConverterRustBuffer {
     }
 }
 
+
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyrics_lift(_ buf: RustBuffer) throws -> ParsedLyrics {
-    try FfiConverterTypeParsedLyrics.lift(buf)
+    return try FfiConverterTypeParsedLyrics.lift(buf)
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyrics_lower(_ value: ParsedLyrics) -> RustBuffer {
-    FfiConverterTypeParsedLyrics.lower(value)
+    return FfiConverterTypeParsedLyrics.lower(value)
 }
+
 
 /**
  * A singer/performer agent definition.
@@ -579,33 +588,37 @@ public struct ParsedLyricsAgent: Equatable, Hashable {
      */
     public var agentType: String
 
-    /// Default memberwise initializers are never public by default, so we
-    /// declare one manually.
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
     public init(
-        /*
+        /**
          * Unique identifier (e.g. "v1", "v2000").
-         */ id: String,
-        /*
-            * Agent type: "person" for a singer, "other" for background/samples.
-            */ agentType: String
-    ) {
+         */id: String, 
+        /**
+         * Agent type: "person" for a singer, "other" for background/samples.
+         */agentType: String) {
         self.id = id
         self.agentType = agentType
     }
+
+    
+
+    
 }
 
 #if compiler(>=6)
-    extension ParsedLyricsAgent: Sendable {}
+extension ParsedLyricsAgent: Sendable {}
 #endif
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeParsedLyricsAgent: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyricsAgent {
-        try ParsedLyricsAgent(
-            id: FfiConverterString.read(from: &buf),
-            agentType: FfiConverterString.read(from: &buf)
+        return
+            try ParsedLyricsAgent(
+                id: FfiConverterString.read(from: &buf), 
+                agentType: FfiConverterString.read(from: &buf)
         )
     }
 
@@ -615,19 +628,21 @@ public struct FfiConverterTypeParsedLyricsAgent: FfiConverterRustBuffer {
     }
 }
 
+
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyricsAgent_lift(_ buf: RustBuffer) throws -> ParsedLyricsAgent {
-    try FfiConverterTypeParsedLyricsAgent.lift(buf)
+    return try FfiConverterTypeParsedLyricsAgent.lift(buf)
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyricsAgent_lower(_ value: ParsedLyricsAgent) -> RustBuffer {
-    FfiConverterTypeParsedLyricsAgent.lower(value)
+    return FfiConverterTypeParsedLyricsAgent.lower(value)
 }
+
 
 /**
  * Line-level synchronized lyric entry.
@@ -646,16 +661,15 @@ public struct ParsedLyricsLine: Equatable, Hashable {
      */
     public var translation: String?
 
-    /// Default memberwise initializers are never public by default, so we
-    /// declare one manually.
-    public init(timeMs: Int64, endTimeMs: Int64?, line: String, words: [ParsedLyricsWord]?,
-                /*
-                    * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
-                    */ agentId: String?,
-                /*
-                    * Translation text for this line, if available (e.g. English translation of foreign lyrics).
-                    */ translation: String?)
-    {
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(timeMs: Int64, endTimeMs: Int64?, line: String, words: [ParsedLyricsWord]?, 
+        /**
+         * Agent/singer identifier (e.g. "v1", "v2000") for multi-singer attribution.
+         */agentId: String?, 
+        /**
+         * Translation text for this line, if available (e.g. English translation of foreign lyrics).
+         */translation: String?) {
         self.timeMs = timeMs
         self.endTimeMs = endTimeMs
         self.line = line
@@ -663,24 +677,29 @@ public struct ParsedLyricsLine: Equatable, Hashable {
         self.agentId = agentId
         self.translation = translation
     }
+
+    
+
+    
 }
 
 #if compiler(>=6)
-    extension ParsedLyricsLine: Sendable {}
+extension ParsedLyricsLine: Sendable {}
 #endif
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyricsLine {
-        try ParsedLyricsLine(
-            timeMs: FfiConverterInt64.read(from: &buf),
-            endTimeMs: FfiConverterOptionInt64.read(from: &buf),
-            line: FfiConverterString.read(from: &buf),
-            words: FfiConverterOptionSequenceTypeParsedLyricsWord.read(from: &buf),
-            agentId: FfiConverterOptionString.read(from: &buf),
-            translation: FfiConverterOptionString.read(from: &buf)
+        return
+            try ParsedLyricsLine(
+                timeMs: FfiConverterInt64.read(from: &buf), 
+                endTimeMs: FfiConverterOptionInt64.read(from: &buf), 
+                line: FfiConverterString.read(from: &buf), 
+                words: FfiConverterOptionSequenceTypeParsedLyricsWord.read(from: &buf), 
+                agentId: FfiConverterOptionString.read(from: &buf), 
+                translation: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -694,19 +713,21 @@ public struct FfiConverterTypeParsedLyricsLine: FfiConverterRustBuffer {
     }
 }
 
+
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyricsLine_lift(_ buf: RustBuffer) throws -> ParsedLyricsLine {
-    try FfiConverterTypeParsedLyricsLine.lift(buf)
+    return try FfiConverterTypeParsedLyricsLine.lift(buf)
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyricsLine_lower(_ value: ParsedLyricsLine) -> RustBuffer {
-    FfiConverterTypeParsedLyricsLine.lower(value)
+    return FfiConverterTypeParsedLyricsLine.lower(value)
 }
+
 
 /**
  * A named section of the song (e.g. Verse, Chorus, Bridge).
@@ -733,48 +754,52 @@ public struct ParsedLyricsSection: Equatable, Hashable {
      */
     public var agentId: String?
 
-    /// Default memberwise initializers are never public by default, so we
-    /// declare one manually.
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
     public init(
-        /*
+        /**
          * Section name (e.g. "Verse", "Chorus", "Bridge", "Intro", "Outro").
-         */ name: String,
-        /*
-            * Start time in milliseconds.
-            */ startTimeMs: Int64,
-        /*
-            * End time in milliseconds.
-            */ endTimeMs: Int64,
-        /*
-            * Lines belonging to this section.
-            */ lines: [ParsedLyricsLine],
-        /*
-            * Default agent for this section, if any.
-            */ agentId: String?
-    ) {
+         */name: String, 
+        /**
+         * Start time in milliseconds.
+         */startTimeMs: Int64, 
+        /**
+         * End time in milliseconds.
+         */endTimeMs: Int64, 
+        /**
+         * Lines belonging to this section.
+         */lines: [ParsedLyricsLine], 
+        /**
+         * Default agent for this section, if any.
+         */agentId: String?) {
         self.name = name
         self.startTimeMs = startTimeMs
         self.endTimeMs = endTimeMs
         self.lines = lines
         self.agentId = agentId
     }
+
+    
+
+    
 }
 
 #if compiler(>=6)
-    extension ParsedLyricsSection: Sendable {}
+extension ParsedLyricsSection: Sendable {}
 #endif
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeParsedLyricsSection: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyricsSection {
-        try ParsedLyricsSection(
-            name: FfiConverterString.read(from: &buf),
-            startTimeMs: FfiConverterInt64.read(from: &buf),
-            endTimeMs: FfiConverterInt64.read(from: &buf),
-            lines: FfiConverterSequenceTypeParsedLyricsLine.read(from: &buf),
-            agentId: FfiConverterOptionString.read(from: &buf)
+        return
+            try ParsedLyricsSection(
+                name: FfiConverterString.read(from: &buf), 
+                startTimeMs: FfiConverterInt64.read(from: &buf), 
+                endTimeMs: FfiConverterInt64.read(from: &buf), 
+                lines: FfiConverterSequenceTypeParsedLyricsLine.read(from: &buf), 
+                agentId: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -787,19 +812,21 @@ public struct FfiConverterTypeParsedLyricsSection: FfiConverterRustBuffer {
     }
 }
 
+
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyricsSection_lift(_ buf: RustBuffer) throws -> ParsedLyricsSection {
-    try FfiConverterTypeParsedLyricsSection.lift(buf)
+    return try FfiConverterTypeParsedLyricsSection.lift(buf)
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyricsSection_lower(_ value: ParsedLyricsSection) -> RustBuffer {
-    FfiConverterTypeParsedLyricsSection.lower(value)
+    return FfiConverterTypeParsedLyricsSection.lower(value)
 }
+
 
 /**
  * Word-level synchronized lyric entry.
@@ -809,28 +836,33 @@ public struct ParsedLyricsWord: Equatable, Hashable {
     public var endTimeMs: Int64?
     public var word: String
 
-    /// Default memberwise initializers are never public by default, so we
-    /// declare one manually.
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
     public init(timeMs: Int64, endTimeMs: Int64?, word: String) {
         self.timeMs = timeMs
         self.endTimeMs = endTimeMs
         self.word = word
     }
+
+    
+
+    
 }
 
 #if compiler(>=6)
-    extension ParsedLyricsWord: Sendable {}
+extension ParsedLyricsWord: Sendable {}
 #endif
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public struct FfiConverterTypeParsedLyricsWord: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ParsedLyricsWord {
-        try ParsedLyricsWord(
-            timeMs: FfiConverterInt64.read(from: &buf),
-            endTimeMs: FfiConverterOptionInt64.read(from: &buf),
-            word: FfiConverterString.read(from: &buf)
+        return
+            try ParsedLyricsWord(
+                timeMs: FfiConverterInt64.read(from: &buf), 
+                endTimeMs: FfiConverterOptionInt64.read(from: &buf), 
+                word: FfiConverterString.read(from: &buf)
         )
     }
 
@@ -841,28 +873,29 @@ public struct FfiConverterTypeParsedLyricsWord: FfiConverterRustBuffer {
     }
 }
 
+
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyricsWord_lift(_ buf: RustBuffer) throws -> ParsedLyricsWord {
-    try FfiConverterTypeParsedLyricsWord.lift(buf)
+    return try FfiConverterTypeParsedLyricsWord.lift(buf)
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
 public func FfiConverterTypeParsedLyricsWord_lower(_ value: ParsedLyricsWord) -> RustBuffer {
-    FfiConverterTypeParsedLyricsWord.lower(value)
+    return FfiConverterTypeParsedLyricsWord.lower(value)
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterOptionInt64: FfiConverterRustBuffer {
+fileprivate struct FfiConverterOptionInt64: FfiConverterRustBuffer {
     typealias SwiftType = Int64?
 
-    static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value else {
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
             writeInt(&buf, Int8(0))
             return
         }
@@ -870,7 +903,7 @@ private struct FfiConverterOptionInt64: FfiConverterRustBuffer {
         FfiConverterInt64.write(value, into: &buf)
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterInt64.read(from: &buf)
@@ -880,13 +913,13 @@ private struct FfiConverterOptionInt64: FfiConverterRustBuffer {
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterOptionString: FfiConverterRustBuffer {
+fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
-    static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value else {
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
             writeInt(&buf, Int8(0))
             return
         }
@@ -894,7 +927,7 @@ private struct FfiConverterOptionString: FfiConverterRustBuffer {
         FfiConverterString.write(value, into: &buf)
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterString.read(from: &buf)
@@ -904,13 +937,13 @@ private struct FfiConverterOptionString: FfiConverterRustBuffer {
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterOptionSequenceString: FfiConverterRustBuffer {
+fileprivate struct FfiConverterOptionSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]?
 
-    static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value else {
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
             writeInt(&buf, Int8(0))
             return
         }
@@ -918,7 +951,7 @@ private struct FfiConverterOptionSequenceString: FfiConverterRustBuffer {
         FfiConverterSequenceString.write(value, into: &buf)
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterSequenceString.read(from: &buf)
@@ -928,13 +961,13 @@ private struct FfiConverterOptionSequenceString: FfiConverterRustBuffer {
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterOptionSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer {
+fileprivate struct FfiConverterOptionSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsAgent]?
 
-    static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value else {
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
             writeInt(&buf, Int8(0))
             return
         }
@@ -942,7 +975,7 @@ private struct FfiConverterOptionSequenceTypeParsedLyricsAgent: FfiConverterRust
         FfiConverterSequenceTypeParsedLyricsAgent.write(value, into: &buf)
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterSequenceTypeParsedLyricsAgent.read(from: &buf)
@@ -952,13 +985,13 @@ private struct FfiConverterOptionSequenceTypeParsedLyricsAgent: FfiConverterRust
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterOptionSequenceTypeParsedLyricsSection: FfiConverterRustBuffer {
+fileprivate struct FfiConverterOptionSequenceTypeParsedLyricsSection: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsSection]?
 
-    static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value else {
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
             writeInt(&buf, Int8(0))
             return
         }
@@ -966,7 +999,7 @@ private struct FfiConverterOptionSequenceTypeParsedLyricsSection: FfiConverterRu
         FfiConverterSequenceTypeParsedLyricsSection.write(value, into: &buf)
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterSequenceTypeParsedLyricsSection.read(from: &buf)
@@ -976,13 +1009,13 @@ private struct FfiConverterOptionSequenceTypeParsedLyricsSection: FfiConverterRu
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterOptionSequenceTypeParsedLyricsWord: FfiConverterRustBuffer {
+fileprivate struct FfiConverterOptionSequenceTypeParsedLyricsWord: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsWord]?
 
-    static func write(_ value: SwiftType, into buf: inout [UInt8]) {
-        guard let value else {
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
             writeInt(&buf, Int8(0))
             return
         }
@@ -990,7 +1023,7 @@ private struct FfiConverterOptionSequenceTypeParsedLyricsWord: FfiConverterRustB
         FfiConverterSequenceTypeParsedLyricsWord.write(value, into: &buf)
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterSequenceTypeParsedLyricsWord.read(from: &buf)
@@ -1000,12 +1033,12 @@ private struct FfiConverterOptionSequenceTypeParsedLyricsWord: FfiConverterRustB
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterSequenceString: FfiConverterRustBuffer {
+fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
-    static func write(_ value: [String], into buf: inout [UInt8]) {
+    public static func write(_ value: [String], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
@@ -1013,24 +1046,24 @@ private struct FfiConverterSequenceString: FfiConverterRustBuffer {
         }
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [String] {
         let len: Int32 = try readInt(&buf)
         var seq = [String]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            try seq.append(FfiConverterString.read(from: &buf))
+            seq.append(try FfiConverterString.read(from: &buf))
         }
         return seq
     }
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer {
+fileprivate struct FfiConverterSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsAgent]
 
-    static func write(_ value: [ParsedLyricsAgent], into buf: inout [UInt8]) {
+    public static func write(_ value: [ParsedLyricsAgent], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
@@ -1038,24 +1071,24 @@ private struct FfiConverterSequenceTypeParsedLyricsAgent: FfiConverterRustBuffer
         }
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsAgent] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsAgent] {
         let len: Int32 = try readInt(&buf)
         var seq = [ParsedLyricsAgent]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            try seq.append(FfiConverterTypeParsedLyricsAgent.read(from: &buf))
+            seq.append(try FfiConverterTypeParsedLyricsAgent.read(from: &buf))
         }
         return seq
     }
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterSequenceTypeParsedLyricsLine: FfiConverterRustBuffer {
+fileprivate struct FfiConverterSequenceTypeParsedLyricsLine: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsLine]
 
-    static func write(_ value: [ParsedLyricsLine], into buf: inout [UInt8]) {
+    public static func write(_ value: [ParsedLyricsLine], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
@@ -1063,24 +1096,24 @@ private struct FfiConverterSequenceTypeParsedLyricsLine: FfiConverterRustBuffer 
         }
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsLine] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsLine] {
         let len: Int32 = try readInt(&buf)
         var seq = [ParsedLyricsLine]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            try seq.append(FfiConverterTypeParsedLyricsLine.read(from: &buf))
+            seq.append(try FfiConverterTypeParsedLyricsLine.read(from: &buf))
         }
         return seq
     }
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterSequenceTypeParsedLyricsSection: FfiConverterRustBuffer {
+fileprivate struct FfiConverterSequenceTypeParsedLyricsSection: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsSection]
 
-    static func write(_ value: [ParsedLyricsSection], into buf: inout [UInt8]) {
+    public static func write(_ value: [ParsedLyricsSection], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
@@ -1088,24 +1121,24 @@ private struct FfiConverterSequenceTypeParsedLyricsSection: FfiConverterRustBuff
         }
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsSection] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsSection] {
         let len: Int32 = try readInt(&buf)
         var seq = [ParsedLyricsSection]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            try seq.append(FfiConverterTypeParsedLyricsSection.read(from: &buf))
+            seq.append(try FfiConverterTypeParsedLyricsSection.read(from: &buf))
         }
         return seq
     }
 }
 
 #if swift(>=5.8)
-    @_documentation(visibility: private)
+@_documentation(visibility: private)
 #endif
-private struct FfiConverterSequenceTypeParsedLyricsWord: FfiConverterRustBuffer {
+fileprivate struct FfiConverterSequenceTypeParsedLyricsWord: FfiConverterRustBuffer {
     typealias SwiftType = [ParsedLyricsWord]
 
-    static func write(_ value: [ParsedLyricsWord], into buf: inout [UInt8]) {
+    public static func write(_ value: [ParsedLyricsWord], into buf: inout [UInt8]) {
         let len = Int32(value.count)
         writeInt(&buf, len)
         for item in value {
@@ -1113,12 +1146,12 @@ private struct FfiConverterSequenceTypeParsedLyricsWord: FfiConverterRustBuffer 
         }
     }
 
-    static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsWord] {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ParsedLyricsWord] {
         let len: Int32 = try readInt(&buf)
         var seq = [ParsedLyricsWord]()
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
-            try seq.append(FfiConverterTypeParsedLyricsWord.read(from: &buf))
+            seq.append(try FfiConverterTypeParsedLyricsWord.read(from: &buf))
         }
         return seq
     }
@@ -1129,9 +1162,8 @@ private enum InitializationResult {
     case contractVersionMismatch
     case apiChecksumMismatch
 }
-
-/// Use a global variable to perform the versioning checks. Swift ensures that
-/// the code inside is only computed once.
+// Use a global variable to perform the versioning checks. Swift ensures that
+// the code inside is only computed once.
 private let initializationResult: InitializationResult = {
     // Get the bindings contract version from our ComponentInterface
     let bindings_contract_version = 30
@@ -1144,8 +1176,8 @@ private let initializationResult: InitializationResult = {
     return InitializationResult.ok
 }()
 
-/// Make the ensure init function public so that other modules which have external type references to
-/// our types can call it.
+// Make the ensure init function public so that other modules which have external type references to
+// our types can call it.
 public func uniffiEnsureAureliaLyricsInitialized() {
     switch initializationResult {
     case .ok:

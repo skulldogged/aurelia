@@ -48,16 +48,15 @@ IOS_SIM_TARGET="aarch64-apple-ios-sim"
 CATALYST_TARGETS=("aarch64-apple-ios-macabi" "x86_64-apple-ios-macabi")
 HOST_ARCH="$(uname -m)"
 
-# Set deployment target for iOS builds to match Xcode project
-export IPHONEOS_DEPLOYMENT_TARGET=18.0
-
 ensure_rust_target "$IOS_DEVICE_TARGET"
 ensure_rust_target "$IOS_SIM_TARGET"
 
 echo "==> Building aurelia-core for iOS device (aarch64-apple-ios)..."
+IPHONEOS_DEPLOYMENT_TARGET=18.0 \
 cargo build -p "$CORE_CRATE" --target "$IOS_DEVICE_TARGET" "${CARGO_FLAGS[@]}"
 
 echo "==> Building aurelia-core for iOS simulator (aarch64-apple-ios-sim)..."
+IPHONEOS_DEPLOYMENT_TARGET=18.0 \
 cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" "${CARGO_FLAGS[@]}"
 
 # Build Mac Catalyst for both Apple Silicon and Intel so Xcode can build
@@ -65,10 +64,17 @@ cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" "${CARGO_FLAGS[@]}"
 # Get SDK path for C compiler to find TargetConditionals.h
 SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 export SDKROOT
-export CFLAGS="-isysroot $SDKROOT"
+export CFLAGS="-isysroot $SDKROOT -mmacosx-version-min=15.0"
+export CXXFLAGS="$CFLAGS"
+# Export target-specific CFLAGS for the cc crate
+export CFLAGS_aarch64_apple_ios_macabi="$CFLAGS"
+export CFLAGS_x86_64_apple_ios_macabi="$CFLAGS"
 for CATALYST_TARGET in "${CATALYST_TARGETS[@]}"; do
     ensure_rust_target "$CATALYST_TARGET"
     echo "==> Building aurelia-core for Mac Catalyst ($CATALYST_TARGET)..."
+    IPHONEOS_DEPLOYMENT_TARGET=18.0 \
+    MACOSX_DEPLOYMENT_TARGET=15.0 \
+    RUSTFLAGS="-C link-arg=-mmacosx-version-min=15.0" \
     cargo build -p "$CORE_CRATE" --target "$CATALYST_TARGET" "${CARGO_FLAGS[@]}"
 done
 

@@ -4,8 +4,6 @@ plugins {
   id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0"
 }
 
-val ktlint by configurations.creating
-
 kotlin {
   jvmToolchain(17)
 }
@@ -77,14 +75,6 @@ tasks.register<Exec>("buildRustHost") {
   commandLine("cargo", "build", "-p", "aurelia-core")
 }
 
-tasks.register<JavaExec>("formatUniffiBindings") {
-  mainClass.set("com.pinterest.ktlint.Main")
-  classpath = ktlint
-  args("-F", "--ignore-autocorrect-failures", "src/main/java/uniffi/aurelia_core/aurelia_core.kt")
-  jvmArgs("--add-opens=java.base/java.lang=ALL-UNNAMED")
-  isIgnoreExitValue = true
-}
-
 tasks.register<Exec>("generateUniffiBindings") {
   val libName = if (org.gradle.internal.os.OperatingSystem.current().isWindows) "aurelia_core.dll"
     else if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) "libaurelia_core.dylib"
@@ -108,10 +98,18 @@ tasks.register<Exec>("generateUniffiBindings") {
     "--no-format",
   )
   dependsOn("buildRustHost")
-  finalizedBy("formatUniffiBindings")
 }
 
 tasks.register<Exec>("buildRustAndroid") {
+  val ndkDir = file("${rootDir}/local.properties")
+    .takeIf { it.exists() }
+    ?.readLines()
+    ?.find { it.startsWith("cargo.ndk.dir=") }
+    ?.substringAfter("=")
+    ?: System.getenv("ANDROID_NDK_HOME")
+    ?: throw GradleException("NDK not found. Set ndk.dir in local.properties or ANDROID_NDK_HOME env var")
+
+  environment("ANDROID_NDK_HOME", ndkDir)
   workingDir = file(projectRoot)
   commandLine(
     "cargo",
@@ -186,9 +184,4 @@ dependencies {
   androidTestImplementation("androidx.compose.ui:ui-test-junit4")
   debugImplementation("androidx.compose.ui:ui-test-manifest")
 
-  ktlint("com.pinterest.ktlint:ktlint-cli:1.8.0") {
-    attributes {
-      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.EXTERNAL))
-    }
-  }
 }

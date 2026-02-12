@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Run xcodebuild with a clean PATH to avoid Nix toolchain interference
+exec env -i \
+    PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin" \
+    HOME="$HOME" \
+    USER="$USER" \
+    TERM="$TERM" \
+    PWD="$PWD" \
+    /usr/bin/xcodebuild "$@"

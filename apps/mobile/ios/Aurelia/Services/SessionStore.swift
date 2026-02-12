@@ -171,6 +171,44 @@ final class SessionStore: @unchecked Sendable {
         set { UserDefaults.standard.set(newValue, forKey: lyricsServerUrlKey) }
     }
 
+    // MARK: - EQ Settings
+
+    var eqEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "eq_enabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "eq_enabled") }
+    }
+
+    var eqBands: [Float] {
+        get {
+            if let stored = UserDefaults.standard.string(forKey: "eq_bands") {
+                let values = stored.split(separator: ",").compactMap { Float($0) }
+                return values.count == 5 ? values : [0, 0, 0, 0, 0]
+            }
+            return [0, 0, 0, 0, 0]
+        }
+        set {
+            let stored = newValue.map { String($0) }.joined(separator: ",")
+            UserDefaults.standard.set(stored, forKey: "eq_bands")
+        }
+    }
+
+    var eqPreset: String? {
+        get { UserDefaults.standard.string(forKey: "eq_preset") }
+        set { UserDefaults.standard.set(newValue, forKey: "eq_preset") }
+    }
+
+    // MARK: - Visualizer Settings
+
+    var visualizerEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: "visualizer_enabled") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "visualizer_enabled") }
+    }
+
+    var visualizerStyle: String {
+        get { UserDefaults.standard.string(forKey: "visualizer_style") ?? "bars" }
+        set { UserDefaults.standard.set(newValue, forKey: "visualizer_style") }
+    }
+
     func clear() {
         if let appDataDir = getAppDataDir(), !appDataDir.isEmpty {
             do {

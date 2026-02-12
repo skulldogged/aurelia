@@ -18,6 +18,7 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import com.aurelia.app.MainActivity
 import com.aurelia.app.R
+import com.aurelia.app.audio.AudioManager
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
@@ -31,6 +32,25 @@ class PlaybackService : MediaSessionService() {
     ensureNotificationChannel()
 
     val exoPlayer = ExoPlayer.Builder(this).build()
+
+    val sessionStore = com.aurelia.app.storage.SessionStore(this)
+
+    // Initialize audio effects when audio session ID becomes available
+    exoPlayer.addListener(object : Player.Listener {
+      override fun onAudioSessionIdChanged(audioSessionId: Int) {
+        if (audioSessionId != 0) {
+          AudioManager.initialize(this@PlaybackService, audioSessionId, sessionStore)
+        }
+      }
+
+      override fun onIsPlayingChanged(isPlaying: Boolean) {
+        if (isPlaying) {
+          AudioManager.onPlaybackStarted(sessionStore)
+        } else {
+          AudioManager.onPlaybackStopped(sessionStore)
+        }
+      }
+    })
 
     // Wrap in ForwardingPlayer that always reports seek as available.
     // ExoPlayer removes COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM for non-seekable streams
@@ -94,6 +114,7 @@ class PlaybackService : MediaSessionService() {
   }
 
   override fun onDestroy() {
+    AudioManager.release()
     mediaSession?.run {
       player.release()
       release()

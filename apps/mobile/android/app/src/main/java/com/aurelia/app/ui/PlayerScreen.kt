@@ -82,6 +82,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -110,8 +111,12 @@ import com.aurelia.app.data.model.SyncedLine
 import com.aurelia.app.data.model.SyncedWord
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.player.RepeatMode
+import com.aurelia.app.audio.AudioManager
+import com.aurelia.app.audio.VisualizerStyle
+import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
+import com.aurelia.app.ui.components.AudioVisualizer
 import com.aurelia.app.ui.components.WavyMusicSlider
 import com.aurelia.app.ui.navigation.Screen
 import com.aurelia.app.ui.theme.SquircleShape
@@ -183,7 +188,7 @@ private fun rememberAlbumArtColors(albumArtUrl: String?): AlbumArtColors {
                 
                 // Determine if the primary color is light or dark for text contrast
                 val hsl = FloatArray(3)
-                android.graphics.Color.colorToHSV(primaryColor.hashCode(), hsl)
+                android.graphics.Color.colorToHSV(primaryColor.toArgb(), hsl)
                 val isLight = hsl[2] > 0.6f
                 
                 colors = AlbumArtColors(
@@ -320,6 +325,14 @@ fun PlayerScreen(
 
   val colors = MaterialTheme.colorScheme
   
+  // Visualizer state
+  val visualizerState by AudioManager.visualizerState.collectAsState()
+  val visualizerEnabled = sessionStore.getVisualizerEnabled()
+  val visualizerStyleName = sessionStore.getVisualizerStyle()
+  val visualizerStyle = remember(visualizerStyleName) {
+    try { VisualizerStyle.valueOf(visualizerStyleName) } catch (_: Exception) { VisualizerStyle.BARS }
+  }
+  
   // Extract dynamic colors from album art
   val albumColors = rememberAlbumArtColors(state.albumArtUrl)
   
@@ -351,6 +364,19 @@ fun PlayerScreen(
       albumArtUrl = state.albumArtUrl,
       modifier = Modifier.fillMaxSize(),
     )
+
+    // Visualizer overlay (when enabled and playing)
+    if (visualizerEnabled && visualizerState.enabled && state.isPlaying) {
+      AudioVisualizer(
+        frequencyData = visualizerState.frequencyData,
+        timeDomainData = visualizerState.waveform,
+        isPlaying = state.isPlaying,
+        style = visualizerStyle,
+        accentColor = primaryColor,
+        modifier = Modifier.fillMaxSize(),
+        boost = 1.0f,
+      )
+    }
 
     Column(
       modifier =
@@ -1122,12 +1148,6 @@ private fun LyricsView(
             )
           }
 
-          val blurRadius by animateDpAsState(
-            targetValue = if (isCurrentLine) 0.dp else 4.dp,
-            animationSpec = tween(durationMillis = 300),
-            label = "blur",
-          )
-
           // Lyrics always white - active lines are brighter
           val textColor by animateColorAsState(
             targetValue = if (isCurrentLine) Color.White else Color.White.copy(alpha = 0.55f),
@@ -1141,7 +1161,6 @@ private fun LyricsView(
               Modifier
                 .fillMaxWidth()
                 .onSizeChanged { lineHeights[index] = it.height }
-                .blur(blurRadius)
                 .clip(RoundedCornerShape(12.dp))
                 .clickable(
                   interactionSource = remember { MutableInteractionSource() },
@@ -1383,7 +1402,7 @@ private fun WordSyncedLine(
     0f
   }
 
-  val glowStyle = if (isActive) {
+  val glowStyle = if (isActive && glowRadius > 0f) {
     textStyle.copy(
       shadow = Shadow(
         color = brightColor.copy(alpha = 0.45f),

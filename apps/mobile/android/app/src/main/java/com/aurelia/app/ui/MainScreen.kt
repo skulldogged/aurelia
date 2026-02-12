@@ -87,9 +87,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.audio.AudioManager
+import com.aurelia.app.audio.VisualizerStyle
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
 import com.aurelia.app.ui.components.AnimatedPlayPauseIcon
+import com.aurelia.app.ui.components.AudioVisualizer
 import com.aurelia.app.ui.navigation.Screen
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -468,32 +471,33 @@ fun MainScreen(
             .zIndex(1f),
       ) {
         libraryState.nowPlaying?.let { nowPlaying ->
-          MiniPlayerBar(
-            title = nowPlaying.title,
-            artist = nowPlaying.artist,
-            albumArtUrl = nowPlaying.albumArtUrl,
-            isPlaying = nowPlaying.isPlaying,
-            isBuffering = nowPlaying.isBuffering,
-            hasPrevious = nowPlaying.hasPrevious,
-            hasNext = nowPlaying.hasNext,
-            onPrevious = { libraryViewModel.skipPrevious() },
-            onPlayPause = { libraryViewModel.togglePlayPause() },
-            onNext = { libraryViewModel.skipNext() },
-            onClick = { openPlayerAnimated() },
-            onDrag = { delta -> onPlayerDrag(delta) },
-            onDragEnd = { velocity -> onPlayerDragEnd(velocity) },
-            modifier =
-              Modifier
-                .align(Alignment.BottomCenter)
-                .graphicsLayer { alpha = miniPlayerAlpha }
-                .zIndex(if (dragProgress < 0.5f) 1f else 0f),
-            albumId = nowPlaying.albumId,
-            artistId = nowPlaying.artistId,
-            albumName = nowPlaying.albumName,
-            onNavigateToAlbum = { navController.navigate(it) },
-            onNavigateToArtist = { navController.navigate(it) },
-          )
-        }
+           MiniPlayerBar(
+             title = nowPlaying.title,
+             artist = nowPlaying.artist,
+             albumArtUrl = nowPlaying.albumArtUrl,
+             isPlaying = nowPlaying.isPlaying,
+             isBuffering = nowPlaying.isBuffering,
+             hasPrevious = nowPlaying.hasPrevious,
+             hasNext = nowPlaying.hasNext,
+             onPrevious = { libraryViewModel.skipPrevious() },
+             onPlayPause = { libraryViewModel.togglePlayPause() },
+             onNext = { libraryViewModel.skipNext() },
+             onClick = { openPlayerAnimated() },
+             onDrag = { delta -> onPlayerDrag(delta) },
+             onDragEnd = { velocity -> onPlayerDragEnd(velocity) },
+             modifier =
+               Modifier
+                 .align(Alignment.BottomCenter)
+                 .graphicsLayer { alpha = miniPlayerAlpha }
+                 .zIndex(if (dragProgress < 0.5f) 1f else 0f),
+             albumId = nowPlaying.albumId,
+             artistId = nowPlaying.artistId,
+             albumName = nowPlaying.albumName,
+             onNavigateToAlbum = { navController.navigate(it) },
+             onNavigateToArtist = { navController.navigate(it) },
+             sessionStore = sessionStore,
+           )
+         }
 
         Box(
           modifier =
@@ -692,8 +696,16 @@ fun MiniPlayerBar(
   albumName: String? = null,
   onNavigateToAlbum: ((Screen.AlbumDetail) -> Unit)? = null,
   onNavigateToArtist: ((Screen.ArtistDetail) -> Unit)? = null,
+  sessionStore: SessionStore? = null,
 ) {
   val colors = MaterialTheme.colorScheme
+
+  val visualizerState by AudioManager.visualizerState.collectAsState()
+  val visualizerEnabled = sessionStore?.getVisualizerEnabled() ?: false
+  val visualizerStyleName = sessionStore?.getVisualizerStyle() ?: "BARS"
+  val visualizerStyle = remember(visualizerStyleName) {
+    try { VisualizerStyle.valueOf(visualizerStyleName) } catch (_: Exception) { VisualizerStyle.BARS }
+  }
 
   Box(
     modifier =
@@ -720,6 +732,21 @@ fun MiniPlayerBar(
         .height(MiniPlayerHeight)
         .padding(horizontal = 18.dp),
   ) {
+    // Mini visualizer background
+    if (visualizerEnabled && visualizerState.enabled && isPlaying) {
+      AudioVisualizer(
+        frequencyData = visualizerState.frequencyData,
+        timeDomainData = visualizerState.waveform,
+        isPlaying = isPlaying,
+        style = VisualizerStyle.BARS,
+        accentColor = colors.primary,
+        modifier = Modifier
+          .fillMaxSize()
+          .graphicsLayer { alpha = 0.15f },
+        boost = 0.5f,
+      )
+    }
+
     Row(
       modifier = Modifier.fillMaxSize(),
       verticalAlignment = Alignment.CenterVertically,

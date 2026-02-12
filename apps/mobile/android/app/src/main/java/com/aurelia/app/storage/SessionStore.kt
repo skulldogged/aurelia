@@ -102,6 +102,44 @@ class SessionStore(
 
   fun getLyricsServerUrl(): String? = prefs.getString("lyricsServerUrl", null)
 
+  // EQ Settings
+  fun setEQEnabled(enabled: Boolean) {
+    prefs.edit { putBoolean("eq_enabled", enabled) }
+  }
+
+  fun getEQEnabled(): Boolean = prefs.getBoolean("eq_enabled", false)
+
+  fun setEQBands(bands: List<Float>) {
+    prefs.edit { putString("eq_bands", bands.joinToString(",")) }
+  }
+
+  fun getEQBands(): List<Float> {
+    val stored = prefs.getString("eq_bands", null) ?: return listOf(0f, 0f, 0f, 0f, 0f)
+    return stored.split(",").mapNotNull { it.toFloatOrNull() }.takeIf { it.size == 5 }
+      ?: listOf(0f, 0f, 0f, 0f, 0f)
+  }
+
+  fun setEQPreset(presetName: String?) {
+    prefs.edit {
+      if (presetName.isNullOrBlank()) remove("eq_preset") else putString("eq_preset", presetName)
+    }
+  }
+
+  fun getEQPreset(): String? = prefs.getString("eq_preset", null)
+
+  // Visualizer Settings
+  fun setVisualizerEnabled(enabled: Boolean) {
+    prefs.edit { putBoolean("visualizer_enabled", enabled) }
+  }
+
+  fun getVisualizerEnabled(): Boolean = prefs.getBoolean("visualizer_enabled", false)
+
+  fun setVisualizerStyle(style: String) {
+    prefs.edit { putString("visualizer_style", style) }
+  }
+
+  fun getVisualizerStyle(): String = prefs.getString("visualizer_style", "BARS") ?: "BARS"
+
   fun getDeviceId(): String {
     val savedId = prefs.getString("device_id", null)
     if (savedId != null) return savedId

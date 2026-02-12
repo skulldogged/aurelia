@@ -212,7 +212,12 @@
           shellHook = ''
             export XDG_DATA_DIRS="$GSETTINGS_SCHEMAS_PATH"
             export PATH="${androidSdk}/libexec/android-sdk/platform-tools:$PATH"
-            ${lib.optionalString pkgs.stdenv.isDarwin "unset SDKROOT"}
+            export PATH="${toString ./.}/scripts:$PATH"
+            ${lib.optionalString pkgs.stdenv.isDarwin ''
+              unset SDKROOT
+              unset DEVELOPER_DIR
+              export SOURCEKIT_TOOLCHAIN_PATH="/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain"
+            ''}
           '';
         };
       }

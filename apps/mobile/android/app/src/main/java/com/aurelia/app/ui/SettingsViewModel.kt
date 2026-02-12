@@ -3,6 +3,8 @@ package com.aurelia.app.ui
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aurelia.app.audio.AudioManager
+import com.aurelia.app.audio.EQPresets
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.sync.SyncWorker
@@ -26,6 +28,11 @@ data class SettingsState(
   val lastSyncTime: String? = null,
   val autoSyncEnabled: Boolean = true,
   val syncIntervalHours: Long = 24,
+  val eqEnabled: Boolean = false,
+  val eqBands: List<Float> = listOf(0f, 0f, 0f, 0f, 0f),
+  val eqPreset: String? = null,
+  val visualizerEnabled: Boolean = false,
+  val visualizerStyle: String = "BARS",
 )
 
 class SettingsViewModel(
@@ -35,8 +42,9 @@ class SettingsViewModel(
   val state: StateFlow<SettingsState> = mutableState
 
   init {
-    // Load initial sync state
     loadSyncState()
+    loadEQState()
+    loadVisualizerState()
   }
 
   private fun loadSyncState() {
@@ -124,6 +132,59 @@ class SettingsViewModel(
 
   fun clearMessages() {
     mutableState.update { it.copy(syncSuccess = null, clearSuccess = null, error = null) }
+  }
+
+  fun setEQEnabled(enabled: Boolean) {
+    AudioManager.setEQEnabled(enabled, sessionStore)
+    mutableState.update { it.copy(eqEnabled = enabled) }
+  }
+
+  fun setEQBandGain(bandIndex: Int, gain: Float) {
+    if (bandIndex !in 0..4) return
+    AudioManager.setEQBandGain(bandIndex, gain, sessionStore)
+    val newBands = mutableState.value.eqBands.toMutableList()
+    newBands[bandIndex] = gain
+    mutableState.update { it.copy(eqBands = newBands, eqPreset = null) }
+  }
+
+  fun applyEQPreset(presetName: String) {
+    val preset = EQPresets.byName(presetName) ?: return
+    AudioManager.applyEQPreset(presetName, sessionStore)
+    mutableState.update { it.copy(eqBands = preset.gains, eqPreset = presetName) }
+  }
+
+  fun resetEQ() {
+    AudioManager.applyEQPreset("Flat", sessionStore)
+    mutableState.update { it.copy(eqBands = listOf(0f, 0f, 0f, 0f, 0f), eqPreset = "Flat") }
+  }
+
+  private fun loadEQState() {
+    mutableState.update {
+      it.copy(
+        eqEnabled = sessionStore.getEQEnabled(),
+        eqBands = sessionStore.getEQBands(),
+        eqPreset = sessionStore.getEQPreset(),
+      )
+    }
+  }
+
+  fun setVisualizerEnabled(enabled: Boolean) {
+    AudioManager.setVisualizerEnabled(enabled, sessionStore)
+    mutableState.update { it.copy(visualizerEnabled = enabled) }
+  }
+
+  fun setVisualizerStyle(style: String) {
+    sessionStore.setVisualizerStyle(style)
+    mutableState.update { it.copy(visualizerStyle = style) }
+  }
+
+  private fun loadVisualizerState() {
+    mutableState.update {
+      it.copy(
+        visualizerEnabled = sessionStore.getVisualizerEnabled(),
+        visualizerStyle = sessionStore.getVisualizerStyle(),
+      )
+    }
   }
 
   companion object {
