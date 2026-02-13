@@ -74,9 +74,13 @@ struct AlbumsView: View {
             let appDataDir = await sessionStore.getAppDataDir() ?? ""
             do {
                 let songs = try loadCachedSongs(appDataDir: appDataDir)
-                let albumsMap = Dictionary(grouping: songs.filter { $0.albumId != nil && !$0.albumId!.isEmpty }) { $0.albumId! }
+                let songsByAlbumId = songs.compactMap { song -> (String, Song)? in
+                    guard let albumId = song.albumId, !albumId.isEmpty else { return nil }
+                    return (albumId, song)
+                }
+                let albumsMap = Dictionary(grouping: songsByAlbumId, by: { $0.0 })
                 let albumItems = albumsMap.map { id, albumSongs -> AlbumItem in
-                    let first = albumSongs[0]
+                    let first = albumSongs[0].1
                     return AlbumItem(
                         id: id,
                         name: first.album ?? "Unknown Album",

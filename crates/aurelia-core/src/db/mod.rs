@@ -226,10 +226,7 @@ const SYNC_PAGE_SIZE: usize = 500;
 /// based on the existing SyncState. Handles resumability for interrupted full syncs.
 ///
 /// Returns a SyncReport with stats about what was changed.
-pub async fn sync_smart(
-    client: &JellyfinClient,
-    user_id: &str,
-) -> Result<SyncReport> {
+pub async fn sync_smart(client: &JellyfinClient, user_id: &str) -> Result<SyncReport> {
     let db = get()?;
     let service = crate::domain::services::LibraryService::new(db);
     let state = service
@@ -281,10 +278,7 @@ async fn sync_smart_full(
     let mut artists_updated: u32 = 0;
 
     // Determine where to resume from
-    let resume_entity = state
-        .full_sync_entity_type
-        .as_deref()
-        .unwrap_or("songs");
+    let resume_entity = state.full_sync_entity_type.as_deref().unwrap_or("songs");
     let resume_page = if state.full_sync_in_progress {
         state.full_sync_last_page_index as usize
     } else {
@@ -319,7 +313,7 @@ async fn sync_smart_full(
     let mut server_date: Option<String> = None;
 
     // --- Songs ---
-    if resume_stage <= 0 {
+    if resume_stage == 0 {
         let start_index = if resume_entity == "songs" {
             resume_page * SYNC_PAGE_SIZE
         } else {

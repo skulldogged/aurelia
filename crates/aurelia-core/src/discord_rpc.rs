@@ -9,7 +9,7 @@ use discord_rich_presence::{
     activity::{Activity, ActivityType, Assets, Timestamps},
 };
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tracing::{debug, error, info, warn};
 
 // Re-export RpcActivity from models
@@ -44,18 +44,24 @@ impl DiscordRpcState {
         }
     }
 
+    fn lock_state<'a, T>(mutex: &'a Mutex<T>, resource: &str) -> Result<MutexGuard<'a, T>> {
+        mutex
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Discord state lock failed: {resource}"))
+    }
+
     /// Start Discord RPC with the given application ID
     pub fn start(&self, app_id: String) -> Result<()> {
         info!("Starting Discord RPC with app ID: {}", app_id);
 
         // Store the app ID
         {
-            let mut stored_app_id = self.app_id.lock().unwrap();
+            let mut stored_app_id = Self::lock_state(&self.app_id, "app_id")?;
             *stored_app_id = Some(app_id.clone());
         }
 
-        let mut client_lock = self.client.lock().unwrap();
-        let mut is_connected = self.is_connected.lock().unwrap();
+        let mut client_lock = Self::lock_state(&self.client, "client")?;
+        let mut is_connected = Self::lock_state(&self.is_connected, "is_connected")?;
 
         // Close existing client if any
         if let Some(mut client) = client_lock.take() {
@@ -84,8 +90,8 @@ impl DiscordRpcState {
     pub fn stop(&self) -> Result<()> {
         debug!("Stopping Discord RPC");
 
-        let mut client_lock = self.client.lock().unwrap();
-        let mut is_connected = self.is_connected.lock().unwrap();
+        let mut client_lock = Self::lock_state(&self.client, "client")?;
+        let mut is_connected = Self::lock_state(&self.is_connected, "is_connected")?;
 
         if let Some(mut client) = client_lock.take() {
             client.close().map_err(|e| {
@@ -102,16 +108,21 @@ impl DiscordRpcState {
 
     /// Check if Discord RPC is currently running
     pub fn is_running(&self) -> bool {
-        let is_connected = self.is_connected.lock().unwrap();
-        *is_connected
+        match Self::lock_state(&self.is_connected, "is_connected") {
+            Ok(is_connected) => *is_connected,
+            Err(err) => {
+                error!("Failed to read Discord connection state: {}", err);
+                false
+            }
+        }
     }
 
     /// Set the Discord activity
     pub fn set_activity(&self, activity: RpcActivity) -> Result<()> {
         debug!("Setting Discord activity: {:?}", activity);
 
-        let mut client_lock = self.client.lock().unwrap();
-        let is_connected = self.is_connected.lock().unwrap();
+        let mut client_lock = Self::lock_state(&self.client, "client")?;
+        let is_connected = Self::lock_state(&self.is_connected, "is_connected")?;
 
         if !*is_connected {
             warn!("Cannot set activity: Discord RPC is not connected");
@@ -180,8 +191,9 @@ impl DiscordRpcState {
 
             // If we failed to set activity, the connection might be dead
             drop(is_connected);
-            let mut is_connected_mut = self.is_connected.lock().unwrap();
-            *is_connected_mut = false;
+            if let Ok(mut is_connected_mut) = Self::lock_state(&self.is_connected, "is_connected") {
+                *is_connected_mut = false;
+            }
 
             anyhow::anyhow!("Failed to set Discord activity: {}", e)
         })?;
@@ -195,8 +207,8 @@ impl DiscordRpcState {
     pub fn clear_activity(&self) -> Result<()> {
         debug!("Clearing Discord activity");
 
-        let mut client_lock = self.client.lock().unwrap();
-        let is_connected = self.is_connected.lock().unwrap();
+        let mut client_lock = Self::lock_state(&self.client, "client")?;
+        let is_connected = Self::lock_state(&self.is_connected, "is_connected")?;
 
         if !*is_connected {
             warn!("Cannot clear activity: Discord RPC is not connected");
@@ -213,8 +225,9 @@ impl DiscordRpcState {
 
             // If we failed to clear activity, the connection might be dead
             drop(is_connected);
-            let mut is_connected_mut = self.is_connected.lock().unwrap();
-            *is_connected_mut = false;
+            if let Ok(mut is_connected_mut) = Self::lock_state(&self.is_connected, "is_connected") {
+                *is_connected_mut = false;
+            }
 
             anyhow::anyhow!("Failed to clear Discord activity: {}", e)
         })?;

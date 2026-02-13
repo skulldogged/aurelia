@@ -1,5 +1,6 @@
 use crate::models::{Album, Artist, Credentials, Song};
 use std::sync::{Arc, Mutex};
+use tracing::error;
 
 #[derive(Default)]
 pub struct AppState {
@@ -17,11 +18,21 @@ impl AppState {
 
     /// Get cached credentials, or None if not logged in
     pub fn get_credentials(&self) -> Option<Credentials> {
-        self.credentials.lock().unwrap().clone()
+        match self.credentials.lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => {
+                error!("credentials mutex poisoned while reading cached credentials");
+                None
+            }
+        }
     }
 
     /// Update cached credentials
     pub fn set_credentials(&self, creds: Option<Credentials>) {
-        *self.credentials.lock().unwrap() = creds;
+        if let Ok(mut guard) = self.credentials.lock() {
+            *guard = creds;
+            return;
+        }
+        error!("credentials mutex poisoned while updating cached credentials");
     }
 }

@@ -265,26 +265,36 @@ fun SearchScreen(
                     playerController.playNext(result.song, serverUrl, token)
                   },
                   onAddToPlaylist = { contextMenu.openPlaylistPicker(result.song) },
-                  onGoToAlbum = if (onNavigateToAlbum != null && result.song.albumId != null) {
-                    {
-                      onNavigateToAlbum(
-                        Screen.AlbumDetail(
-                          albumId = result.song.albumId!!,
-                          albumName = result.song.album ?: "Unknown Album",
-                        ),
-                      )
-                    }
-                  } else null,
-                  onGoToArtist = if (onNavigateToArtist != null && result.song.artistIds?.isNotEmpty() == true) {
-                    {
-                      onNavigateToArtist(
-                        Screen.ArtistDetail(
-                          artistId = result.song.artistIds!!.first(),
-                          artistName = result.song.artists?.firstOrNull() ?: "Unknown Artist",
-                        ),
-                      )
-                    }
-                  } else null,
+                  onGoToAlbum =
+                    if (onNavigateToAlbum != null) {
+                      result.song.safeAlbumId()?.let { albumId ->
+                        {
+                          onNavigateToAlbum(
+                            Screen.AlbumDetail(
+                              albumId = albumId,
+                              albumName = result.song.album ?: "Unknown Album",
+                            ),
+                          )
+                        }
+                      }
+                    } else {
+                      null
+                    },
+                  onGoToArtist =
+                    if (onNavigateToArtist != null) {
+                      result.song.safePrimaryArtistId()?.let { artistId ->
+                        {
+                          onNavigateToArtist(
+                            Screen.ArtistDetail(
+                              artistId = artistId,
+                              artistName = result.song.artists?.firstOrNull() ?: "Unknown Artist",
+                            ),
+                          )
+                        }
+                      }
+                    } else {
+                      null
+                    },
                 )
               }
 

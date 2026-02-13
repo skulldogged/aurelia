@@ -30,10 +30,10 @@ impl Config {
         if let Some(paths) = &args.music_paths {
             config.music_paths = paths.split(',').map(PathBuf::from).collect();
         }
-        
+
         Ok(config)
     }
-    
+
     /// Create config from CLI args
     pub async fn from_args(args: &Args) -> anyhow::Result<Self> {
         let music_paths = args
@@ -41,7 +41,7 @@ impl Config {
             .as_ref()
             .map(|paths| paths.split(',').map(PathBuf::from).collect())
             .unwrap_or_default();
-        
+
         Ok(Config {
             jellyfin_url: args.jellyfin_url.clone(),
             jellyfin_api_key: args.jellyfin_api_key.clone(),
@@ -51,7 +51,6 @@ impl Config {
             cache_ttl_seconds: 3600, // 1 hour default
         })
     }
-    
 }
 
 impl Default for Config {

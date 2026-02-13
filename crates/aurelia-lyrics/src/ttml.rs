@@ -115,7 +115,6 @@ fn get_attr<'a>(
 ///
 /// Returns an empty (but valid-structured) `ParsedLyrics` on any parse error
 /// so callers never need to handle XML errors.
-#[must_use]
 pub fn parse_ttml(xml: &str) -> Result<ParsedLyrics> {
     match parse_ttml_inner(xml) {
         Some(lyrics) => Ok(lyrics),

@@ -182,17 +182,22 @@ final class HomeViewModel: @unchecked Sendable {
 
         // Recently played
         let recentlyPlayed = songs
-            .filter { $0.datePlayed != nil && !$0.datePlayed!.isEmpty }
+            .filter { $0.datePlayed?.isEmpty == false }
             .sorted { ($0.datePlayed ?? "") > ($1.datePlayed ?? "") }
             .prefix(limits.recentlyPlayed)
             .map(\.self)
 
         // Group by album
-        let albumsMap = Dictionary(grouping: songs.filter { $0.albumId != nil && !$0.albumId!.isEmpty }) { $0.albumId! }
+        let songsByAlbumId = songs.compactMap { song -> (String, Song)? in
+            guard let albumId = song.albumId, !albumId.isEmpty else { return nil }
+            return (albumId, song)
+        }
+        let albumsMap = Dictionary(grouping: songsByAlbumId, by: { $0.0 })
 
         // Recently added albums
         let recentlyAddedAlbums = albumsMap
-            .map { albumId, albumSongs -> (AlbumItem, String) in
+            .map { albumId, albumEntries -> (AlbumItem, String) in
+                let albumSongs = albumEntries.map(\.1)
                 let firstSong = albumSongs.max(by: { ($0.dateCreated ?? "") < ($1.dateCreated ?? "") }) ?? albumSongs[0]
                 return (
                     AlbumItem(
@@ -211,7 +216,8 @@ final class HomeViewModel: @unchecked Sendable {
 
         // Random albums
         let randomAlbums = albumsMap
-            .map { albumId, albumSongs -> AlbumItem in
+            .map { albumId, albumEntries -> AlbumItem in
+                let albumSongs = albumEntries.map(\.1)
                 let firstSong = albumSongs[0]
                 return AlbumItem(
                     id: albumId,
@@ -227,8 +233,9 @@ final class HomeViewModel: @unchecked Sendable {
 
         // Featured albums
         let featuredAlbums = albumsMap
-            .filter { $0.value.contains { $0.albumArtUrl != nil && !$0.albumArtUrl!.isEmpty } }
-            .map { albumId, albumSongs -> FeaturedAlbum in
+            .filter { $0.value.contains { $0.1.albumArtUrl?.isEmpty == false } }
+            .map { albumId, albumEntries -> FeaturedAlbum in
+                let albumSongs = albumEntries.map(\.1)
                 let firstSong = albumSongs[0]
                 return FeaturedAlbum(
                     id: albumId,

@@ -816,7 +816,7 @@ struct LyricsView: View {
 
     /// Whether these lyrics contain any word-level sync data.
     private var hasWordSync: Bool {
-        lyrics.synced?.contains(where: { $0.words != nil && !$0.words!.isEmpty }) ?? false
+        lyrics.synced?.contains(where: { $0.words?.isEmpty == false }) ?? false
     }
 
     var body: some View {
@@ -970,7 +970,7 @@ struct LyricsView: View {
                             let state = lineState(for: index, activeIdx: activeIdx)
                             let isBackground = lyrics.isBackgroundVocal(line.agentId)
                             let isSecondary = lyrics.isSecondaryVocalist(line.agentId)
-                            let isWordSynced = line.words != nil && !line.words!.isEmpty
+                            let isWordSynced = line.words?.isEmpty == false
 
                             if isWordSynced {
                                 wordSyncedLine(
@@ -1030,7 +1030,7 @@ struct LyricsView: View {
     ///   Like Apple Music, when a new line starts the previous line dims
     ///   immediately with no lingering highlight.
     private func wordSyncedLine(line: SyncedLine, state: LineState, isBackground: Bool, isSecondary: Bool, currentPositionMs: Int64) -> some View {
-        let words = line.words!
+        let words = line.words ?? []
         let isActive = state == .active
         let activeWord = isActive ? activeWordIndex(in: line, currentPositionMs: currentPositionMs) : nil
 
@@ -1038,7 +1038,7 @@ struct LyricsView: View {
         let inactiveOpacity: Double = isBackground ? 0.25 : 0.50
 
         // Glow: active lines glow proportionally to progress.
-        let glowRadius: CGFloat = if let aw = activeWord, isActive {
+        let glowRadius: CGFloat = if let aw = activeWord, isActive, !words.isEmpty {
             CGFloat(6.0 * Double(aw + 1) / Double(words.count))
         } else {
             0

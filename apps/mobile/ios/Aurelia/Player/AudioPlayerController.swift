@@ -1314,9 +1314,12 @@ private final class PlayerAudioTapAnalyzer {
 
         splitReal.withUnsafeMutableBufferPointer { realPtr in
             splitImag.withUnsafeMutableBufferPointer { imagPtr in
-                var split = DSPSplitComplex(realp: realPtr.baseAddress!, imagp: imagPtr.baseAddress!)
+                guard let realBase = realPtr.baseAddress,
+                      let imagBase = imagPtr.baseAddress else { return }
+                var split = DSPSplitComplex(realp: realBase, imagp: imagBase)
                 fftWindowed.withUnsafeBufferPointer { inputPtr in
-                    inputPtr.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: Self.fftSize / 2) { complexPtr in
+                    guard let inputBase = inputPtr.baseAddress else { return }
+                    inputBase.withMemoryRebound(to: DSPComplex.self, capacity: Self.fftSize / 2) { complexPtr in
                         vDSP_ctoz(complexPtr, 2, &split, 1, vDSP_Length(Self.fftSize / 2))
                     }
                 }
@@ -1330,7 +1333,8 @@ private final class PlayerAudioTapAnalyzer {
                 )
 
                 fftMagnitudes.withUnsafeMutableBufferPointer { magnitudePtr in
-                    vDSP_zvmags(&split, 1, magnitudePtr.baseAddress!, 1, vDSP_Length(Self.fftSize / 2))
+                    guard let magnitudeBase = magnitudePtr.baseAddress else { return }
+                    vDSP_zvmags(&split, 1, magnitudeBase, 1, vDSP_Length(Self.fftSize / 2))
                 }
             }
         }

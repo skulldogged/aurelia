@@ -396,14 +396,16 @@ fun AlbumDetailScreen(
               },
               onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
               onGoToArtist =
-                if (onNavigateToArtist != null && song.artistIds?.isNotEmpty() == true) {
-                  {
-                    onNavigateToArtist(
-                      Screen.ArtistDetail(
-                        artistId = song.artistIds!!.first(),
-                        artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
-                      ),
-                    )
+                if (onNavigateToArtist != null) {
+                  song.safePrimaryArtistId()?.let { artistId ->
+                    {
+                      onNavigateToArtist(
+                        Screen.ArtistDetail(
+                          artistId = artistId,
+                          artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
+                        ),
+                      )
+                    }
                   }
                 } else {
                   null

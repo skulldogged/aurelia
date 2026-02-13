@@ -4,20 +4,20 @@ Aurelia is a multi-platform Jellyfin music client monorepo.
 
 ## Applications
 
-- Desktop (Tauri): `/Users/marshall/Projects/aurelia/apps/desktop/tauri`
-- Web frontend: `/Users/marshall/Projects/aurelia/apps/web/frontend`
-- Web backend (Axum): `/Users/marshall/Projects/aurelia/apps/web/backend`
-- Shared Vue/TS package: `/Users/marshall/Projects/aurelia/apps/shared`
+- Desktop (Tauri): `apps/desktop/tauri`
+- Web frontend: `apps/web/frontend`
+- Web backend (Axum): `apps/web/backend`
+- Shared Vue/TS package: `apps/shared`
 - Mobile clients:
-  - Android: `/Users/marshall/Projects/aurelia/apps/mobile/android`
-  - iOS: `/Users/marshall/Projects/aurelia/apps/mobile/ios`
+  - Android: `apps/mobile/android`
+  - iOS: `apps/mobile/ios`
 
 ## Core Rust Crates
 
-- `aurelia-core`: `/Users/marshall/Projects/aurelia/crates/aurelia-core`
-- `aurelia-api`: `/Users/marshall/Projects/aurelia/crates/aurelia-api`
-- `aurelia-api-macros`: `/Users/marshall/Projects/aurelia/crates/aurelia-api-macros`
-- `uniffi-bindgen`: `/Users/marshall/Projects/aurelia/crates/uniffi-bindgen`
+- `aurelia-core`: `crates/aurelia-core`
+- `aurelia-api`: `crates/aurelia-api`
+- `aurelia-api-macros`: `crates/aurelia-api-macros`
+- `uniffi-bindgen`: `crates/uniffi-bindgen`
 
 ## Quick Start
 
@@ -26,7 +26,7 @@ Aurelia is a multi-platform Jellyfin music client monorepo.
 - Bun (v1+)
 - Rust stable toolchain
 - Node.js 20+
-- Platform dependencies from `/Users/marshall/Projects/aurelia/BUILDING.md`
+- Platform dependencies from `BUILDING.md`
 
 ### Install
 
@@ -82,7 +82,7 @@ bun run test:android
 bun run test:ios
 ```
 
-Full testing guide: `/Users/marshall/Projects/aurelia/TESTING.md`
+Full testing guide: `TESTING.md`
 
 ## Monorepo Layout
 
@@ -108,4 +108,4 @@ aurelia/
 
 ## Contributing
 
-See `/Users/marshall/Projects/aurelia/CONTRIBUTING.md`.
+See `CONTRIBUTING.md`.

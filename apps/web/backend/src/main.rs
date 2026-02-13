@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use anyhow::Context;
 use axum::{
     Router,
     extract::{State, WebSocketUpgrade},
@@ -36,7 +37,7 @@ enum WsMessage {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     // Parse CLI arguments / environment
@@ -56,7 +57,7 @@ async fn main() {
                 .join("aurelia-web")
         });
 
-    std::fs::create_dir_all(&app_data_dir).expect("Failed to create data directory");
+    std::fs::create_dir_all(&app_data_dir).context("failed to create data directory")?;
 
     info!("Using data directory: {:?}", app_data_dir);
 
@@ -112,11 +113,17 @@ async fn main() {
 
     let addr: SocketAddr = format!("{host}:{port}")
         .parse()
-        .expect("Invalid host/port configuration");
+        .context("invalid host/port configuration")?;
     info!("Starting server on {}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .context("failed to bind TCP listener")?;
+    axum::serve(listener, app)
+        .await
+        .context("axum server terminated with error")?;
+
+    Ok(())
 }
 
 // WebSocket handler

@@ -200,25 +200,23 @@ const bindings = async (): Promise<void> => {
   })
 }
 
-const waitForPort = (port: number, timeoutMs = 30000): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    const startTime = Date.now()
-    const tryConnect = (): void => {
-      const socket = createConnection(port, 'localhost', () => {
-        socket.destroy()
-        resolve()
-      })
-      socket.on('error', () => {
-        if (Date.now() - startTime > timeoutMs) {
-          reject(new Error(`Port ${port} did not become available within ${timeoutMs}ms`))
-        } else {
-          setTimeout(tryConnect, 500)
-        }
-      })
-    }
-    tryConnect()
-  })
-}
+const waitForPort = (port: number, timeoutMs = 30000): Promise<void> => new Promise((resolve, reject) => {
+  const startTime = Date.now()
+  const tryConnect = (): void => {
+    const socket = createConnection(port, 'localhost', () => {
+      socket.destroy()
+      resolve()
+    })
+    socket.on('error', () => {
+      if (Date.now() - startTime > timeoutMs) {
+        reject(new Error(`Port ${port} did not become available within ${timeoutMs}ms`))
+      } else {
+        setTimeout(tryConnect, 500)
+      }
+    })
+  }
+  tryConnect()
+})
 
 const devWeb = async (): Promise<void> => {
   await bindings()

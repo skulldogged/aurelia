@@ -78,11 +78,7 @@ fn extract_words_from_cues(
         });
     }
 
-    if words.is_empty() {
-        None
-    } else {
-        Some(words)
-    }
+    if words.is_empty() { None } else { Some(words) }
 }
 
 /// Convert Jellyfin lyrics directly to [`ParsedLyrics`] without an intermediate LRC string.

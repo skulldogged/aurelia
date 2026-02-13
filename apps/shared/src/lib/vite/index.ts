@@ -1,9 +1,9 @@
+import type { UserConfig, UserConfigExport } from 'vitest/config'
+
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
-import { dirname, resolve } from 'path'
-import { fileURLToPath } from 'url'
+import { resolve } from 'path'
 import VueRouter from 'unplugin-vue-router/vite'
-import type { UserConfig, UserConfigExport } from 'vitest/config'
 
 export interface SharedViteConfigOptions {
   projectDir: string
@@ -19,13 +19,13 @@ export const createSharedViteConfig = (options: SharedViteConfigOptions): UserCo
       chunkSizeWarningLimit: 1000,
     },
     clearScreen: false,
-    plugins: [
+    plugins:     [
       VueRouter({
-        exclude: ['**/node_modules/**', '**/components/**'],
+        exclude:      ['**/node_modules/**', '**/components/**'],
         routesFolder: [
           {
             path: '',
-            src: resolve(resolvedSharedDir, 'pages'),
+            src:  resolve(resolvedSharedDir, 'pages'),
           },
         ],
       }),
@@ -41,9 +41,9 @@ export const createSharedViteConfig = (options: SharedViteConfigOptions): UserCo
     },
     test: {
       environment: 'happy-dom',
-      globals: true,
-      include: ['tests/**/*.spec.ts', 'tests/**/*.test.ts', 'src/**/*.spec.ts', 'src/**/*.test.ts'],
-      setupFiles: ['./tests/setup.ts'],
+      globals:     true,
+      include:     ['tests/**/*.spec.ts', 'tests/**/*.test.ts', 'src/**/*.spec.ts', 'src/**/*.test.ts'],
+      setupFiles:  ['./tests/setup.ts'],
     },
   }
 }

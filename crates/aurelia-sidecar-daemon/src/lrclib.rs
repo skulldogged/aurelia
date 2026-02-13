@@ -26,7 +26,6 @@ impl LrcLibClient {
         }
     }
 
-
     /// Get lyrics by artist, title, album, and duration
     pub async fn get(
         &self,
@@ -50,12 +49,7 @@ impl LrcLibClient {
             query.push(("duration", duration.to_string()));
         }
 
-        let response = self
-            .client
-            .get(LRCLIB_GET_URL)
-            .query(&query)
-            .send()
-        .await?;
+        let response = self.client.get(LRCLIB_GET_URL).query(&query).send().await?;
 
         if !response.status().is_success() {
             debug!("LrcLib get failed: HTTP {}", response.status());
@@ -64,10 +58,7 @@ impl LrcLibClient {
 
         let track: LrcLibTrackResponse = response.json().await?;
 
-        let lyrics_text = track
-            .synced_lyrics
-            .as_ref()
-            .or(track.plain_lyrics.as_ref());
+        let lyrics_text = track.synced_lyrics.as_ref().or(track.plain_lyrics.as_ref());
 
         if let Some(text) = lyrics_text {
             let lyrics = parse_auto(text, "lrc")?;

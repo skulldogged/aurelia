@@ -22,6 +22,7 @@ use aurelia_core::tray_settings;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use tauri::Emitter;
 use tauri::{AppHandle, Manager};
@@ -37,16 +38,19 @@ fn extract_lastfm_token(request: &str) -> Option<String> {
     Some(remainder[..end].to_string())
 }
 
-/// Helper to get cached credentials from Tauri state
+fn lock_std_mutex<'a, T>(mutex: &'a Mutex<T>, resource: &str) -> ApiResult<MutexGuard<'a, T>> {
+    mutex
+        .lock()
+        .map_err(|_| AppError::General(format!("Failed to lock {resource}")))
+}
+
 fn get_credentials(app: &AppHandle) -> ApiResult<Option<Credentials>> {
     let app_state: tauri::State<'_, aurelia_core::state::AppState> = app.state();
 
-    // Check memory cache first
     if let Some(creds) = app_state.get_credentials() {
         return Ok(Some(creds));
     }
 
-    // Load from disk
     let app_dir = app
         .path()
         .app_data_dir()
@@ -54,7 +58,6 @@ fn get_credentials(app: &AppHandle) -> ApiResult<Option<Credentials>> {
 
     match aurelia_core::load_credentials(app_dir.to_string_lossy().to_string())? {
         Some(creds) => {
-            // Cache for future
             app_state.set_credentials(Some(creds.clone()));
             Ok(Some(creds))
         }
@@ -62,7 +65,6 @@ fn get_credentials(app: &AppHandle) -> ApiResult<Option<Credentials>> {
     }
 }
 
-/// Tauri API implementation
 pub struct TauriApiImpl {
     app: AppHandle,
 }
@@ -95,7 +97,6 @@ impl Api for TauriApiImpl {
             user_id: login_resp.user_id.clone(),
         };
 
-        // Save to disk and cache
         let app_dir = self
             .app
             .path()
@@ -107,7 +108,6 @@ impl Api for TauriApiImpl {
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
         app_state.set_credentials(Some(creds.clone()));
 
-        // Return as JSON value
         Ok(serde_json::json!({
             "token": login_resp.token,
             "userId": login_resp.user_id
@@ -142,11 +142,9 @@ impl Api for TauriApiImpl {
     }
 
     async fn clear_saved_credentials(&self) -> ApiResult<()> {
-        // Clear memory cache
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
         app_state.set_credentials(None);
 
-        // Clear from disk
         let app_dir = self
             .app
             .path()
@@ -194,7 +192,7 @@ impl Api for TauriApiImpl {
 
     async fn get_library(&self) -> ApiResult<LibraryData> {
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
-        let songs = app_state.songs.lock().unwrap().clone();
+        let songs = lock_std_mutex(&app_state.songs, "song cache")?.clone();
         Ok(aurelia_core::domain::services::derive_library_data(&songs))
     }
 
@@ -207,7 +205,6 @@ impl Api for TauriApiImpl {
             .app_data_dir()
             .map_err(|e| AppError::FileSystem(e.to_string()))?;
 
-        // Use smart sync: paginated + incremental
         let _report = aurelia_core::sync_library_smart(
             creds.server_url.clone(),
             creds.token.clone(),
@@ -216,11 +213,9 @@ impl Api for TauriApiImpl {
         )
         .await?;
 
-        // Reload in-memory state from DB after sync
-        let songs =
-            aurelia_core::load_cached_songs(app_dir.to_string_lossy().to_string())?;
+        let songs = aurelia_core::load_cached_songs(app_dir.to_string_lossy().to_string())?;
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
-        *app_state.songs.lock().unwrap() = songs;
+        *lock_std_mutex(&app_state.songs, "song cache")? = songs;
 
         Ok(())
     }
@@ -231,7 +226,6 @@ impl Api for TauriApiImpl {
             .path()
             .app_data_dir()
             .map_err(|e| AppError::FileSystem(e.to_string()))?;
-        // Get the internal sync state and convert to SyncStateInfo
         let internal_state = aurelia_core::get_sync_state(app_dir.to_string_lossy().to_string())?;
         Ok(SyncStateInfo {
             last_sync_time: Some(internal_state.last_sync_time),
@@ -243,7 +237,7 @@ impl Api for TauriApiImpl {
 
     async fn get_song(&self, song_id: String) -> ApiResult<Song> {
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
-        let songs = app_state.songs.lock().unwrap().clone();
+        let songs = lock_std_mutex(&app_state.songs, "song cache")?.clone();
 
         songs
             .into_iter()
@@ -272,7 +266,6 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_artist_share_urls(&self, artist_id: String) -> ApiResult<HashMap<String, String>> {
-        // Get artist from cache
         let app_dir = self
             .app
             .path()
@@ -283,7 +276,6 @@ impl Api for TauriApiImpl {
             aurelia_core::get_cached_artist(app_dir.to_string_lossy().to_string(), artist_id)?
                 .ok_or_else(|| AppError::General("Artist not found".to_string()))?;
 
-        // Use MusicBrainz to get share URLs
         aurelia_core::services::MusicBrainzService::get_artist_share_urls(&artist)
             .await
             .map_err(|e| AppError::General(e.to_string()))
@@ -369,9 +361,8 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_song_share_urls(&self, item_id: String) -> ApiResult<HashMap<String, String>> {
-        // First get the song from cache
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
-        let songs = app_state.songs.lock().unwrap().clone();
+        let songs = lock_std_mutex(&app_state.songs, "song cache")?.clone();
 
         let song = songs
             .into_iter()
@@ -382,7 +373,6 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_artist(&self, artist_id: String) -> ApiResult<Artist> {
-        // Try cache first
         let app_dir = self
             .app
             .path()
@@ -396,7 +386,6 @@ impl Api for TauriApiImpl {
             return Ok(artist);
         }
 
-        // Fetch from server
         let creds = get_credentials(&self.app)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
         aurelia_core::fetch_artist(
@@ -419,7 +408,6 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_album(&self, album_id: String) -> ApiResult<Album> {
-        // Try cache first
         let app_dir = self
             .app
             .path()
@@ -432,7 +420,6 @@ impl Api for TauriApiImpl {
             return Ok(album);
         }
 
-        // Fetch from server
         let creds = get_credentials(&self.app)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
         aurelia_core::fetch_album(
@@ -446,7 +433,6 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_album_share_urls(&self, album_id: String) -> ApiResult<HashMap<String, String>> {
-        // Get album from cache
         let app_dir = self
             .app
             .path()
@@ -457,7 +443,6 @@ impl Api for TauriApiImpl {
             aurelia_core::get_cached_album(app_dir.to_string_lossy().to_string(), album_id)?
                 .ok_or_else(|| AppError::General("Album not found".to_string()))?;
 
-        // Use MusicBrainz to get share URLs
         aurelia_core::services::MusicBrainzService::get_album_share_urls(&album)
             .await
             .map_err(|e| AppError::General(e.to_string()))
@@ -537,9 +522,8 @@ impl Api for TauriApiImpl {
         let creds = get_credentials(&self.app)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
-        let all_songs = app_state.songs.lock().unwrap().clone();
+        let all_songs = lock_std_mutex(&app_state.songs, "song cache")?.clone();
 
-        // Get recently played from server
         let recently_played = aurelia_core::get_recently_played(
             creds.server_url.clone(),
             creds.token.clone(),
@@ -580,7 +564,6 @@ impl Api for TauriApiImpl {
         let cache_dir = app_dir.join("image_cache");
         std::fs::create_dir_all(&cache_dir).map_err(|e| AppError::FileSystem(e.to_string()))?;
 
-        // Build cache filename
         let mut cache_name = format!("{}_{}", item_id, image_type);
         if let Some(w) = width {
             cache_name.push_str(&format!("_w{}", w));
@@ -590,12 +573,10 @@ impl Api for TauriApiImpl {
         }
         let cache_path = cache_dir.join(&cache_name);
 
-        // Return cached file if it exists
         if cache_path.exists() {
             return Ok(Some(cache_path.to_string_lossy().to_string()));
         }
 
-        // Build the Jellyfin image URL
         let mut url = format!(
             "{}/Items/{}/Images/{}",
             server_url.trim_end_matches('/'),
@@ -615,7 +596,6 @@ impl Api for TauriApiImpl {
             url.push_str(&query.join("&"));
         }
 
-        // Download and cache
         let client = reqwest::Client::new();
         let response = client
             .get(&url)
@@ -722,7 +702,6 @@ impl Api for TauriApiImpl {
             None => (String::new(), String::new()),
         };
 
-        // Read lyrics_server_url from local settings for sidecar lyrics
         let app_dir = self
             .app
             .path()
@@ -871,8 +850,8 @@ impl Api for TauriApiImpl {
 
             *player_guard = Some(player);
 
-            // Store analyzer buffer for spectrum events
-            let mut buffer_guard = audio_state.analyzer_buffer.lock().unwrap();
+            let mut buffer_guard =
+                lock_std_mutex(&audio_state.analyzer_buffer, "audio analyzer buffer")?;
             *buffer_guard = Some(analyzer_buffer);
         }
 
