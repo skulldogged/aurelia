@@ -2,6 +2,7 @@ plugins {
   id("com.android.application")
   id("aurelia.compose")
   id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0"
+  id("org.jlleitschuh.gradle.ktlint")
 }
 
 kotlin {
@@ -52,7 +53,7 @@ android {
       isDefault = true
       proguardFiles(
         getDefaultProguardFile("proguard-android-optimize.txt"),
-        "proguard-rules.pro"
+        "proguard-rules.pro",
       )
       signingConfig = signingConfigs.getByName("debug")
     }
@@ -76,9 +77,20 @@ tasks.register<Exec>("buildRustHost") {
 }
 
 tasks.register<Exec>("generateUniffiBindings") {
-  val libName = if (org.gradle.internal.os.OperatingSystem.current().isWindows) "aurelia_core.dll"
-    else if (org.gradle.internal.os.OperatingSystem.current().isMacOsX) "libaurelia_core.dylib"
-    else "libaurelia_core.so"
+  val libName =
+    if (org.gradle.internal.os.OperatingSystem
+        .current()
+        .isWindows
+    ) {
+      "aurelia_core.dll"
+    } else if (org.gradle.internal.os.OperatingSystem
+        .current()
+        .isMacOsX
+    ) {
+      "libaurelia_core.dylib"
+    } else {
+      "libaurelia_core.so"
+    }
   workingDir = file(projectRoot)
   commandLine(
     "cargo",
@@ -101,13 +113,14 @@ tasks.register<Exec>("generateUniffiBindings") {
 }
 
 tasks.register<Exec>("buildRustAndroid") {
-  val ndkDir = file("${rootDir}/local.properties")
-    .takeIf { it.exists() }
-    ?.readLines()
-    ?.find { it.startsWith("cargo.ndk.dir=") }
-    ?.substringAfter("=")
-    ?: System.getenv("ANDROID_NDK_HOME")
-    ?: throw GradleException("NDK not found. Set ndk.dir in local.properties or ANDROID_NDK_HOME env var")
+  val ndkDir =
+    file("$rootDir/local.properties")
+      .takeIf { it.exists() }
+      ?.readLines()
+      ?.find { it.startsWith("cargo.ndk.dir=") }
+      ?.substringAfter("=")
+      ?: System.getenv("ANDROID_NDK_HOME")
+      ?: throw GradleException("NDK not found. Set ndk.dir in local.properties or ANDROID_NDK_HOME env var")
 
   environment("ANDROID_NDK_HOME", ndkDir)
   workingDir = file(projectRoot)
@@ -184,5 +197,4 @@ dependencies {
   androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
   androidTestImplementation("androidx.compose.ui:ui-test-junit4")
   debugImplementation("androidx.compose.ui:ui-test-manifest")
-
 }

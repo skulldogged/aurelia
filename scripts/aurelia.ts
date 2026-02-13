@@ -6,11 +6,13 @@ import { mkdir, readdir, readFile, writeFile } from 'fs/promises'
 import { createConnection } from 'net'
 import { dirname, join, relative, resolve } from 'path'
 
-const PLATFORM = process.argv.find(arg => arg.startsWith('--platform='))?.split('=')[1] || 'web'
-const COMMAND = process.argv[2]
-const SKIP_BINDINGS = process.argv.includes('--skip-bindings')
-const FORCE_BINDINGS = process.argv.includes('--force-bindings')
-const FAST_BUILD = process.argv.includes('--fast')
+const args = process.argv.slice(2)
+const COMMAND = args[0]
+const PLATFORM = args.find(arg => arg.startsWith('--platform='))?.split('=')[1] || 'all'
+const SKIP_BINDINGS = args.includes('--skip-bindings')
+const FORCE_BINDINGS = args.includes('--force-bindings')
+const FAST_BUILD = args.includes('--fast')
+const IS_MACOS = process.platform === 'darwin'
 
 const ROOT = resolve(import.meta.dirname, '..')
 const TAURI_DESKTOP_DIR = join(ROOT, 'apps/desktop/tauri')
@@ -235,6 +237,24 @@ const devDesktop = async (): Promise<void> => {
   await run('bun', ['run', 'tauri', 'dev'], { cwd: TAURI_DESKTOP_DIR })
 }
 
+const devAndroid = async (): Promise<void> => {
+  await run('./gradlew', ['assembleDebug'], { cwd: join(ROOT, 'apps/mobile/android') })
+}
+
+const devIos = async (): Promise<void> => {
+  if (!IS_MACOS) {
+    throw new Error('iOS development requires macOS')
+  }
+  await run('xcrun', ['simctl', 'boot'])
+  await run('xcodebuild', [
+    '-workspace', 'Aurelia.xcworkspace',
+    '-scheme', 'Aurelia',
+    '-configuration', 'Debug',
+    '-destination', 'platform=iOS Simulator,name=iPhone 16',
+    'build',
+  ], { cwd: join(ROOT, 'apps/mobile/ios') })
+}
+
 const buildWeb = async (): Promise<void> => {
   await bindings()
   await runConcurrent([
@@ -264,23 +284,131 @@ const buildDesktop = async (): Promise<void> => {
   await run('bun', ['run', 'tauri', 'build'], { cwd: TAURI_DESKTOP_DIR })
 }
 
-const commands = {
+const buildAndroid = async (): Promise<void> => {
+  await run('./gradlew', ['assembleDebug'], { cwd: join(ROOT, 'apps/mobile/android') })
+}
+
+const buildIos = async (): Promise<void> => {
+  if (!IS_MACOS) {
+    throw new Error('iOS build requires macOS')
+  }
+  await run('./build-rust.sh', [], { cwd: join(ROOT, 'apps/mobile/ios') })
+  await run('xcodebuild', [
+    '-workspace', 'Aurelia.xcworkspace',
+    '-scheme', 'Aurelia',
+    '-configuration', 'Debug',
+    '-destination', 'generic/platform=iOS',
+    'build',
+  ], { cwd: join(ROOT, 'apps/mobile/ios') })
+}
+
+const testJs = async (): Promise<void> => {
+  await run('bun', ['vitest', 'run'])
+}
+
+const testRust = async (): Promise<void> => {
+  await run('cargo', ['test', '--workspace'])
+}
+
+const testAndroid = async (): Promise<void> => {
+  await run('./gradlew', ['test'], { cwd: join(ROOT, 'apps/mobile/android') })
+}
+
+const testIos = async (): Promise<void> => {
+  if (!IS_MACOS) {
+    throw new Error('iOS tests require macOS')
+  }
+  await run('./build-rust.sh', [], { cwd: join(ROOT, 'apps/mobile/ios') })
+  await run('swift', ['test'], { cwd: join(ROOT, 'apps/mobile/ios/AureliaCore') })
+}
+
+const typecheckWeb = async (): Promise<void> => {
+  await run('bun', ['run', 'typecheck'], { cwd: join(ROOT, 'apps/web/frontend') })
+}
+
+const typecheckDesktop = async (): Promise<void> => {
+  await run('bun', ['run', 'typecheck'], { cwd: join(ROOT, 'apps/desktop/tauri') })
+}
+
+const commands: Record<string, Record<string, () => Promise<void>>> = {
   build: {
-    'desktop':       buildDesktop,
-    'desktop-tauri': buildDesktop,
-    'web':           buildWeb,
+    all: async () => {
+      await buildWeb()
+      await buildDesktop()
+      await buildAndroid()
+      if (IS_MACOS) {
+        await buildIos()
+      } else {
+        console.log('Skipping iOS build (not on macOS)')
+      }
+    },
+    android: async () => buildAndroid(),
+    desktop: async () => buildDesktop(),
+    ios:     async () => buildIos(),
+    web:     async () => buildWeb(),
   },
   dev: {
-    'desktop':       devDesktop,
-    'desktop-tauri': devDesktop,
-    'web':           devWeb,
+    all: async () => {
+      console.log('Running dev:all - starting web and desktop (android/ios require separate terminals)')
+      await devWeb()
+    },
+    android: async () => devAndroid(),
+    desktop: async () => devDesktop(),
+    ios:     async () => devIos(),
+    web:     async () => devWeb(),
+  },
+  test: {
+    all: async () => {
+      await typecheckWeb()
+      await typecheckDesktop()
+      await testJs()
+      await testRust()
+      if (IS_MACOS) {
+        await testIos()
+      } else {
+        console.log('Skipping iOS tests (not on macOS)')
+      }
+    },
+    android: async () => testAndroid(),
+    desktop: async () => {
+      await typecheckDesktop(); await testJs()
+    },
+    ios: async () => testIos(),
+    web: async () => {
+      await typecheckWeb(); await testJs()
+    },
+  },
+  typecheck: {
+    all: async () => {
+      await typecheckWeb(); await typecheckDesktop()
+    },
+    desktop: async () => typecheckDesktop(),
+    web:     async () => typecheckWeb(),
   },
 }
 
 if (!commands[COMMAND]?.[PLATFORM]) {
-  console.log(
-    'Usage: bun run dev|build --platform=web|desktop|desktop-tauri [--skip-bindings] [--force-bindings] [--fast]',
-  )
+  console.log(`
+Usage: bun run scripts/aurelia.ts <command> --platform=<platform> [options]
+
+Commands:
+  dev         Start development server
+  build       Build for production
+  test        Run tests
+  typecheck   Run TypeScript type checking
+
+Platforms:
+  web         Web frontend + backend
+  desktop     Desktop (Tauri)
+  android     Android app
+  ios         iOS app (requires macOS)
+  all         All platforms
+
+Options:
+  --fast      Use faster build (local-release profile)
+  --skip-bindings  Skip bindings generation
+  --force-bindings Force regenerate bindings
+`.trim())
   process.exit(1)
 }
 

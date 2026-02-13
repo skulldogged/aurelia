@@ -17,10 +17,6 @@
       "import": "./src/lib/vite/index.ts"
     }
   },
-  "scripts": {
-    "test": "bun run ../../scripts/run-vitest.ts",
-    "test:watch": "bun run ../../scripts/run-vitest.ts --watch"
-  },
   "devDependencies": {
     "@pinia/testing": "^0.1.7",
     "@tauri-apps/api": "^2.9.1",

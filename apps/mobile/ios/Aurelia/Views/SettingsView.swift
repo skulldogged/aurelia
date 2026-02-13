@@ -7,7 +7,7 @@ struct SettingsView: View {
     @State private var showLogoutConfirmation = false
     @State private var lyricsServerUrl: String = SessionStore.shared.lyricsServerUrl ?? ""
     @State private var visualizerEnabled: Bool = SessionStore.shared.visualizerEnabled
-    @State private var visualizerStyle: VisualizerStyle = VisualizerStyle(rawValue: SessionStore.shared.visualizerStyle) ?? .bars
+    @State private var visualizerStyle: VisualizerStyle = .init(rawValue: SessionStore.shared.visualizerStyle) ?? .bars
 
     var body: some View {
         NavigationStack {

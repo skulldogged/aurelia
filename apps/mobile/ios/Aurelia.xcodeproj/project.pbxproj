@@ -150,7 +150,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "unset CC CFLAGS CXX CXXFLAGS LDFLAGS SDKROOT\n\nif [ -f \"$HOME/.cargo/env\" ]; then\n    source \"$HOME/.cargo/env\"\nfi\n\nPROJECT_ROOT=\"$(cd \"$SRCROOT/../../..\" && pwd)\"\ncd \"$PROJECT_ROOT\"\n\nif [ -f \"./scripts/generate-bindings.sh\" ]; then\n    ./scripts/generate-bindings.sh --ios\nelse\n    echo \"Error: Could not find scripts/generate-bindings.sh\"\n    exit 1\nfi\n\n";
+			shellScript = "unset CC CFLAGS CXX CXXFLAGS LDFLAGS SDKROOT\n\nif [ -f \"$HOME/.cargo/env\" ]; then\n    source \"$HOME/.cargo/env\"\nfi\n\nPROJECT_ROOT=\"$(cd \"$SRCROOT/../../..\" && pwd)\"\ncd \"$PROJECT_ROOT/apps/mobile/ios\"\n\n./build-rust.sh\n\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

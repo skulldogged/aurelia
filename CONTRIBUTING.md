@@ -19,7 +19,7 @@ Common dev commands:
 
 ```bash
 bun run dev:web
-bun run dev:desktop:tauri
+bun run dev:desktop
 ```
 
 ## Repository structure

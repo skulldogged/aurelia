@@ -1,10 +1,10 @@
-import AureliaCore
 import Accelerate
+import AureliaCore
 import AVFAudio
 import AVFoundation
 import CoreMedia
-import MediaToolbox
 import MediaPlayer
+import MediaToolbox
 import Observation
 import os
 
@@ -56,7 +56,7 @@ final class AudioPlayerController: @unchecked Sendable {
         setupVisualizerDisplayLink()
         visualizerAnalyzer.onFrame = { [weak self] frame in
             guard let self else { return }
-            self.applyVisualizerFrame(frame)
+            applyVisualizerFrame(frame)
         }
         // Begin receiving remote control events early for Control Center integration
         UIApplication.shared.beginReceivingRemoteControlEvents()
@@ -884,7 +884,7 @@ final class AudioPlayerController: @unchecked Sendable {
             do {
                 let tracks = try await item.asset.loadTracks(withMediaType: .audio)
                 guard let track = tracks.first else { return }
-                guard let tap = self.visualizerAnalyzer.makeAudioTap() else { return }
+                guard let tap = visualizerAnalyzer.makeAudioTap() else { return }
 
                 let params = AVMutableAudioMixInputParameters(track: track)
                 params.audioTapProcessor = tap
@@ -892,7 +892,7 @@ final class AudioPlayerController: @unchecked Sendable {
                 mix.inputParameters = [params]
                 item.audioMix = mix
             } catch {
-                self.logger.debug("Skipping visualizer tap: \(error.localizedDescription)")
+                logger.debug("Skipping visualizer tap: \(error.localizedDescription)")
             }
         }
     }
@@ -1055,40 +1055,40 @@ private final class PlayerAudioTapAnalyzer {
 
     nonisolated(unsafe) var onFrame: ((FrameData) -> Void)?
 
-    nonisolated(unsafe) private var lock = os_unfair_lock_s()
-    nonisolated(unsafe) private var enabled = true
-    nonisolated(unsafe) private var lastEmitUptime: TimeInterval = 0
-    nonisolated(unsafe) private var frameCounter: Int64 = 0
-    nonisolated(unsafe) private var resetRequested = false
+    private nonisolated(unsafe) var lock = os_unfair_lock_s()
+    private nonisolated(unsafe) var enabled = true
+    private nonisolated(unsafe) var lastEmitUptime: TimeInterval = 0
+    private nonisolated(unsafe) var frameCounter: Int64 = 0
+    private nonisolated(unsafe) var resetRequested = false
 
-    nonisolated(unsafe) private var processingFormat = AudioStreamBasicDescription()
-    nonisolated(unsafe) private var monoBuffer: [Float] = []
-    nonisolated(unsafe) private var fftInput = [Float](repeating: 0, count: 256)
-    nonisolated(unsafe) private var fftWindow = [Float](repeating: 0, count: 256)
-    nonisolated(unsafe) private var fftWindowed = [Float](repeating: 0, count: 256)
-    nonisolated(unsafe) private var splitReal = [Float](repeating: 0, count: 128)
-    nonisolated(unsafe) private var splitImag = [Float](repeating: 0, count: 128)
-    nonisolated(unsafe) private var fftMagnitudes = [Float](repeating: 0, count: 128)
-    nonisolated(unsafe) private var frequencyByteBuffer = [UInt8](repeating: 0, count: 128)
-    nonisolated(unsafe) private var waveformByteBuffer = [UInt8](repeating: 128, count: 256)
-    nonisolated(unsafe) private var smoothedFrequency = [Float](repeating: 0, count: 128)
-    nonisolated(unsafe) private var smoothedWaveform = [Float](repeating: 128, count: 256)
-    nonisolated(unsafe) private var fftSetup: FFTSetup?
-    nonisolated(unsafe) private var pendingFrame: FrameData?
-    nonisolated(unsafe) private var isFrameDispatchScheduled = false
+    private nonisolated(unsafe) var processingFormat = AudioStreamBasicDescription()
+    private nonisolated(unsafe) var monoBuffer: [Float] = []
+    private nonisolated(unsafe) var fftInput = [Float](repeating: 0, count: 256)
+    private nonisolated(unsafe) var fftWindow = [Float](repeating: 0, count: 256)
+    private nonisolated(unsafe) var fftWindowed = [Float](repeating: 0, count: 256)
+    private nonisolated(unsafe) var splitReal = [Float](repeating: 0, count: 128)
+    private nonisolated(unsafe) var splitImag = [Float](repeating: 0, count: 128)
+    private nonisolated(unsafe) var fftMagnitudes = [Float](repeating: 0, count: 128)
+    private nonisolated(unsafe) var frequencyByteBuffer = [UInt8](repeating: 0, count: 128)
+    private nonisolated(unsafe) var waveformByteBuffer = [UInt8](repeating: 128, count: 256)
+    private nonisolated(unsafe) var smoothedFrequency = [Float](repeating: 0, count: 128)
+    private nonisolated(unsafe) var smoothedWaveform = [Float](repeating: 128, count: 256)
+    private nonisolated(unsafe) var fftSetup: FFTSetup?
+    private nonisolated(unsafe) var pendingFrame: FrameData?
+    private nonisolated(unsafe) var isFrameDispatchScheduled = false
 
-    nonisolated private static let fftSize = 256
-    nonisolated private static let outputFrequencyBinCount = 128
-    nonisolated private static let outputWaveformSampleCount = 256
-    nonisolated private static let waveformCenter = 128
-    nonisolated private static let outputFrameInterval: TimeInterval = 1.0 / 60.0
+    private nonisolated static let fftSize = 256
+    private nonisolated static let outputFrequencyBinCount = 128
+    private nonisolated static let outputWaveformSampleCount = 256
+    private nonisolated static let waveformCenter = 128
+    private nonisolated static let outputFrameInterval: TimeInterval = 1.0 / 60.0
 
-    nonisolated private static let attackSmoothing: Float = 0.8
-    nonisolated private static let decaySmoothing: Float = 0.15
-    nonisolated private static let minDb: Float = -100
-    nonisolated private static let maxDb: Float = 0
-    nonisolated private static let minMagnitudeRatio: Float = 1e-7
-    nonisolated private static let maxFftMagnitude: Float = 180
+    private nonisolated static let attackSmoothing: Float = 0.8
+    private nonisolated static let decaySmoothing: Float = 0.15
+    private nonisolated static let minDb: Float = -100
+    private nonisolated static let maxDb: Float = 0
+    private nonisolated static let minMagnitudeRatio: Float = 1e-7
+    private nonisolated static let maxFftMagnitude: Float = 180
 
     init() {
         let log2n = vDSP_Length(log2(Float(Self.fftSize)))
@@ -1100,7 +1100,7 @@ private final class PlayerAudioTapAnalyzer {
         os_unfair_lock_lock(&lock)
         let wasEnabled = self.enabled
         self.enabled = enabled
-        if enabled && !wasEnabled {
+        if enabled, !wasEnabled {
             resetRequested = true
             lastEmitUptime = 0
         }
@@ -1181,7 +1181,7 @@ private final class PlayerAudioTapAnalyzer {
         enqueueFrameForDelivery(frame)
     }
 
-    nonisolated private func enqueueFrameForDelivery(_ frame: FrameData) {
+    private nonisolated func enqueueFrameForDelivery(_ frame: FrameData) {
         var shouldSchedule = false
         os_unfair_lock_lock(&lock)
         pendingFrame = frame
@@ -1197,19 +1197,19 @@ private final class PlayerAudioTapAnalyzer {
             guard let self else { return }
 
             var frameToDeliver: FrameData?
-            os_unfair_lock_lock(&self.lock)
-            frameToDeliver = self.pendingFrame
-            self.pendingFrame = nil
-            self.isFrameDispatchScheduled = false
-            os_unfair_lock_unlock(&self.lock)
+            os_unfair_lock_lock(&lock)
+            frameToDeliver = pendingFrame
+            pendingFrame = nil
+            isFrameDispatchScheduled = false
+            os_unfair_lock_unlock(&lock)
 
             if let frameToDeliver {
-                self.onFrame?(frameToDeliver)
+                onFrame?(frameToDeliver)
             }
         }
     }
 
-    nonisolated private func extractMonoSamples(from bufferList: UnsafeMutablePointer<AudioBufferList>, frameCount: Int) -> Int {
+    private nonisolated func extractMonoSamples(from bufferList: UnsafeMutablePointer<AudioBufferList>, frameCount: Int) -> Int {
         let audioBufferCount = Int(bufferList.pointee.mNumberBuffers)
         guard audioBufferCount > 0 else { return 0 }
         let firstAudioBuffer = withUnsafeMutablePointer(to: &bufferList.pointee.mBuffers) { $0 }
@@ -1291,7 +1291,7 @@ private final class PlayerAudioTapAnalyzer {
         return 0
     }
 
-    nonisolated private func processFrequency(sampleCount: Int) -> [UInt8] {
+    private nonisolated func processFrequency(sampleCount: Int) -> [UInt8] {
         guard let fftSetup else { return [] }
         guard sampleCount > 0 else { return [UInt8](repeating: 0, count: Self.outputFrequencyBinCount) }
 
@@ -1350,7 +1350,7 @@ private final class PlayerAudioTapAnalyzer {
         return frequencyByteBuffer
     }
 
-    nonisolated private func processWaveform(sampleCount: Int) -> [UInt8] {
+    private nonisolated func processWaveform(sampleCount: Int) -> [UInt8] {
         guard sampleCount > 0 else {
             return [UInt8](repeating: UInt8(Self.waveformCenter), count: Self.outputWaveformSampleCount)
         }
@@ -1364,7 +1364,7 @@ private final class PlayerAudioTapAnalyzer {
         return waveformByteBuffer
     }
 
-    nonisolated private func smoothAndQuantize(smoothedBuffer: inout [Float], index: Int, rawValue: Float) -> UInt8 {
+    private nonisolated func smoothAndQuantize(smoothedBuffer: inout [Float], index: Int, rawValue: Float) -> UInt8 {
         let current = smoothedBuffer[index]
         let rate = rawValue > current ? Self.attackSmoothing : Self.decaySmoothing
         let updated = current + (rawValue - current) * rate
@@ -1372,7 +1372,7 @@ private final class PlayerAudioTapAnalyzer {
         return UInt8(max(0, min(255, Int(updated.rounded()))))
     }
 
-    nonisolated private func magnitudeToByteScale(_ magnitude: Float) -> Float {
+    private nonisolated func magnitudeToByteScale(_ magnitude: Float) -> Float {
         if magnitude <= 0 { return 0 }
         let ratio = max(magnitude / Self.maxFftMagnitude, Self.minMagnitudeRatio)
         let db = 20 * log10f(ratio)
@@ -1389,7 +1389,7 @@ private final class PlayerAudioTapContext {
     }
 }
 
-nonisolated private func aureliaTapInit(
+private nonisolated func aureliaTapInit(
     tap _: MTAudioProcessingTap,
     clientInfo: UnsafeMutableRawPointer?,
     tapStorageOut: UnsafeMutablePointer<UnsafeMutableRawPointer?>
@@ -1397,12 +1397,12 @@ nonisolated private func aureliaTapInit(
     tapStorageOut.pointee = clientInfo
 }
 
-nonisolated private func aureliaTapFinalize(tap: MTAudioProcessingTap) {
+private nonisolated func aureliaTapFinalize(tap: MTAudioProcessingTap) {
     let storage = MTAudioProcessingTapGetStorage(tap)
     Unmanaged<PlayerAudioTapContext>.fromOpaque(storage).release()
 }
 
-nonisolated private func aureliaTapPrepare(
+private nonisolated func aureliaTapPrepare(
     tap: MTAudioProcessingTap,
     maxFrames: CMItemCount,
     processingFormat: UnsafePointer<AudioStreamBasicDescription>
@@ -1412,9 +1412,9 @@ nonisolated private func aureliaTapPrepare(
     context.analyzer.prepare(maxFrames: maxFrames, processingFormat: processingFormat.pointee)
 }
 
-nonisolated private func aureliaTapUnprepare(tap _: MTAudioProcessingTap) {}
+private nonisolated func aureliaTapUnprepare(tap _: MTAudioProcessingTap) {}
 
-nonisolated private func aureliaTapProcess(
+private nonisolated func aureliaTapProcess(
     tap: MTAudioProcessingTap,
     numberFrames: CMItemCount,
     flags: MTAudioProcessingTapFlags,

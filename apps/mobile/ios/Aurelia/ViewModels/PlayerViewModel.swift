@@ -206,7 +206,7 @@ final class PlayerViewModel: @unchecked Sendable {
                     showLyrics = false
                 }
             } else {
-                logger.info("[Lyrics] Song changed during fetch (was=\(songId ?? "nil"), now=\(self.currentSongId ?? "nil")), discarding result")
+                logger.info("[Lyrics] Song changed during fetch (was=\(songId ?? "nil"), now=\(currentSongId ?? "nil")), discarding result")
             }
         }
     }

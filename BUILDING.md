@@ -60,116 +60,107 @@ cd aurelia
 bun install
 ```
 
-## Development builds (repo root)
+## Quick Start
 
-### Web
-
-```bash
-bun run dev:web
-```
-
-Runs:
-- Axum backend (`apps/web/backend`)
-- Vite frontend (`apps/web/frontend`)
-
-### Desktop (Tauri)
+Build all platforms (web + desktop + Android + iOS on macOS):
 
 ```bash
-bun run dev:desktop:tauri
-```
-
-Runs the Tauri desktop app from:
-- frontend: `apps/desktop/tauri`
-- Rust backend: `apps/desktop/tauri/src-tauri`
-
-## Build commands (repo root)
-
-### Web
-
-```bash
-bun run build:web
-bun run build:web -- --skip-bindings
-bun run build:web -- --force-bindings
-bun run build:web:strict
-bun run build:web:release
-```
-
-Outputs:
-- Frontend bundle: `apps/web/frontend/dist`
-- Backend binary: Cargo `local-release` output for `apps/web/backend` (use `build:web:release` for full release profile)
-
-### Desktop (Tauri)
-
-```bash
-bun run build:desktop:tauri
-bun run build:desktop:strict
-bun run build:desktop:release
-```
-
-Tauri bundles are under:
-- `apps/desktop/tauri/src-tauri/target/release/bundle`
-
-## Code quality and checks
-
-### Linting
-
-```bash
-bunx eslint .
-bunx eslint --fix .
-```
-
-### Type checking and builds
-
-```bash
-bun run typecheck
 bun run build
-bun run build:web:strict
-bun run build:desktop:strict
 ```
 
-CI runs `bun run typecheck` via `.github/workflows/typecheck.yml`.
-
-### Rust checks
+Run all tests:
 
 ```bash
-cargo fmt --check
-cargo clippy --workspace
-cargo test --workspace
+bun run test
 ```
 
-## Generated code and bindings
+## Development
+
+| Command | Description |
+|---------|-------------|
+| `bun run dev:web` | Web frontend + backend |
+| `bun run dev:desktop` | Desktop (Tauri) |
+| `bun run dev:android` | Android app |
+| `bun run dev:ios` | iOS app (macOS only) |
+| `bun run dev:all` | All platforms |
+
+## Building
+
+| Command | Description |
+|---------|-------------|
+| `bun run build:web` | Web (frontend + Rust backend) |
+| `bun run build:desktop` | Desktop (Tauri) |
+| `bun run build:android` | Android APK |
+| `bun run build:ios` | iOS app |
+| `bun run build` | All platforms |
+
+### Build variants
+
+| Command | Description |
+|---------|-------------|
+| `bun run build:web:release` | Full release build |
+| `bun run build:web:strict` | Typecheck + build |
+| `bun run build:desktop:release` | Full release build |
+| `bun run build:desktop:strict` | Typecheck + build |
+| `bun run build:android:release` | Release APK |
+| `bun run build:ios:ipa` | iOS IPA (requires macOS) |
+
+### Build options
+
+All build commands support these flags:
+
+- `--fast` - Use faster local-release profile (default for dev builds)
+- `--skip-bindings` - Skip bindings generation
+- `--force-bindings` - Force regenerate bindings
+
+## Testing
+
+| Command | Description |
+|---------|-------------|
+| `bun run test` | All tests (JS + Rust + Android) |
+| `bun run test:web` | Web frontend tests |
+| `bun run test:desktop` | Desktop frontend tests |
+| `bun run test:android` | Android unit tests |
+| `bun run test:ios` | iOS tests (macOS only) |
+| `bun run test:js` | All JavaScript tests |
+| `bun run test:rust` | Rust tests |
+
+## Type Checking
+
+| Command | Description |
+|---------|-------------|
+| `bun run typecheck` | Typecheck all |
+| `bun run typecheck:web` | Typecheck web frontend |
+| `bun run typecheck:desktop` | Typecheck desktop frontend |
+
+## Bindings
+
+Generate Rust FFI bindings for TypeScript:
 
 ```bash
-bun run bindings:generate
-bun run bindings:generate:full
-bun run bindings:verify
-bun run bindings:verify:full
+bun run bindings        # TypeScript bindings + web backend
+bun run bindings:full` # + iOS Rust bindings
 ```
 
-`bun run build:*` commands auto-cache binding generation and skip it when relevant Rust sources/manifests are unchanged. Use `--force-bindings` to bypass the cache.
+The `build:*` commands auto-cache binding generation and skip it when Rust sources are unchanged. Use `--force-bindings` to bypass.
+
+## Code Quality
+
+```bash
+bun run lint           # Lint all
+bun run lint:fix       # Auto-fix lint issues
+```
 
 ## Troubleshooting
 
-### Dependency or lockfile drift
-
-Use root lockfile workflow:
+### Clean build artifacts
 
 ```bash
-bun install
-bun run verify:structure
-```
-
-### Clean Rust build artifacts
-
-```bash
+# Rust
 cargo clean
-```
 
-For Tauri-only cleaning:
-
-```bash
-cd apps/desktop/tauri/src-tauri
-cargo clean
+# Tauri only
+cd apps/desktop/tauri/src-tauri && cargo clean
 ```
 
 ### Linux AppImage permissions

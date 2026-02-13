@@ -43,7 +43,7 @@ bun install
 bun run dev:web
 
 # Desktop Tauri app
-bun run dev:desktop:tauri
+bun run dev:desktop
 ```
 
 ## Build Commands (from repo root)
@@ -57,7 +57,7 @@ bun run build:web:strict                   # typecheck + build
 bun run build:web:release                  # fully optimized Rust release profile
 
 # Desktop Tauri build
-bun run build:desktop:tauri
+bun run build:desktop
 bun run build:desktop:strict               # typecheck + build
 bun run build:desktop:release              # fully optimized Rust release profile
 ```
