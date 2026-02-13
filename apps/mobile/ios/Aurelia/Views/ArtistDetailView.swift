@@ -220,15 +220,14 @@ struct ArtistDetailView: View {
     }
 
     private nonisolated static func albumItems(from songs: [Song], fallbackArtistName: String) -> [AlbumItem] {
-        let grouped = Dictionary(grouping: songs.filter { song in
-            if let albumId = song.albumId {
-                return !albumId.isEmpty
-            }
-            return false
-        }) { $0.albumId! }
+        let songsByAlbumId = songs.compactMap { song -> (String, Song)? in
+            guard let albumId = song.albumId, !albumId.isEmpty else { return nil }
+            return (albumId, song)
+        }
+        let grouped = Dictionary(grouping: songsByAlbumId, by: { $0.0 })
 
         return grouped.map { albumId, albumSongs in
-            let first = albumSongs[0]
+            let first = albumSongs[0].1
             return AlbumItem(
                 id: albumId,
                 name: first.album ?? "Unknown Album",

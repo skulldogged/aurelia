@@ -293,18 +293,21 @@ fun ArtistDetailScreen(
             playerController.playNext(song, serverUrl, token)
           },
           onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
-          onGoToAlbum = if (onNavigateToAlbum != null && song.albumId != null) {
-            {
-              onNavigateToAlbum(
-                Screen.AlbumDetail(
-                  albumId = song.albumId!!,
-                  albumName = song.album ?: "Unknown Album",
-                ),
-              )
-            }
-          } else {
-            null
-          },
+          onGoToAlbum =
+            if (onNavigateToAlbum != null) {
+              song.safeAlbumId()?.let { albumId ->
+                {
+                  onNavigateToAlbum(
+                    Screen.AlbumDetail(
+                      albumId = albumId,
+                      albumName = song.album ?: "Unknown Album",
+                    ),
+                  )
+                }
+              }
+            } else {
+              null
+            },
         )
       }
     }

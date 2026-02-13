@@ -171,27 +171,31 @@ fun LibraryScreen(
               },
               onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
               onGoToAlbum =
-                if (onNavigateToAlbum != null && song.albumId != null) {
-                  {
-                    onNavigateToAlbum(
-                      Screen.AlbumDetail(
-                        albumId = song.albumId!!,
-                        albumName = song.album ?: "Unknown Album",
-                      ),
-                    )
+                if (onNavigateToAlbum != null) {
+                  song.safeAlbumId()?.let { albumId ->
+                    {
+                      onNavigateToAlbum(
+                        Screen.AlbumDetail(
+                          albumId = albumId,
+                          albumName = song.album ?: "Unknown Album",
+                        ),
+                      )
+                    }
                   }
                 } else {
                   null
                 },
               onGoToArtist =
-                if (onNavigateToArtist != null && song.artistIds?.isNotEmpty() == true) {
-                  {
-                    onNavigateToArtist(
-                      Screen.ArtistDetail(
-                        artistId = song.artistIds!!.first(),
-                        artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
-                      ),
-                    )
+                if (onNavigateToArtist != null) {
+                  song.safePrimaryArtistId()?.let { artistId ->
+                    {
+                      onNavigateToArtist(
+                        Screen.ArtistDetail(
+                          artistId = artistId,
+                          artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
+                        ),
+                      )
+                    }
                   }
                 } else {
                   null
@@ -204,48 +208,59 @@ fun LibraryScreen(
   }
 
   // Context menu
-  if (contextMenu.showContextMenu && contextMenu.selectedSong != null) {
+  val selectedSong = contextMenu.selectedSong
+  if (contextMenu.showContextMenu && selectedSong != null) {
     SongContextMenu(
-      song = contextMenu.selectedSong!!,
+      song = selectedSong,
       expanded = true,
       onDismiss = { contextMenu.dismissContextMenu() },
       onAddToQueue = {
         val serverUrl = sessionStore.getServerUrl()
         val token = sessionStore.getToken()
         if (serverUrl != null && token != null) {
-          playerController.addToQueue(contextMenu.selectedSong!!, serverUrl, token)
+          playerController.addToQueue(selectedSong, serverUrl, token)
         }
       },
       onPlayNext = {
         val serverUrl = sessionStore.getServerUrl()
         val token = sessionStore.getToken()
         if (serverUrl != null && token != null) {
-          playerController.playNext(contextMenu.selectedSong!!, serverUrl, token)
+          playerController.playNext(selectedSong, serverUrl, token)
         }
       },
       onAddToPlaylist = {
         contextMenu.showPlaylistPicker = true
       },
-      onGoToAlbum = if (contextMenu.selectedSong?.albumId != null && onNavigateToAlbum != null) {
-        {
-          onNavigateToAlbum(
-            Screen.AlbumDetail(
-              albumId = contextMenu.selectedSong!!.albumId!!,
-              albumName = contextMenu.selectedSong!!.album ?: "Unknown Album",
-            )
-          )
-        }
-      } else null,
-      onGoToArtist = if (contextMenu.selectedSong?.artistIds?.isNotEmpty() == true && onNavigateToArtist != null) {
-        {
-          onNavigateToArtist(
-            Screen.ArtistDetail(
-              artistId = contextMenu.selectedSong!!.artistIds!!.first(),
-              artistName = contextMenu.selectedSong!!.artists?.firstOrNull() ?: "Unknown Artist",
-            )
-          )
-        }
-      } else null,
+      onGoToAlbum =
+        if (onNavigateToAlbum != null) {
+          selectedSong.safeAlbumId()?.let { albumId ->
+            {
+              onNavigateToAlbum(
+                Screen.AlbumDetail(
+                  albumId = albumId,
+                  albumName = selectedSong.album ?: "Unknown Album",
+                )
+              )
+            }
+          }
+        } else {
+          null
+        },
+      onGoToArtist =
+        if (onNavigateToArtist != null) {
+          selectedSong.safePrimaryArtistId()?.let { artistId ->
+            {
+              onNavigateToArtist(
+                Screen.ArtistDetail(
+                  artistId = artistId,
+                  artistName = selectedSong.artists?.firstOrNull() ?: "Unknown Artist",
+                )
+              )
+            }
+          }
+        } else {
+          null
+        },
     )
   }
 

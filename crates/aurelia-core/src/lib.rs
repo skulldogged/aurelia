@@ -1,4 +1,3 @@
-pub mod api;
 pub mod cache;
 pub mod db;
 pub mod domain;
@@ -307,7 +306,7 @@ pub async fn get_parsed_lyrics(
     lyrics_server_url: Option<String>,
 ) -> models::ParsedLyrics {
     // 1. Try sidecar lyrics first (richest source: TTML with word-sync, sections, agents)
-    
+
     // 1a. Try lyrics server (daemon) if configured
     if let Some(ref lyrics_url) = lyrics_server_url
         && !lyrics_url.is_empty()
@@ -315,8 +314,8 @@ pub async fn get_parsed_lyrics(
         tracing::info!("[Lyrics] Checking lyrics server at {}", lyrics_url);
         match fetch_lyrics_from_server(lyrics_url, &item_id).await {
             Ok(Some(parsed)) => {
-                 tracing::info!("[Lyrics] Lyrics server found lyrics");
-                 return parsed;
+                tracing::info!("[Lyrics] Lyrics server found lyrics");
+                return parsed;
             }
             Ok(_) => tracing::info!("[Lyrics] Lyrics server returned no lyrics"),
             Err(e) => tracing::warn!("[Lyrics] Lyrics server fetch failed: {}", e),
@@ -363,8 +362,6 @@ pub async fn get_parsed_lyrics(
             tracing::info!("[Lyrics] No local sidecar files found");
         }
     }
-
-
 
     // 2. Try Jellyfin lyrics API
     if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
@@ -482,7 +479,7 @@ async fn fetch_lyrics_from_server(
     if body.found {
         return Ok(body.lyrics);
     }
-    
+
     Ok(None)
 }
 

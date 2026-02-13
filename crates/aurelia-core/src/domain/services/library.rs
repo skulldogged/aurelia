@@ -480,10 +480,7 @@ impl LibraryService {
         valid_remote_ids: &std::collections::HashSet<String>,
     ) -> Result<u32, DomainError> {
         let local_ids = self.get_local_entity_ids(SONGS)?;
-        let to_remove: Vec<String> = local_ids
-            .difference(valid_remote_ids)
-            .cloned()
-            .collect();
+        let to_remove: Vec<String> = local_ids.difference(valid_remote_ids).cloned().collect();
 
         if to_remove.is_empty() {
             return Ok(0);
@@ -514,10 +511,7 @@ impl LibraryService {
         valid_remote_ids: &std::collections::HashSet<String>,
     ) -> Result<u32, DomainError> {
         let local_ids = self.get_local_entity_ids(ALBUMS)?;
-        let to_remove: Vec<String> = local_ids
-            .difference(valid_remote_ids)
-            .cloned()
-            .collect();
+        let to_remove: Vec<String> = local_ids.difference(valid_remote_ids).cloned().collect();
 
         if to_remove.is_empty() {
             return Ok(0);
@@ -544,10 +538,7 @@ impl LibraryService {
         valid_remote_ids: &std::collections::HashSet<String>,
     ) -> Result<u32, DomainError> {
         let local_ids = self.get_local_entity_ids(ARTISTS)?;
-        let to_remove: Vec<String> = local_ids
-            .difference(valid_remote_ids)
-            .cloned()
-            .collect();
+        let to_remove: Vec<String> = local_ids.difference(valid_remote_ids).cloned().collect();
 
         if to_remove.is_empty() {
             return Ok(0);
@@ -1005,12 +996,17 @@ mod tests {
         let db = db::get().expect("db");
         let service = LibraryService::new(db);
 
-        let albums = vec![album("alb1", "ar1"), album("alb2", "ar1"), album("alb3", "ar2")];
+        let albums = vec![
+            album("alb1", "ar1"),
+            album("alb2", "ar1"),
+            album("alb3", "ar2"),
+        ];
         service.upsert_albums(&albums).expect("upsert");
 
         // alb2 deleted on server
-        let valid_ids: std::collections::HashSet<String> =
-            ["alb1".to_string(), "alb3".to_string()].into_iter().collect();
+        let valid_ids: std::collections::HashSet<String> = ["alb1".to_string(), "alb3".to_string()]
+            .into_iter()
+            .collect();
         let removed = service.remove_deleted_albums(&valid_ids).expect("remove");
         assert_eq!(removed, 1);
 
@@ -1049,8 +1045,7 @@ mod tests {
         service.upsert_songs(&songs).expect("upsert");
 
         // All IDs still valid
-        let valid_ids: std::collections::HashSet<String> =
-            ["s1".to_string()].into_iter().collect();
+        let valid_ids: std::collections::HashSet<String> = ["s1".to_string()].into_iter().collect();
         let removed = service.remove_deleted_songs(&valid_ids).expect("remove");
         assert_eq!(removed, 0);
     }

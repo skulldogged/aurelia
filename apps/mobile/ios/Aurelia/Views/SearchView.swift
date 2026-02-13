@@ -27,9 +27,13 @@ struct SearchView: View {
     private var filteredAlbums: [AlbumItem] {
         guard !searchText.isEmpty else { return [] }
         let query = searchText.lowercased()
-        let albumsMap = Dictionary(grouping: allSongs.filter { $0.albumId != nil && !$0.albumId!.isEmpty }) { $0.albumId! }
+        let songsByAlbumId = allSongs.compactMap { song -> (String, Song)? in
+            guard let albumId = song.albumId, !albumId.isEmpty else { return nil }
+            return (albumId, song)
+        }
+        let albumsMap = Dictionary(grouping: songsByAlbumId, by: { $0.0 })
         return albumsMap.compactMap { id, songs -> AlbumItem? in
-            let first = songs[0]
+            let first = songs[0].1
             let name = first.album ?? ""
             let artist = first.artists?.first ?? ""
             guard name.lowercased().contains(query) || artist.lowercased().contains(query) else { return nil }

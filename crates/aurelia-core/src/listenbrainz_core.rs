@@ -2,7 +2,7 @@ use anyhow::Result;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tracing::{debug, error, info};
 
 const LISTENBRAINZ_API_URL: &str = "https://api.listenbrainz.org/1";
@@ -76,6 +76,12 @@ impl ListenBrainzState {
     }
 }
 
+fn lock_state<'a, T>(mutex: &'a Mutex<T>, resource: &str) -> Result<MutexGuard<'a, T>, String> {
+    mutex
+        .lock()
+        .map_err(|_| format!("ListenBrainz state lock failed: {resource}"))
+}
+
 /// Validate a ListenBrainz user token and get the username
 #[specta::specta]
 pub async fn listenbrainz_validate_token(
@@ -84,7 +90,7 @@ pub async fn listenbrainz_validate_token(
 ) -> Result<ListenBrainzCredentials, String> {
     info!("Validating ListenBrainz token");
 
-    let client = state.client.lock().unwrap().clone();
+    let client = lock_state(&state.client, "http client")?.clone();
     let url = format!("{}/validate-token", LISTENBRAINZ_API_URL);
 
     let response = client
@@ -125,8 +131,7 @@ pub async fn listenbrainz_validate_token(
         username: Some(username),
     };
 
-    // Store credentials
-    *state.credentials.lock().unwrap() = Some(credentials.clone());
+    *lock_state(&state.credentials, "credentials")? = Some(credentials.clone());
 
     Ok(credentials)
 }
@@ -138,10 +143,7 @@ pub async fn listenbrainz_submit_listen(
     timestamp: f64,
     state: &ListenBrainzState,
 ) -> Result<(), String> {
-    let credentials = state
-        .credentials
-        .lock()
-        .unwrap()
+    let credentials = lock_state(&state.credentials, "credentials")?
         .clone()
         .ok_or_else(|| "Not authenticated with ListenBrainz".to_string())?;
 
@@ -150,7 +152,7 @@ pub async fn listenbrainz_submit_listen(
         listen.artist, listen.track
     );
 
-    let client = state.client.lock().unwrap().clone();
+    let client = lock_state(&state.client, "http client")?.clone();
     let url = format!("{}/submit-listens", LISTENBRAINZ_API_URL);
 
     let payload = ListenPayload {
@@ -204,16 +206,13 @@ pub async fn listenbrainz_playing_now(
     album: Option<String>,
     state: &ListenBrainzState,
 ) -> Result<(), String> {
-    let credentials = state
-        .credentials
-        .lock()
-        .unwrap()
+    let credentials = lock_state(&state.credentials, "credentials")?
         .clone()
         .ok_or_else(|| "Not authenticated with ListenBrainz".to_string())?;
 
     debug!("Updating ListenBrainz playing now: {} - {}", artist, track);
 
-    let client = state.client.lock().unwrap().clone();
+    let client = lock_state(&state.client, "http client")?.clone();
     let url = format!("{}/submit-listens", LISTENBRAINZ_API_URL);
 
     let payload = ListenPayload {
@@ -259,7 +258,7 @@ pub fn listenbrainz_set_credentials(
     state: &ListenBrainzState,
 ) -> Result<(), String> {
     info!("Setting ListenBrainz credentials");
-    *state.credentials.lock().unwrap() = Some(credentials);
+    *lock_state(&state.credentials, "credentials")? = Some(credentials);
     Ok(())
 }
 
@@ -267,13 +266,13 @@ pub fn listenbrainz_set_credentials(
 #[specta::specta]
 pub fn listenbrainz_clear_credentials(state: &ListenBrainzState) -> Result<(), String> {
     info!("Clearing ListenBrainz credentials");
-    *state.credentials.lock().unwrap() = None;
+    *lock_state(&state.credentials, "credentials")? = None;
     Ok(())
 }
 
 /// Check if authenticated with ListenBrainz
 #[specta::specta]
 pub fn listenbrainz_is_authenticated(state: &ListenBrainzState) -> Result<bool, String> {
-    let is_auth = state.credentials.lock().unwrap().is_some();
+    let is_auth = lock_state(&state.credentials, "credentials")?.is_some();
     Ok(is_auth)
 }

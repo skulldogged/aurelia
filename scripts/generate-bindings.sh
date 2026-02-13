@@ -16,13 +16,9 @@ while [[ $# -gt 0 ]]; do
       RUN_IOS="true"
       shift
       ;;
-    --check)
-      CHECK_ONLY="true"
-      shift
-      ;;
     *)
       echo "Unknown argument: $1" >&2
-      echo "Usage: scripts/generate-bindings.sh [--skip-ios|--ios] [--check]" >&2
+      echo "Usage: scripts/generate-bindings.sh [--skip-ios|--ios]" >&2
       exit 1
       ;;
   esac

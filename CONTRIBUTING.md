@@ -3,7 +3,7 @@
 ## Getting started
 
 1. Fork and clone the repository.
-2. Install prerequisites from `/Users/marshall/Projects/aurelia/BUILDING.md`.
+2. Install prerequisites from `BUILDING.md`.
 3. Create a branch for your work.
 
 ## Development workflow
@@ -24,17 +24,17 @@ bun run dev:desktop:tauri
 
 ## Repository structure
 
-- Shared UI/package: `/Users/marshall/Projects/aurelia/apps/shared`
+- Shared UI/package: `apps/shared`
 - Web app:
-  - frontend: `/Users/marshall/Projects/aurelia/apps/web/frontend`
-  - backend: `/Users/marshall/Projects/aurelia/apps/web/backend`
+  - frontend: `apps/web/frontend`
+  - backend: `apps/web/backend`
 - Desktop app:
-  - Tauri frontend: `/Users/marshall/Projects/aurelia/apps/desktop/tauri`
-  - Tauri Rust backend: `/Users/marshall/Projects/aurelia/apps/desktop/tauri/src-tauri`
+  - Tauri frontend: `apps/desktop/tauri`
+  - Tauri Rust backend: `apps/desktop/tauri/src-tauri`
 - Mobile:
-  - Android: `/Users/marshall/Projects/aurelia/apps/mobile/android`
-  - iOS: `/Users/marshall/Projects/aurelia/apps/mobile/ios`
-- Core Rust crates: `/Users/marshall/Projects/aurelia/crates`
+  - Android: `apps/mobile/android`
+  - iOS: `apps/mobile/ios`
+- Core Rust crates: `crates`
 
 ## Code style
 
@@ -69,7 +69,7 @@ bun run test:android
 bun run test:ios
 ```
 
-See `/Users/marshall/Projects/aurelia/TESTING.md` for details.
+See `TESTING.md` for details.
 
 ## Pull request checklist
 

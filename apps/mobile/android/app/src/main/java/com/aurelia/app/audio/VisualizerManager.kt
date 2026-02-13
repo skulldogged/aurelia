@@ -302,7 +302,8 @@ class VisualizerManager(
             }
         }
 
-        handler.post(captureRunnable!!)
+        val runnable = captureRunnable ?: return
+        handler.post(runnable)
         Log.d(TAG, "Capture started")
     }
 

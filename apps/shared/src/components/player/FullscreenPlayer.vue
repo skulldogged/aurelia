@@ -1,10 +1,8 @@
 <script setup lang="ts">
   import { useMediaQuery } from '@vueuse/core'
   import {
-    ChevronDown,
     Heart,
     ListMusic,
-    Mic2,
     Music2,
     Pause,
     Play,
@@ -19,26 +17,24 @@
     VolumeX,
   } from 'lucide-vue-next'
   import { storeToRefs } from 'pinia'
-  import { computed, defineAsyncComponent, onUnmounted, ref, watch } from 'vue'
+  import { computed, onUnmounted, ref, watch } from 'vue'
   import { PropType } from 'vue'
 
+  import { useImageLoader } from '../../composables/useImageLoader'
+  import { useSwipe } from '../../composables/useSwipe'
   import { Song } from '../../lib/api/types'
+  import { logger } from '../../lib/logger'
+  import { getPlatform, isDesktop as isTauriDesktop, Platform } from '../../lib/platform'
+  import { formatDuration, getSongFormatInfo } from '../../lib/utils'
+  import { PlayerState, usePlayerStore } from '../../stores'
   import ImageLoader from '../shared/ImageLoader.vue'
   import LyricsView from '../shared/LyricsView.vue'
   import Button from '../ui/Button.vue'
   import { Slider } from '../ui/slider'
   import AudioVisualizer from './AudioVisualizer.vue'
   import FullscreenEqualizer from './FullscreenEqualizer.vue'
+  import FullscreenPlayerHeader from './FullscreenPlayerHeader.vue'
   import FullscreenQueue from './FullscreenQueue.vue'
-
-  // Lazy load WindowControls - only imported on desktop when actually rendered
-  const WindowControls = defineAsyncComponent(() => import('../shared/WindowControls.vue'))
-  import { useImageLoader } from '../../composables/useImageLoader'
-  import { useSwipe } from '../../composables/useSwipe'
-  import { logger } from '../../lib/logger'
-  import { getPlatform, isDesktop as isTauriDesktop, Platform } from '../../lib/platform'
-  import { formatDuration, getSongFormatInfo } from '../../lib/utils'
-  import { PlayerState, usePlayerStore } from '../../stores'
 
   const props = defineProps({
     frequencyData: {
@@ -126,6 +122,9 @@
 
   // Platform detection
   const isDesktop = computed(() => isTauriDesktop())
+  const showWindowControls = computed(
+    () => isDesktop.value && getPlatform() !== Platform.MacOS,
+  )
 
   // Background image
   const backgroundImageData = ref<null | string>(null)
@@ -337,44 +336,14 @@
         </Transition>
       </div>
 
-      <!-- Top bar with controls -->
-      <header
-        class='relative z-30 flex items-center justify-between p-4'
-      >
-        <!-- Left controls -->
-        <div @touchmove.stop @touchstart.stop class='flex items-center gap-2'>
-          <Button
-            @click="$emit('close')"
-            class='fs-control-btn'
-            size='icon'
-            variant='ghost'
-          >
-            <ChevronDown class='size-5' />
-          </Button>
-          <Button
-            @click="$emit('toggle-lyrics')"
-            :class="['fs-control-btn', showLyrics && 'is-active']"
-            :disabled='!hasLyrics'
-            size='icon'
-            variant='ghost'
-          >
-            <Mic2 class='size-5' />
-          </Button>
-        </div>
-
-        <!-- Draggable region for desktop (between controls) -->
-        <div
-          v-if='isDesktop'
-          class='absolute inset-0 -z-10'
-          data-tauri-drag-region
-        />
-
-        <!-- Window controls (Windows/Linux) -->
-        <WindowControls
-          v-if='isDesktop && getPlatform() !== Platform.MacOS'
-          class='z-10'
-        />
-      </header>
+      <FullscreenPlayerHeader
+        @close="$emit('close')"
+        @toggle-lyrics="$emit('toggle-lyrics')"
+        :has-lyrics='hasLyrics'
+        :is-desktop='isDesktop'
+        :show-lyrics='showLyrics'
+        :show-window-controls='showWindowControls'
+      />
 
       <!-- Main content area -->
       <main class='relative z-10 flex-1 flex overflow-hidden'>

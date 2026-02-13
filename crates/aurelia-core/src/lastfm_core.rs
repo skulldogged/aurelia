@@ -1,7 +1,7 @@
 use crate::models::LastFmCredentials;
 use reqwest::Client;
 use serde::Deserialize;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use tracing::{debug, error, info};
 
 const LASTFM_API_URL: &str = "https://ws.audioscrobbler.com/2.0/";
@@ -54,6 +54,12 @@ fn build_api_signature(params: &[(String, String)], api_secret: &str) -> String 
     format!("{:x}", md5::compute(signature))
 }
 
+fn lock_state<'a, T>(mutex: &'a Mutex<T>, resource: &str) -> Result<MutexGuard<'a, T>, String> {
+    mutex
+        .lock()
+        .map_err(|_| format!("Last.fm state lock failed: {resource}"))
+}
+
 async fn send_lastfm_request(
     client: &Client,
     mut params: Vec<(String, String)>,
@@ -99,7 +105,7 @@ async fn send_lastfm_request(
 }
 
 pub fn lastfm_set_api_secret(api_secret: String, state: &LastFmState) -> Result<(), String> {
-    *state.api_secret.lock().unwrap() = Some(api_secret);
+    *lock_state(&state.api_secret, "api_secret")? = Some(api_secret);
     Ok(())
 }
 
@@ -108,19 +114,19 @@ pub fn lastfm_set_credentials(
     state: &LastFmState,
 ) -> Result<(), String> {
     info!("Setting Last.fm credentials");
-    *state.credentials.lock().unwrap() = Some(credentials);
+    *lock_state(&state.credentials, "credentials")? = Some(credentials);
     Ok(())
 }
 
 pub fn lastfm_clear_credentials(state: &LastFmState) -> Result<(), String> {
     info!("Clearing Last.fm credentials");
-    *state.credentials.lock().unwrap() = None;
-    *state.api_secret.lock().unwrap() = None;
+    *lock_state(&state.credentials, "credentials")? = None;
+    *lock_state(&state.api_secret, "api_secret")? = None;
     Ok(())
 }
 
 pub fn lastfm_is_authenticated(state: &LastFmState) -> Result<bool, String> {
-    Ok(state.credentials.lock().unwrap().is_some())
+    Ok(lock_state(&state.credentials, "credentials")?.is_some())
 }
 
 pub async fn lastfm_authenticate(
@@ -131,7 +137,7 @@ pub async fn lastfm_authenticate(
 ) -> Result<LastFmCredentials, String> {
     info!("Authenticating with Last.fm");
 
-    let client = state.client.lock().unwrap().clone();
+    let client = lock_state(&state.client, "http client")?.clone();
     let params = vec![
         ("api_key".to_string(), api_key.clone()),
         ("method".to_string(), "auth.getSession".to_string()),
@@ -150,8 +156,8 @@ pub async fn lastfm_authenticate(
         api_key: Some(api_key),
     };
 
-    *state.credentials.lock().unwrap() = Some(credentials.clone());
-    *state.api_secret.lock().unwrap() = Some(api_secret);
+    *lock_state(&state.credentials, "credentials")? = Some(credentials.clone());
+    *lock_state(&state.api_secret, "api_secret")? = Some(api_secret);
 
     Ok(credentials)
 }
@@ -163,17 +169,11 @@ pub async fn lastfm_scrobble(
     timestamp: Option<i64>,
     state: &LastFmState,
 ) -> Result<(), String> {
-    let credentials = state
-        .credentials
-        .lock()
-        .unwrap()
+    let credentials = lock_state(&state.credentials, "credentials")?
         .clone()
         .ok_or_else(|| "Not authenticated with Last.fm".to_string())?;
 
-    let api_secret = state
-        .api_secret
-        .lock()
-        .unwrap()
+    let api_secret = lock_state(&state.api_secret, "api_secret")?
         .clone()
         .ok_or_else(|| "Last.fm API secret not available".to_string())?;
 
@@ -197,7 +197,7 @@ pub async fn lastfm_scrobble(
         params.push(("album".to_string(), album));
     }
 
-    let client = state.client.lock().unwrap().clone();
+    let client = lock_state(&state.client, "http client")?.clone();
     let _ = send_lastfm_request(&client, params, &api_secret).await?;
 
     debug!("Successfully scrobbled track on Last.fm");
@@ -210,17 +210,11 @@ pub async fn lastfm_update_now_playing(
     album: Option<String>,
     state: &LastFmState,
 ) -> Result<(), String> {
-    let credentials = state
-        .credentials
-        .lock()
-        .unwrap()
+    let credentials = lock_state(&state.credentials, "credentials")?
         .clone()
         .ok_or_else(|| "Not authenticated with Last.fm".to_string())?;
 
-    let api_secret = state
-        .api_secret
-        .lock()
-        .unwrap()
+    let api_secret = lock_state(&state.api_secret, "api_secret")?
         .clone()
         .ok_or_else(|| "Last.fm API secret not available".to_string())?;
 
@@ -241,7 +235,7 @@ pub async fn lastfm_update_now_playing(
         params.push(("album".to_string(), album));
     }
 
-    let client = state.client.lock().unwrap().clone();
+    let client = lock_state(&state.client, "http client")?.clone();
     let _ = send_lastfm_request(&client, params, &api_secret).await?;
 
     debug!("Successfully updated Last.fm now playing");

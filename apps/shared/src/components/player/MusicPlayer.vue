@@ -41,6 +41,7 @@
   } from '../ui/dropdown-menu'
   import { Slider } from '../ui/slider'
   import AudioVisualizer from './AudioVisualizer.vue'
+  import MusicPlayerVolumeControl from './MusicPlayerVolumeControl.vue'
 
   const props = defineProps<{
     frequencyData?:   Uint8Array
@@ -81,8 +82,6 @@
 
   const containerRef = ref<HTMLDivElement | null>(null)
   const resizeObserver = ref<null | ResizeObserver>(null)
-  const volumePopupRef = ref<HTMLDivElement | null>(null)
-  const isVolumePopupVisible = ref(false)
   const emptyUint8Array = new Uint8Array(0)
 
   const hasPrevious = computed(() => playerStore.canGoPrevious())
@@ -210,40 +209,6 @@
     // Clear swipe progress
     emit('swipe-progress', null)
   }
-
-  const closeVolumePopup = (): void => {
-    isVolumePopupVisible.value = false
-  }
-
-  const handleVolumeClick = (): void => {
-    toggleVolumePopup()
-  }
-
-  const toggleVolumePopup = (): void => {
-    isVolumePopupVisible.value = !isVolumePopupVisible.value
-  }
-
-  const handleClickOutside = (event: Event): void => {
-    const target = event.target as Element
-    const volumeButton = target.closest('[data-volume-button]')
-    const insidePopup = volumePopupRef.value && volumePopupRef.value.contains(target)
-
-    if (volumeButton || insidePopup) return
-
-    if (isVolumePopupVisible.value)
-      closeVolumePopup()
-  }
-
-  watch(isVolumePopupVisible, visible => {
-    if (visible)
-      document.addEventListener('click', handleClickOutside)
-    else
-      document.removeEventListener('click', handleClickOutside)
-  })
-
-  onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside)
-  })
 
   const titleContainerRef = ref<HTMLDivElement | null>(null)
   const titleTextRef = ref<HTMLSpanElement | null>(null)
@@ -730,41 +695,12 @@
         </Button>
 
         <!-- Volume -->
-        <div v-if="visibleIcons.includes('volume')" class='relative'>
-          <Button
-            @click='handleVolumeClick'
-            :class="['player-control-btn', isVolumePopupVisible && 'is-active']"
-            size='icon'
-            variant='ghost'
-            data-volume-button
-          >
-            <Volume2 v-if='playerStore.volume > 0.5' class='size-4' />
-            <Volume1 v-else-if='playerStore.volume > 0' class='size-4' />
-            <VolumeX v-else class='size-4' />
-          </Button>
-          <Transition name='pop'>
-            <div v-if='isVolumePopupVisible' ref='volumePopupRef' class='volume-popup'>
-              <span class='text-xs text-muted-foreground tabular-nums'>
-                {{ Math.round(playerStore.volume * 100) }}%
-              </span>
-              <Slider
-                @update:model-value='onVolumeInput'
-                :max='100'
-                :model-value='[playerStore.volume * 100]'
-                :step='1'
-                class='h-20 w-1.5'
-                orientation='vertical'
-              />
-              <button
-                @click.stop='playerStore.toggleMute'
-                class='p-1 text-muted-foreground hover:text-foreground transition-colors'
-              >
-                <VolumeX v-if='playerStore.volume === 0' class='size-4' />
-                <Volume2 v-else class='size-4' />
-              </button>
-            </div>
-          </Transition>
-        </div>
+        <MusicPlayerVolumeControl
+          @toggle-mute='playerStore.toggleMute'
+          @update-volume='playerStore.setVolume($event / 100)'
+          v-if="visibleIcons.includes('volume')"
+          :volume='playerStore.volume'
+        />
 
         <!-- Overflow menu -->
         <DropdownMenu v-if='hasHiddenIcons'>

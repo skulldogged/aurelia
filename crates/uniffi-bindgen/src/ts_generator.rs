@@ -5,11 +5,11 @@ use aurelia_core::models::library::{
     HomeViewData, LastFmCredentials, LibraryData, MobileHomeData, NowPlayingPayload, RpcActivity,
     SyncStateInfo,
 };
-use aurelia_core::models::{
-    ParsedLyrics, ParsedLyricsAgent, ParsedLyricsLine, ParsedLyricsSection, ParsedLyricsWord,
-};
 use aurelia_core::models::music::{
     Album, Artist, NameIdPair, Playlist, PlaylistCreateData, PlaylistUpdateData, Song, UserData,
+};
+use aurelia_core::models::{
+    ParsedLyrics, ParsedLyricsAgent, ParsedLyricsLine, ParsedLyricsSection, ParsedLyricsWord,
 };
 use specta_typescript::{BigIntExportBehavior, Typescript};
 use std::fs;

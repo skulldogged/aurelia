@@ -141,7 +141,7 @@ struct Lyrics: Equatable {
     var areFromRemote: Bool
 
     var isValid: Bool {
-        (plain != nil && !plain!.isEmpty) || (synced != nil && !synced!.isEmpty)
+        (plain?.isEmpty == false) || (synced?.isEmpty == false)
     }
 
     /// Check if an agent ID refers to a background/other voice.

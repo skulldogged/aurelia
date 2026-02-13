@@ -155,7 +155,7 @@ class HomeViewModel(
     val albumsMap =
       songs
         .filter { !it.albumId.isNullOrBlank() }
-        .groupBy { it.albumId!! }
+        .groupBy { it.albumId.orEmpty() }
 
     // Recently added albums - by dateCreated of first song
     val recentlyAddedAlbums =

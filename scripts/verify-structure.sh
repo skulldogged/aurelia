@@ -38,6 +38,10 @@ if [[ -n "$stale_src_tauri_refs" ]]; then
   failed=1
 fi
 
+if ! ./scripts/verify-eol.sh; then
+  failed=1
+fi
+
 if [[ "$failed" -ne 0 ]]; then
   exit 1
 fi

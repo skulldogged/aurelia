@@ -5,7 +5,7 @@ set -eo pipefail
 # Usage: ./build-rust.sh [--release]
 #
 # Prerequisites:
-#   rustup target add aarch64-apple-ios aarch64-apple-ios-sim aarch64-apple-ios-macabi x86_64-apple-ios-macabi aarch64-apple-darwin x86_64-apple-darwin
+#   rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-ios-macabi x86_64-apple-ios-macabi aarch64-apple-darwin x86_64-apple-darwin
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -44,20 +44,24 @@ ensure_rust_target() {
 }
 
 IOS_DEVICE_TARGET="aarch64-apple-ios"
-IOS_SIM_TARGET="aarch64-apple-ios-sim"
+IOS_SIM_TARGETS=("aarch64-apple-ios-sim" "x86_64-apple-ios")
 CATALYST_TARGETS=("aarch64-apple-ios-macabi" "x86_64-apple-ios-macabi")
 HOST_ARCH="$(uname -m)"
 
 ensure_rust_target "$IOS_DEVICE_TARGET"
-ensure_rust_target "$IOS_SIM_TARGET"
+for IOS_SIM_TARGET in "${IOS_SIM_TARGETS[@]}"; do
+    ensure_rust_target "$IOS_SIM_TARGET"
+done
 
 echo "==> Building aurelia-core for iOS device (aarch64-apple-ios)..."
 IPHONEOS_DEPLOYMENT_TARGET=18.0 \
 cargo build -p "$CORE_CRATE" --target "$IOS_DEVICE_TARGET" "${CARGO_FLAGS[@]}"
 
-echo "==> Building aurelia-core for iOS simulator (aarch64-apple-ios-sim)..."
-IPHONEOS_DEPLOYMENT_TARGET=18.0 \
-cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" "${CARGO_FLAGS[@]}"
+for IOS_SIM_TARGET in "${IOS_SIM_TARGETS[@]}"; do
+    echo "==> Building aurelia-core for iOS simulator ($IOS_SIM_TARGET)..."
+    IPHONEOS_DEPLOYMENT_TARGET=18.0 \
+    cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" "${CARGO_FLAGS[@]}"
+done
 
 # Build Mac Catalyst for both Apple Silicon and Intel so Xcode can build
 # "Any Mac" without missing-architecture slice failures.
@@ -116,10 +120,18 @@ echo "==> Creating XCFramework..."
 rm -rf "$FRAMEWORK_DIR"
 
 DEVICE_LIB="$TARGET_DIR/$IOS_DEVICE_TARGET/$PROFILE/libaurelia_core.a"
-SIM_LIB="$TARGET_DIR/$IOS_SIM_TARGET/$PROFILE/libaurelia_core.a"
+SIM_ARM64_LIB="$TARGET_DIR/aarch64-apple-ios-sim/$PROFILE/libaurelia_core.a"
+SIM_X86_64_LIB="$TARGET_DIR/x86_64-apple-ios/$PROFILE/libaurelia_core.a"
 MACOS_LIB="$TARGET_DIR/$MACOS_TARGET/$PROFILE/libaurelia_core.a"
 CATALYST_ARM64_LIB="$TARGET_DIR/aarch64-apple-ios-macabi/$PROFILE/libaurelia_core.a"
 CATALYST_X86_64_LIB="$TARGET_DIR/x86_64-apple-ios-macabi/$PROFILE/libaurelia_core.a"
+
+# xcodebuild requires a single library definition per platform variant.
+# Merge arm64 + x86_64 iOS simulator static libs into one universal archive.
+SIM_UNIVERSAL_DIR=$(mktemp -d)
+TEMP_DIRS+=("$SIM_UNIVERSAL_DIR")
+SIM_LIB="$SIM_UNIVERSAL_DIR/libaurelia_core.a"
+lipo -create "$SIM_ARM64_LIB" "$SIM_X86_64_LIB" -output "$SIM_LIB"
 
 # xcodebuild requires a single library definition per platform variant.
 # Merge arm64 + x86_64 Mac Catalyst static libs into one universal archive.
