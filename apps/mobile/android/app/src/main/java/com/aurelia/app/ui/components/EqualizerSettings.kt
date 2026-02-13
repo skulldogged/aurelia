@@ -1,6 +1,10 @@
 package com.aurelia.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,8 +32,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -42,9 +45,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aurelia.app.audio.EQBand
@@ -52,6 +58,7 @@ import com.aurelia.app.audio.EQPreset
 import com.aurelia.app.audio.EQPresets
 import com.aurelia.app.audio.EqualizerState
 import com.aurelia.app.audio.VisualizerStyle
+import kotlin.math.roundToInt
 
 @Composable
 fun EqualizerSection(
@@ -259,7 +266,12 @@ private fun VerticalEQSlider(
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    val normalizedValue = (value - valueRange.start) / (valueRange.endInclusive - valueRange.start)
+    val normalizedValue = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+    val sliderHeight = 140.dp
+    val sliderWidth = 32.dp
+    val thumbDiameter = 14.dp
+    val density = LocalDensity.current
+    var sliderHeightPx by remember { mutableStateOf(0f) }
 
     val gradientBrush = Brush.verticalGradient(
         colors = listOf(
@@ -267,6 +279,32 @@ private fun VerticalEQSlider(
             colors.primary.copy(alpha = 0.5f),
         )
     )
+    val rangeSpan = valueRange.endInclusive - valueRange.start
+    val valueFromY: (Float) -> Float = remember(valueRange, sliderHeightPx, value) {
+        { y ->
+            if (sliderHeightPx <= 0f) {
+                value
+            } else {
+                val normalized = 1f - (y.coerceIn(0f, sliderHeightPx) / sliderHeightPx)
+                (valueRange.start + normalized * (valueRange.endInclusive - valueRange.start))
+                    .coerceIn(valueRange.start, valueRange.endInclusive)
+            }
+        }
+    }
+    val thumbOffsetYPx = remember(normalizedValue, sliderHeightPx, density) {
+        if (sliderHeightPx <= 0f) {
+            0
+        } else {
+            val thumbDiameterPx = with(density) { thumbDiameter.toPx() }
+            val rawTop = (1f - normalizedValue) * sliderHeightPx - (thumbDiameterPx / 2f)
+            rawTop.coerceIn(0f, sliderHeightPx - thumbDiameterPx).roundToInt()
+        }
+    }
+    val dragState = rememberDraggableState { deltaY ->
+        if (sliderHeightPx <= 0f) return@rememberDraggableState
+        val valueDelta = -(deltaY / sliderHeightPx) * rangeSpan
+        onValueChange((value + valueDelta).coerceIn(valueRange.start, valueRange.endInclusive))
+    }
 
     Column(
         modifier = modifier,
@@ -283,14 +321,26 @@ private fun VerticalEQSlider(
 
         Box(
             modifier = Modifier
-                .height(140.dp)
-                .width(32.dp),
+                .height(sliderHeight)
+                .width(sliderWidth)
+                .onSizeChanged { sliderHeightPx = it.height.toFloat() }
+                .pointerInput(enabled, valueRange, sliderHeightPx) {
+                    if (!enabled) return@pointerInput
+                    detectTapGestures { offset ->
+                        onValueChange(valueFromY(offset.y))
+                    }
+                }
+                .draggable(
+                    state = dragState,
+                    orientation = Orientation.Vertical,
+                    enabled = enabled,
+                ),
             contentAlignment = Alignment.BottomCenter,
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(sliderHeight)
                     .background(
                         colors.surfaceVariant.copy(alpha = 0.3f),
                         RoundedCornerShape(4.dp),
@@ -300,23 +350,19 @@ private fun VerticalEQSlider(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((normalizedValue * 140).dp)
+                    .height(sliderHeight * normalizedValue)
                     .background(gradientBrush, RoundedCornerShape(4.dp)),
             )
 
-            Slider(
-                value = value,
-                onValueChange = onValueChange,
-                valueRange = valueRange,
-                enabled = enabled,
+            Box(
                 modifier = Modifier
-                    .height(140.dp)
-                    .width(32.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = colors.primary,
-                    activeTrackColor = Color.Transparent,
-                    inactiveTrackColor = Color.Transparent,
-                ),
+                    .size(thumbDiameter)
+                    .align(Alignment.TopCenter)
+                    .offset { IntOffset(0, thumbOffsetYPx) }
+                    .background(
+                        color = if (enabled) colors.primary else colors.onSurfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(999.dp),
+                    ),
             )
         }
 

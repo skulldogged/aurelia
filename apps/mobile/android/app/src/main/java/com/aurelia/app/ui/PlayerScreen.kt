@@ -144,30 +144,56 @@ import uniffi.aurelia_core.Song
 
 private enum class ControlButton { NONE, PREVIOUS, PLAY_PAUSE, NEXT }
 
+private const val ALBUM_COLOR_CACHE_LIMIT = 64
+private val albumArtColorCache = LinkedHashMap<String, AlbumArtColors>(ALBUM_COLOR_CACHE_LIMIT)
+
 /**
  * Data class holding dynamically extracted colors from album art.
  */
 private data class AlbumArtColors(
-    val primary: Color = Color(0xFF9B6DFF),
-    val secondary: Color = Color(0xFFFF6EB4),
-    val accent: Color = Color(0xFFFF9F68),
-    val onPrimary: Color = Color.White,
-    val isLight: Boolean = false,
+    val primary: Color,
+    val secondary: Color,
+    val accent: Color,
+    val onPrimary: Color,
+    val isLight: Boolean,
 )
+
+private fun getCachedAlbumArtColors(albumArtUrl: String?): AlbumArtColors? {
+    if (albumArtUrl.isNullOrBlank()) return null
+    return synchronized(albumArtColorCache) { albumArtColorCache[albumArtUrl] }
+}
+
+private fun putCachedAlbumArtColors(albumArtUrl: String, colors: AlbumArtColors) {
+    synchronized(albumArtColorCache) {
+        if (!albumArtColorCache.containsKey(albumArtUrl) && albumArtColorCache.size >= ALBUM_COLOR_CACHE_LIMIT) {
+            val oldestKey = albumArtColorCache.entries.firstOrNull()?.key
+            if (oldestKey != null) albumArtColorCache.remove(oldestKey)
+        }
+        albumArtColorCache[albumArtUrl] = colors
+    }
+}
 
 /**
  * Extracts dominant colors from album art URL using Palette API.
- * Falls back to default purple theme colors if extraction fails.
+ * Falls back to caller-provided seed colors (mini-player tint) if extraction fails.
  */
 @Composable
-private fun rememberAlbumArtColors(albumArtUrl: String?): AlbumArtColors {
-    val context = androidx.compose.ui.platform.LocalContext.current
+private fun rememberAlbumArtColors(albumArtUrl: String?, fallbackColors: AlbumArtColors): AlbumArtColors {
+    val context = LocalContext.current
     val imageLoader = remember(context) { ImageLoader(context) }
-    var colors by remember { mutableStateOf(AlbumArtColors()) }
+    var colors by remember(albumArtUrl, fallbackColors) {
+        mutableStateOf(getCachedAlbumArtColors(albumArtUrl) ?: fallbackColors)
+    }
     
-    LaunchedEffect(albumArtUrl) {
+    LaunchedEffect(albumArtUrl, fallbackColors) {
         if (albumArtUrl.isNullOrBlank()) {
-            colors = AlbumArtColors()
+            colors = fallbackColors
+            return@LaunchedEffect
+        }
+
+        val cached = getCachedAlbumArtColors(albumArtUrl)
+        if (cached != null) {
+            colors = cached
             return@LaunchedEffect
         }
         
@@ -196,13 +222,13 @@ private fun rememberAlbumArtColors(albumArtUrl: String?): AlbumArtColors {
                   val primaryColor = palette.mutedSwatch?.rgb?.let { Color(it) }
                     ?: palette.darkMutedSwatch?.rgb?.let { Color(it) }
                     ?: dominant?.rgb?.let { Color(it) }
-                    ?: Color(0xFF9B6DFF)
+                    ?: fallbackColors.primary
 
                   // For secondary/accent, use vibrant but ensure it's not too neon
                   val secondaryColor = palette.lightMutedSwatch?.rgb?.let { Color(it) }
                     ?: palette.vibrantSwatch?.rgb?.let { Color(it) }
                     ?: dominant?.rgb?.let { Color(it) }
-                    ?: Color(0xFFFF6EB4)
+                    ?: fallbackColors.secondary
 
                   // Determine if the primary color is light or dark for text contrast
                   val hsl = FloatArray(3)
@@ -217,11 +243,12 @@ private fun rememberAlbumArtColors(albumArtUrl: String?): AlbumArtColors {
                     isLight = isLight,
                   )
                 }
+                putCachedAlbumArtColors(albumArtUrl, colors)
             } else {
-                colors = AlbumArtColors()
+                colors = fallbackColors
             }
         } catch (e: Exception) {
-            colors = AlbumArtColors()
+            colors = fallbackColors
         }
     }
     
@@ -397,6 +424,16 @@ fun PlayerScreen(
   val scope = rememberCoroutineScope()
 
   val colors = MaterialTheme.colorScheme
+  val miniPlayerSeedColors = remember(colors.primary, colors.primaryContainer, colors.onPrimary) {
+    val luminance = (0.299 * colors.primary.red + 0.587 * colors.primary.green + 0.114 * colors.primary.blue)
+    AlbumArtColors(
+      primary = colors.primary,
+      secondary = colors.primaryContainer,
+      accent = colors.primary,
+      onPrimary = if (luminance > 0.5f) Color.Black else Color.White,
+      isLight = luminance > 0.6f,
+    )
+  }
   
   // Visualizer state
   val visualizerState by AudioManager.visualizerState.collectAsStateWithLifecycle()
@@ -408,7 +445,7 @@ fun PlayerScreen(
   val shouldShowVisualizer = visualizerEnabled && visualizerState.enabled && state.isPlaying && visualizerState.frequencyData.isNotEmpty()
   
   // Extract dynamic colors from album art
-  val albumColors = rememberAlbumArtColors(state.albumArtUrl)
+  val albumColors = rememberAlbumArtColors(state.albumArtUrl, miniPlayerSeedColors)
   
   // Animate color transitions
   val colorAnimationSpec = tween<Color>(durationMillis = if (disablePlayerTransitions) 0 else 500)
