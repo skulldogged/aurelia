@@ -43,6 +43,8 @@ struct PlayerView: View {
             let centeredContentHeight = max(0, geometry.size.height - contentTopPadding - bottomContentPadding)
 
             ZStack {
+                PlayerBackgroundVisualizer(isPlaying: viewModel.isPlaying)
+
                 Group {
                     if hasSidePanelSpace {
                         HStack(alignment: .center, spacing: AureliaSpacing.xl) {
@@ -578,6 +580,189 @@ struct PlayerView: View {
         withAnimation(.easeInOut(duration: 0.35)) {
             activePanel = .queue
         }
+    }
+}
+
+private struct PlayerBackgroundVisualizer: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(AudioPlayerController.self) private var playerController
+    let isPlaying: Bool
+
+    var body: some View {
+        let visualizerState = playerController.visualizerState
+        let shouldShow = visualizerState.enabled
+            && isPlaying
+            && !visualizerState.frequencyData.isEmpty
+
+        Group {
+            if shouldShow {
+                AudioVisualizerCanvas(
+                    frequencyData: visualizerState.frequencyData,
+                    waveformData: visualizerState.waveformData,
+                    style: visualizerState.style,
+                    accentColor: AureliaPalette.tint(for: colorScheme),
+                    boost: 1.0
+                )
+                .frame(height: 160)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .opacity(0.40)
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.25), value: shouldShow)
+    }
+}
+
+struct AudioVisualizerCanvas: View {
+    let frequencyData: [UInt8]
+    let waveformData: [UInt8]
+    let style: VisualizerStyle
+    let accentColor: Color
+    var boost: CGFloat = 1.0
+
+    var body: some View {
+        Canvas(rendersAsynchronously: true) { context, size in
+            guard !frequencyData.isEmpty || !waveformData.isEmpty else { return }
+
+            switch style {
+            case .bars:
+                drawBars(context: &context, size: size)
+            case .curve:
+                drawCurve(context: &context, size: size)
+            case .wave:
+                drawWave(context: &context, size: size)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func drawBars(context: inout GraphicsContext, size: CGSize) {
+        guard !frequencyData.isEmpty else { return }
+
+        let barCount = 64
+        let barWidth = size.width / CGFloat(barCount)
+        let heightScale = (size.height / 255) * boost
+        let dataCount = frequencyData.count
+        let dataStep = CGFloat(dataCount) / CGFloat(barCount)
+
+        let gradient = Gradient(colors: [
+            accentColor.opacity(0.13),
+            accentColor.opacity(0.50),
+        ])
+        let shading = GraphicsContext.Shading.linearGradient(
+            gradient,
+            startPoint: CGPoint(x: 0, y: 0),
+            endPoint: CGPoint(x: 0, y: size.height)
+        )
+
+        for i in 0 ..< barCount {
+            let dataIndex = min(dataCount - 1, Int(CGFloat(i) * dataStep))
+            let value = CGFloat(Int(frequencyData[dataIndex]))
+            let barHeight = min(value * heightScale, size.height)
+            let width = max(1, barWidth - 2)
+            let rect = CGRect(
+                x: CGFloat(i) * barWidth,
+                y: size.height - barHeight,
+                width: width,
+                height: barHeight
+            )
+            context.fill(Path(rect), with: shading)
+        }
+    }
+
+    private func drawCurve(context: inout GraphicsContext, size: CGSize) {
+        guard !frequencyData.isEmpty else { return }
+
+        let sampleCount = 64
+        let stepX = size.width / CGFloat(max(sampleCount - 1, 1))
+        let heightScale = (size.height / 255) * boost
+        let dataCount = frequencyData.count
+        let dataStep = CGFloat(dataCount) / CGFloat(sampleCount)
+        var crestPoints: [CGPoint] = []
+        crestPoints.reserveCapacity(sampleCount)
+
+        for i in 0 ..< sampleCount {
+            let dataIndex = min(dataCount - 1, Int(CGFloat(i) * dataStep))
+            let value = CGFloat(Int(frequencyData[dataIndex]))
+            let amplitude = min(value * heightScale, size.height)
+            crestPoints.append(CGPoint(x: CGFloat(i) * stepX, y: size.height - amplitude))
+        }
+
+        guard crestPoints.count >= 2 else { return }
+
+        var fillPath = Path()
+        fillPath.move(to: CGPoint(x: 0, y: size.height))
+        fillPath.addLine(to: crestPoints[0])
+        for i in 0 ..< (crestPoints.count - 1) {
+            let current = crestPoints[i]
+            let next = crestPoints[i + 1]
+            fillPath.addQuadCurve(
+                to: CGPoint(x: (current.x + next.x) / 2, y: (current.y + next.y) / 2),
+                control: current
+            )
+        }
+        fillPath.addLine(to: crestPoints[crestPoints.count - 1])
+        fillPath.addLine(to: CGPoint(x: size.width, y: size.height))
+        fillPath.closeSubpath()
+
+        let fillGradient = Gradient(colors: [
+            accentColor.opacity(0.09),
+            accentColor.opacity(0.25),
+            accentColor.opacity(0.44),
+        ])
+        let fillShading = GraphicsContext.Shading.linearGradient(
+            fillGradient,
+            startPoint: CGPoint(x: 0, y: 0),
+            endPoint: CGPoint(x: 0, y: size.height)
+        )
+        context.fill(fillPath, with: fillShading)
+
+        var strokePath = Path()
+        strokePath.move(to: crestPoints[0])
+        for i in 0 ..< (crestPoints.count - 1) {
+            let current = crestPoints[i]
+            let next = crestPoints[i + 1]
+            strokePath.addQuadCurve(
+                to: CGPoint(x: (current.x + next.x) / 2, y: (current.y + next.y) / 2),
+                control: current
+            )
+        }
+        strokePath.addLine(to: crestPoints[crestPoints.count - 1])
+
+        context.stroke(
+            strokePath,
+            with: .color(accentColor.opacity(0.56)),
+            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+        )
+    }
+
+    private func drawWave(context: inout GraphicsContext, size: CGSize) {
+        guard !waveformData.isEmpty else { return }
+
+        let dataCount = waveformData.count
+        let sliceWidth = size.width / CGFloat(dataCount)
+        let centerY = size.height / 2
+
+        var path = Path()
+        var x: CGFloat = 0
+
+        for i in 0 ..< dataCount {
+            let deviation = (CGFloat(Int(waveformData[i])) - 128) * boost
+            let y = centerY - (deviation / 128) * centerY
+            let point = CGPoint(x: x, y: y)
+            if i == 0 {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+            x += sliceWidth
+        }
+
+        context.stroke(
+            path,
+            with: .color(accentColor.opacity(0.50)),
+            style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
+        )
     }
 }
 

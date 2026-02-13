@@ -2,6 +2,7 @@ package com.aurelia.app.audio
 
 import kotlin.math.abs
 import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -43,7 +44,11 @@ class VisualizerSignalProcessor(
                     .coerceIn(0, sourceMagnitudeCount - 1)
                 magnitudeToByteScale(fftMagnitudeScratch[sourceIndex])
             }
-            outFrequency[i] = smoothAndQuantize(smoothedFrequency, i, rawValue)
+            outFrequency[i] = smoothAndQuantize(
+                smoothedFrequency,
+                i,
+                shapeFrequencyForDisplay(rawValue)
+            )
         }
 
         for (i in outWaveform.indices) {
@@ -135,6 +140,21 @@ class VisualizerSignalProcessor(
             return normalized * 255f
         }
 
+        /**
+         * Android's Visualizer FFT has a noticeably elevated floor compared to web/desktop.
+         * Gate low-level energy, then apply a mild shaping curve so idle bars sit near bottom
+         * while preserving punch on transients.
+         */
+        fun shapeFrequencyForDisplay(value: Float): Float {
+            if (value <= FREQUENCY_NOISE_FLOOR) return 0f
+            val normalized =
+                ((value - FREQUENCY_NOISE_FLOOR) / (255f - FREQUENCY_NOISE_FLOOR)).coerceIn(0f, 1f)
+            return (normalized.pow(FREQUENCY_SHAPE_GAMMA) * 255f).coerceIn(0f, 255f)
+        }
+
         fun waveformByteToUnsigned(value: Byte): Int = (value.toInt() + WAVEFORM_CENTER).coerceIn(0, 255)
+
+        private const val FREQUENCY_NOISE_FLOOR: Float = 96f
+        private const val FREQUENCY_SHAPE_GAMMA: Float = 1.2f
     }
 }

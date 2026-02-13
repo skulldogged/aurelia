@@ -461,7 +461,7 @@ fun PlayerScreen(
           style = visualizerStyle,
           accentColor = primaryColor,
           modifier = Modifier.fillMaxSize(),
-          boost = 1.0f,
+          boost = 0.88f,
         )
       }
     }

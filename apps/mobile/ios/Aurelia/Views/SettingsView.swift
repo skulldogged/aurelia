@@ -2,9 +2,12 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(AppViewModel.self) private var appViewModel
+    @Environment(AudioPlayerController.self) private var playerController
     @State private var viewModel = SettingsViewModel()
     @State private var showLogoutConfirmation = false
     @State private var lyricsServerUrl: String = SessionStore.shared.lyricsServerUrl ?? ""
+    @State private var visualizerEnabled: Bool = SessionStore.shared.visualizerEnabled
+    @State private var visualizerStyle: VisualizerStyle = VisualizerStyle(rawValue: SessionStore.shared.visualizerStyle) ?? .bars
 
     var body: some View {
         NavigationStack {
@@ -20,6 +23,11 @@ struct SettingsView: View {
                 }
         }
         .aureliaScreen()
+        .onAppear {
+            visualizerEnabled = SessionStore.shared.visualizerEnabled
+            visualizerStyle = VisualizerStyle(rawValue: SessionStore.shared.visualizerStyle) ?? .bars
+            playerController.refreshVisualizerSettings()
+        }
     }
 
     private var settingsSections: some View {
@@ -65,6 +73,23 @@ struct SettingsView: View {
                     }
                 }
                 .disabled(viewModel.isClearing)
+            }
+
+            Section("Visualizer") {
+                Toggle("Enable Visualizer", isOn: $visualizerEnabled)
+                    .onChange(of: visualizerEnabled) { _, newValue in
+                        playerController.setVisualizerEnabled(newValue)
+                    }
+
+                Picker("Style", selection: $visualizerStyle) {
+                    ForEach(VisualizerStyle.allCases, id: \.self) { style in
+                        Text(style.title).tag(style)
+                    }
+                }
+                .disabled(!visualizerEnabled)
+                .onChange(of: visualizerStyle) { _, newValue in
+                    playerController.setVisualizerStyle(newValue)
+                }
             }
 
             Section("Account") {

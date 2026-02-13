@@ -62,8 +62,16 @@ struct MiniPlayerView: View {
         .padding(.horizontal, AureliaSpacing.m)
         .padding(.vertical, AureliaSpacing.s)
         .tint(.primary)
-        .frame(minHeight: 64)
+        .frame(height: 64)
         .glassEffectIfAvailable()
+        .overlay {
+            MiniPlayerVisualizerOverlay(
+                isPlaying: snapshot.isPlaying,
+                opacity: 0.25,
+                isCapsuleStyle: true,
+                boost: 1.0
+            )
+        }
         .clipShape(Capsule())
         .overlay {
             Capsule()
@@ -127,8 +135,16 @@ struct MiniPlayerView: View {
         .padding(.horizontal, AureliaSpacing.s)
         .padding(.vertical, AureliaSpacing.xs)
         .tint(.primary)
-        .frame(minHeight: 64)
+        .frame(height: 64)
         .glassEffectIfAvailable()
+        .overlay {
+            MiniPlayerVisualizerOverlay(
+                isPlaying: snapshot.isPlaying,
+                opacity: 0.25,
+                isCapsuleStyle: false,
+                boost: 1.0
+            )
+        }
         .contentShape(Rectangle())
     }
 
@@ -290,6 +306,53 @@ struct MiniPlayerView: View {
                 }
             }
         }
+    }
+}
+
+private struct MiniPlayerVisualizerOverlay: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(AudioPlayerController.self) private var playerController
+    let isPlaying: Bool
+    let opacity: Double
+    let isCapsuleStyle: Bool
+    let boost: CGFloat
+
+    var body: some View {
+        let visualizerState = playerController.visualizerState
+        let shouldShow = visualizerState.enabled
+            && isPlaying
+            && !visualizerState.frequencyData.isEmpty
+
+        Group {
+            if shouldShow {
+                if isCapsuleStyle {
+                    AudioVisualizerCanvas(
+                        frequencyData: visualizerState.frequencyData,
+                        waveformData: visualizerState.waveformData,
+                        style: visualizerState.style,
+                        accentColor: AureliaPalette.tint(for: colorScheme),
+                        boost: boost
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(opacity)
+                    .clipShape(Capsule())
+                    .transition(.opacity)
+                } else {
+                    AudioVisualizerCanvas(
+                        frequencyData: visualizerState.frequencyData,
+                        waveformData: visualizerState.waveformData,
+                        style: visualizerState.style,
+                        accentColor: AureliaPalette.tint(for: colorScheme),
+                        boost: boost
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(opacity)
+                    .transition(.opacity)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .animation(.easeOut(duration: 0.2), value: shouldShow)
     }
 }
 

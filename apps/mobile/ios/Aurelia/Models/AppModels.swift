@@ -56,6 +56,31 @@ enum RepeatMode: Equatable {
     case all
 }
 
+// MARK: - Visualizer
+
+enum VisualizerStyle: String, CaseIterable, Equatable {
+    case bars
+    case curve
+    case wave
+
+    var title: String {
+        switch self {
+        case .bars: "Bars"
+        case .curve: "Curve"
+        case .wave: "Wave"
+        }
+    }
+}
+
+struct VisualizerState: Equatable {
+    var enabled: Bool = true
+    var available: Bool = false
+    var style: VisualizerStyle = .bars
+    var frequencyData: [UInt8] = []
+    var waveformData: [UInt8] = []
+    var frameId: Int64 = 0
+}
+
 // MARK: - Featured Album
 
 struct FeaturedAlbum: Identifiable, Equatable {

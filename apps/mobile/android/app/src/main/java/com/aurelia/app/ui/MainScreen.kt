@@ -760,15 +760,15 @@ fun MiniPlayerBar(
       enter = fadeIn(animationSpec = tween(250)),
       exit = fadeOut(animationSpec = tween(250)),
     ) {
-      AudioVisualizer(
-        frequencyData = visualizerState.frequencyData,
-        timeDomainData = visualizerState.waveform,
-        style = visualizerStyle,
-        accentColor = colors.primary,
-        modifier = Modifier
-          .fillMaxSize()
-          .graphicsLayer { alpha = 0.25f },
-        boost = 1.0f,
+        AudioVisualizer(
+          frequencyData = visualizerState.frequencyData,
+          timeDomainData = visualizerState.waveform,
+          style = visualizerStyle,
+          accentColor = colors.primary,
+          modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = 0.25f },
+        boost = 0.82f,
       )
     }
     VisualizerFrameMetrics(tag = "MiniPlayerVisualizer", enabled = shouldShowVisualizer)
