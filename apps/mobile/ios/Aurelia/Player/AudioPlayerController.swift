@@ -7,6 +7,7 @@ import MediaPlayer
 import MediaToolbox
 import Observation
 import os
+import UIKit
 
 /// iOS audio player using AVQueuePlayer with Now Playing integration.
 /// Equivalent to Android's PlayerController + PlaybackService.
@@ -27,7 +28,7 @@ final class AudioPlayerController: @unchecked Sendable {
     private var currentIndex: Int = -1
     private var lastServerUrl: String = ""
     private var lastToken: String = ""
-    private var seekOffsetMs: Int64 = 0
+    private var playSessionIdsByItemId: [String: String] = [:]
     private var loadedQueueRange: ClosedRange<Int>?
     private var timeObserver: Any?
     private var audioSessionConfigured = false
@@ -39,9 +40,9 @@ final class AudioPlayerController: @unchecked Sendable {
     private let visualizerAnalyzer = PlayerAudioTapAnalyzer()
     private let logger = Logger(subsystem: "com.aurelia.app", category: "AudioPlayer")
 
-    private static let seekableContainers: Set<String> = ["flac", "mp3", "aac", "ogg"]
-    private static let maxPreloadedItems = 10
-    private static let initialPreloadedItems = 3
+    // Keep queue depth conservative to avoid overloading Jellyfin with parallel transcodes.
+    private static let maxPreloadedItems = 3
+    private static let initialPreloadedItems = 1
 
     init() {
         player = AVQueuePlayer()
@@ -321,8 +322,8 @@ final class AudioPlayerController: @unchecked Sendable {
             // Extract Sendable values before entering isolated context
             let notificationObject = notification.object as? AVPlayerItem
             Task { @MainActor in
-                guard let item = notificationObject,
-                      item == self.player.currentItem else { return }
+                guard let item = notificationObject else { return }
+                guard self.shouldHandleTrackEndedNotification(for: item) else { return }
                 self.handleTrackEnded()
             }
         }
@@ -431,10 +432,10 @@ final class AudioPlayerController: @unchecked Sendable {
     func setQueue(_ songs: [Song], serverUrl: String, token: String, startIndex: Int = 0, autoPlay: Bool = true) {
         ensureAudioSession()
         songQueue = songs
+        playSessionIdsByItemId.removeAll(keepingCapacity: true)
         queueBeforeShuffle = snapshot.isShuffled ? songs : nil
         lastServerUrl = serverUrl
         lastToken = token
-        seekOffsetMs = 0
 
         guard let safeStart = normalizedStartIndex(startIndex, queueCount: songs.count) else {
             player.removeAllItems()
@@ -514,7 +515,6 @@ final class AudioPlayerController: @unchecked Sendable {
     func playQueueItem(_ index: Int) {
         guard index >= 0, index < songQueue.count else { return }
         ensureAudioSession()
-        seekOffsetMs = 0
 
         rebuildPlayerQueue(startingAt: index, preloadItemCount: Self.initialPreloadedItems)
         player.play()
@@ -555,10 +555,10 @@ final class AudioPlayerController: @unchecked Sendable {
         player.pause()
         player.removeAllItems()
         songQueue.removeAll()
+        playSessionIdsByItemId.removeAll(keepingCapacity: true)
         queueBeforeShuffle = nil
         loadedQueueRange = nil
         currentIndex = -1
-        seekOffsetMs = 0
         clearVisualizerData(keepAvailability: true)
         updateSnapshot()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -568,39 +568,32 @@ final class AudioPlayerController: @unchecked Sendable {
         guard currentIndex >= 0, currentIndex < songQueue.count else { return }
         let song = songQueue[currentIndex]
 
-        let songDurationMs = Int64((song.duration ?? 0) * 1000)
-        let targetPosition = max(0, min(positionMs, songDurationMs > 0 ? songDurationMs : positionMs))
-
-        if !Self.isContainerSeekable(song.container), !lastServerUrl.isEmpty {
-            // Non-seekable container: rebuild URL with startTimeTicks
-            let ticks = targetPosition * 10000
-            let baseUrl = buildMobileStreamUrl(
-                serverUrl: lastServerUrl,
-                token: lastToken,
-                itemId: song.id,
-                container: song.container
-            )
-            let seekUrl = "\(baseUrl)&startTimeTicks=\(ticks)"
-            let wasPlaying = player.rate > 0
-
-            seekOffsetMs = targetPosition
-
-            rebuildPlayerQueue(startingAt: currentIndex, firstItemOverrideUrl: seekUrl)
-            if wasPlaying {
-                player.play()
-            }
-        } else {
-            let time = CMTime(seconds: Double(targetPosition) / 1000.0, preferredTimescale: 600)
-            player.seek(to: time)
-        }
+        let durationMs = effectiveDurationMs(for: song)
+        let targetPosition = max(0, min(positionMs, durationMs > 0 ? durationMs : positionMs))
+        seek(to: Double(targetPosition) / 1000.0)
 
         updateSnapshot()
         updateNowPlayingInfo()
     }
 
+    func seek(to time: Double) {
+        let cmTime = CMTime(seconds: time, preferredTimescale: 1000)
+        player.seek(to: cmTime) { [weak self] finished in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if finished {
+                    logger.debug("Seek completed to \(time, privacy: .public)s")
+                } else {
+                    logger.debug("Seek interrupted before completion")
+                }
+                updateSnapshot()
+                updateNowPlayingInfo()
+            }
+        }
+    }
+
     func skipNext() {
         guard currentIndex + 1 < songQueue.count else { return }
-        seekOffsetMs = 0
         if loadedQueueRange?.contains(currentIndex + 1) != true {
             rebuildPlayerQueue(startingAt: currentIndex)
         }
@@ -617,7 +610,6 @@ final class AudioPlayerController: @unchecked Sendable {
     }
 
     func skipPrevious() {
-        seekOffsetMs = 0
         if currentIndex > 0 {
             currentIndex -= 1
             playQueueItem(currentIndex)
@@ -666,8 +658,6 @@ final class AudioPlayerController: @unchecked Sendable {
             return
         }
 
-        seekOffsetMs = 0
-
         if currentIndex + 1 < songQueue.count {
             currentIndex += 1
             if let range = loadedQueueRange {
@@ -691,18 +681,15 @@ final class AudioPlayerController: @unchecked Sendable {
     // MARK: - Snapshot
 
     private func updateSnapshot() {
+        syncCurrentIndexWithCurrentItemIfNeeded()
         let currentTime = player.currentTime()
-        let positionMs = max(0, Int64(CMTimeGetSeconds(currentTime) * 1000)) + seekOffsetMs
+        let currentSeconds = CMTimeGetSeconds(currentTime)
+        var positionMs: Int64 = currentSeconds.isFinite ? max(0, Int64(currentSeconds * 1000)) : 0
 
         let song = currentIndex >= 0 && currentIndex < songQueue.count ? songQueue[currentIndex] : nil
-        let durationMs: Int64
-        if let d = song?.duration, d > 0 {
-            durationMs = Int64(d * 1000)
-        } else if let item = player.currentItem {
-            let dur = CMTimeGetSeconds(item.duration)
-            durationMs = dur.isFinite ? Int64(dur * 1000) + seekOffsetMs : 0
-        } else {
-            durationMs = 0
+        let durationMs = effectiveDurationMs(for: song)
+        if durationMs > 0 {
+            positionMs = min(max(0, positionMs), durationMs)
         }
 
         // Always update position (separate from snapshot so views reading
@@ -815,7 +802,7 @@ final class AudioPlayerController: @unchecked Sendable {
             } else {
                 buildStreamUrl(for: songQueue[queueIndex])
             }
-            if let playerItem = makePlayerItem(url: url) {
+            if let playerItem = makePlayerItem(url: url, song: songQueue[queueIndex]) {
                 player.insert(playerItem, after: nil)
             }
         }
@@ -842,7 +829,7 @@ final class AudioPlayerController: @unchecked Sendable {
 
         while nextIndex <= desiredEnd {
             let url = buildStreamUrl(for: songQueue[nextIndex])
-            if let item = makePlayerItem(url: url) {
+            if let item = makePlayerItem(url: url, song: songQueue[nextIndex]) {
                 player.insert(item, after: nil)
             }
             range = currentIndex ... nextIndex
@@ -858,23 +845,107 @@ final class AudioPlayerController: @unchecked Sendable {
         }
     }
 
-    private func buildStreamUrl(for song: Song, serverUrl: String? = nil, token: String? = nil) -> String {
-        buildMobileStreamUrl(
-            serverUrl: serverUrl ?? lastServerUrl,
-            token: token ?? lastToken,
+    private func buildStreamUrl(
+        for song: Song,
+        serverUrl: String? = nil,
+        token: String? = nil
+    ) -> String {
+        let resolvedServerUrl = serverUrl ?? lastServerUrl
+        let resolvedToken = token ?? lastToken
+        guard !resolvedServerUrl.isEmpty, !resolvedToken.isEmpty else {
+            return buildMobileStreamUrl(
+                serverUrl: resolvedServerUrl,
+                token: resolvedToken,
+                itemId: song.id,
+                container: song.container
+            )
+        }
+
+        let isFlacSource = song.container?.lowercased() == "flac" || song.codec?.lowercased() == "flac"
+
+        // For FLAC files, use /Items/{id}/File to serve the raw file with its seek table
+        // intact. The /universal endpoint pipes through FFmpeg even during "direct play",
+        // which strips the FLAC seek table and causes AVPlayer to drift when seeking.
+        if isFlacSource {
+            let baseUrl = "\(resolvedServerUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/Items/\(song.id)/File"
+            guard var components = URLComponents(string: baseUrl) else {
+                return buildMobileStreamUrl(serverUrl: resolvedServerUrl, token: resolvedToken, itemId: song.id, container: song.container)
+            }
+            components.queryItems = [.init(name: "apiKey", value: resolvedToken)]
+            if let finalUrl = components.url?.absoluteString {
+                return finalUrl
+            }
+        }
+
+        let supportedAudioCodecs = "mp3,aac,m4a|aac,m4b|aac,flac,alac,m4a|alac,m4b|alac,webma,webm|webma,wav,aiff,aiff|aif"
+        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "aurelia-ios-\(UUID().uuidString)"
+        let playSessionId = playSessionId(for: song.id)
+
+        var queryItems: [URLQueryItem] = [
+            .init(name: "apiKey", value: resolvedToken),
+            .init(name: "deviceId", value: deviceId),
+            .init(name: "container", value: supportedAudioCodecs),
+            .init(name: "playSessionId", value: playSessionId),
+            .init(name: "startTimeTicks", value: "0"),
+            .init(name: "audioCodec", value: "aac"),
+            .init(name: "transcodingContainer", value: "mp4"),
+            .init(name: "transcodingProtocol", value: "hls"),
+            .init(name: "maxStreamingBitrate", value: "999999999"),
+        ]
+        if let userId = sessionStore.userId, !userId.isEmpty {
+            queryItems.append(.init(name: "userId", value: userId))
+        }
+
+        let baseUrl = "\(resolvedServerUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/Audio/\(song.id)/universal"
+        guard var components = URLComponents(string: baseUrl) else {
+            return buildMobileStreamUrl(
+                serverUrl: resolvedServerUrl,
+                token: resolvedToken,
+                itemId: song.id,
+                container: song.container
+            )
+        }
+        components.queryItems = queryItems
+        if let finalUrl = components.url?.absoluteString {
+            return finalUrl
+        }
+
+        return buildMobileStreamUrl(
+            serverUrl: resolvedServerUrl,
+            token: resolvedToken,
             itemId: song.id,
             container: song.container
         )
     }
 
-    private func makePlayerItem(url: String) -> AVPlayerItem? {
+    private func makePlayerItem(url: String, song: Song? = nil) -> AVPlayerItem? {
         guard let itemUrl = URL(string: url) else {
             logger.error("Invalid stream URL: \(url)")
             return nil
         }
-        let item = AVPlayerItem(url: itemUrl)
+        let asset = AVURLAsset(url: itemUrl, options: avUrlAssetOptions(for: song))
+        let item = AVPlayerItem(asset: asset)
+        item.preferredForwardBufferDuration = 30
+
         attachVisualizerTap(to: item)
         return item
+    }
+
+    private func avUrlAssetOptions(for song: Song?) -> [String: Any]? {
+        var options: [String: Any] = [:]
+
+        if !lastToken.isEmpty {
+            // AmpFin-style explicit token header for Jellyfin playback.
+            options["AVURLAssetHTTPHeaderFieldsKey"] = ["X-Emby-Token": lastToken]
+        }
+
+        let isFlac = song?.container?.lowercased() == "flac" || song?.codec?.lowercased() == "flac"
+        if isFlac {
+            // Ask AVFoundation to parse exact timing metadata (important for FLAC seek tables).
+            options[AVURLAssetPreferPreciseDurationAndTimingKey] = true
+        }
+
+        return options.isEmpty ? nil : options
     }
 
     private func attachVisualizerTap(to item: AVPlayerItem) {
@@ -895,6 +966,93 @@ final class AudioPlayerController: @unchecked Sendable {
                 logger.debug("Skipping visualizer tap: \(error.localizedDescription)")
             }
         }
+    }
+
+    private func effectiveDurationMs(for song: Song?) -> Int64 {
+        if let item = player.currentItem {
+            let itemDuration = CMTimeGetSeconds(item.duration)
+            if itemDuration.isFinite, itemDuration > 0 {
+                return Int64(itemDuration * 1000)
+            }
+        }
+        if let songDuration = song?.duration, songDuration > 0 {
+            return Int64(songDuration * 1000)
+        }
+        return 0
+    }
+
+    private func playSessionId(for itemId: String) -> String {
+        if let existing = playSessionIdsByItemId[itemId] {
+            return existing
+        }
+        let generated = UUID().uuidString.lowercased()
+        playSessionIdsByItemId[itemId] = generated
+        return generated
+    }
+
+    private func shouldHandleTrackEndedNotification(for endedItem: AVPlayerItem) -> Bool {
+        guard currentIndex >= 0, currentIndex < songQueue.count else {
+            return endedItem == player.currentItem
+        }
+        guard let endedSongId = songId(from: endedItem) else {
+            return endedItem == player.currentItem
+        }
+        return endedSongId == songQueue[currentIndex].id
+    }
+
+    private func syncCurrentIndexWithCurrentItemIfNeeded() {
+        guard !songQueue.isEmpty else { return }
+        guard let item = player.currentItem else { return }
+        guard let itemSongId = songId(from: item) else { return }
+
+        let currentSongId = (currentIndex >= 0 && currentIndex < songQueue.count) ? songQueue[currentIndex].id : nil
+        guard currentSongId != itemSongId else { return }
+
+        let anchorIndex = max(currentIndex, 0)
+        guard let matchedIndex = nearestQueueIndex(forSongId: itemSongId, around: anchorIndex) else { return }
+        guard matchedIndex != currentIndex else { return }
+
+        currentIndex = matchedIndex
+        if let range = loadedQueueRange {
+            loadedQueueRange = currentIndex ... max(currentIndex, range.upperBound)
+        } else {
+            loadedQueueRange = currentIndex ... currentIndex
+        }
+        preloadUpcomingItems()
+    }
+
+    private func nearestQueueIndex(forSongId songId: String, around current: Int) -> Int? {
+        var bestIndex: Int?
+        var bestDistance = Int.max
+        for (index, song) in songQueue.enumerated() where song.id == songId {
+            let distance = abs(index - current)
+            if distance < bestDistance {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return bestIndex
+    }
+
+    private func songId(from item: AVPlayerItem) -> String? {
+        guard let urlAsset = item.asset as? AVURLAsset else { return nil }
+        let pathComponents = urlAsset.url.pathComponents
+
+        if let audioIndex = pathComponents.firstIndex(of: "Audio"),
+           audioIndex + 1 < pathComponents.count
+        {
+            let rawId = pathComponents[audioIndex + 1]
+            return rawId.removingPercentEncoding ?? rawId
+        }
+
+        if let itemsIndex = pathComponents.firstIndex(of: "Items"),
+           itemsIndex + 1 < pathComponents.count
+        {
+            let rawId = pathComponents[itemsIndex + 1]
+            return rawId.removingPercentEncoding ?? rawId
+        }
+
+        return nil
     }
 
     private func shuffleUpcomingQueueInPlace() {
@@ -924,7 +1082,7 @@ final class AudioPlayerController: @unchecked Sendable {
         if upcomingStart <= endIndex {
             for queueIndex in upcomingStart ... endIndex {
                 let url = buildStreamUrl(for: songQueue[queueIndex])
-                if let item = makePlayerItem(url: url) {
+                if let item = makePlayerItem(url: url, song: songQueue[queueIndex]) {
                     player.insert(item, after: nil)
                 }
             }
@@ -980,7 +1138,7 @@ final class AudioPlayerController: @unchecked Sendable {
         if upcomingStart <= endIndex {
             for queueIndex in upcomingStart ... endIndex {
                 let url = buildStreamUrl(for: songQueue[queueIndex])
-                if let item = makePlayerItem(url: url) {
+                if let item = makePlayerItem(url: url, song: songQueue[queueIndex]) {
                     player.insert(item, after: nil)
                 }
             }
@@ -1028,10 +1186,6 @@ final class AudioPlayerController: @unchecked Sendable {
         return nil
     }
 
-    private static func isContainerSeekable(_ container: String?) -> Bool {
-        guard let container = container?.lowercased() else { return false }
-        return seekableContainers.contains(container)
-    }
 }
 
 private final class VisualizerDisplayLinkProxy: NSObject {

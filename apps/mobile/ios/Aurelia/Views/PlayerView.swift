@@ -9,6 +9,12 @@ struct PlayerView: View {
         case queue
     }
 
+    private enum ArtSwipeAxisLock {
+        case undecided
+        case horizontal
+        case vertical
+    }
+
     @Environment(\.colorScheme) private var colorScheme
     @Environment(AudioPlayerController.self) private var playerController
     @Environment(\.dismiss) private var dismiss
@@ -18,7 +24,12 @@ struct PlayerView: View {
     @State private var isDragging = false
     @State private var dragPosition: Double = 0
     @State private var activePanel: Panel = .none
+    @State private var artSwipeOffset: CGFloat = 0
+    @State private var artSwipeAxisLock: ArtSwipeAxisLock = .undecided
     var initialPanel: Panel = .none
+
+    private let artSwipeThreshold: CGFloat = 72
+    private let artSwipeMaxOffset: CGFloat = 110
 
     var body: some View {
         GeometryReader { geometry in
@@ -214,11 +225,13 @@ struct PlayerView: View {
 
     private func artworkHero(artSize: CGFloat) -> some View {
         AlbumArtView(url: viewModel.albumArtUrl, size: .extraLarge, customDimension: artSize)
+            .offset(x: artSwipeOffset)
             .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.36 : 0.16), radius: 18, x: 0, y: 10)
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .stroke(Color.white.opacity(colorScheme == .dark ? 0.18 : 0.30), lineWidth: 1)
             )
+            .highPriorityGesture(albumArtSwipeGesture)
     }
 
     private func controlsColumn(horizontalPadding: CGFloat) -> some View {
@@ -580,6 +593,44 @@ struct PlayerView: View {
         withAnimation(.easeInOut(duration: 0.35)) {
             activePanel = .queue
         }
+    }
+
+    private var albumArtSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                guard activePanel == .none else { return }
+                if artSwipeAxisLock == .undecided {
+                    let horizontal = abs(value.translation.width)
+                    let vertical = abs(value.translation.height)
+                    if max(horizontal, vertical) < 6 {
+                        return
+                    }
+                    artSwipeAxisLock = horizontal >= vertical ? .horizontal : .vertical
+                }
+
+                guard artSwipeAxisLock == .horizontal else { return }
+                let bounded = max(-artSwipeMaxOffset, min(value.translation.width, artSwipeMaxOffset))
+                artSwipeOffset = bounded
+            }
+            .onEnded { value in
+                defer {
+                    withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.86)) {
+                        artSwipeOffset = 0
+                    }
+                    artSwipeAxisLock = .undecided
+                }
+
+                guard activePanel == .none, artSwipeAxisLock == .horizontal else { return }
+
+                let projected = value.predictedEndTranslation.width
+                let triggerDistance = abs(projected) > abs(value.translation.width) ? projected : value.translation.width
+
+                if triggerDistance <= -artSwipeThreshold, viewModel.hasNext {
+                    viewModel.skipNext(playerController: playerController)
+                } else if triggerDistance >= artSwipeThreshold, viewModel.hasPrevious {
+                    viewModel.skipPrevious(playerController: playerController)
+                }
+            }
     }
 }
 

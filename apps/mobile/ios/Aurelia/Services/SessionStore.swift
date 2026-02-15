@@ -63,9 +63,10 @@ final class SessionStore: @unchecked Sendable {
         if let cachedCredentials { return cachedCredentials }
         guard let appDataDir = getAppDataDir(), !appDataDir.isEmpty else { return nil }
         do {
-            let credentials = try loadCredentials(appDataDir: appDataDir)
-            cachedCredentials = credentials
-            return credentials
+            guard let credentials = try loadCredentials(appDataDir: appDataDir) else { return nil }
+            let normalized = normalizeCredentialsIfNeeded(credentials, appDataDir: appDataDir)
+            cachedCredentials = normalized
+            return normalized
         } catch {
             logger.error("Failed to load credentials: \(error)")
             return nil
@@ -76,17 +77,20 @@ final class SessionStore: @unchecked Sendable {
         if let cachedCredentials { return cachedCredentials }
         guard let appDataDir = getAppDataDir(), !appDataDir.isEmpty else { return nil }
 
-        let credentials = await withCheckedContinuation { continuation in
+        let loadedCredentials: Credentials? = await withCheckedContinuation { (continuation: CheckedContinuation<Credentials?, Never>) in
             ioQueue.async {
                 do {
-                    try continuation.resume(returning: loadCredentials(appDataDir: appDataDir))
+                    continuation.resume(returning: try loadCredentials(appDataDir: appDataDir))
                 } catch {
                     continuation.resume(returning: nil)
                 }
             }
         }
-        cachedCredentials = credentials
-        return credentials
+
+        guard let loadedCredentials else { return nil }
+        let normalized = normalizeCredentialsIfNeeded(loadedCredentials, appDataDir: appDataDir)
+        cachedCredentials = normalized
+        return normalized
     }
 
     func getSyncState() -> SyncState? {
@@ -229,5 +233,25 @@ final class SessionStore: @unchecked Sendable {
     func hasValidSessionAsync() async -> Bool {
         guard let creds = await getCredentialsAsync() else { return false }
         return !creds.serverUrl.isEmpty && !creds.userId.isEmpty && !creds.token.isEmpty
+    }
+
+    private func normalizeCredentialsIfNeeded(_ credentials: Credentials, appDataDir: String) -> Credentials {
+        guard let normalizedServerUrl = ServerURLNormalizer.normalizeForServer(raw: credentials.serverUrl),
+              ServerURLNormalizer.isValidServerURL(normalizedServerUrl),
+              normalizedServerUrl != credentials.serverUrl
+        else {
+            return credentials
+        }
+
+        var normalized = credentials
+        normalized.serverUrl = normalizedServerUrl
+
+        do {
+            try saveCredentials(appDataDir: appDataDir, credentials: normalized)
+        } catch {
+            logger.error("Failed to save normalized credentials: \(error)")
+        }
+
+        return normalized
     }
 }

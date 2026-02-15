@@ -18,7 +18,7 @@ final class LoginViewModel: @unchecked Sendable {
     private let sessionStore = SessionStore.shared
 
     func submit() {
-        guard !serverUrl.trimmingCharacters(in: .whitespaces).isEmpty,
+        guard !serverUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !username.trimmingCharacters(in: .whitespaces).isEmpty,
               !password.isEmpty
         else {
@@ -26,12 +26,20 @@ final class LoginViewModel: @unchecked Sendable {
             return
         }
 
+        guard let normalizedServerUrl = ServerURLNormalizer.normalizeForServer(raw: serverUrl),
+              ServerURLNormalizer.isValidServerURL(normalizedServerUrl)
+        else {
+            error = "Enter a valid server URL"
+            return
+        }
+
         isSubmitting = true
         error = nil
+        serverUrl = normalizedServerUrl
 
         let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "aurelia-ios-\(UUID().uuidString)"
 
-        Task.detached { [serverUrl = self.serverUrl, username = self.username, password = self.password, deviceId] in
+        Task.detached { [serverUrl = normalizedServerUrl, username = self.username, password = self.password, deviceId] in
             do {
                 let response = try await authenticate(
                     serverUrl: serverUrl,
