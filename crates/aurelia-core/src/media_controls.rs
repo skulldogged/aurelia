@@ -10,6 +10,8 @@
 use souvlaki::{
     MediaButton, MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig,
 };
+use std::collections::VecDeque;
+use std::sync::Arc;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tracing::{debug, error, info};
@@ -26,7 +28,8 @@ pub enum MediaEvent {
     Next,
     Previous,
     Stop,
-    Seek(f64),
+    SeekDelta(f64),
+    SetPosition(f64),
 }
 
 /// State container for media controls
@@ -34,6 +37,7 @@ pub struct MediaControlsState {
     pub controls: Mutex<Option<MediaControls>>,
     /// Path to cached cover art file
     pub cached_cover_path: Mutex<Option<PathBuf>>,
+    pending_events: Arc<Mutex<VecDeque<MediaEvent>>>,
 }
 
 impl Default for MediaControlsState {
@@ -41,6 +45,7 @@ impl Default for MediaControlsState {
         Self {
             controls: Mutex::new(None),
             cached_cover_path: Mutex::new(None),
+            pending_events: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 }
@@ -68,12 +73,46 @@ impl MediaControlsState {
             error!("Failed to create media controls: {:?}", e);
             format!("Failed to create media controls: {:?}", e)
         })?;
+        let mut controls = controls;
+        let event_queue = Arc::clone(&self.pending_events);
+        controls
+            .attach(move |event| {
+                let mapped = match event {
+                    MediaControlEvent::Play => MediaEvent::Play,
+                    MediaControlEvent::Pause => MediaEvent::Pause,
+                    MediaControlEvent::Toggle => MediaEvent::Toggle,
+                    MediaControlEvent::Next => MediaEvent::Next,
+                    MediaControlEvent::Previous => MediaEvent::Previous,
+                    MediaControlEvent::Stop => MediaEvent::Stop,
+                    MediaControlEvent::Seek(direction) => match direction {
+                        souvlaki::SeekDirection::Forward => MediaEvent::SeekDelta(10.0),
+                        souvlaki::SeekDirection::Backward => MediaEvent::SeekDelta(-10.0),
+                    },
+                    MediaControlEvent::SetPosition(pos) => {
+                        MediaEvent::SetPosition(pos.0.as_secs_f64())
+                    }
+                    _ => return,
+                };
+
+                if let Ok(mut queue) = event_queue.lock() {
+                    queue.push_back(mapped);
+                }
+            })
+            .map_err(|e| {
+            error!("Failed to attach default media control handler: {:?}", e);
+            format!("Failed to attach default media control handler: {:?}", e)
+        })?;
 
         let mut guard = self.controls.lock().map_err(|e| e.to_string())?;
         *guard = Some(controls);
 
         info!("OS media controls initialized successfully");
         Ok(())
+    }
+
+    /// Pop one pending media control event, if any.
+    pub fn pop_event(&self) -> Option<MediaEvent> {
+        self.pending_events.lock().ok()?.pop_front()
     }
 
     /// Attach event handler to media controls
@@ -101,12 +140,12 @@ impl MediaControlsState {
                         MediaControlEvent::Seek(direction) => {
                             // Convert seek direction to seconds
                             match direction {
-                                souvlaki::SeekDirection::Forward => MediaEvent::Seek(10.0),
-                                souvlaki::SeekDirection::Backward => MediaEvent::Seek(-10.0),
+                                souvlaki::SeekDirection::Forward => MediaEvent::SeekDelta(10.0),
+                                souvlaki::SeekDirection::Backward => MediaEvent::SeekDelta(-10.0),
                             }
                         }
                         MediaControlEvent::SetPosition(pos) => {
-                            MediaEvent::Seek(pos.0.as_secs_f64())
+                            MediaEvent::SetPosition(pos.0.as_secs_f64())
                         }
                         _ => return, // Ignore other events
                     };

@@ -210,6 +210,29 @@ pub fn sync_songs_only(songs: &[Song]) -> Result<bool> {
     Ok(false)
 }
 
+/// Update favorite status for all songs based on a list of favorite IDs
+pub fn update_songs_favorite_status(_app_data_dir: &PathBuf, favorite_ids: &[String]) -> Result<u32> {
+    let db = get()?;
+    let songs_repo = crate::db::repositories::SongRepository::new(db);
+    
+    let all_songs = songs_repo.get_all()?;
+    let mut updated_count = 0;
+    
+    let favorite_set: std::collections::HashSet<_> = favorite_ids.iter().collect();
+    
+    for song in all_songs {
+        let is_favorite = favorite_set.contains(&song.id);
+        // Only update if the status is different or was None
+        if song.is_favorite != Some(is_favorite) {
+            songs_repo.update_favorite_status(&song.id, is_favorite)?;
+            updated_count += 1;
+        }
+    }
+    
+    info!("Updated favorite status for {} songs", updated_count);
+    Ok(updated_count)
+}
+
 // ============================================================================
 // Smart Sync (paginated + incremental)
 // ============================================================================
@@ -237,8 +260,13 @@ pub async fn sync_smart(client: &JellyfinClient, user_id: &str) -> Result<SyncRe
 
     // Determine sync strategy
     let is_first_sync = state.last_sync_time == "1970-01-01T00:00:00Z";
+    let library_empty = state.song_count == 0;
+    
+    tracing::info!("sync_smart: is_first_sync={}, library_empty={}, last_sync_time={}, full_sync_in_progress={}", 
+        is_first_sync, library_empty, state.last_sync_time, state.full_sync_in_progress);
 
-    if state.full_sync_in_progress || is_first_sync {
+    // Also do full sync if the library is empty (song_count == 0)
+    if state.full_sync_in_progress || is_first_sync || library_empty {
         // Full sync (first time, or resuming an interrupted sync)
         let report = sync_smart_full(client, user_id, &service, &state).await?;
         let duration = start.elapsed();
@@ -630,6 +658,27 @@ async fn sync_smart_incremental(
         albums_updated: albums_upserted + albums_deleted,
         duration_ms: 0, // Filled by caller
     })
+}
+
+/// Reset sync state to force a full sync on next call.
+pub fn reset_sync_state() -> Result<()> {
+    let db = get()?;
+    let service = crate::domain::services::LibraryService::new(db);
+    let initial_state = SyncState {
+        last_sync_time: "1970-01-01T00:00:00Z".to_string(),
+        last_full_sync_time: None,
+        last_sync_version: None,
+        song_count: 0,
+        artist_count: 0,
+        album_count: 0,
+        full_sync_in_progress: false,
+        full_sync_last_page_index: 0,
+        full_sync_entity_type: None,
+    };
+    service
+        .update_sync_state(&initial_state)
+        .map_err(|e| anyhow!("Failed to reset sync state: {}", e))?;
+    Ok(())
 }
 
 // ============================================================================

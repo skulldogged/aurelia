@@ -47,6 +47,8 @@ specta = { version = "=2.0.0-rc.22", features = ["derive", "function"] }
 stream-download = { version = "0.22", features = ["reqwest-rustls"] }
 thiserror = "2"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"], default-features = false }
+tracing-appender = "0.2"
 urlencoding = "2.1"
 uuid = { version = "1.19", features = ["v4"] }
 tokio = { version = "1.43", features = ["rt-multi-thread"] }

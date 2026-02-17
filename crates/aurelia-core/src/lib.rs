@@ -18,8 +18,59 @@ pub mod discord_rpc;
 #[cfg(feature = "desktop")]
 pub mod media_controls;
 
+use std::sync::Once;
+
+static TRACING_INIT: Once = Once::new();
+static TRACING_GUARD: once_cell::sync::OnceCell<tracing_appender::non_blocking::WorkerGuard> =
+    once_cell::sync::OnceCell::new();
+#[cfg(feature = "desktop")]
+static AUDIO_STATE: once_cell::sync::Lazy<audio::AudioState> =
+    once_cell::sync::Lazy::new(audio::AudioState::new);
+#[cfg(feature = "desktop")]
+static MEDIA_CONTROLS_STATE: once_cell::sync::Lazy<media_controls::MediaControlsState> =
+    once_cell::sync::Lazy::new(media_controls::MediaControlsState::new);
+
+fn ensure_tracing_initialized() {
+    TRACING_INIT.call_once(|| {
+        let build_filter = || {
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+        };
+
+        if let Ok(path) = std::env::var("AURELIA_RUST_LOG_FILE")
+            && !path.trim().is_empty()
+        {
+            match std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+            {
+                Ok(file) => {
+                    let (writer, guard) = tracing_appender::non_blocking(file);
+                    let _ = TRACING_GUARD.set(guard);
+                    let _ = tracing_subscriber::fmt()
+                        .with_env_filter(build_filter())
+                        .with_ansi(false)
+                        .with_writer(writer)
+                        .try_init();
+                    return;
+                }
+                Err(err) => {
+                    eprintln!("aurelia-core: failed to open rust log file: {err}");
+                }
+            }
+        }
+
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(build_filter())
+            .with_ansi(false)
+            .try_init();
+    });
+}
+
 #[uniffi::export]
 pub fn ping() -> String {
+    ensure_tracing_initialized();
     "pong".to_string()
 }
 
@@ -136,8 +187,13 @@ pub fn build_stream_url(
     item_id: String,
     container: Option<String>,
 ) -> String {
+    ensure_tracing_initialized();
+    tracing::info!("[build_stream_url] server_url: {}, item_id: {}, container: {:?}", 
+        server_url, item_id, container);
     let client = services::JellyfinClient::with_auth(server_url, token);
-    client.get_audio_stream_url(&item_id, container.as_deref())
+    let result = client.get_audio_stream_url(&item_id, container.as_deref());
+    tracing::info!("[build_stream_url] result: {}", &result[..result.len().min(100)]);
+    result
 }
 
 /// Build a stream URL optimized for mobile playback.
@@ -149,8 +205,312 @@ pub fn build_mobile_stream_url(
     item_id: String,
     container: Option<String>,
 ) -> String {
+    ensure_tracing_initialized();
     let client = services::JellyfinClient::with_auth(server_url, token);
     client.get_mobile_audio_stream_url(&item_id, container.as_deref())
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_init_player() -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        ensure_tracing_initialized();
+        audio::audio_init(&AUDIO_STATE)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_play_url(
+    url: String,
+    token: String,
+    start_time_secs: Option<f64>,
+) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        audio::audio_play(&AUDIO_STATE, url, start_time_secs, token)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (url, token, start_time_secs);
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_pause_player() -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        audio::audio_pause(&AUDIO_STATE)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_resume_player() -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        audio::audio_resume(&AUDIO_STATE)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_stop_player() -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        audio::audio_stop(&AUDIO_STATE)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_seek_player(position_secs: f64) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        audio::audio_seek(&AUDIO_STATE, position_secs)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = position_secs;
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_get_position_secs() -> Result<f64, error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        return audio::audio_get_position(&AUDIO_STATE)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()));
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_is_playing_player() -> Result<bool, error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        return audio::audio_is_playing(&AUDIO_STATE)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()));
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_is_finished_player() -> Result<bool, error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        return audio::audio_is_finished(&AUDIO_STATE)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()));
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_set_volume_player(volume: f64) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        audio::audio_set_volume(&AUDIO_STATE, volume as f32)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = volume;
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_get_volume_player() -> Result<f64, error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        return audio::audio_get_volume(&AUDIO_STATE)
+            .await
+            .map(|v| v as f64)
+            .map_err(|err| error::AppError::General(err.to_string()));
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export]
+pub fn media_controls_init(hwnd: Option<u64>) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        let hwnd_ptr = hwnd.map(|raw| raw as usize as *mut std::ffi::c_void);
+        MEDIA_CONTROLS_STATE
+            .init(hwnd_ptr)
+            .map_err(error::AppError::General)?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = hwnd;
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export]
+pub fn media_controls_update_now_playing(
+    title: String,
+    artist: Option<String>,
+    album: Option<String>,
+    duration_secs: Option<f64>,
+    cover_url: Option<String>,
+) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        let payload = models::NowPlayingPayload {
+            title,
+            artist,
+            album,
+            duration: duration_secs,
+            cover_url,
+        };
+        MEDIA_CONTROLS_STATE
+            .update_now_playing(payload)
+            .map_err(error::AppError::General)?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (title, artist, album, duration_secs, cover_url);
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export]
+pub fn media_controls_set_playback_status(
+    is_playing: bool,
+    position_secs: Option<f64>,
+) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        MEDIA_CONTROLS_STATE
+            .set_playback_status(is_playing, position_secs)
+            .map_err(error::AppError::General)?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (is_playing, position_secs);
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export]
+pub fn media_controls_clear_now_playing() -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        MEDIA_CONTROLS_STATE
+            .clear_now_playing()
+            .map_err(error::AppError::General)?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+#[uniffi::export]
+pub fn media_controls_pop_event() -> Option<String> {
+    #[cfg(feature = "desktop")]
+    {
+        let event = MEDIA_CONTROLS_STATE.pop_event()?;
+        let encoded = match event {
+            media_controls::MediaEvent::Play => "play".to_string(),
+            media_controls::MediaEvent::Pause => "pause".to_string(),
+            media_controls::MediaEvent::Toggle => "toggle".to_string(),
+            media_controls::MediaEvent::Next => "next".to_string(),
+            media_controls::MediaEvent::Previous => "previous".to_string(),
+            media_controls::MediaEvent::Stop => "stop".to_string(),
+            media_controls::MediaEvent::SeekDelta(value) => format!("seek_delta:{value}"),
+            media_controls::MediaEvent::SetPosition(value) => format!("set_position:{value}"),
+        };
+        return Some(encoded);
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        None
+    }
 }
 
 #[cfg(test)]
@@ -543,6 +903,16 @@ pub async fn toggle_favorite(
     Ok(is_favorite)
 }
 
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn get_favorite_ids(
+    server_url: String,
+    token: String,
+    user_id: String,
+) -> Result<Vec<String>, error::AppError> {
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.get_favorite_ids(&user_id).await
+}
+
 // Playlist operations
 
 #[uniffi::export(async_runtime = "tokio")]
@@ -668,9 +1038,40 @@ pub async fn sync_library_smart(
 
     // Create client and run smart sync
     let client = services::JellyfinClient::with_auth(server_url, token);
+    
+    let db = db::get().map_err(|e| error::AppError::Database(e.to_string()))?;
+    let service = crate::domain::services::LibraryService::new(db);
+    let state = service.get_sync_state().map_err(|e| error::AppError::Database(e.to_string()))?;
+    
+    tracing::info!("sync_library_smart: is_first_sync = {}, last_sync_time = {}, full_sync_in_progress = {}", 
+        state.last_sync_time == "1970-01-01T00:00:00Z", 
+        state.last_sync_time,
+        state.full_sync_in_progress);
+    
     db::sync_smart(&client, &user_id)
         .await
         .map_err(|e| error::AppError::Database(e.to_string()))
+}
+
+/// Sync favorite status for all songs after initial library sync.
+/// Fetches the list of favorite IDs from Jellyfin and updates cached songs.
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn sync_favorites(
+    server_url: String,
+    token: String,
+    user_id: String,
+    app_data_dir: String,
+) -> Result<u32, error::AppError> {
+    let app_data_path = std::path::PathBuf::from(&app_data_dir);
+    db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
+
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    let favorite_ids = client.get_favorite_ids(&user_id).await?;
+    
+    let favorite_count = db::update_songs_favorite_status(&app_data_path, &favorite_ids)
+        .map_err(|e| error::AppError::Database(e.to_string()))?;
+    
+    Ok(favorite_count)
 }
 
 /// Fetch a single artist from server and cache it

@@ -97,28 +97,89 @@ impl JellyfinClient {
         Ok(())
     }
 
+    /// Get all favorite item IDs for the user
+    pub async fn get_favorite_ids(&self, user_id: &str) -> AppResult<Vec<String>> {
+        let mut all_ids = Vec::new();
+        let mut start_index = 0;
+        let page_size = 1000;
+
+        loop {
+            let query = format!(
+                "/Items?userId={}&IsFavorite=true&StartIndex={}&Limit={}&Recursive=true",
+                user_id, start_index, page_size
+            );
+            let url = utils::build_jellyfin_url(&self.server_url, &query);
+
+            let response = self
+                .client
+                .get(&url)
+                .header("Authorization", self.get_auth_header())
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                return Err(AppError::Network(format!(
+                    "Failed to get favorites: HTTP {}",
+                    response.status()
+                )));
+            }
+
+            let json: serde_json::Value = response.json().await?;
+            let items = json["Items"].as_array().ok_or_else(|| {
+                AppError::Network("Invalid favorites response".to_string())
+            })?;
+
+            if items.is_empty() {
+                break;
+            }
+
+            for item in items {
+                if let Some(id) = item["Id"].as_str() {
+                    all_ids.push(id.to_string());
+                }
+            }
+
+            let total = json["TotalRecordCount"].as_i64().unwrap_or(0) as usize;
+            if start_index + items.len() >= total {
+                break;
+            }
+
+            start_index += items.len();
+        }
+
+        Ok(all_ids)
+    }
+
     /// Get audio stream URL for desktop (raw HTTP streaming with byte-range or startTimeTicks seeking).
     ///
     /// For seekable containers, returns a direct static stream.
     /// For non-seekable containers (ALAC, etc.), returns a transcoded AAC stream.
     /// The desktop player handles seeking via startTimeTicks on the raw stream.
     pub fn get_audio_stream_url(&self, item_id: &str, container: Option<&str>) -> String {
+        let supports_seek = utils::supports_seeking(container);
+        tracing::info!("[get_audio_stream_url] item_id: {}, container: {:?}, supports_seeking: {}", 
+            item_id, container, supports_seek);
+        
         let token = self.token.as_deref().unwrap_or("");
-        if utils::supports_seeking(container) {
-            format!(
+        if supports_seek {
+            let url = format!(
                 "{}?api_key={}&static=true",
                 utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream", item_id)),
                 token
-            )
+            );
+            tracing::info!("[get_audio_stream_url] Using seekable URL: {}", &url[..url.len().min(100)]);
+            url
         } else {
-            format!(
+            let url = format!(
                 "{}?api_key={}",
                 utils::build_jellyfin_url(
                     &self.server_url,
                     &format!("/Audio/{}/stream.aac", item_id)
                 ),
                 token
-            )
+            );
+            tracing::info!("[get_audio_stream_url] Using transcoded URL: {}", &url[..url.len().min(100)]);
+            url
         }
     }
 

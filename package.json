@@ -19,6 +19,10 @@
     "build:android:release": "cd apps/mobile/android && ./gradlew assembleRelease",
     "build:ios": "bun run scripts/aurelia.ts build --platform=ios",
     "build:ios:ipa": "bun install && bun run scripts/aurelia.ts bindings && (cd apps/mobile/ios && ./build-rust.sh --release) && xcodebuild archive -workspace apps/mobile/ios/Aurelia.xcworkspace -scheme Aurelia -configuration Release -destination 'generic/platform=iOS' -archivePath build/ios.xcarchive CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO && mkdir -p build/ios-payload/Payload && cp -r build/ios.xcarchive/Products/Applications/Aurelia.app build/ios-payload/Payload/ && cd build/ios-payload && zip -r ../Aurelia.ipa Payload",
+    "build:windows": "bun run bindings:windows && dotnet build apps/windows/Aurelia/Aurelia.csproj",
+    "build:windows:release": "bun run bindings:windows:release && dotnet publish apps/windows/Aurelia/Aurelia.csproj -c Release",
+    "bindings:windows": "cargo build -p aurelia-core && cargo run -p uniffi-bindgen -- generate --library target/debug/aurelia_core.dll --language csharp --crate-filter aurelia_core --config apps/windows/AureliaCore/uniffi.toml --out-dir apps/windows/AureliaCore --no-format && cargo run -p uniffi-bindgen -- generate --library target/debug/aurelia_core.dll --language csharp --crate-filter aurelia_lyrics --config apps/windows/AureliaCore/uniffi.lyrics.toml --out-dir apps/windows/AureliaCore --no-format",
+    "bindings:windows:release": "cargo build -p aurelia-core --release && cargo run -p uniffi-bindgen -- generate --library target/release/aurelia_core.dll --language csharp --crate-filter aurelia_core --config apps/windows/AureliaCore/uniffi.toml --out-dir apps/windows/AureliaCore --no-format && cargo run -p uniffi-bindgen -- generate --library target/release/aurelia_core.dll --language csharp --crate-filter aurelia_lyrics --config apps/windows/AureliaCore/uniffi.lyrics.toml --out-dir apps/windows/AureliaCore --no-format",
 
     "dev": "bun run scripts/aurelia.ts dev --platform=web",
     "dev:web": "bun run scripts/aurelia.ts dev --platform=web",

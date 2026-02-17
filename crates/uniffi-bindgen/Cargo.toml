@@ -10,8 +10,11 @@ path = "src/main.rs"
 [dependencies]
 uniffi = { version = "0.31.0", features = ["cli"] }
 uniffi_bindgen = "0.31.0"
+uniffi-bindgen-cs = { git = "https://github.com/skulldogged/uniffi-bindgen-cs.git" }
 camino = "1.1.9"
 clap = { version = "4", features = ["derive"] }
 specta = { version = "=2.0.0-rc.22", features = ["derive", "export"] }
 specta-typescript = "0.0.9"
 aurelia-core = { path = "../aurelia-core" }
+anyhow = "1.0"
+cargo_metadata = "0.19"

@@ -1,0 +1,5 @@
+[bindings.csharp]
+cdylib_name = "aurelia_core"
+namespace = "aurelia_lyrics"
+access_modifier = "public"
+global_methods_class_name = "AureliaLyrics"

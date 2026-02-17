@@ -1,0 +1,78 @@
+<Page
+    x:Class="Aurelia.SettingsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="24">
+        <ScrollViewer>
+            <StackPanel>
+                <TextBlock 
+                    FontSize="28" 
+                    FontWeight="Bold" 
+                    Text="Settings" 
+                    Margin="0,0,0,24" />
+
+                <TextBlock 
+                    Text="Account"
+                    FontSize="18" 
+                    FontWeight="SemiBold" 
+                    Margin="0,0,0,12" />
+
+                <StackPanel Margin="0,0,0,24">
+                    <TextBlock 
+                        x:Name="UsernameText"
+                        FontWeight="SemiBold" />
+                    <TextBlock 
+                        x:Name="ServerUrlText"
+                        FontSize="12"
+                        Opacity="0.7" />
+                </StackPanel>
+
+                <Button 
+                    x:Name="LogoutButton"
+                    Content="Log Out"
+                    Click="Logout_Click"
+                    HorizontalAlignment="Left"
+                    Margin="0,0,0,24" />
+
+                <TextBlock 
+                    Text="Library"
+                    FontSize="18" 
+                    FontWeight="SemiBold" 
+                    Margin="0,24,0,12" />
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <Button 
+                        x:Name="SyncButton"
+                        Content="Sync Library"
+                        Click="Sync_Click"
+                        Margin="0,0,12,0" />
+                    <Button 
+                        x:Name="ClearCacheButton"
+                        Content="Clear Cache"
+                        Click="ClearCache_Click" />
+                </StackPanel>
+
+                <ProgressBar 
+                    x:Name="SyncProgress"
+                    IsIndeterminate="True"
+                    Visibility="Collapsed"
+                    Margin="0,0,0,12" />
+
+                <TextBlock 
+                    x:Name="SyncStatus"
+                    Opacity="0.7"
+                    Margin="0,0,0,24" />
+
+                <TextBlock 
+                    Text="About"
+                    FontSize="18" 
+                    FontWeight="SemiBold" 
+                    Margin="0,24,0,12" />
+
+                <TextBlock Text="Aurelia Music Player" />
+                <TextBlock Text="Windows Edition" Opacity="0.7" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

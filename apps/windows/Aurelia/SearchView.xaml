@@ -1,0 +1,76 @@
+<Page
+    x:Class="Aurelia.SearchView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock 
+            Grid.Row="0"
+            FontSize="28" 
+            FontWeight="Bold" 
+            Text="Search" 
+            Margin="0,0,0,16" />
+
+        <AutoSuggestBox 
+            x:Name="SearchBox"
+            Grid.Row="1"
+            PlaceholderText="Search songs..."
+            QuerySubmitted="SearchBox_QuerySubmitted"
+            Margin="0,0,0,16" />
+
+        <ListView 
+            x:Name="SearchResultsList"
+            Grid.Row="2"
+            ItemClick="SearchResult_Click"
+            IsItemClickEnabled="True"
+            Visibility="Collapsed">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock 
+                                Text="{Binding DisplayTitle}"
+                                FontWeight="SemiBold"
+                                TextTrimming="CharacterEllipsis" />
+                            <TextBlock 
+                                Text="{Binding DisplayArtist}"
+                                FontSize="12"
+                                Opacity="0.7"
+                                TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <TextBlock 
+                            Grid.Column="1"
+                            Text="{Binding Duration, Converter={StaticResource DurationConverter}}"
+                            Opacity="0.5"
+                            VerticalAlignment="Center" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock 
+            x:Name="EmptyState"
+            Grid.Row="2"
+            Text="Search for your favorite songs"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Opacity="0.5" />
+
+        <ProgressBar 
+            x:Name="LoadingIndicator"
+            Grid.Row="2"
+            IsIndeterminate="True"
+            Visibility="Collapsed"
+            VerticalAlignment="Top" />
+    </Grid>
+</Page>

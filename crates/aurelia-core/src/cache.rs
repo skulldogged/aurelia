@@ -1,6 +1,6 @@
 use crate::db;
 use crate::models::{Album, Artist, Credentials, Song};
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use redb::ReadableDatabase;
 use serde_json;
 use std::path::PathBuf;
@@ -32,6 +32,9 @@ pub fn clear_cache(app_data_dir: PathBuf) -> Result<()> {
     db::songs::clear()?;
     db::artists::clear()?;
     db::albums::clear()?;
+    tracing::info!("clear_cache: cache cleared, now resetting sync state");
+    db::reset_sync_state()?;
+    tracing::info!("clear_cache: sync state reset complete");
     Ok(())
 }
 
