@@ -1,1 +1,1 @@
-default_agents = ["antigravity", "claude", "copilot", "gemini-cli", "windsurf"]
+default_agents = ["claude", "copilot", "gemini-cli", "windsurf"]

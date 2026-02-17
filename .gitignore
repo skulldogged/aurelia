@@ -33,6 +33,10 @@ Thumbs.db
 *.sln
 *.sw?
 
+# AI assistant local settings
+.claude/settings.local.json
+.gemini/settings.json
+
 # Android
 keystore.properties
 local.properties
@@ -67,20 +71,24 @@ apps/desktop/tauri/src-tauri/gen/schemas/
 # Legacy root-level Tauri workspace artifacts (deprecated)
 src-tauri/gen/schemas/
 
+# Windows (WinUI 3) build artifacts
+apps/windows/**/bin/
+apps/windows/**/obj/
+apps/windows/**/.vs/
+
 # START Ruler Generated Files
-/.agent/rules/ruler.md
-/.agent/rules/ruler.md.bak
-/.agent/skills
 /.agents/skills
 /.claude/skills
 /.codex/skills
 /.cursor/skills
-/.factory/skills
 /.gemini/skills
 /.opencode/skill
 /.pi/skills
 /.roo/skills
+/.skillz
 /.vibe/skills
+/.windsurf/mcp_config.json
+/.windsurf/mcp_config.json.bak
 /AGENTS.md
 /AGENTS.md.bak
 /CLAUDE.md
