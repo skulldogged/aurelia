@@ -237,13 +237,20 @@ pub fn update_songs_favorite_status(_app_data_dir: &PathBuf, favorite_ids: &[Str
 // Smart Sync (paginated + incremental)
 // ============================================================================
 
-use crate::domain::models::{SyncReport, SyncState};
+use crate::domain::models::{SyncProgress, SyncReport, SyncState};
 use crate::services::JellyfinClient;
+use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
-/// Default page size for paginated sync fetches.
-/// 500 is a good balance: large enough to minimize HTTP round-trips,
-/// small enough to avoid mobile OOM.
-const SYNC_PAGE_SIZE: usize = 500;
+/// Global in-memory sync progress, updated after each page during a full sync.
+/// Polled by the UI via `get_sync_progress()`.
+pub static SYNC_PROGRESS: Lazy<Mutex<SyncProgress>> =
+    Lazy::new(|| Mutex::new(SyncProgress::default()));
+
+/// Page size for paginated sync fetches.
+/// 200 balances round-trip count against progress granularity — small enough
+/// to give smooth UI updates, large enough to keep the total request count reasonable.
+const SYNC_PAGE_SIZE: usize = 200;
 
 /// Perform a smart sync: decides between full (paginated) or incremental sync
 /// based on the existing SyncState. Handles resumability for interrupted full syncs.
@@ -257,6 +264,11 @@ pub async fn sync_smart(client: &JellyfinClient, user_id: &str) -> Result<SyncRe
         .map_err(|e| anyhow!("Failed to get sync state: {}", e))?;
 
     let start = std::time::Instant::now();
+
+    // Reset progress for UI polling
+    if let Ok(mut p) = SYNC_PROGRESS.lock() {
+        *p = SyncProgress::default();
+    }
 
     // Determine sync strategy
     let is_first_sync = state.last_sync_time == "1970-01-01T00:00:00Z";
@@ -516,6 +528,15 @@ async fn sync_entity_paginated(
 
         page_num += 1;
         current_start += page_count;
+
+        // Update UI progress (polled by C# via get_sync_progress)
+        if let Ok(mut p) = SYNC_PROGRESS.lock() {
+            *p = SyncProgress::new(
+                entity_type,
+                current_start as u32,
+                page.total_record_count as u32,
+            );
+        }
 
         // Update progress for resumability
         update_full_sync_progress(service, entity_type, page_num as u32)?;

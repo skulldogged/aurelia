@@ -13,6 +13,7 @@ public class AppViewModel : INotifyPropertyChanged
     
     private bool _isLoading;
     private bool _isLoggedIn;
+    private bool _isSyncing;
     private User? _currentUser;
     private string? _serverUrl;
 
@@ -34,6 +35,12 @@ public class AppViewModel : INotifyPropertyChanged
     {
         get => _currentUser;
         set { _currentUser = value; OnPropertyChanged(); }
+    }
+
+    public bool IsSyncing
+    {
+        get => _isSyncing;
+        set { _isSyncing = value; OnPropertyChanged(); }
     }
 
     public string? ServerUrl
@@ -89,6 +96,7 @@ public class AppViewModel : INotifyPropertyChanged
     public async Task LoginAsync(string serverUrl, string username, string password)
     {
         IsLoading = true;
+        IsSyncing = true;
         try
         {
             var normalizedUrl = ApiService.NormalizeServerUrl(serverUrl);
@@ -98,12 +106,14 @@ public class AppViewModel : INotifyPropertyChanged
         finally
         {
             IsLoading = false;
+            IsSyncing = false;
         }
     }
 
     public async Task LoginWithQuickConnectAsync(string serverUrl, string quickConnectCode)
     {
         IsLoading = true;
+        IsSyncing = true;
         try
         {
             var normalizedUrl = ApiService.NormalizeServerUrl(serverUrl);
@@ -113,12 +123,15 @@ public class AppViewModel : INotifyPropertyChanged
         finally
         {
             IsLoading = false;
+            IsSyncing = false;
         }
     }
 
     public async Task SyncLibraryAsync()
     {
-        await _apiService.SyncLibraryAsync();
+        IsSyncing = true;
+        try { await _apiService.SyncLibraryAsync(); }
+        finally { IsSyncing = false; }
     }
 
     public async Task LogoutAsync()

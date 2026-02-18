@@ -6,14 +6,17 @@
     <RootNamespace>Aurelia</RootNamespace>
     <Platforms>x64;x86;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-x86;win-arm64</RuntimeIdentifiers>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
-    <PlatformTarget Condition="'$(PlatformTarget)' == ''">x64</PlatformTarget>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
+    <PlatformTarget Condition="'$(PlatformTarget)' == '' And $(NETCoreSdkRuntimeIdentifier.Contains('arm64'))">ARM64</PlatformTarget>
+    <PlatformTarget Condition="'$(PlatformTarget)' == '' And $(NETCoreSdkRuntimeIdentifier.Contains('x64'))">x64</PlatformTarget>
+    <PlatformTarget Condition="'$(PlatformTarget)' == '' And $(NETCoreSdkRuntimeIdentifier.Contains('x86'))">x86</PlatformTarget>
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType Condition="'$(Configuration)' == 'Debug'">None</WindowsPackageType>
     <WindowsPackageType Condition="'$(Configuration)' != 'Debug'">MSIX</WindowsPackageType>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

@@ -7056,7 +7056,7 @@ dependencies = [
 [[package]]
 name = "uniffi-bindgen-cs"
 version = "0.10.0+v0.31.0"
-source = "git+https://github.com/skulldogged/uniffi-bindgen-cs.git?rev=3890ecddcdf87ab66f999a62c1005a6467f3c96c#3890ecddcdf87ab66f999a62c1005a6467f3c96c"
+source = "git+https://github.com/skulldogged/uniffi-bindgen-cs.git#3890ecddcdf87ab66f999a62c1005a6467f3c96c"
 dependencies = [
  "anyhow",
  "askama 0.13.1",

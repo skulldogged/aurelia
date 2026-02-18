@@ -65,7 +65,7 @@ public sealed partial class SettingsView : Page
         }
     }
 
-    private async void ClearCache_Click(object sender, RoutedEventArgs e)
+    private void ClearCache_Click(object sender, RoutedEventArgs e)
     {
         try
         {

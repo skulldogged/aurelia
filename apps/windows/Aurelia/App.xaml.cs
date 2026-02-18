@@ -51,8 +51,16 @@ public partial class App : Application
 
         if (AppViewModel.IsLoggedIn)
         {
-            frame.Navigate(typeof(MainView));
-            _ = AppViewModel.SyncLibraryAsync();
+            if (!ApiService.HasCachedLibrary())
+            {
+                frame.Navigate(typeof(SyncingView));
+                _ = AppViewModel.SyncLibraryAsync();
+            }
+            else
+            {
+                frame.Navigate(typeof(MainView));
+                _ = AppViewModel.SyncLibraryAsync();
+            }
         }
         else
         {
@@ -65,7 +73,7 @@ public partial class App : Application
             {
                 if (AppViewModel.IsLoggedIn)
                 {
-                    frame.Navigate(typeof(MainView));
+                    frame.Navigate(AppViewModel.IsSyncing ? typeof(SyncingView) : typeof(MainView));
                 }
                 else
                 {

@@ -14,16 +14,6 @@ public sealed partial class LoginView : Page
 
         var app = App.Current as App;
         _appViewModel = app!.AppViewModel;
-
-        _appViewModel.PropertyChanged += AppViewModel_PropertyChanged;
-    }
-
-    private void AppViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(AppViewModel.IsLoggedIn) && _appViewModel.IsLoggedIn)
-        {
-            NavigateToMain();
-        }
     }
 
     private async void Login_Click(object sender, RoutedEventArgs e)
@@ -65,11 +55,4 @@ public sealed partial class LoginView : Page
         }
     }
 
-    private void NavigateToMain()
-    {
-        if (Frame != null)
-        {
-            Frame.Navigate(typeof(MainView));
-        }
-    }
 }

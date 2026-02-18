@@ -23,26 +23,28 @@ public class SessionService
     public SessionInfo? CurrentSession => _session;
     public JellyfinCredentials? Credentials => _credentials;
 
-    public async Task SaveCredentialsAsync(JellyfinCredentials credentials)
+    public Task SaveCredentialsAsync(JellyfinCredentials credentials)
     {
         _credentials = credentials;
-        
+
         var coreCredentials = new AureliaCore.Credentials(
             credentials.ServerUrl,
             "",
             credentials.AccessToken ?? "",
             credentials.UserId ?? ""
         );
-        
+
         AureliaCore.AureliaCore.SaveCredentials(_appDataDir, coreCredentials);
+        return Task.CompletedTask;
     }
 
-    public async Task ClearCredentialsAsync()
+    public Task ClearCredentialsAsync()
     {
         _credentials = null;
         _session = null;
         AureliaCore.AureliaCore.ClearCredentials(_appDataDir);
         SessionChanged?.Invoke(this, null);
+        return Task.CompletedTask;
     }
 
     public void SetSession(SessionInfo session)

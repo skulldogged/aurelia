@@ -850,6 +850,8 @@ static partial class _UniFFILib {
     
     
     
+    
+    
 
     static _UniFFILib() {
         _UniFFILib.uniffiCheckContractApiVersion();
@@ -1007,6 +1009,10 @@ static partial class _UniFFILib {
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ulong uniffi_aurelia_core_fn_func_get_song_share_urls(RustBuffer @song
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern RustBuffer uniffi_aurelia_core_fn_func_get_sync_progress(ref UniffiRustCallStatus _uniffi_out_err
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -1450,6 +1456,10 @@ static partial class _UniFFILib {
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ushort uniffi_aurelia_core_checksum_func_get_sync_progress(
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ushort uniffi_aurelia_core_checksum_func_get_sync_state(
     );
 
@@ -1769,6 +1779,12 @@ static partial class _UniFFILib {
             var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_get_song_share_urls();
             if (checksum != 18046) {
                 throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_get_song_share_urls` checksum `18046`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_get_sync_progress();
+            if (checksum != 32226) {
+                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_get_sync_progress` checksum `32226`, library returned `{checksum}`");
             }
         }
         {
@@ -5591,6 +5607,18 @@ public static class AureliaCore {
         FfiConverterTypeAppError.INSTANCE
     );
    }
+    /// <summary>
+    /// Returns the current sync progress for UI polling.
+    /// Updated after each page during a full sync; resets to default between syncs.
+    /// </summary>
+    public static SyncProgress GetSyncProgress() {
+        return FfiConverterTypeSyncProgress.INSTANCE.Lift(
+    _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_aurelia_core_fn_func_get_sync_progress( ref _status)
+));
+    }
+
+
     /// <summary>
     /// Get sync state as a typed struct (better for UI binding)
     /// </summary>

@@ -65,17 +65,17 @@ public class ApiService
         return await LoginAsync(serverUrl, username, password);
     }
 
-    public async Task<List<User>> GetUsersAsync(string serverUrl)
+    public Task<List<User>> GetUsersAsync(string serverUrl)
     {
-        return [];
+        return Task.FromResult<List<User>>([]);
     }
 
-    public async Task<SessionInfo> QuickConnectAsync(string serverUrl, string quickConnectCode)
+    public Task<SessionInfo> QuickConnectAsync(string serverUrl, string quickConnectCode)
     {
         throw new NotImplementedException("QuickConnect not supported on Windows");
     }
 
-    public async Task<HomeData> GetHomeDataAsync()
+    public Task<HomeData> GetHomeDataAsync()
     {
         var serverUrl = GetServerUrl();
         var token = GetToken();
@@ -83,13 +83,13 @@ public class ApiService
 
         if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(token) || string.IsNullOrEmpty(userId))
         {
-            return new HomeData();
+            return Task.FromResult(new HomeData());
         }
 
         try
         {
             var songs = LoadCachedSongsInternal();
-            
+
             var homeData = AureliaCore.AureliaCore.DeriveMobileHomeData(
                 songs,
                 12,
@@ -98,21 +98,21 @@ public class ApiService
                 12
             );
 
-            return new HomeData(
+            return Task.FromResult(new HomeData(
                 MostPlayed: homeData.mostPlayed,
                 RecentlyPlayed: homeData.recentlyPlayed,
                 RecentlyAddedAlbums: homeData.recentlyAdded,
                 RandomAlbums: homeData.randomAlbums,
                 FeaturedAlbums: homeData.featuredAlbums
-            );
+            ));
         }
         catch (Exception)
         {
-            return new HomeData();
+            return Task.FromResult(new HomeData());
         }
     }
 
-    public async Task<List<AureliaCore.Song>> GetSongsAsync(string? artistId = null, string? albumId = null, int limit = 100, int startIndex = 0)
+    public Task<List<AureliaCore.Song>> GetSongsAsync(string? artistId = null, string? albumId = null, int limit = 100, int startIndex = 0)
     {
         var songs = LoadCachedSongsInternal().ToList();
 
@@ -140,13 +140,13 @@ public class ApiService
                 .ToList();
         }
 
-        return songs
+        return Task.FromResult(songs
             .Skip(startIndex)
             .Take(limit)
-            .ToList();
+            .ToList());
     }
 
-    public async Task<List<AureliaCore.Album>> GetAlbumsAsync(string? artistId = null, int limit = 100, int startIndex = 0)
+    public Task<List<AureliaCore.Album>> GetAlbumsAsync(string? artistId = null, int limit = 100, int startIndex = 0)
     {
         var songs = LoadCachedSongsInternal();
         var serverUrl = GetServerUrl();
@@ -166,7 +166,7 @@ public class ApiService
         // Sort alphabetically by album name
         albums = albums.OrderBy(s => s.album, StringComparer.OrdinalIgnoreCase).ToList();
 
-        return albums
+        return Task.FromResult(albums
             .Skip(startIndex)
             .Take(limit)
             .Select(s => new AureliaCore.Album(
@@ -184,7 +184,7 @@ public class ApiService
                 null,
                 null
             ))
-            .ToList();
+            .ToList());
     }
 
     public async Task<AureliaCore.Album?> GetAlbumAsync(string albumId)
@@ -208,7 +208,7 @@ public class ApiService
         }
     }
 
-    public async Task<List<AureliaCore.Artist>> GetArtistsAsync(int limit = 100, int startIndex = 0)
+    public Task<List<AureliaCore.Artist>> GetArtistsAsync(int limit = 100, int startIndex = 0)
     {
         var songs = LoadCachedSongsInternal();
         var serverUrl = GetServerUrl();
@@ -242,7 +242,7 @@ public class ApiService
             ))
             .ToList();
 
-        return artists;
+        return Task.FromResult(artists);
     }
 
     public async Task<AureliaCore.Artist?> GetArtistAsync(string artistId)
@@ -329,35 +329,29 @@ public class ApiService
         }
     }
 
-    public async Task<List<AureliaCore.Song>> SearchAsync(string query)
+    public Task<List<AureliaCore.Song>> SearchAsync(string query)
     {
         var songs = LoadCachedSongsInternal();
-        
+
         if (string.IsNullOrWhiteSpace(query))
         {
-            return [];
+            return Task.FromResult<List<AureliaCore.Song>>([]);
         }
 
         var lowerQuery = query.ToLowerInvariant();
-        return songs
-            .Where(s => 
+        return Task.FromResult(songs
+            .Where(s =>
                 (s.name?.ToLowerInvariant().Contains(lowerQuery) == true) ||
                 (s.album?.ToLowerInvariant().Contains(lowerQuery) == true) ||
                 (s.artists?.Any(a => a.ToLowerInvariant().Contains(lowerQuery)) == true))
-            .ToList();
+            .ToList());
     }
 
-    public async Task ReportPlaybackStartAsync(string itemId)
-    {
-    }
+    public Task ReportPlaybackStartAsync(string itemId) => Task.CompletedTask;
 
-    public async Task ReportPlaybackProgressAsync(string itemId, long positionTicks)
-    {
-    }
+    public Task ReportPlaybackProgressAsync(string itemId, long positionTicks) => Task.CompletedTask;
 
-    public async Task ReportPlaybackStoppedAsync(string itemId, long positionTicks)
-    {
-    }
+    public Task ReportPlaybackStoppedAsync(string itemId, long positionTicks) => Task.CompletedTask;
 
     public async Task<bool> ToggleFavoriteAsync(string itemId, bool isFavorite)
     {
@@ -409,13 +403,13 @@ public class ApiService
         }
     }
 
-    public async Task<string?> GetImageUrlAsync(string itemId, ImageType type = ImageType.Primary, int maxWidth = 600)
+    public Task<string?> GetImageUrlAsync(string itemId, ImageType type = ImageType.Primary, int maxWidth = 600)
     {
         var serverUrl = GetServerUrl();
         var token = GetToken();
         if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(token))
         {
-            return null;
+            return Task.FromResult<string?>(null);
         }
 
         var imageType = type switch
@@ -427,7 +421,7 @@ public class ApiService
             _ => "Primary"
         };
 
-        return $"{serverUrl}/Items/{itemId}/Images/{imageType}?MaxWidth={maxWidth}&Quality=90&api_key={token}";
+        return Task.FromResult<string?>($"{serverUrl}/Items/{itemId}/Images/{imageType}?MaxWidth={maxWidth}&Quality=90&api_key={token}");
     }
 
     public async Task SyncLibraryAsync()
@@ -476,7 +470,7 @@ public class ApiService
         }
     }
 
-    public async Task<string> GetStreamUrlAsync(string itemId, string? container = null)
+    public Task<string> GetStreamUrlAsync(string itemId, string? container = null)
     {
         var serverUrl = GetServerUrl();
         var token = GetToken();
@@ -484,7 +478,7 @@ public class ApiService
         if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(token))
         {
             Logger.Info($"[GetStreamUrlAsync] ERROR: serverUrl or token is empty. serverUrl: '{(string.IsNullOrEmpty(serverUrl) ? "(empty)" : serverUrl)}', token: '{(string.IsNullOrEmpty(token) ? "(empty)" : "[REDACTED]")}'");
-            return string.Empty;
+            return Task.FromResult(string.Empty);
         }
 
         try
@@ -492,16 +486,16 @@ public class ApiService
             Logger.Info($"[GetStreamUrlAsync] Building stream URL for itemId: {itemId}, container: {(container ?? "(null)")}");
             var result = AureliaCore.AureliaCore.BuildStreamUrl(serverUrl, token, itemId, container);
             Logger.Info($"[GetStreamUrlAsync] Result: {(string.IsNullOrEmpty(result) ? "(empty)" : result.Substring(0, Math.Min(100, result.Length)) + "...")}");
-            return result;
+            return Task.FromResult(result);
         }
         catch (Exception ex)
         {
             Logger.Info($"[GetStreamUrlAsync] EXCEPTION: {ex}");
-            return string.Empty;
+            return Task.FromResult(string.Empty);
         }
     }
 
-    public async Task<string> GetFallbackStreamUrlAsync(string itemId, string? container = null)
+    public Task<string> GetFallbackStreamUrlAsync(string itemId, string? container = null)
     {
         var serverUrl = GetServerUrl();
         var token = GetToken();
@@ -509,7 +503,7 @@ public class ApiService
         if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(token))
         {
             Logger.Info("[GetFallbackStreamUrlAsync] Missing server URL or token");
-            return string.Empty;
+            return Task.FromResult(string.Empty);
         }
 
         try
@@ -517,20 +511,19 @@ public class ApiService
             var normalizedServer = serverUrl.TrimEnd('/');
             var escapedId = Uri.EscapeDataString(itemId);
             var escapedToken = Uri.EscapeDataString(token);
-            var result =
-                $"{normalizedServer}/Audio/{escapedId}/stream.aac?api_key={escapedToken}";
+            var result = $"{normalizedServer}/Audio/{escapedId}/stream.aac?api_key={escapedToken}";
             Logger.Info($"[GetFallbackStreamUrlAsync] Building lossy fallback stream URL for itemId: {itemId}, container: {(container ?? "(null)")}");
             Logger.Info($"[GetFallbackStreamUrlAsync] Result: {(string.IsNullOrEmpty(result) ? "(empty)" : result.Substring(0, Math.Min(100, result.Length)) + "...")}");
-            return result;
+            return Task.FromResult(result);
         }
         catch (Exception ex)
         {
             Logger.Info($"[GetFallbackStreamUrlAsync] EXCEPTION: {ex}");
-            return string.Empty;
+            return Task.FromResult(string.Empty);
         }
     }
 
-    public async Task<List<string>> GetLosslessFallbackStreamUrlsAsync(string itemId, string? container = null)
+    public Task<List<string>> GetLosslessFallbackStreamUrlsAsync(string itemId, string? container = null)
     {
         var serverUrl = GetServerUrl();
         var token = GetToken();
@@ -539,7 +532,7 @@ public class ApiService
         if (string.IsNullOrEmpty(serverUrl) || string.IsNullOrEmpty(token))
         {
             Logger.Info("[GetLosslessFallbackStreamUrlsAsync] Missing server URL or token");
-            return urls;
+            return Task.FromResult(urls);
         }
 
         var normalizedServer = serverUrl.TrimEnd('/');
@@ -572,7 +565,18 @@ public class ApiService
         );
 
         Logger.Info($"[GetLosslessFallbackStreamUrlsAsync] Built {urls.Count} lossless fallback URL(s) for itemId: {itemId}, container: {(container ?? "(null)")}");
-        return urls;
+        return Task.FromResult(urls);
+    }
+
+    public AureliaCore.SyncProgress GetSyncProgress()
+    {
+        return AureliaCore.AureliaCore.GetSyncProgress();
+    }
+
+    public bool HasCachedLibrary()
+    {
+        var songs = LoadCachedSongsInternal();
+        return songs.Length > 0;
     }
 
     private AureliaCore.Song[] LoadCachedSongsInternal()

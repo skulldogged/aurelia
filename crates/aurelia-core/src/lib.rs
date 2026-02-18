@@ -1022,6 +1022,16 @@ pub async fn sync_songs_only(
     db::sync_songs_only(&songs).map_err(|e| error::AppError::Database(e.to_string()))
 }
 
+/// Returns the current sync progress for UI polling.
+/// Updated after each page during a full sync; resets to default between syncs.
+#[uniffi::export]
+pub fn get_sync_progress() -> domain::SyncProgress {
+    db::SYNC_PROGRESS
+        .lock()
+        .map(|g| g.clone())
+        .unwrap_or_default()
+}
+
 /// Smart sync: paginated + incremental. Decides whether to do a full or delta sync
 /// based on the existing SyncState. Handles large libraries without OOM and
 /// resumes interrupted full syncs.
