@@ -64,10 +64,36 @@
                     Opacity="0.7"
                     Margin="0,0,0,24" />
 
-                <TextBlock 
+                <TextBlock
+                    Text="Lyrics"
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    Margin="0,24,0,4" />
+
+                <TextBlock
+                    Text="Lyrics daemon URL"
+                    FontSize="13"
+                    Opacity="0.7"
+                    Margin="0,0,0,6" />
+
+                <TextBox
+                    x:Name="LyricsServerUrlBox"
+                    PlaceholderText="http://localhost:3030"
+                    MaxWidth="400"
+                    HorizontalAlignment="Left"
+                    TextChanged="LyricsServerUrl_TextChanged"
+                    Margin="0,0,0,4" />
+
+                <TextBlock
+                    Text="Used to fetch synced lyrics from a local daemon (e.g. lrclib-server)."
+                    FontSize="12"
+                    Opacity="0.5"
+                    Margin="0,0,0,24" />
+
+                <TextBlock
                     Text="About"
-                    FontSize="18" 
-                    FontWeight="SemiBold" 
+                    FontSize="18"
+                    FontWeight="SemiBold"
                     Margin="0,24,0,12" />
 
                 <TextBlock Text="Aurelia Music Player" />

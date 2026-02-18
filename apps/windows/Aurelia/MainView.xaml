@@ -143,13 +143,14 @@
                             Spacing="4">
                             <Button
                                 x:Name="MiniPlayerLyrics"
+                                Click="MiniPlayerLyrics_Click"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Width="36" Height="36"
                                 Padding="0"
-                                CornerRadius="18"
-                                IsHitTestVisible="False">
-                                <FontIcon Glyph="&#xE8F2;" FontSize="14" Opacity="0.4" />
+                                CornerRadius="18">
+                                <FontIcon x:Name="MiniLyricsIcon" Glyph="&#xE8F2;" FontSize="14"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </Button>
                             <Button
                                 x:Name="MiniPlayerQueue"

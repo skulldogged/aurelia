@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using AureliaCore;
-
 namespace Aurelia.Models;
 
 public record JellyfinCredentials(
@@ -31,9 +27,8 @@ public record HomeData(
     IReadOnlyList<Album>? FeaturedAlbums = null
 );
 
-public enum RepeatMode
-{
-    Off,
-    All,
-    One
+public enum RepeatMode {
+  Off,
+  All,
+  One
 }

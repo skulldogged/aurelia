@@ -51,4 +51,12 @@
     <Copy SourceFiles="$(RustDll)" DestinationFolder="$(TargetDir)" Condition="Exists('$(RustDll)')" SkipUnchangedFiles="true" />
     <Warning Text="Rust DLL not found at $(RustDll)" Condition="!Exists('$(RustDll)')" />
   </Target>
+
+  <ItemGroup>
+    <EditorConfigFiles Remove="C:\Users\Marshall\Projects\Aurelia\apps\windows\Aurelia\.editorconfig" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="C:\Users\Marshall\Projects\Aurelia\apps\windows\Aurelia\.editorconfig" />
+  </ItemGroup>
 </Project>
