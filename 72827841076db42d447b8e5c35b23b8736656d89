@@ -1,0 +1,58 @@
+apps/windows/Aurelia/LyricsView.xaml.cs
+  a1f0dfb6c8a62208 2-8,12-14,16-31,33-40,90-101,106-112,114,117-119,122-123,146-150,157-158,160,162,170-171,190,192-201,204,209-210,213-214,216,238-243,250-251,255-262,265,270,324-327,330-337,339,342-349,351-353,356-361,363-367,370,379,381
+apps/windows/Aurelia/SettingsView.xaml
+  a1f0dfb6c8a62208 68-93
+apps/windows/Aurelia/MainView.xaml
+  a1f0dfb6c8a62208 146,152-153
+apps/windows/Aurelia/PlayerView.xaml
+  05f997c3c435db65 36,40-44,75
+  a1f0dfb6c8a62208 5,72,74,137,145
+apps/windows/Aurelia/App.xaml
+  05f997c3c435db65 6,12-14
+apps/windows/Aurelia/PlayerView.xaml.cs
+  a1f0dfb6c8a62208 104,259,262,265-276,278
+  05f997c3c435db65 136,150,186-189
+apps/windows/Aurelia/LyricsView.xaml
+  a1f0dfb6c8a62208 1-6,28,41-42,44-45
+apps/windows/Aurelia/SettingsView.xaml.cs
+  a1f0dfb6c8a62208 1,10-12,19-20,36-39
+apps/windows/Aurelia/Services/SessionService.cs
+  a1f0dfb6c8a62208 47,56
+apps/windows/Aurelia/MainView.xaml.cs
+  a1f0dfb6c8a62208 23-25,63,65,141-146,149-152
+apps/windows/Aurelia/Services/ApiService.cs
+  a1f0dfb6c8a62208 268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.4",
+  "base_commit_sha": "72827841076db42d447b8e5c35b23b8736656d89",
+  "prompts": {
+    "05f997c3c435db65": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_3907731dcffe7GFmuz2LmQ6QYT",
+        "model": "unknown"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 512,
+      "total_deletions": 390,
+      "accepted_lines": 19,
+      "overriden_lines": 23
+    },
+    "a1f0dfb6c8a62208": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c9be97bb-9b86-41d1-86d9-c940cc36d536",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 1016,
+      "total_deletions": 405,
+      "accepted_lines": 238,
+      "overriden_lines": 96
+    }
+  }
+}
