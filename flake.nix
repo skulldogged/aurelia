@@ -245,7 +245,7 @@
 
             package = lib.mkOption {
               type = lib.types.package;
-              default = self.packages.${pkgs.system}.aurelia-web;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.aurelia-web;
               description = "The Aurelia web package to use.";
             };
 
@@ -366,7 +366,7 @@
 
             package = lib.mkOption {
               type = lib.types.package;
-              default = self.packages.${pkgs.system}.aurelia-sidecar-daemon;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.aurelia-sidecar-daemon;
               description = "The aurelia-sidecar-daemon package to use.";
             };
 
