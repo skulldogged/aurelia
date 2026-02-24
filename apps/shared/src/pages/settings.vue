@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import type { Component } from 'vue'
+  import type { Credentials } from '../generated'
 
   import { BookOpen, Info, Palette, Plug, Server } from 'lucide-vue-next'
   import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
@@ -12,13 +13,6 @@
   import LibrarySettings from '../components/settings/LibrarySettings.vue'
   import ServerSettings from '../components/settings/ServerSettings.vue'
   import { useTopBar } from '../composables/useTopBar'
-
-  interface Credentials {
-    serverUrl: string
-    token:     string
-    userId:    string
-    username:  string
-  }
 
   interface SettingTab {
     description: string

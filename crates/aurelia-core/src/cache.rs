@@ -6,9 +6,7 @@ use serde_json;
 use std::path::PathBuf;
 
 fn init_db(app_data_dir: &PathBuf) -> Result<()> {
-    if db::DB.get().is_none() {
-        db::init(app_data_dir)?;
-    }
+    db::init(app_data_dir)?;
     Ok(())
 }
 
@@ -206,6 +204,7 @@ mod tests {
     fn save_and_clear_credentials() {
         let app_dir = init_db();
         let creds = Credentials {
+            provider: crate::models::BackendProvider::Jellyfin,
             server_url: "http://localhost:8096".to_string(),
             username: "user".to_string(),
             token: "token".to_string(),
@@ -223,5 +222,30 @@ mod tests {
         clear_credentials(app_dir.clone()).expect("clear");
         let cleared = load_credentials(app_dir).expect("load after clear");
         assert!(cleared.is_none());
+    }
+
+    #[test]
+    #[serial]
+    fn load_credentials_defaults_provider_for_previous_record() {
+        let app_dir = init_db();
+        let database = db::get().expect("database");
+        let write_txn = database.begin_write().expect("write txn");
+        {
+            let mut table = write_txn
+                .open_table(crate::db::schema::CREDENTIALS)
+                .expect("credentials table");
+            let previous_json =
+                br#"{"serverUrl":"http://localhost:8096","username":"user","token":"token","userId":"user-id"}"#;
+            table.insert("main", previous_json.as_slice()).expect("insert");
+        }
+        write_txn.commit().expect("commit");
+
+        let loaded = load_credentials(app_dir).expect("load");
+        let loaded = loaded.expect("credentials present");
+        assert_eq!(loaded.provider, crate::models::BackendProvider::Jellyfin);
+        assert_eq!(loaded.server_url, "http://localhost:8096");
+        assert_eq!(loaded.username, "user");
+        assert_eq!(loaded.token, "token");
+        assert_eq!(loaded.user_id, "user-id");
     }
 }

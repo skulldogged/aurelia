@@ -1,6 +1,13 @@
 # Aurelia
 
-Aurelia is a multi-platform Jellyfin music client monorepo.
+Aurelia is a multi-platform music client monorepo with first-class Jellyfin and Navidrome support.
+
+## Backend Providers
+
+- Supported providers: `Jellyfin`, `Navidrome` (OpenSubsonic)
+- Login supports provider auto-detection from server URL
+- Manual provider override is available on each app login flow
+- Provider capabilities are queried at runtime and unsupported actions are explicitly gated in UI
 
 ## Applications
 

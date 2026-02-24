@@ -1,11 +1,32 @@
 <script setup lang="ts">
-  import { Disc, Home, ListMusic, Music, Search, Settings, Users } from 'lucide-vue-next'
-  import { computed } from 'vue'
+  import { Check, ChevronsUpDown, Disc, Home, ListMusic, LogOut, Music, Plus, RefreshCw, Search, Settings, Users } from 'lucide-vue-next'
+  import { computed, onMounted, ref } from 'vue'
+  import { useRouter } from 'vue-router'
 
+  import type { Credentials } from '../../generated'
+
+  import { apiClient } from '../../api/apiClient'
+  import AddProfileDialog from '../auth/AddProfileDialog.vue'
+  import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+  } from '../ui/dropdown-menu'
+  import {
+    buildProfileId,
+    getActiveProfileId,
+    loadProfiles,
+    setActiveProfileId,
+    type AuthProfile,
+  } from '../../lib/profileStorage'
   import { getPlatform, Platform } from '../../lib/platform'
-  import { usePlayerStore } from '../../stores'
+  import { useAuthStore, usePlayerStore } from '../../stores'
 
   const isMacos = computed(() => getPlatform() === Platform.MacOS)
+  const router = useRouter()
 
   const props = defineProps<{
     currentView: string
@@ -14,6 +35,7 @@
 
   const emit = defineEmits<{
     'global-search': []
+    logout:          []
     navigate:        [view: string]
   }>()
 
@@ -52,10 +74,93 @@
   const searchIconClass = computed(() => 'w-12 shrink-0 flex justify-center items-center -ml-px')
 
   const playerStore = usePlayerStore()
+  const authStore = useAuthStore()
+  const profileActionError = ref('')
+  const profiles = ref<AuthProfile[]>([])
+  const showAddProfileDialog = ref(false)
+  const switchingProfileId = ref<null | string>(null)
 
   const shadowBottomClass = computed(() =>
     playerStore.playlist.length > 0 ? 'bottom-20' : 'bottom-0',
   )
+
+  const currentCredentials = computed<Credentials | null>(() => {
+    if (!authStore.token || !authStore.serverUrl || !authStore.userId)
+      return null
+
+    return {
+      provider:  authStore.provider,
+      serverUrl: authStore.serverUrl,
+      token:     authStore.token,
+      userId:    authStore.userId,
+      username:  authStore.username,
+    }
+  })
+
+  const activeProfileId = computed(() => {
+    const explicitActive = getActiveProfileId()
+    if (explicitActive) return explicitActive
+    if (!currentCredentials.value) return null
+    return buildProfileId(currentCredentials.value)
+  })
+
+  const activeProfileLabel = computed(() => {
+    const active = profiles.value.find(profile => profile.id === activeProfileId.value)
+    if (active) return active.label
+    if (currentCredentials.value?.username)
+      return `${currentCredentials.value.username} (${currentCredentials.value.provider ?? 'jellyfin'})`
+    return 'Account'
+  })
+
+  const refreshProfiles = (): void => {
+    profiles.value = loadProfiles()
+  }
+
+  onMounted(() => {
+    refreshProfiles()
+  })
+
+  const switchProfile = async (profile: AuthProfile): Promise<void> => {
+    if (profile.id === activeProfileId.value) return
+
+    profileActionError.value = ''
+    switchingProfileId.value = profile.id
+
+    try {
+      const saveResult = await apiClient.saveCredentials(profile.credentials)
+      if (saveResult.status === 'error') {
+        throw new Error(String(saveResult.error))
+      }
+      setActiveProfileId(profile.id)
+      window.location.reload()
+    } catch (error) {
+      profileActionError.value = `Failed to switch profile: ${String(error)}`
+    } finally {
+      switchingProfileId.value = null
+    }
+  }
+
+  const onProfileAdded = (): void => {
+    profileActionError.value = ''
+    refreshProfiles()
+  }
+
+  const handleLogout = async (): Promise<void> => {
+    profileActionError.value = ''
+
+    try {
+      await apiClient.clearSavedCredentials()
+    } catch {
+      // Ignore backend logout errors and continue local logout.
+    }
+
+    setActiveProfileId(null)
+    emit('logout')
+  }
+
+  const openServerSettings = (): void => {
+    router.push('/settings')
+  }
 </script>
 
 <template>
@@ -202,6 +307,91 @@
           </div>
         </RouterLink>
       </nav>
+
+      <div class='m-2 mt-0 border-t border-border/20 pt-2'>
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <button
+              class='
+                w-full h-10 rounded-md border border-border/40 bg-background/60
+                hover:bg-accent/10 transition-colors flex items-center text-sm
+              '
+              type='button'
+            >
+              <div :class='navIconClass'>
+                <Users class='size-5 text-muted-foreground' />
+              </div>
+              <div
+                :class="[
+                  'overflow-hidden transition-all duration-150 ease-in-out flex items-center justify-between w-full pr-2',
+                  isCollapsed ? 'max-w-0 opacity-0' : 'max-w-full opacity-100',
+                ]"
+              >
+                <span class='truncate text-left text-foreground/90'>
+                  {{ activeProfileLabel }}
+                </span>
+                <ChevronsUpDown class='size-4 text-muted-foreground shrink-0 ml-2' />
+              </div>
+            </button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent
+            :align='isCollapsed ? "start" : "end"'
+            :side='isCollapsed ? "right" : "top"'
+            class='w-72'
+          >
+            <DropdownMenuLabel>Profiles</DropdownMenuLabel>
+            <DropdownMenuItem
+              v-for='profile in profiles'
+              @click='switchProfile(profile)'
+              :disabled='switchingProfileId === profile.id || activeProfileId === profile.id'
+              :key='profile.id'
+              class='gap-2'
+            >
+              <RefreshCw v-if='switchingProfileId === profile.id' class='size-3 animate-spin' />
+              <Check v-else-if='activeProfileId === profile.id' class='size-3' />
+              <span v-else class='size-3' />
+              <span class='truncate'>
+                {{ profile.label }}
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem v-if='profiles.length === 0' disabled>
+              No saved profiles
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem @click='showAddProfileDialog = true' class='gap-2'>
+              <Plus class='size-3' />
+              Add Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem @click='openServerSettings' class='gap-2'>
+              <Settings class='size-3' />
+              Manage Profiles
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuItem @click='handleLogout' class='gap-2 text-destructive focus:text-destructive'>
+              <LogOut class='size-3' />
+              Log Out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <p
+          v-if='profileActionError && !isCollapsed'
+          class='text-xs text-destructive mt-2 px-1'
+        >
+          {{ profileActionError }}
+        </p>
+      </div>
     </div>
+
+    <AddProfileDialog
+      @profile-added='onProfileAdded'
+      @update:open='showAddProfileDialog = $event'
+      :open='showAddProfileDialog'
+    />
   </div>
 </template>

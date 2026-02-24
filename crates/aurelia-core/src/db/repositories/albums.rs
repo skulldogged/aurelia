@@ -2,13 +2,14 @@ use crate::db::schema::*;
 use crate::models::Album;
 use anyhow::Result;
 use redb::{Database, ReadableDatabase, ReadableTable};
+use std::sync::Arc;
 
 pub struct AlbumRepository {
-    db: &'static Database,
+    db: Arc<Database>,
 }
 
 impl AlbumRepository {
-    pub fn new(db: &'static Database) -> Self {
+    pub fn new(db: Arc<Database>) -> Self {
         Self { db }
     }
 

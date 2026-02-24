@@ -160,6 +160,7 @@
     <!-- Desktop sidebar -->
     <Sidebar
       @global-search="$emit('global-search')"
+      @logout="$emit('logout')"
       @navigate="(view: string) => emit('navigate', view)"
       :current-view='navigationState.currentView'
       :is-collapsed='isSidebarCollapsed'

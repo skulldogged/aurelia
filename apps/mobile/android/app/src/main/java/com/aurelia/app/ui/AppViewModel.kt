@@ -11,15 +11,20 @@ class AppViewModel(
   private val mutableState = MutableStateFlow(checkSessionState())
   val state: StateFlow<AppState> = mutableState
 
-  private fun checkSessionState(): AppState {
+  private fun checkSessionState(sessionVersion: Int = mutableState.value.sessionVersion): AppState {
     val hasSession =
       !sessionStore.getServerUrl().isNullOrBlank() &&
         !sessionStore.getUserId().isNullOrBlank() &&
         !sessionStore.getToken().isNullOrBlank()
-    return AppState(isLoading = false, isLoggedIn = hasSession)
+    return AppState(isLoading = false, isLoggedIn = hasSession, sessionVersion = sessionVersion)
   }
 
   fun checkSession() {
-    mutableState.value = checkSessionState()
+    mutableState.value = checkSessionState(mutableState.value.sessionVersion)
+  }
+
+  fun refreshForSessionSwitch() {
+    val nextVersion = mutableState.value.sessionVersion + 1
+    mutableState.value = checkSessionState(nextVersion)
   }
 }

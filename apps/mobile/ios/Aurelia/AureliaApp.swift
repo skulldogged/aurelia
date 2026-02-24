@@ -20,6 +20,7 @@ struct AureliaApp: App {
                     if let playerController {
                         MainView()
                             .environment(playerController)
+                            .id("session-\(appViewModel.sessionVersion)")
                     } else {
                         ZStack {
                             AureliaBackground()
@@ -65,6 +66,10 @@ struct AureliaApp: App {
                 @unknown default:
                     break
                 }
+            }
+            .onChange(of: appViewModel.sessionVersion) { _, _ in
+                playerController?.stop()
+                playerController = nil
             }
         }
         .commands {

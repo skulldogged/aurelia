@@ -647,7 +647,31 @@ internal object IntegrityCheckingUniffiLib {
     }
     external fun uniffi_aurelia_core_checksum_func_add_playlist_items(
     ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_get_position_secs(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_get_volume_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_init_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_is_finished_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_is_playing_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_pause_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_play_url(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_resume_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_seek_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_set_volume_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_stop_player(
+    ): Short
     external fun uniffi_aurelia_core_checksum_func_authenticate(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_build_image_url(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_build_mobile_stream_url(
     ): Short
@@ -667,6 +691,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_aurelia_core_checksum_func_derive_mobile_home_data(
     ): Short
+    external fun uniffi_aurelia_core_checksum_func_detect_provider(
+    ): Short
     external fun uniffi_aurelia_core_checksum_func_fetch_album(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_fetch_artist(
@@ -678,6 +704,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_aurelia_core_checksum_func_get_cached_artist(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_get_cached_song(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_favorite_ids(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_get_instant_mix(
     ): Short
@@ -691,11 +719,15 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_aurelia_core_checksum_func_get_playlists(
     ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_provider_capabilities(
+    ): Short
     external fun uniffi_aurelia_core_checksum_func_get_recently_played(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_get_related_artists(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_get_song_share_urls(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_get_sync_progress(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_get_sync_state(
     ): Short
@@ -707,6 +739,16 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_aurelia_core_checksum_func_mark_item_played(
     ): Short
+    external fun uniffi_aurelia_core_checksum_func_media_controls_clear_now_playing(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_media_controls_init(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_media_controls_pop_event(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_media_controls_set_playback_status(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_media_controls_update_now_playing(
+    ): Short
     external fun uniffi_aurelia_core_checksum_func_ping(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_remove_playlist_items(
@@ -716,6 +758,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_aurelia_core_checksum_func_save_setting(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_set_library_sync_state(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_sync_favorites(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_sync_library_smart(
     ): Short
@@ -741,8 +785,32 @@ internal object UniffiLib {
     }
     external fun uniffi_aurelia_core_fn_func_add_playlist_items(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,`itemIds`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_aurelia_core_fn_func_authenticate(`serverUrl`: RustBuffer.ByValue,`username`: RustBuffer.ByValue,`password`: RustBuffer.ByValue,`deviceId`: RustBuffer.ByValue,
+external fun uniffi_aurelia_core_fn_func_audio_get_position_secs(
 ): Long
+external fun uniffi_aurelia_core_fn_func_audio_get_volume_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_init_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_is_finished_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_is_playing_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_pause_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_play_url(`url`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`startTimeSecs`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_resume_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_seek_player(`positionSecs`: Double,
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_set_volume_player(`volume`: Double,
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_stop_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_authenticate(`request`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_build_image_url(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`imageType`: RustBuffer.ByValue,`width`: RustBuffer.ByValue,`quality`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_build_mobile_stream_url(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`container`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_build_stream_url(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,`container`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -761,6 +829,8 @@ external fun uniffi_aurelia_core_fn_func_delete_setting(`appDataDir`: RustBuffer
 ): Unit
 external fun uniffi_aurelia_core_fn_func_derive_mobile_home_data(`songs`: RustBuffer.ByValue,`mostPlayedLimit`: Long,`recentlyPlayedLimit`: Long,`albumSectionLimit`: Long,`featuredAlbumsLimit`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_detect_provider(`serverUrl`: RustBuffer.ByValue,
+): Long
 external fun uniffi_aurelia_core_fn_func_fetch_album(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`albumId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_aurelia_core_fn_func_fetch_artist(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`artistId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
@@ -773,6 +843,8 @@ external fun uniffi_aurelia_core_fn_func_get_cached_artist(`appDataDir`: RustBuf
 ): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_get_cached_song(`appDataDir`: RustBuffer.ByValue,`songId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_get_favorite_ids(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,
+): Long
 external fun uniffi_aurelia_core_fn_func_get_instant_mix(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_aurelia_core_fn_func_get_library_sync_state(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -785,12 +857,16 @@ external fun uniffi_aurelia_core_fn_func_get_playlist_items(`serverUrl`: RustBuf
 ): Long
 external fun uniffi_aurelia_core_fn_func_get_playlists(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_aurelia_core_fn_func_get_provider_capabilities(`provider`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_get_recently_played(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_aurelia_core_fn_func_get_related_artists(`appDataDir`: RustBuffer.ByValue,`artistId`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_aurelia_core_fn_func_get_song_share_urls(`song`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_aurelia_core_fn_func_get_sync_progress(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_get_sync_state(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_load_cached_songs(`appDataDir`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -801,6 +877,16 @@ external fun uniffi_aurelia_core_fn_func_load_setting(`appDataDir`: RustBuffer.B
 ): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_mark_item_played(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_aurelia_core_fn_func_media_controls_clear_now_playing(uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_media_controls_init(`hwnd`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_media_controls_pop_event(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+external fun uniffi_aurelia_core_fn_func_media_controls_set_playback_status(`isPlaying`: Byte,`positionSecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
+external fun uniffi_aurelia_core_fn_func_media_controls_update_now_playing(`title`: RustBuffer.ByValue,`artist`: RustBuffer.ByValue,`album`: RustBuffer.ByValue,`durationSecs`: RustBuffer.ByValue,`coverUrl`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Unit
 external fun uniffi_aurelia_core_fn_func_ping(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_remove_playlist_items(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,`itemIds`: RustBuffer.ByValue,
@@ -811,6 +897,8 @@ external fun uniffi_aurelia_core_fn_func_save_setting(`appDataDir`: RustBuffer.B
 ): Unit
 external fun uniffi_aurelia_core_fn_func_set_library_sync_state(`appDataDir`: RustBuffer.ByValue,`stateJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+external fun uniffi_aurelia_core_fn_func_sync_favorites(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
+): Long
 external fun uniffi_aurelia_core_fn_func_sync_library_smart(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
 ): Long
 external fun uniffi_aurelia_core_fn_func_sync_songs_only(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`appDataDir`: RustBuffer.ByValue,
@@ -941,7 +1029,43 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_add_playlist_items() != 46373.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_aurelia_core_checksum_func_authenticate() != 60022.toShort()) {
+    if (lib.uniffi_aurelia_core_checksum_func_audio_get_position_secs() != 52501.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_get_volume_player() != 37228.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_init_player() != 29341.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_is_finished_player() != 33404.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_is_playing_player() != 51987.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_pause_player() != 21962.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_play_url() != 50783.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_resume_player() != 35269.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_seek_player() != 15002.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_set_volume_player() != 9428.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_stop_player() != 14955.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_authenticate() != 43633.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_build_image_url() != 4929.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_build_mobile_stream_url() != 27250.toShort()) {
@@ -971,6 +1095,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_derive_mobile_home_data() != 22516.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_detect_provider() != 4821.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_fetch_album() != 8785.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -987,6 +1114,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_get_cached_song() != 35126.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_favorite_ids() != 7917.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_get_instant_mix() != 9719.toShort()) {
@@ -1007,6 +1137,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_get_playlists() != 13349.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_get_provider_capabilities() != 18095.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_get_recently_played() != 2943.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1014,6 +1147,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_get_song_share_urls() != 18046.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_get_sync_progress() != 32226.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_get_sync_state() != 52332.toShort()) {
@@ -1031,6 +1167,21 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_mark_item_played() != 53251.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_media_controls_clear_now_playing() != 25211.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_media_controls_init() != 10081.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_media_controls_pop_event() != 15134.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_media_controls_set_playback_status() != 64605.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_media_controls_update_now_playing() != 39691.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_ping() != 25925.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1046,10 +1197,13 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_sync_favorites() != 39978.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_sync_library_smart() != 54797.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_aurelia_core_checksum_func_sync_songs_only() != 43201.toShort()) {
+    if (lib.uniffi_aurelia_core_checksum_func_sync_songs_only() != 1256.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_toggle_favorite() != 55632.toShort()) {
@@ -1642,9 +1796,67 @@ public object FfiConverterTypeArtist: FfiConverterRustBuffer<Artist> {
 
 
 /**
- * User credentials for Jellyfin authentication
+ * Authentication request payload.
+ */
+data class AuthRequest (
+    var `provider`: BackendProvider
+    , 
+    var `serverUrl`: kotlin.String
+    , 
+    var `username`: kotlin.String
+    , 
+    var `password`: kotlin.String
+    , 
+    var `deviceId`: kotlin.String
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeAuthRequest: FfiConverterRustBuffer<AuthRequest> {
+    override fun read(buf: ByteBuffer): AuthRequest {
+        return AuthRequest(
+            FfiConverterTypeBackendProvider.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: AuthRequest) = (
+            FfiConverterTypeBackendProvider.allocationSize(value.`provider`) +
+            FfiConverterString.allocationSize(value.`serverUrl`) +
+            FfiConverterString.allocationSize(value.`username`) +
+            FfiConverterString.allocationSize(value.`password`) +
+            FfiConverterString.allocationSize(value.`deviceId`)
+    )
+
+    override fun write(value: AuthRequest, buf: ByteBuffer) {
+            FfiConverterTypeBackendProvider.write(value.`provider`, buf)
+            FfiConverterString.write(value.`serverUrl`, buf)
+            FfiConverterString.write(value.`username`, buf)
+            FfiConverterString.write(value.`password`, buf)
+            FfiConverterString.write(value.`deviceId`, buf)
+    }
+}
+
+
+
+/**
+ * User credentials for backend authentication
  */
 data class Credentials (
+    var `provider`: BackendProvider
+    , 
     /**
      * Jellyfin server URL
      */
@@ -1680,6 +1892,7 @@ data class Credentials (
 public object FfiConverterTypeCredentials: FfiConverterRustBuffer<Credentials> {
     override fun read(buf: ByteBuffer): Credentials {
         return Credentials(
+            FfiConverterTypeBackendProvider.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
@@ -1688,6 +1901,7 @@ public object FfiConverterTypeCredentials: FfiConverterRustBuffer<Credentials> {
     }
 
     override fun allocationSize(value: Credentials) = (
+            FfiConverterTypeBackendProvider.allocationSize(value.`provider`) +
             FfiConverterString.allocationSize(value.`serverUrl`) +
             FfiConverterString.allocationSize(value.`username`) +
             FfiConverterString.allocationSize(value.`token`) +
@@ -1695,6 +1909,7 @@ public object FfiConverterTypeCredentials: FfiConverterRustBuffer<Credentials> {
     )
 
     override fun write(value: Credentials, buf: ByteBuffer) {
+            FfiConverterTypeBackendProvider.write(value.`provider`, buf)
             FfiConverterString.write(value.`serverUrl`, buf)
             FfiConverterString.write(value.`username`, buf)
             FfiConverterString.write(value.`token`, buf)
@@ -1842,7 +2057,7 @@ public object FfiConverterTypeLibraryData: FfiConverterRustBuffer<LibraryData> {
 
 
 /**
- * Response from successful Jellyfin login
+ * Response from successful login
  */
 data class LoginResponse (
     /**
@@ -2370,6 +2585,62 @@ public object FfiConverterTypePlaylistUpdateData: FfiConverterRustBuffer<Playlis
             FfiConverterOptionalBoolean.write(value.`isPublic`, buf)
             FfiConverterOptionalSequenceTypeSong.write(value.`songs`, buf)
             FfiConverterOptionalBoolean.write(value.`isFavorite`, buf)
+    }
+}
+
+
+
+/**
+ * Provider capabilities for feature gating.
+ */
+data class ProviderCapabilities (
+    var `supportsClientCapabilitiesRegistration`: kotlin.Boolean
+    , 
+    var `supportsPlaybackProgressReporting`: kotlin.Boolean
+    , 
+    var `supportsSidecarLyricsLookup`: kotlin.Boolean
+    , 
+    var `supportsServerLyrics`: kotlin.Boolean
+    , 
+    var `supportsInstantMix`: kotlin.Boolean
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeProviderCapabilities: FfiConverterRustBuffer<ProviderCapabilities> {
+    override fun read(buf: ByteBuffer): ProviderCapabilities {
+        return ProviderCapabilities(
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ProviderCapabilities) = (
+            FfiConverterBoolean.allocationSize(value.`supportsClientCapabilitiesRegistration`) +
+            FfiConverterBoolean.allocationSize(value.`supportsPlaybackProgressReporting`) +
+            FfiConverterBoolean.allocationSize(value.`supportsSidecarLyricsLookup`) +
+            FfiConverterBoolean.allocationSize(value.`supportsServerLyrics`) +
+            FfiConverterBoolean.allocationSize(value.`supportsInstantMix`)
+    )
+
+    override fun write(value: ProviderCapabilities, buf: ByteBuffer) {
+            FfiConverterBoolean.write(value.`supportsClientCapabilitiesRegistration`, buf)
+            FfiConverterBoolean.write(value.`supportsPlaybackProgressReporting`, buf)
+            FfiConverterBoolean.write(value.`supportsSidecarLyricsLookup`, buf)
+            FfiConverterBoolean.write(value.`supportsServerLyrics`, buf)
+            FfiConverterBoolean.write(value.`supportsInstantMix`, buf)
     }
 }
 
@@ -3138,6 +3409,75 @@ public object FfiConverterTypeAppError : FfiConverterRustBuffer<AppException> {
 
 
 
+/**
+ * Supported backend providers.
+ */
+
+enum class BackendProvider {
+    
+    JELLYFIN,
+    NAVIDROME;
+
+    
+
+
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeBackendProvider: FfiConverterRustBuffer<BackendProvider> {
+    override fun read(buf: ByteBuffer) = try {
+        BackendProvider.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: BackendProvider) = 4UL
+
+    override fun write(value: BackendProvider, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalUInt: FfiConverterRustBuffer<kotlin.UInt?> {
+    override fun read(buf: ByteBuffer): kotlin.UInt? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterUInt.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.UInt?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterUInt.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.UInt?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterUInt.write(value, buf)
+        }
+    }
+}
+
+
+
 
 /**
  * @suppress
@@ -3164,6 +3504,38 @@ public object FfiConverterOptionalInt: FfiConverterRustBuffer<kotlin.Int?> {
         } else {
             buf.put(1)
             FfiConverterInt.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalULong: FfiConverterRustBuffer<kotlin.ULong?> {
+    override fun read(buf: ByteBuffer): kotlin.ULong? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterULong.read(buf)
+    }
+
+    override fun allocationSize(value: kotlin.ULong?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterULong.allocationSize(value)
+        }
+    }
+
+    override fun write(value: kotlin.ULong?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterULong.write(value, buf)
         }
     }
 }
@@ -3889,9 +4261,181 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
 
     @Throws(AppException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
-     suspend fun `authenticate`(`serverUrl`: kotlin.String, `username`: kotlin.String, `password`: kotlin.String, `deviceId`: kotlin.String) : LoginResponse {
+     suspend fun `audioGetPositionSecs`() : kotlin.Double {
         return uniffiRustCallAsync(
-        UniffiLib.uniffi_aurelia_core_fn_func_authenticate(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`username`),FfiConverterString.lower(`password`),FfiConverterString.lower(`deviceId`),),
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_get_position_secs(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_f64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_f64(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_f64(future) },
+        // lift function
+        { FfiConverterDouble.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioGetVolumePlayer`() : kotlin.Double {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_get_volume_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_f64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_f64(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_f64(future) },
+        // lift function
+        { FfiConverterDouble.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioInitPlayer`() {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_init_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioIsFinishedPlayer`() : kotlin.Boolean {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_is_finished_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_i8(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_i8(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_i8(future) },
+        // lift function
+        { FfiConverterBoolean.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioIsPlayingPlayer`() : kotlin.Boolean {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_is_playing_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_i8(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_i8(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_i8(future) },
+        // lift function
+        { FfiConverterBoolean.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioPausePlayer`() {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_pause_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioPlayUrl`(`url`: kotlin.String, `token`: kotlin.String, `startTimeSecs`: kotlin.Double?) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_play_url(FfiConverterString.lower(`url`),FfiConverterString.lower(`token`),FfiConverterOptionalDouble.lower(`startTimeSecs`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioResumePlayer`() {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_resume_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioSeekPlayer`(`positionSecs`: kotlin.Double) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_seek_player(FfiConverterDouble.lower(`positionSecs`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioSetVolumePlayer`(`volume`: kotlin.Double) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_set_volume_player(FfiConverterDouble.lower(`volume`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioStopPlayer`() {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_stop_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `authenticate`(`request`: AuthRequest) : LoginResponse {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_authenticate(FfiConverterTypeAuthRequest.lower(`request`),),
         { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
         { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
@@ -3901,6 +4445,17 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
         AppException.ErrorHandler,
     )
     }
+
+    @Throws(AppException::class) fun `buildImageUrl`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String, `imageType`: kotlin.String, `width`: kotlin.UInt?, `quality`: kotlin.UInt?): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_build_image_url(
+    
+        FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),FfiConverterString.lower(`imageType`),FfiConverterOptionalUInt.lower(`width`),FfiConverterOptionalUInt.lower(`quality`),_status)
+}
+    )
+    }
+    
 
         /**
          * Build a stream URL optimized for mobile playback.
@@ -4010,6 +4565,21 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
     }
     
 
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `detectProvider`(`serverUrl`: kotlin.String) : BackendProvider {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_detect_provider(FfiConverterString.lower(`serverUrl`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterTypeBackendProvider.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
         /**
          * Fetch a single album from server and cache it
          */
@@ -4105,6 +4675,21 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
 
     @Throws(AppException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `getFavoriteIds`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String) : List<kotlin.String> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_get_favorite_ids(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceString.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
      suspend fun `getInstantMix`(`serverUrl`: kotlin.String, `token`: kotlin.String, `itemId`: kotlin.String) : List<Song> {
         return uniffiRustCallAsync(
         UniffiLib.uniffi_aurelia_core_fn_func_get_instant_mix(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`itemId`),),
@@ -4186,6 +4771,16 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
         AppException.ErrorHandler,
     )
     }
+ fun `getProviderCapabilities`(`provider`: BackendProvider): ProviderCapabilities {
+            return FfiConverterTypeProviderCapabilities.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_get_provider_capabilities(
+    
+        FfiConverterTypeBackendProvider.lower(`provider`),_status)
+}
+    )
+    }
+    
 
     @Throws(AppException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
@@ -4231,6 +4826,20 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
         AppException.ErrorHandler,
     )
     }
+
+        /**
+         * Returns the current sync progress for UI polling.
+         * Updated after each page during a full sync; resets to default between syncs.
+         */ fun `getSyncProgress`(): SyncProgress {
+            return FfiConverterTypeSyncProgress.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_get_sync_progress(
+    
+        _status)
+}
+    )
+    }
+    
 
         /**
          * Get sync state as a typed struct (better for UI binding)
@@ -4294,6 +4903,56 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
         AppException.ErrorHandler,
     )
     }
+
+    @Throws(AppException::class) fun `mediaControlsClearNowPlaying`()
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_clear_now_playing(
+    
+        _status)
+}
+    
+    
+
+    @Throws(AppException::class) fun `mediaControlsInit`(`hwnd`: kotlin.ULong?)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_init(
+    
+        FfiConverterOptionalULong.lower(`hwnd`),_status)
+}
+    
+    
+ fun `mediaControlsPopEvent`(): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_pop_event(
+    
+        _status)
+}
+    )
+    }
+    
+
+    @Throws(AppException::class) fun `mediaControlsSetPlaybackStatus`(`isPlaying`: kotlin.Boolean, `positionSecs`: kotlin.Double?)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_set_playback_status(
+    
+        FfiConverterBoolean.lower(`isPlaying`),FfiConverterOptionalDouble.lower(`positionSecs`),_status)
+}
+    
+    
+
+    @Throws(AppException::class) fun `mediaControlsUpdateNowPlaying`(`title`: kotlin.String, `artist`: kotlin.String?, `album`: kotlin.String?, `durationSecs`: kotlin.Double?, `coverUrl`: kotlin.String?)
+        = 
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_update_now_playing(
+    
+        FfiConverterString.lower(`title`),FfiConverterOptionalString.lower(`artist`),FfiConverterOptionalString.lower(`album`),FfiConverterOptionalDouble.lower(`durationSecs`),FfiConverterOptionalString.lower(`coverUrl`),_status)
+}
+    
+    
  fun `ping`(): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
@@ -4352,6 +5011,25 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
     
 
         /**
+         * Sync favorite status for all songs after initial library sync.
+         * Fetches the list of favorite IDs from Jellyfin and updates cached songs.
+         */
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `syncFavorites`(`serverUrl`: kotlin.String, `token`: kotlin.String, `userId`: kotlin.String, `appDataDir`: kotlin.String) : kotlin.UInt {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_sync_favorites(FfiConverterString.lower(`serverUrl`),FfiConverterString.lower(`token`),FfiConverterString.lower(`userId`),FfiConverterString.lower(`appDataDir`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_u32(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_u32(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_u32(future) },
+        // lift function
+        { FfiConverterUInt.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+        /**
          * Smart sync: paginated + incremental. Decides whether to do a full or delta sync
          * based on the existing SyncState. Handles large libraries without OOM and
          * resumes interrupted full syncs.
@@ -4373,7 +5051,6 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
 
         /**
          * Sync only songs (fast startup). Artists/albums are fetched on-demand.
-         * DEPRECATED: Use sync_library_smart() instead for paginated + incremental sync.
          */
     @Throws(AppException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")

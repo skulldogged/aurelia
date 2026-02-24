@@ -2,11 +2,11 @@
 //!
 //! This module provides the Tauri-specific implementation of the Api trait.
 
-use crate::shared::{lastfm_secret, session_reporting};
+use crate::shared::{lastfm_secret, profile_storage, session_reporting};
 use crate::{
-    Album, Api, ApiResult, AppError, Artist, Credentials, HomeViewData, LastFmCredentials,
-    LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData, PlaylistUpdateData, RpcActivity,
-    Song, SyncStateInfo,
+    Album, Api, ApiResult, AppError, Artist, AuthRequest, BackendProvider, Credentials,
+    HomeViewData, LastFmCredentials, LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData,
+    PlaylistUpdateData, ProviderCapabilities, RpcActivity, Song, SyncStateInfo,
 };
 use aurelia_core::audio::AudioState;
 use aurelia_core::discord_rpc::DiscordRpcState;
@@ -22,6 +22,7 @@ use aurelia_core::tray_settings;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use tauri::Emitter;
@@ -65,6 +66,39 @@ fn get_credentials(app: &AppHandle) -> ApiResult<Option<Credentials>> {
     }
 }
 
+fn get_base_app_data_dir(app: &AppHandle) -> ApiResult<PathBuf> {
+    app.path()
+        .app_data_dir()
+        .map_err(|e| AppError::FileSystem(e.to_string()))
+}
+
+fn get_profile_data_dir_for_credentials(
+    app: &AppHandle,
+    credentials: &Credentials,
+) -> ApiResult<PathBuf> {
+    let base_dir = get_base_app_data_dir(app)?;
+    profile_storage::profile_data_dir(&base_dir, credentials)
+}
+
+fn get_active_app_data_dir(app: &AppHandle) -> ApiResult<PathBuf> {
+    let base_dir = get_base_app_data_dir(app)?;
+    let credentials = get_credentials(app)?;
+    profile_storage::resolve_active_data_dir(&base_dir, credentials.as_ref())
+}
+
+fn image_extension_from_content_type(content_type: &str) -> &'static str {
+    let mime = content_type.split(';').next().unwrap_or(content_type).trim();
+    match mime {
+        "image/avif" => "avif",
+        "image/gif" => "gif",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/png" => "png",
+        "image/svg+xml" => "svg",
+        "image/webp" => "webp",
+        _ => "img",
+    }
+}
+
 pub struct TauriApiImpl {
     app: AppHandle,
 }
@@ -80,62 +114,41 @@ impl Api for TauriApiImpl {
         get_credentials(&self.app)
     }
 
-    async fn login_to_jellyfin(
-        &self,
-        server_url: String,
-        username: String,
-        password: String,
-        device_id: String,
-    ) -> ApiResult<serde_json::Value> {
-        let login_resp =
-            aurelia_core::authenticate(server_url.clone(), username.clone(), password, device_id)
-                .await?;
-        let creds = Credentials {
-            server_url: server_url.clone(),
-            username: username.clone(),
-            token: login_resp.token.clone(),
-            user_id: login_resp.user_id.clone(),
-        };
-
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e: tauri::Error| AppError::FileSystem(e.to_string()))?;
-        let _ =
-            aurelia_core::save_credentials(app_dir.to_string_lossy().to_string(), creds.clone());
-
-        let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
-        app_state.set_credentials(Some(creds.clone()));
-
-        Ok(serde_json::json!({
-            "token": login_resp.token,
-            "userId": login_resp.user_id
-        }))
+    async fn detect_provider(&self, server_url: String) -> ApiResult<BackendProvider> {
+        aurelia_core::detect_provider(server_url).await
     }
 
-    async fn save_credentials(
+    async fn get_provider_capabilities(
         &self,
-        server_url: String,
-        username: String,
-        token: String,
-        user_id: String,
-    ) -> ApiResult<()> {
-        let creds = Credentials {
-            server_url,
-            username,
-            token,
-            user_id,
-        };
+        provider: BackendProvider,
+        _server_url: String,
+    ) -> ApiResult<ProviderCapabilities> {
+        Ok(aurelia_core::get_provider_capabilities(provider))
+    }
 
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
-        aurelia_core::save_credentials(app_dir.to_string_lossy().to_string(), creds.clone())?;
+    async fn authenticate(&self, request: AuthRequest) -> ApiResult<Credentials> {
+        let login_resp = aurelia_core::authenticate(request.clone()).await?;
+        Ok(Credentials {
+            provider: request.provider,
+            server_url: request.server_url,
+            username: request.username,
+            token: login_resp.token,
+            user_id: login_resp.user_id,
+        })
+    }
+
+    async fn save_credentials(&self, creds: Credentials) -> ApiResult<()> {
+        let base_dir = get_base_app_data_dir(&self.app)?;
+        aurelia_core::save_credentials(base_dir.to_string_lossy().to_string(), creds.clone())?;
 
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
+        let profile_dir = get_profile_data_dir_for_credentials(&self.app, &creds)?;
+        let cached_songs = aurelia_core::load_cached_songs(profile_dir.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        *lock_std_mutex(&app_state.songs, "song cache")? = cached_songs;
+        *lock_std_mutex(&app_state.artists, "artist cache")? = Vec::new();
+        *lock_std_mutex(&app_state.albums, "album cache")? = Vec::new();
         app_state.set_credentials(Some(creds));
 
         Ok(())
@@ -145,20 +158,12 @@ impl Api for TauriApiImpl {
         let app_state: tauri::State<'_, aurelia_core::state::AppState> = self.app.state();
         app_state.set_credentials(None);
 
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
-        aurelia_core::clear_credentials(app_dir.to_string_lossy().to_string())
+        let base_dir = get_base_app_data_dir(&self.app)?;
+        aurelia_core::clear_credentials(base_dir.to_string_lossy().to_string())
     }
 
     async fn save_volume(&self, volume: f64) -> ApiResult<()> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         let volume_path = app_dir.join("volume.json");
 
         let json =
@@ -170,11 +175,7 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_saved_volume(&self) -> ApiResult<Option<f64>> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         let volume_path = app_dir.join("volume.json");
 
         if !volume_path.exists() {
@@ -199,11 +200,7 @@ impl Api for TauriApiImpl {
     async fn sync_library(&self) -> ApiResult<()> {
         let creds = get_credentials(&self.app)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
 
         let _report = aurelia_core::sync_library_smart(
             creds.server_url.clone(),
@@ -221,11 +218,7 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_sync_state(&self) -> ApiResult<SyncStateInfo> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         let internal_state = aurelia_core::get_sync_state(app_dir.to_string_lossy().to_string())?;
         Ok(SyncStateInfo {
             last_sync_time: Some(internal_state.last_sync_time),
@@ -266,11 +259,7 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_artist_share_urls(&self, artist_id: String) -> ApiResult<HashMap<String, String>> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
 
         let artist =
             aurelia_core::get_cached_artist(app_dir.to_string_lossy().to_string(), artist_id)?
@@ -282,11 +271,7 @@ impl Api for TauriApiImpl {
     }
 
     async fn clear_image_from_cache(&self, item_id: String, image_type: String) -> ApiResult<()> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         let cache_dir = app_dir.join("image_cache");
         let prefix = format!("{}_{}", item_id, image_type);
         if cache_dir.exists()
@@ -311,6 +296,7 @@ impl Api for TauriApiImpl {
         session_reporting::report_playback_start(
             creds.server_url,
             creds.token,
+            creds.user_id,
             item_id,
             position_ticks,
         )
@@ -328,6 +314,7 @@ impl Api for TauriApiImpl {
         session_reporting::report_playback_progress(
             creds.server_url,
             creds.token,
+            creds.user_id,
             item_id,
             position_ticks,
             is_paused,
@@ -341,6 +328,7 @@ impl Api for TauriApiImpl {
         session_reporting::report_playback_stop(
             creds.server_url,
             creds.token,
+            creds.user_id,
             item_id,
             position_ticks,
         )
@@ -350,14 +338,7 @@ impl Api for TauriApiImpl {
     async fn mark_item_played(&self, item_id: String) -> ApiResult<()> {
         let creds = get_credentials(&self.app)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-        let client = aurelia_core::services::JellyfinClient::with_auth(
-            creds.server_url.clone(),
-            creds.token.clone(),
-        );
-        client
-            .mark_item_played(&creds.user_id, &item_id)
-            .await
-            .map_err(|e| AppError::General(e.to_string()))
+        aurelia_core::mark_item_played(creds.server_url, creds.token, creds.user_id, item_id).await
     }
 
     async fn get_song_share_urls(&self, item_id: String) -> ApiResult<HashMap<String, String>> {
@@ -373,11 +354,7 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_artist(&self, artist_id: String) -> ApiResult<Artist> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
 
         if let Ok(Some(artist)) = aurelia_core::get_cached_artist(
             app_dir.to_string_lossy().to_string(),
@@ -399,20 +376,12 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_related_artists(&self, artist_id: String) -> ApiResult<Vec<Artist>> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         aurelia_core::get_related_artists(app_dir.to_string_lossy().to_string(), artist_id).await
     }
 
     async fn get_album(&self, album_id: String) -> ApiResult<Album> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
 
         if let Ok(Some(album)) =
             aurelia_core::get_cached_album(app_dir.to_string_lossy().to_string(), album_id.clone())
@@ -433,11 +402,7 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_album_share_urls(&self, album_id: String) -> ApiResult<HashMap<String, String>> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
 
         let album =
             aurelia_core::get_cached_album(app_dir.to_string_lossy().to_string(), album_id)?
@@ -556,11 +521,7 @@ impl Api for TauriApiImpl {
         width: Option<u32>,
         quality: Option<u32>,
     ) -> ApiResult<Option<String>> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         let cache_dir = app_dir.join("image_cache");
         std::fs::create_dir_all(&cache_dir).map_err(|e| AppError::FileSystem(e.to_string()))?;
 
@@ -571,30 +532,27 @@ impl Api for TauriApiImpl {
         if let Some(q) = quality {
             cache_name.push_str(&format!("_q{}", q));
         }
-        let cache_path = cache_dir.join(&cache_name);
 
-        if cache_path.exists() {
-            return Ok(Some(cache_path.to_string_lossy().to_string()));
+        if let Ok(entries) = std::fs::read_dir(&cache_dir) {
+            for entry in entries.flatten() {
+                let file_name = entry.file_name();
+                let file_name = file_name.to_string_lossy();
+                if file_name == cache_name || file_name.starts_with(&format!("{cache_name}.")) {
+                    return Ok(Some(entry.path().to_string_lossy().to_string()));
+                }
+            }
         }
 
-        let mut url = format!(
-            "{}/Items/{}/Images/{}",
-            server_url.trim_end_matches('/'),
+        let Some(url) = aurelia_core::build_image_url(
+            server_url,
+            token,
             item_id,
-            image_type
-        );
-        let mut query = Vec::new();
-        if let Some(w) = width {
-            query.push(format!("width={}", w));
-        }
-        if let Some(q) = quality {
-            query.push(format!("quality={}", q));
-        }
-        query.push(format!("api_key={}", token));
-        if !query.is_empty() {
-            url.push('?');
-            url.push_str(&query.join("&"));
-        }
+            image_type,
+            width,
+            quality,
+        )? else {
+            return Ok(None);
+        };
 
         let client = reqwest::Client::new();
         let response = client
@@ -605,10 +563,17 @@ impl Api for TauriApiImpl {
         if !response.status().is_success() {
             return Ok(None);
         }
+        let extension = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .map(image_extension_from_content_type)
+            .unwrap_or("img");
         let bytes = response
             .bytes()
             .await
             .map_err(|e| AppError::Network(e.to_string()))?;
+        let cache_path = cache_dir.join(format!("{cache_name}.{extension}"));
         std::fs::write(&cache_path, &bytes).map_err(|e| AppError::FileSystem(e.to_string()))?;
 
         Ok(Some(cache_path.to_string_lossy().to_string()))
@@ -636,11 +601,7 @@ impl Api for TauriApiImpl {
     }
 
     async fn clear_image_cache(&self) -> ApiResult<()> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         let cache_dir = app_dir.join("image_cache");
         if cache_dir.exists() {
             std::fs::remove_dir_all(&cache_dir).map_err(|e| AppError::FileSystem(e.to_string()))?;
@@ -649,11 +610,7 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_image_cache_stats(&self) -> ApiResult<String> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         let cache_dir = app_dir.join("image_cache");
         let (mut file_count, mut total_size) = (0u64, 0u64);
         if cache_dir.exists()
@@ -702,10 +659,7 @@ impl Api for TauriApiImpl {
             None => (String::new(), String::new()),
         };
 
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
+        let app_dir = get_active_app_data_dir(&self.app)
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
@@ -740,38 +694,22 @@ impl Api for TauriApiImpl {
     }
 
     async fn get_setting(&self, key: String) -> ApiResult<Option<String>> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         aurelia_core::load_setting(app_dir.to_string_lossy().to_string(), key)
     }
 
     async fn save_setting(&self, key: String, value: String) -> ApiResult<()> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         aurelia_core::save_setting(app_dir.to_string_lossy().to_string(), key, value)
     }
 
     async fn delete_setting(&self, key: String) -> ApiResult<()> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         aurelia_core::delete_setting(app_dir.to_string_lossy().to_string(), key)
     }
 
     async fn clear_cache(&self) -> ApiResult<()> {
-        let app_dir = self
-            .app
-            .path()
-            .app_data_dir()
-            .map_err(|e| AppError::FileSystem(e.to_string()))?;
+        let app_dir = get_active_app_data_dir(&self.app)?;
         aurelia_core::clear_cache(app_dir.to_string_lossy().to_string())
     }
 

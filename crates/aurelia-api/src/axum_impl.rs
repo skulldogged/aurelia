@@ -3,11 +3,11 @@
 //! This module provides the Axum-specific implementation of the Api trait
 //! for the web backend.
 
-use crate::shared::{lastfm_secret, session_reporting};
+use crate::shared::{lastfm_secret, profile_storage, session_reporting};
 use crate::{
-    Album, Api, ApiResult, AppError, Artist, Credentials, HomeViewData, LastFmCredentials,
-    LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData, PlaylistUpdateData, RpcActivity,
-    Song, SyncStateInfo,
+    Album, Api, ApiResult, AppError, Artist, AuthRequest, BackendProvider, Credentials,
+    HomeViewData, LastFmCredentials, LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData,
+    PlaylistUpdateData, ProviderCapabilities, RpcActivity, Song, SyncStateInfo,
 };
 use aurelia_core::lastfm_core::{
     LastFmState, lastfm_authenticate, lastfm_clear_credentials, lastfm_is_authenticated,
@@ -32,6 +32,22 @@ fn get_credentials(state: &AppState) -> ApiResult<Option<Credentials>> {
     aurelia_core::load_credentials(state.app_data_dir.to_string_lossy().to_string())
 }
 
+fn active_app_data_dir(state: &AppState) -> ApiResult<PathBuf> {
+    let credentials = get_credentials(state)?;
+    profile_storage::resolve_active_data_dir(&state.app_data_dir, credentials.as_ref())
+}
+
+fn active_app_data_dir_string(state: &AppState) -> ApiResult<String> {
+    Ok(active_app_data_dir(state)?.to_string_lossy().to_string())
+}
+
+fn profile_app_data_dir_for_credentials(
+    state: &AppState,
+    credentials: &Credentials,
+) -> ApiResult<PathBuf> {
+    profile_storage::profile_data_dir(&state.app_data_dir, credentials)
+}
+
 /// Axum API implementation
 pub struct AxumApiImpl {
     state: Arc<AppState>,
@@ -46,33 +62,32 @@ impl AxumApiImpl {
 impl Api for AxumApiImpl {
     // ─── Auth ────────────────────────────────────────────────────
 
-    async fn login_to_jellyfin(
-        &self,
-        server_url: String,
-        username: String,
-        password: String,
-        device_id: String,
-    ) -> ApiResult<serde_json::Value> {
-        let login_resp =
-            aurelia_core::authenticate(server_url.clone(), username.clone(), password, device_id)
-                .await?;
-        serde_json::to_value(login_resp).map_err(|e| AppError::General(e.to_string()))
+    async fn detect_provider(&self, server_url: String) -> ApiResult<BackendProvider> {
+        aurelia_core::detect_provider(server_url).await
     }
 
-    async fn save_credentials(
+    async fn get_provider_capabilities(
         &self,
-        server_url: String,
-        username: String,
-        token: String,
-        user_id: String,
-    ) -> ApiResult<()> {
-        let creds = Credentials {
-            server_url,
-            username,
-            token,
-            user_id,
-        };
-        aurelia_core::save_credentials(self.state.app_data_dir.to_string_lossy().to_string(), creds)
+        provider: BackendProvider,
+        _server_url: String,
+    ) -> ApiResult<ProviderCapabilities> {
+        Ok(aurelia_core::get_provider_capabilities(provider))
+    }
+
+    async fn authenticate(&self, request: AuthRequest) -> ApiResult<Credentials> {
+        let login_resp = aurelia_core::authenticate(request.clone()).await?;
+        Ok(Credentials {
+            provider: request.provider,
+            server_url: request.server_url,
+            username: request.username,
+            token: login_resp.token,
+            user_id: login_resp.user_id,
+        })
+    }
+
+    async fn save_credentials(&self, credentials: Credentials) -> ApiResult<()> {
+        let _ = profile_app_data_dir_for_credentials(&self.state, &credentials)?;
+        aurelia_core::save_credentials(self.state.app_data_dir.to_string_lossy().to_string(), credentials)
     }
 
     async fn get_saved_credentials(&self) -> ApiResult<Option<Credentials>> {
@@ -95,7 +110,7 @@ impl Api for AxumApiImpl {
 
     async fn get_library(&self) -> ApiResult<LibraryData> {
         let songs =
-            aurelia_core::load_cached_songs(self.state.app_data_dir.to_string_lossy().to_string())?;
+            aurelia_core::load_cached_songs(active_app_data_dir_string(&self.state)?)?;
         Ok(aurelia_core::domain::services::derive_library_data(&songs))
     }
 
@@ -108,7 +123,7 @@ impl Api for AxumApiImpl {
             creds.server_url.clone(),
             creds.token.clone(),
             creds.user_id.clone(),
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
         )
         .await?;
 
@@ -117,7 +132,7 @@ impl Api for AxumApiImpl {
 
     async fn get_sync_state(&self) -> ApiResult<SyncStateInfo> {
         let state =
-            aurelia_core::get_sync_state(self.state.app_data_dir.to_string_lossy().to_string())?;
+            aurelia_core::get_sync_state(active_app_data_dir_string(&self.state)?)?;
         Ok(SyncStateInfo {
             last_sync_time: Some(state.last_sync_time),
             song_count: state.song_count,
@@ -131,7 +146,7 @@ impl Api for AxumApiImpl {
     async fn get_song(&self, song_id: String) -> ApiResult<Song> {
         // Try cache first
         if let Ok(Some(song)) = aurelia_core::get_cached_song(
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
             song_id.clone(),
         ) {
             return Ok(song);
@@ -163,7 +178,7 @@ impl Api for AxumApiImpl {
     async fn get_song_share_urls(&self, item_id: String) -> ApiResult<HashMap<String, String>> {
         // Get song from cache
         let song = aurelia_core::get_cached_song(
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
             item_id,
         )?
         .ok_or_else(|| AppError::General("Song not found".to_string()))?;
@@ -176,7 +191,7 @@ impl Api for AxumApiImpl {
     async fn get_artist(&self, artist_id: String) -> ApiResult<Artist> {
         // Try cache first
         if let Ok(Some(artist)) = aurelia_core::get_cached_artist(
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
             artist_id.clone(),
         ) {
             return Ok(artist);
@@ -190,14 +205,14 @@ impl Api for AxumApiImpl {
             creds.token,
             creds.user_id,
             artist_id,
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
         )
         .await
     }
 
     async fn get_related_artists(&self, artist_id: String) -> ApiResult<Vec<Artist>> {
         aurelia_core::get_related_artists(
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
             artist_id,
         )
         .await
@@ -205,7 +220,7 @@ impl Api for AxumApiImpl {
 
     async fn get_artist_share_urls(&self, artist_id: String) -> ApiResult<HashMap<String, String>> {
         let artist = aurelia_core::get_cached_artist(
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
             artist_id,
         )?
         .ok_or_else(|| AppError::General("Artist not found".to_string()))?;
@@ -220,7 +235,7 @@ impl Api for AxumApiImpl {
     async fn get_album(&self, album_id: String) -> ApiResult<Album> {
         // Try cache first
         if let Ok(Some(album)) = aurelia_core::get_cached_album(
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
             album_id.clone(),
         ) {
             return Ok(album);
@@ -234,7 +249,7 @@ impl Api for AxumApiImpl {
             creds.token,
             creds.user_id,
             album_id,
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
         )
         .await
     }
@@ -242,7 +257,7 @@ impl Api for AxumApiImpl {
     async fn get_album_share_urls(&self, album_id: String) -> ApiResult<HashMap<String, String>> {
         // Get album from cache
         let album = aurelia_core::get_cached_album(
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
             album_id,
         )?
         .ok_or_else(|| AppError::General("Album not found".to_string()))?;
@@ -332,7 +347,7 @@ impl Api for AxumApiImpl {
         let creds = get_credentials(&self.state)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
         let all_songs =
-            aurelia_core::load_cached_songs(self.state.app_data_dir.to_string_lossy().to_string())?;
+            aurelia_core::load_cached_songs(active_app_data_dir_string(&self.state)?)?;
 
         // Get recently played from server
         let recently_played = aurelia_core::get_recently_played(
@@ -368,29 +383,7 @@ impl Api for AxumApiImpl {
         width: Option<u32>,
         quality: Option<u32>,
     ) -> ApiResult<Option<String>> {
-        // Build the Jellyfin image URL with provided credentials
-        let mut url = format!(
-            "{}/Items/{}/Images/{}",
-            server_url.trim_end_matches('/'),
-            item_id,
-            image_type
-        );
-
-        let mut query = Vec::new();
-        if let Some(w) = width {
-            query.push(format!("width={}", w));
-        }
-        if let Some(q) = quality {
-            query.push(format!("quality={}", q));
-        }
-        query.push(format!("api_key={}", token));
-
-        if !query.is_empty() {
-            url.push('?');
-            url.push_str(&query.join("&"));
-        }
-
-        Ok(Some(url))
+        aurelia_core::build_image_url(server_url, token, item_id, image_type, width, quality)
     }
 
     async fn clear_image_cache(&self) -> ApiResult<()> {
@@ -465,25 +458,25 @@ impl Api for AxumApiImpl {
     }
 
     async fn get_setting(&self, key: String) -> ApiResult<Option<String>> {
-        aurelia_core::load_setting(self.state.app_data_dir.to_string_lossy().to_string(), key)
+        aurelia_core::load_setting(active_app_data_dir_string(&self.state)?, key)
     }
 
     async fn save_setting(&self, key: String, value: String) -> ApiResult<()> {
         aurelia_core::save_setting(
-            self.state.app_data_dir.to_string_lossy().to_string(),
+            active_app_data_dir_string(&self.state)?,
             key,
             value,
         )
     }
 
     async fn delete_setting(&self, key: String) -> ApiResult<()> {
-        aurelia_core::delete_setting(self.state.app_data_dir.to_string_lossy().to_string(), key)
+        aurelia_core::delete_setting(active_app_data_dir_string(&self.state)?, key)
     }
 
     // ─── Cache ───────────────────────────────────────────────────
 
     async fn clear_cache(&self) -> ApiResult<()> {
-        aurelia_core::clear_cache(self.state.app_data_dir.to_string_lossy().to_string())
+        aurelia_core::clear_cache(active_app_data_dir_string(&self.state)?)
     }
 
     // ─── Session / Playback Reporting ─────────────────────────────
@@ -507,6 +500,7 @@ impl Api for AxumApiImpl {
         session_reporting::report_playback_start(
             creds.server_url,
             creds.token,
+            creds.user_id,
             item_id,
             position_ticks,
         )
@@ -524,6 +518,7 @@ impl Api for AxumApiImpl {
         session_reporting::report_playback_progress(
             creds.server_url,
             creds.token,
+            creds.user_id,
             item_id,
             position_ticks,
             is_paused,
@@ -537,6 +532,7 @@ impl Api for AxumApiImpl {
         session_reporting::report_playback_stop(
             creds.server_url,
             creds.token,
+            creds.user_id,
             item_id,
             position_ticks,
         )
@@ -546,35 +542,7 @@ impl Api for AxumApiImpl {
     async fn mark_item_played(&self, item_id: String) -> ApiResult<()> {
         let creds = get_credentials(&self.state)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-
-        use reqwest::Client;
-
-        let url = format!(
-            "{}/Users/{}/PlayedItems/{}",
-            creds.server_url.trim_end_matches('/'),
-            creds.user_id,
-            item_id
-        );
-        let client = Client::new();
-        let response = client
-            .post(&url)
-            .header(
-                "Authorization",
-                format!("MediaBrowser Token=\"{}\"", creds.token),
-            )
-            .header("Content-Type", "application/json")
-            .send()
-            .await
-            .map_err(|e| AppError::Network(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(AppError::Network(format!(
-                "Failed to mark item played: HTTP {}",
-                response.status()
-            )));
-        }
-
-        Ok(())
+        aurelia_core::mark_item_played(creds.server_url, creds.token, creds.user_id, item_id).await
     }
 
     // ─── ListenBrainz ────────────────────────────────────────────

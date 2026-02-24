@@ -1,6 +1,8 @@
 use aurelia_core::error::AppError;
 use aurelia_core::listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen};
-use aurelia_core::models::auth::Credentials;
+use aurelia_core::models::auth::{
+    AuthRequest, BackendProvider, Credentials, ProviderCapabilities,
+};
 use aurelia_core::models::library::{
     HomeViewData, LastFmCredentials, LibraryData, MobileHomeData, NowPlayingPayload, RpcActivity,
     SyncStateInfo,
@@ -34,6 +36,18 @@ pub fn generate_typescript_bindings(out_dir: &Path) -> Result<(), Box<dyn std::e
         (
             "credentials",
             specta_typescript::export::<Credentials>(&config)?,
+        ),
+        (
+            "authRequest",
+            specta_typescript::export::<AuthRequest>(&config)?,
+        ),
+        (
+            "backendProvider",
+            specta_typescript::export::<BackendProvider>(&config)?,
+        ),
+        (
+            "providerCapabilities",
+            specta_typescript::export::<ProviderCapabilities>(&config)?,
         ),
         (
             "listenBrainzCredentials",

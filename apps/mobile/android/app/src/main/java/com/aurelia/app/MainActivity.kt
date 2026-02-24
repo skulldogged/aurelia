@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -91,15 +92,22 @@ private fun AureliaApp() {
         LaunchedEffect(Unit) {
           SyncWorker.schedule(context)
         }
-        MainScreen(
-          sessionStore = sessionStore,
-          playerController = playerController,
-          onLogout = {
-            SyncWorker.cancel(context)
-            sessionStore.clear()
-            appViewModel.checkSession()
-          },
-        )
+        key(appState.sessionVersion) {
+          MainScreen(
+            sessionStore = sessionStore,
+            playerController = playerController,
+            onLogout = {
+              SyncWorker.cancel(context)
+              sessionStore.clear()
+              appViewModel.checkSession()
+            },
+            onSessionSwitched = {
+              playerController.stop()
+              SyncWorker.schedule(context)
+              appViewModel.refreshForSessionSwitch()
+            },
+          )
+        }
       }
       else -> {
         LoginScreen(sessionStore) { appViewModel.checkSession() }

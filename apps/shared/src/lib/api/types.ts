@@ -2,11 +2,13 @@
 // Generated from Api trait - DO NOT EDIT MANUALLY
 
 import type { Result } from './result'
-import type { Credentials, Song, Album, Artist, Playlist, PlaylistCreateData, PlaylistUpdateData, LibraryData, HomeViewData, SyncStateInfo, ListenBrainzCredentials, ListenBrainzListen, RpcActivity, NowPlayingPayload, LastFmCredentials } from '../../generated'
+import type { Credentials, AuthRequest, BackendProvider, ProviderCapabilities, Song, Album, Artist, Playlist, PlaylistCreateData, PlaylistUpdateData, LibraryData, HomeViewData, SyncStateInfo, ListenBrainzCredentials, ListenBrainzListen, RpcActivity, NowPlayingPayload, LastFmCredentials } from '../../generated'
 
 export interface ApiClient {
-  loginToJellyfin(serverUrl: string, username: string, password: string, deviceId: string): Promise<Result<any>>
-  saveCredentials(serverUrl: string, username: string, token: string, userId: string): Promise<Result<any>>
+  detectProvider(serverUrl: string): Promise<Result<any>>
+  getProviderCapabilities(provider: BackendProvider, serverUrl: string): Promise<Result<any>>
+  authenticate(request: AuthRequest): Promise<Result<any>>
+  saveCredentials(credentials: Credentials): Promise<Result<any>>
   getSavedCredentials(): Promise<Result<any>>
   clearSavedCredentials(): Promise<Result<any>>
   saveVolume(volume: number): Promise<Result<any>>

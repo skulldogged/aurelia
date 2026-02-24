@@ -2,13 +2,14 @@ use crate::db::schema::*;
 use crate::models::Song;
 use anyhow::Result;
 use redb::{Database, ReadableDatabase, ReadableTable};
+use std::sync::Arc;
 
 pub struct SongRepository {
-    db: &'static Database,
+    db: Arc<Database>,
 }
 
 impl SongRepository {
-    pub fn new(db: &'static Database) -> Self {
+    pub fn new(db: Arc<Database>) -> Self {
         Self { db }
     }
 

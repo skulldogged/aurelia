@@ -25,8 +25,8 @@ mod parse;
 ///     #[api(GET "/library")]
 ///     async fn get_library(&self) -> Result<LibraryData, AppError>;
 ///
-///     #[api(POST "/auth/login")]
-///     async fn authenticate(&self, req: LoginRequest) -> Result<Credentials, AppError>;
+///     #[api(POST "/auth/authenticate")]
+///     async fn authenticate(&self, req: AuthRequest) -> Result<Credentials, AppError>;
 ///
 ///     #[api(GET "/songs/{song_id}")]
 ///     async fn get_song(&self, song_id: String) -> Result<Song, AppError>;

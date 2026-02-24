@@ -4,9 +4,10 @@ import type { Credentials } from '../generated'
 
 import { ApiError } from '../effect/errors'
 import { runAureliaEffect } from '../effect/runtime'
-import { getSavedCredentialsEffect } from '../effect/services/api'
+import { getProviderCapabilitiesEffect, getSavedCredentialsEffect } from '../effect/services/api'
 import { getAuthLogout, setAuthLogout } from '../lib/auth-interceptor'
 import { logger } from '../lib/logger'
+import { setActiveProfileId, upsertProfile } from '../lib/profileStorage'
 import { useAuthStore } from '../stores'
 
 export interface AuthError {
@@ -112,7 +113,10 @@ const verifyStoredCredentials = async (authStore: ReturnType<typeof useAuthStore
     if (savedCredentials && savedCredentials.token) {
       // Credentials still valid, sync with backend state
       credentials.value = savedCredentials
+      const profile = upsertProfile(savedCredentials)
+      setActiveProfileId(profile.id)
       authStore.setCredentials(savedCredentials)
+      await hydrateProviderCapabilities(authStore, savedCredentials)
       authStatus.value = 'loggedIn'
       // Sync localStorage in case backend has different creds
       saveCredentialsToStorage(savedCredentials)
@@ -145,7 +149,10 @@ const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promi
     if (savedCredentials && savedCredentials.token) {
       logger.debug('Found saved credentials:', savedCredentials)
       credentials.value = savedCredentials
+      const profile = upsertProfile(savedCredentials)
+      setActiveProfileId(profile.id)
       authStore.setCredentials(savedCredentials)
+      await hydrateProviderCapabilities(authStore, savedCredentials)
       authStatus.value = 'loggedIn'
       error.value = null
       // Sync to localStorage for fast load on next visit
@@ -175,7 +182,10 @@ const initializeAuth = async (authStore: ReturnType<typeof useAuthStore>): Promi
 
 const login = (authStore: ReturnType<typeof useAuthStore>, loginCredentials: Credentials): void => {
   credentials.value = loginCredentials
+  const profile = upsertProfile(loginCredentials)
+  setActiveProfileId(profile.id)
   authStore.setCredentials(loginCredentials)
+  void hydrateProviderCapabilities(authStore, loginCredentials)
   authStatus.value = 'loggedIn'
   error.value = null
   // Save to localStorage for fast load on next visit
@@ -185,6 +195,7 @@ const login = (authStore: ReturnType<typeof useAuthStore>, loginCredentials: Cre
 
 const logout = (authStore: ReturnType<typeof useAuthStore>): void => {
   credentials.value = null
+  setActiveProfileId(null)
   authStore.clearCredentials()
   authStatus.value = 'loggedOut'
   error.value = null
@@ -198,6 +209,22 @@ const registerLogoutHandler = (authStore: ReturnType<typeof useAuthStore>): void
   if (!getAuthLogout()) {
     setAuthLogout(() => logout(authStore))
     logger.debug('Auth logout handler registered')
+  }
+}
+
+const hydrateProviderCapabilities = async (
+  authStore: ReturnType<typeof useAuthStore>,
+  creds: Credentials,
+): Promise<void> => {
+  try {
+    const capabilities = await runAureliaEffect(
+      getProviderCapabilitiesEffect(creds.provider ?? 'jellyfin', creds.serverUrl),
+    )
+    authStore.setProviderCapabilities(capabilities)
+  } catch (cause) {
+    const errorMessage = cause instanceof ApiError ? cause.message : String(cause)
+    logger.warn(`Failed to load provider capabilities: ${errorMessage}`)
+    authStore.setProviderCapabilities(null)
   }
 }
 

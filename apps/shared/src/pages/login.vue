@@ -2,6 +2,8 @@
   import { Loader2 } from 'lucide-vue-next'
   import { onMounted, ref } from 'vue'
 
+  import type { BackendProvider, Credentials } from '../generated'
+
   import Button from '../components/ui/Button.vue'
   import { Input } from '../components/ui/input'
   import Label from '../components/ui/Label.vue'
@@ -9,11 +11,13 @@
   import { ApiError } from '../effect/errors'
   import { runAureliaEffect } from '../effect/runtime'
   import {
+    authenticateEffect,
+    detectProviderEffect,
     getSavedCredentialsEffect,
-    loginToJellyfinEffect,
     saveCredentialsEffect,
   } from '../effect/services/api'
   import { logger } from '../lib/logger'
+  import { setActiveProfileId, upsertProfile } from '../lib/profileStorage'
   const { initializeSession, sessionState } = useSession()
 
   interface LoginForm {
@@ -29,39 +33,56 @@
   })
 
   const loading = ref(false)
+  const detectingProvider = ref(false)
+  const detectedProvider = ref<BackendProvider | null>(null)
+  const providerSelection = ref<'auto' | BackendProvider>('auto')
   const error = ref('')
 
   const emit = defineEmits<{
-    login: [credentials: { serverUrl: string; token: string; userId: string; username: string; }]
+    login: [credentials: Credentials]
   }>()
+
+  const detectProvider = async (): Promise<void> => {
+    if (!form.value.serverUrl.trim()) return
+    detectingProvider.value = true
+    try {
+      detectedProvider.value = await runAureliaEffect(detectProviderEffect(form.value.serverUrl))
+    } catch (cause) {
+      const message = cause instanceof ApiError ? cause.message : String(cause)
+      logger.warn(`Provider detection failed: ${message}`)
+      detectedProvider.value = null
+    } finally {
+      detectingProvider.value = false
+    }
+  }
+
+  const resolveProvider = (): BackendProvider =>
+    providerSelection.value === 'auto'
+      ? (detectedProvider.value ?? 'jellyfin')
+      : providerSelection.value
 
   const handleLogin = async (): Promise<void> => {
     error.value = ''
     loading.value = true
 
     try {
-      const loginData = await runAureliaEffect(loginToJellyfinEffect(
-        form.value.serverUrl,
-        form.value.username,
-        form.value.password,
-        sessionState.value.deviceId,
-      ))
+      if (providerSelection.value === 'auto' && !detectedProvider.value)
+        await detectProvider()
+
+      const credentials = await runAureliaEffect(authenticateEffect({
+        deviceId:  sessionState.value.deviceId,
+        password:  form.value.password,
+        provider:  resolveProvider(),
+        serverUrl: form.value.serverUrl,
+        username:  form.value.username,
+      }))
 
       try {
-        await runAureliaEffect(saveCredentialsEffect(
-          form.value.serverUrl,
-          form.value.username,
-          loginData.token,
-          loginData.userId,
-        ))
+        await runAureliaEffect(saveCredentialsEffect(credentials))
+        const profile = upsertProfile(credentials)
+        setActiveProfileId(profile.id)
 
-        // Credentials saved successfully
-        emit('login', {
-          serverUrl: form.value.serverUrl,
-          token:     loginData.token,
-          userId:    loginData.userId,
-          username:  form.value.username,
-        })
+        emit('login', credentials)
       } catch (saveError) {
         const saveErrorMessage = saveError instanceof ApiError
           ? saveError.message
@@ -83,8 +104,11 @@
     try {
       const savedCredentials = await runAureliaEffect(getSavedCredentialsEffect())
       if (savedCredentials) {
+        const profile = upsertProfile(savedCredentials)
+        setActiveProfileId(profile.id)
         form.value.serverUrl = savedCredentials.serverUrl
         form.value.username = savedCredentials.username
+        detectedProvider.value = savedCredentials.provider ?? 'jellyfin'
       }
     } catch (savedCredentialsError) {
       logger.error('Failed to get saved credentials:', savedCredentialsError)
@@ -100,11 +124,37 @@
           Aurelia
         </h1>
         <p class='text-muted-foreground'>
-          Connect to your Jellyfin server
+          Connect to your media server
         </p>
       </div>
 
       <form @submit.prevent='handleLogin' class='space-y-6'>
+        <div class='grid w-full items-center gap-1.5'>
+          <Label for='provider'>Provider</Label>
+          <div class='flex gap-2'>
+            <select
+              id='provider'
+              v-model='providerSelection'
+              class='w-full border border-input bg-background rounded-md h-10 px-3'
+            >
+              <option value='auto'>Auto-detect</option>
+              <option value='jellyfin'>Jellyfin</option>
+              <option value='navidrome'>Navidrome</option>
+            </select>
+            <Button
+              type='button'
+              variant='outline'
+              :disabled='detectingProvider || !form.serverUrl'
+              @click='detectProvider'
+            >
+              {{ detectingProvider ? 'Detecting...' : 'Detect' }}
+            </Button>
+          </div>
+          <p v-if='detectedProvider' class='text-xs text-muted-foreground'>
+            Detected: {{ detectedProvider }}
+          </p>
+        </div>
+
         <div class='grid w-full items-center gap-1.5'>
           <Label for='serverUrl'>Server URL</Label>
           <Input

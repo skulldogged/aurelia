@@ -3,11 +3,33 @@ import Foundation
 import Observation
 import UIKit
 
+enum LoginProviderSelection: String, CaseIterable, Identifiable {
+    case auto
+    case jellyfin
+    case navidrome
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto:
+            return "Auto"
+        case .jellyfin:
+            return "Jellyfin"
+        case .navidrome:
+            return "Navidrome"
+        }
+    }
+}
+
 @Observable
 final class LoginViewModel: @unchecked Sendable {
     var serverUrl = ""
     var username = ""
     var password = ""
+    var providerSelection: LoginProviderSelection = .auto
+    var detectedProvider: BackendProvider?
+    var isDetectingProvider = false
     var isSubmitting = false
     var error: String?
 
@@ -16,6 +38,34 @@ final class LoginViewModel: @unchecked Sendable {
     var userId: String?
 
     private let sessionStore = SessionStore.shared
+
+    func detectProviderNow() {
+        guard let normalizedServerUrl = ServerURLNormalizer.normalizeForServer(raw: serverUrl),
+              ServerURLNormalizer.isValidServerURL(normalizedServerUrl)
+        else {
+            error = "Enter a valid server URL"
+            return
+        }
+
+        isDetectingProvider = true
+        error = nil
+        serverUrl = normalizedServerUrl
+
+        Task.detached { [serverUrl = normalizedServerUrl] in
+            do {
+                let provider = try await detectProvider(serverUrl: serverUrl)
+                await MainActor.run { [self] in
+                    isDetectingProvider = false
+                    detectedProvider = provider
+                }
+            } catch {
+                await MainActor.run { [self] in
+                    isDetectingProvider = false
+                    self.error = error.localizedDescription
+                }
+            }
+        }
+    }
 
     func submit() {
         guard !serverUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -36,25 +86,52 @@ final class LoginViewModel: @unchecked Sendable {
         isSubmitting = true
         error = nil
         serverUrl = normalizedServerUrl
+        let providerSelection = self.providerSelection
+        let detectedProvider = self.detectedProvider
 
         let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "aurelia-ios-\(UUID().uuidString)"
 
-        Task.detached { [serverUrl = normalizedServerUrl, username = self.username, password = self.password, deviceId] in
+        Task.detached {
+            [serverUrl = normalizedServerUrl, username = self.username, password = self.password, deviceId, providerSelection, detectedProvider] in
             do {
+                let resolvedProvider: BackendProvider = switch providerSelection {
+                case .jellyfin:
+                    .jellyfin
+                case .navidrome:
+                    .navidrome
+                case .auto:
+                    if let detectedProvider {
+                        detectedProvider
+                    } else {
+                        try await detectProvider(serverUrl: serverUrl)
+                    }
+                }
+
                 let response = try await authenticate(
-                    serverUrl: serverUrl,
-                    username: username,
-                    password: password,
-                    deviceId: deviceId
+                    request: AuthRequest(
+                        provider: resolvedProvider,
+                        serverUrl: serverUrl,
+                        username: username,
+                        password: password,
+                        deviceId: deviceId
+                    )
                 )
-                let sessionStore = await SessionStore.shared
-                await sessionStore
-                    .save(serverUrl: serverUrl, userId: response.userId, token: response.token, username: username)
+                await MainActor.run {
+                    let sessionStore = SessionStore.shared
+                    sessionStore.save(
+                        serverUrl: serverUrl,
+                        userId: response.userId,
+                        token: response.token,
+                        username: username,
+                        provider: resolvedProvider
+                    )
+                }
 
                 await MainActor.run { [self] in
                     isSubmitting = false
                     token = response.token
                     userId = response.userId
+                    self.detectedProvider = resolvedProvider
                 }
             } catch {
                 await MainActor.run { [self] in

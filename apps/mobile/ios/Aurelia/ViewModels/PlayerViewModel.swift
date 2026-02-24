@@ -40,9 +40,14 @@ final class PlayerViewModel: @unchecked Sendable {
 
     var formatInfo: String? {
         var parts: [String] = []
-        if let codec { parts.append(codec.uppercased()) }
+        if let codec {
+            parts.append(codec.split(separator: "/").last.map(String.init)?.uppercased() ?? codec.uppercased())
+        }
         if let sampleRate { parts.append("\(Double(sampleRate) / 1000.0) kHz") }
-        if let bitRate { parts.append("\(bitRate / 1000) kbps") }
+        if let bitRate {
+            let bitRateBps: Int32 = (bitRate > 0 && bitRate < 10_000) ? (bitRate * 1_000) : bitRate
+            parts.append("\(bitRateBps / 1000) kbps")
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " / ")
     }
 

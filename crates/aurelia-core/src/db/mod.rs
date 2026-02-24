@@ -6,13 +6,20 @@ pub use schema::*;
 
 use crate::models::{Album, Artist, Song};
 use anyhow::{Result, anyhow};
-use once_cell::sync::OnceCell;
+use once_cell::sync::Lazy;
 use redb::{Database, ReadOnlyTable, ReadableTable, TableDefinition};
 use serde::de::DeserializeOwned;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use tracing::{debug, info};
 
-pub static DB: OnceCell<Database> = OnceCell::new();
+#[derive(Clone)]
+struct DatabaseHandle {
+    app_data_dir: PathBuf,
+    db: Arc<Database>,
+}
+
+static DB: Lazy<Mutex<Option<DatabaseHandle>>> = Lazy::new(|| Mutex::new(None));
 
 // Table definitions
 const SONGS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("songs");
@@ -20,10 +27,16 @@ const ARTISTS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("artist
 const ALBUMS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("albums");
 
 pub fn init(app_data_dir: &PathBuf) -> Result<()> {
-    // If database is already initialized, just return Ok
-    if DB.get().is_some() {
-        debug!("Database already initialized, skipping");
-        return Ok(());
+    {
+        let guard = DB
+            .lock()
+            .map_err(|_| anyhow!("Failed to lock database handle"))?;
+        if let Some(existing) = guard.as_ref()
+            && existing.app_data_dir == *app_data_dir
+        {
+            debug!("Database already initialized for {:?}, skipping", app_data_dir);
+            return Ok(());
+        }
     }
 
     info!("Database path: {:?}", app_data_dir);
@@ -34,7 +47,8 @@ pub fn init(app_data_dir: &PathBuf) -> Result<()> {
     std::fs::create_dir_all(app_data_dir)
         .map_err(|e| anyhow!("Failed to create app data directory: {}", e))?;
 
-    let db = Database::create(&db_path).map_err(|e| anyhow!("Failed to create database: {}", e))?;
+    let db =
+        Arc::new(Database::create(&db_path).map_err(|e| anyhow!("Failed to create database: {}", e))?);
 
     // Initialize all tables
     let write_txn = db
@@ -59,15 +73,26 @@ pub fn init(app_data_dir: &PathBuf) -> Result<()> {
     }
     write_txn.commit()?;
 
-    // Use set() but ignore if already set (race condition handling)
-    let _ = DB.set(db);
+    let mut guard = DB
+        .lock()
+        .map_err(|_| anyhow!("Failed to lock database handle"))?;
+    *guard = Some(DatabaseHandle {
+        app_data_dir: app_data_dir.clone(),
+        db,
+    });
 
     info!("Database initialized successfully");
     Ok(())
 }
 
-pub fn get() -> Result<&'static Database> {
-    DB.get().ok_or_else(|| anyhow!("Database not initialized"))
+pub fn get() -> Result<Arc<Database>> {
+    let guard = DB
+        .lock()
+        .map_err(|_| anyhow!("Failed to lock database handle"))?;
+    guard
+        .as_ref()
+        .map(|handle| handle.db.clone())
+        .ok_or_else(|| anyhow!("Database not initialized"))
 }
 
 // ============================================================================
@@ -239,8 +264,6 @@ pub fn update_songs_favorite_status(_app_data_dir: &PathBuf, favorite_ids: &[Str
 
 use crate::domain::models::{SyncProgress, SyncReport, SyncState};
 use crate::services::JellyfinClient;
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
 
 /// Global in-memory sync progress, updated after each page during a full sync.
 /// Polled by the UI via `get_sync_progress()`.

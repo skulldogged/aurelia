@@ -6,7 +6,9 @@
 pub mod jellyfin;
 pub mod lrclib;
 pub mod musicbrainz;
+pub mod navidrome;
 
 pub use jellyfin::*;
 pub use lrclib::*;
 pub use musicbrainz::*;
+pub use navidrome::*;

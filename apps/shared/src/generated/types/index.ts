@@ -22,11 +22,11 @@ id: string }
 export type UserData = { playbackPositionTicks: number; playCount: number; isFavorite: boolean; played: boolean; lastPlayedDate: string | null }
 
 /**
- * User credentials for Jellyfin authentication
+ * User credentials for backend authentication
  */
-export type Credentials = { 
+export type Credentials = { provider?: BackendProvider; 
 /**
- * Jellyfin server URL
+ * Backend server URL
  */
 serverUrl: string; 
 /**
@@ -41,6 +41,21 @@ token: string;
  * User ID
  */
 userId: string }
+
+/**
+ * Authentication request payload.
+ */
+export type AuthRequest = { provider: BackendProvider; serverUrl: string; username: string; password: string; deviceId: string }
+
+/**
+ * Supported backend providers.
+ */
+export type BackendProvider = "jellyfin" | "navidrome"
+
+/**
+ * Provider capabilities for feature gating.
+ */
+export type ProviderCapabilities = { supportsClientCapabilitiesRegistration: boolean; supportsPlaybackProgressReporting: boolean; supportsSidecarLyricsLookup: boolean; supportsServerLyrics: boolean; supportsInstantMix: boolean }
 
 // ListenBrainzCredentials depends on: Credentials
 export type ListenBrainzCredentials = { userToken: string; username: string | null }

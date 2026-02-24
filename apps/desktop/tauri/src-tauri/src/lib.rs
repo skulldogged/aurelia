@@ -50,7 +50,9 @@ pub fn run() {
     tauri_builder
         .invoke_handler(tauri::generate_handler![
             // Auth
-            tauri_commands::login_to_jellyfin,
+            tauri_commands::detect_provider,
+            tauri_commands::get_provider_capabilities,
+            tauri_commands::authenticate,
             tauri_commands::save_credentials,
             tauri_commands::get_saved_credentials,
             tauri_commands::clear_saved_credentials,
@@ -167,11 +169,32 @@ pub fn run() {
             info!("Setting up application...");
 
             info!("Initializing database...");
-            let app_data_dir = handle
+            let base_app_data_dir = handle
                 .path()
                 .app_data_dir()
                 .expect("failed to get app data dir");
-            if let Err(e) = db::init(&app_data_dir) {
+            let active_app_data_dir = match aurelia_core::load_credentials(
+                base_app_data_dir.to_string_lossy().to_string(),
+            ) {
+                Ok(Some(credentials)) => {
+                    match aurelia_api::shared::profile_storage::profile_data_dir(
+                        &base_app_data_dir,
+                        &credentials,
+                    ) {
+                        Ok(profile_dir) => profile_dir,
+                        Err(error) => {
+                            error!("Failed to resolve profile directory: {}", error);
+                            base_app_data_dir.clone()
+                        }
+                    }
+                }
+                Ok(None) => base_app_data_dir.clone(),
+                Err(error) => {
+                    error!("Failed to load saved credentials: {}", error);
+                    base_app_data_dir.clone()
+                }
+            };
+            if let Err(e) = db::init(&active_app_data_dir) {
                 error!("Failed to initialize database: {}", e);
             }
             info!("Database initialized.");
@@ -273,8 +296,11 @@ pub fn run() {
                         media_controls::MediaEvent::Stop => {
                             let _ = handle_clone.emit("media-control-stop", ());
                         }
-                        media_controls::MediaEvent::Seek(seconds) => {
-                            let _ = handle_clone.emit("media-control-seek", seconds);
+                        media_controls::MediaEvent::SeekDelta(seconds) => {
+                            let _ = handle_clone.emit("media-control-seek-delta", seconds);
+                        }
+                        media_controls::MediaEvent::SetPosition(seconds) => {
+                            let _ = handle_clone.emit("media-control-set-position", seconds);
                         }
                     }
                 }) {

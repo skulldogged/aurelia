@@ -34,6 +34,9 @@ fn collect_type_imports_for_interface(_api_def: &ApiDefinition) -> String {
     // These are all the types that might be referenced in method signatures
     let types = vec![
         "Credentials",
+        "AuthRequest",
+        "BackendProvider",
+        "ProviderCapabilities",
         "Song",
         "Album",
         "Artist",
@@ -403,6 +406,9 @@ fn type_to_ts(ty: &syn::Type) -> String {
 fn collect_type_imports(_api_def: &ApiDefinition) -> String {
     let types = vec![
         "Credentials",
+        "AuthRequest",
+        "BackendProvider",
+        "ProviderCapabilities",
         "Song",
         "Album",
         "Artist",

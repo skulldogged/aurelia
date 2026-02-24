@@ -1,7 +1,7 @@
 // Auto-generated TypeScript client for Aurelia API
 // Generated from Api trait - DO NOT EDIT MANUALLY
 
-import type { Credentials, Song, Album, Artist, Playlist, PlaylistCreateData, PlaylistUpdateData, LibraryData, HomeViewData, SyncStateInfo, ListenBrainzCredentials, ListenBrainzListen, AppError, RpcActivity, NowPlayingPayload, LastFmCredentials } from '../generated';
+import type { Credentials, AuthRequest, BackendProvider, ProviderCapabilities, Song, Album, Artist, Playlist, PlaylistCreateData, PlaylistUpdateData, LibraryData, HomeViewData, SyncStateInfo, ListenBrainzCredentials, ListenBrainzListen, AppError, RpcActivity, NowPlayingPayload, LastFmCredentials } from '../generated';
 
 type Result<T, E = string> = 
   | { status: 'ok'; data: T }
@@ -90,20 +90,36 @@ async function webRequest<T>(
 }
 
 export const apiClient = {
-  // loginToJellyfin
-  loginToJellyfin: async (serverUrl: string, username: string, password: string, deviceId: string): Promise<Result<any>> => {
+  // detectProvider
+  detectProvider: async (serverUrl: string): Promise<Result<any>> => {
     if (isTauri) {
-      return tauriCommand('login_to_jellyfin', { serverUrl, username, password, deviceId });
+      return tauriCommand('detect_provider', { serverUrl });
     }
-    return webRequest('POST', `/auth/login`, { serverUrl: serverUrl, username: username, password: password, deviceId: deviceId }, undefined);
+    return webRequest('POST', `/auth/detect-provider`, { serverUrl: serverUrl }, undefined);
+  },
+
+  // getProviderCapabilities
+  getProviderCapabilities: async (provider: BackendProvider, serverUrl: string): Promise<Result<any>> => {
+    if (isTauri) {
+      return tauriCommand('get_provider_capabilities', { provider, serverUrl });
+    }
+    return webRequest('POST', `/auth/provider-capabilities`, { provider: provider, serverUrl: serverUrl }, undefined);
+  },
+
+  // authenticate
+  authenticate: async (request: AuthRequest): Promise<Result<any>> => {
+    if (isTauri) {
+      return tauriCommand('authenticate', { request });
+    }
+    return webRequest('POST', `/auth/authenticate`, request, undefined);
   },
 
   // saveCredentials
-  saveCredentials: async (serverUrl: string, username: string, token: string, userId: string): Promise<Result<any>> => {
+  saveCredentials: async (credentials: Credentials): Promise<Result<any>> => {
     if (isTauri) {
-      return tauriCommand('save_credentials', { serverUrl, username, token, userId });
+      return tauriCommand('save_credentials', { credentials });
     }
-    return webRequest('POST', `/auth/credentials`, { serverUrl: serverUrl, username: username, token: token, userId: userId }, undefined);
+    return webRequest('POST', `/auth/credentials`, { credentials: credentials }, undefined);
   },
 
   // getSavedCredentials

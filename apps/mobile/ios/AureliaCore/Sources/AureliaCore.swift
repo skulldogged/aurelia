@@ -887,11 +887,81 @@ public func FfiConverterTypeArtist_lower(_ value: Artist) -> RustBuffer {
 
 
 /**
- * User credentials for Jellyfin authentication
+ * Authentication request payload.
+ */
+public struct AuthRequest: Equatable, Hashable {
+    public var provider: BackendProvider
+    public var serverUrl: String
+    public var username: String
+    public var password: String
+    public var deviceId: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(provider: BackendProvider, serverUrl: String, username: String, password: String, deviceId: String) {
+        self.provider = provider
+        self.serverUrl = serverUrl
+        self.username = username
+        self.password = password
+        self.deviceId = deviceId
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension AuthRequest: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeAuthRequest: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> AuthRequest {
+        return
+            try AuthRequest(
+                provider: FfiConverterTypeBackendProvider.read(from: &buf), 
+                serverUrl: FfiConverterString.read(from: &buf), 
+                username: FfiConverterString.read(from: &buf), 
+                password: FfiConverterString.read(from: &buf), 
+                deviceId: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: AuthRequest, into buf: inout [UInt8]) {
+        FfiConverterTypeBackendProvider.write(value.provider, into: &buf)
+        FfiConverterString.write(value.serverUrl, into: &buf)
+        FfiConverterString.write(value.username, into: &buf)
+        FfiConverterString.write(value.password, into: &buf)
+        FfiConverterString.write(value.deviceId, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAuthRequest_lift(_ buf: RustBuffer) throws -> AuthRequest {
+    return try FfiConverterTypeAuthRequest.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeAuthRequest_lower(_ value: AuthRequest) -> RustBuffer {
+    return FfiConverterTypeAuthRequest.lower(value)
+}
+
+
+/**
+ * User credentials for backend authentication
  */
 public struct Credentials: Equatable, Hashable {
+    public var provider: BackendProvider
     /**
-     * Jellyfin server URL
+     * Backend server URL
      */
     public var serverUrl: String
     /**
@@ -909,9 +979,9 @@ public struct Credentials: Equatable, Hashable {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(
+    public init(provider: BackendProvider, 
         /**
-         * Jellyfin server URL
+         * Backend server URL
          */serverUrl: String, 
         /**
          * Username
@@ -922,6 +992,7 @@ public struct Credentials: Equatable, Hashable {
         /**
          * User ID
          */userId: String) {
+        self.provider = provider
         self.serverUrl = serverUrl
         self.username = username
         self.token = token
@@ -944,6 +1015,7 @@ public struct FfiConverterTypeCredentials: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Credentials {
         return
             try Credentials(
+                provider: FfiConverterTypeBackendProvider.read(from: &buf), 
                 serverUrl: FfiConverterString.read(from: &buf), 
                 username: FfiConverterString.read(from: &buf), 
                 token: FfiConverterString.read(from: &buf), 
@@ -952,6 +1024,7 @@ public struct FfiConverterTypeCredentials: FfiConverterRustBuffer {
     }
 
     public static func write(_ value: Credentials, into buf: inout [UInt8]) {
+        FfiConverterTypeBackendProvider.write(value.provider, into: &buf)
         FfiConverterString.write(value.serverUrl, into: &buf)
         FfiConverterString.write(value.username, into: &buf)
         FfiConverterString.write(value.token, into: &buf)
@@ -1157,7 +1230,7 @@ public func FfiConverterTypeLibraryData_lower(_ value: LibraryData) -> RustBuffe
 
 
 /**
- * Response from successful Jellyfin login
+ * Response from successful login
  */
 public struct LoginResponse: Equatable, Hashable {
     /**
@@ -1872,6 +1945,75 @@ public func FfiConverterTypePlaylistUpdateData_lift(_ buf: RustBuffer) throws ->
 #endif
 public func FfiConverterTypePlaylistUpdateData_lower(_ value: PlaylistUpdateData) -> RustBuffer {
     return FfiConverterTypePlaylistUpdateData.lower(value)
+}
+
+
+/**
+ * Provider capabilities for feature gating.
+ */
+public struct ProviderCapabilities: Equatable, Hashable {
+    public var supportsClientCapabilitiesRegistration: Bool
+    public var supportsPlaybackProgressReporting: Bool
+    public var supportsSidecarLyricsLookup: Bool
+    public var supportsServerLyrics: Bool
+    public var supportsInstantMix: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(supportsClientCapabilitiesRegistration: Bool, supportsPlaybackProgressReporting: Bool, supportsSidecarLyricsLookup: Bool, supportsServerLyrics: Bool, supportsInstantMix: Bool) {
+        self.supportsClientCapabilitiesRegistration = supportsClientCapabilitiesRegistration
+        self.supportsPlaybackProgressReporting = supportsPlaybackProgressReporting
+        self.supportsSidecarLyricsLookup = supportsSidecarLyricsLookup
+        self.supportsServerLyrics = supportsServerLyrics
+        self.supportsInstantMix = supportsInstantMix
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension ProviderCapabilities: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeProviderCapabilities: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ProviderCapabilities {
+        return
+            try ProviderCapabilities(
+                supportsClientCapabilitiesRegistration: FfiConverterBool.read(from: &buf), 
+                supportsPlaybackProgressReporting: FfiConverterBool.read(from: &buf), 
+                supportsSidecarLyricsLookup: FfiConverterBool.read(from: &buf), 
+                supportsServerLyrics: FfiConverterBool.read(from: &buf), 
+                supportsInstantMix: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ProviderCapabilities, into buf: inout [UInt8]) {
+        FfiConverterBool.write(value.supportsClientCapabilitiesRegistration, into: &buf)
+        FfiConverterBool.write(value.supportsPlaybackProgressReporting, into: &buf)
+        FfiConverterBool.write(value.supportsSidecarLyricsLookup, into: &buf)
+        FfiConverterBool.write(value.supportsServerLyrics, into: &buf)
+        FfiConverterBool.write(value.supportsInstantMix, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeProviderCapabilities_lift(_ buf: RustBuffer) throws -> ProviderCapabilities {
+    return try FfiConverterTypeProviderCapabilities.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeProviderCapabilities_lower(_ value: ProviderCapabilities) -> RustBuffer {
+    return FfiConverterTypeProviderCapabilities.lower(value)
 }
 
 
@@ -2689,6 +2831,100 @@ public func FfiConverterTypeAppError_lower(_ value: AppError) -> RustBuffer {
     return FfiConverterTypeAppError.lower(value)
 }
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Supported backend providers.
+ */
+
+public enum BackendProvider: Equatable, Hashable {
+    
+    case jellyfin
+    case navidrome
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension BackendProvider: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeBackendProvider: FfiConverterRustBuffer {
+    typealias SwiftType = BackendProvider
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BackendProvider {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .jellyfin
+        
+        case 2: return .navidrome
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: BackendProvider, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .jellyfin:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .navidrome:
+            writeInt(&buf, Int32(2))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBackendProvider_lift(_ buf: RustBuffer) throws -> BackendProvider {
+    return try FfiConverterTypeBackendProvider.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBackendProvider_lower(_ value: BackendProvider) -> RustBuffer {
+    return FfiConverterTypeBackendProvider.lower(value)
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
+    typealias SwiftType = UInt32?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt32.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt32.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
@@ -2708,6 +2944,30 @@ fileprivate struct FfiConverterOptionInt32: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterInt32.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionUInt64: FfiConverterRustBuffer {
+    typealias SwiftType = UInt64?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt64.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt64.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -3312,11 +3572,165 @@ public func addPlaylistItems(serverUrl: String, token: String, playlistId: Strin
             errorHandler: FfiConverterTypeAppError_lift
         )
 }
-public func authenticate(serverUrl: String, username: String, password: String, deviceId: String)async throws  -> LoginResponse  {
+public func audioGetPositionSecs()async throws  -> Double  {
     return
         try  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_authenticate(FfiConverterString.lower(serverUrl),FfiConverterString.lower(username),FfiConverterString.lower(password),FfiConverterString.lower(deviceId)
+                uniffi_aurelia_core_fn_func_audio_get_position_secs(
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_f64,
+            completeFunc: ffi_aurelia_core_rust_future_complete_f64,
+            freeFunc: ffi_aurelia_core_rust_future_free_f64,
+            liftFunc: FfiConverterDouble.lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioGetVolumePlayer()async throws  -> Double  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_get_volume_player(
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_f64,
+            completeFunc: ffi_aurelia_core_rust_future_complete_f64,
+            freeFunc: ffi_aurelia_core_rust_future_free_f64,
+            liftFunc: FfiConverterDouble.lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioInitPlayer()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_init_player(
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_void,
+            completeFunc: ffi_aurelia_core_rust_future_complete_void,
+            freeFunc: ffi_aurelia_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioIsFinishedPlayer()async throws  -> Bool  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_is_finished_player(
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_i8,
+            completeFunc: ffi_aurelia_core_rust_future_complete_i8,
+            freeFunc: ffi_aurelia_core_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioIsPlayingPlayer()async throws  -> Bool  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_is_playing_player(
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_i8,
+            completeFunc: ffi_aurelia_core_rust_future_complete_i8,
+            freeFunc: ffi_aurelia_core_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioPausePlayer()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_pause_player(
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_void,
+            completeFunc: ffi_aurelia_core_rust_future_complete_void,
+            freeFunc: ffi_aurelia_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioPlayUrl(url: String, token: String, startTimeSecs: Double?)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_play_url(FfiConverterString.lower(url),FfiConverterString.lower(token),FfiConverterOptionDouble.lower(startTimeSecs)
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_void,
+            completeFunc: ffi_aurelia_core_rust_future_complete_void,
+            freeFunc: ffi_aurelia_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioResumePlayer()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_resume_player(
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_void,
+            completeFunc: ffi_aurelia_core_rust_future_complete_void,
+            freeFunc: ffi_aurelia_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioSeekPlayer(positionSecs: Double)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_seek_player(FfiConverterDouble.lower(positionSecs)
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_void,
+            completeFunc: ffi_aurelia_core_rust_future_complete_void,
+            freeFunc: ffi_aurelia_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioSetVolumePlayer(volume: Double)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_set_volume_player(FfiConverterDouble.lower(volume)
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_void,
+            completeFunc: ffi_aurelia_core_rust_future_complete_void,
+            freeFunc: ffi_aurelia_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func audioStopPlayer()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_audio_stop_player(
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_void,
+            completeFunc: ffi_aurelia_core_rust_future_complete_void,
+            freeFunc: ffi_aurelia_core_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+public func authenticate(request: AuthRequest)async throws  -> LoginResponse  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_authenticate(FfiConverterTypeAuthRequest_lower(request)
                 )
             },
             pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
@@ -3325,6 +3739,18 @@ public func authenticate(serverUrl: String, username: String, password: String, 
             liftFunc: FfiConverterTypeLoginResponse_lift,
             errorHandler: FfiConverterTypeAppError_lift
         )
+}
+public func buildImageUrl(serverUrl: String, token: String, itemId: String, imageType: String, width: UInt32?, quality: UInt32?)throws  -> String?  {
+    return try  FfiConverterOptionString.lift(try rustCallWithError(FfiConverterTypeAppError_lift) {
+    uniffi_aurelia_core_fn_func_build_image_url(
+        FfiConverterString.lower(serverUrl),
+        FfiConverterString.lower(token),
+        FfiConverterString.lower(itemId),
+        FfiConverterString.lower(imageType),
+        FfiConverterOptionUInt32.lower(width),
+        FfiConverterOptionUInt32.lower(quality),$0
+    )
+})
 }
 /**
  * Build a stream URL optimized for mobile playback.
@@ -3418,6 +3844,20 @@ public func deriveMobileHomeData(songs: [Song], mostPlayedLimit: Int64, recently
     )
 })
 }
+public func detectProvider(serverUrl: String)async throws  -> BackendProvider  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_detect_provider(FfiConverterString.lower(serverUrl)
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_aurelia_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_aurelia_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterTypeBackendProvider_lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
 /**
  * Fetch a single album from server and cache it
  */
@@ -3499,6 +3939,20 @@ public func getCachedSong(appDataDir: String, songId: String)throws  -> Song?  {
     )
 })
 }
+public func getFavoriteIds(serverUrl: String, token: String, userId: String)async throws  -> [String]  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_get_favorite_ids(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(userId)
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
+            completeFunc: ffi_aurelia_core_rust_future_complete_rust_buffer,
+            freeFunc: ffi_aurelia_core_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterSequenceString.lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
 public func getInstantMix(serverUrl: String, token: String, itemId: String)async throws  -> [Song]  {
     return
         try  await uniffiRustCallAsync(
@@ -3578,6 +4032,13 @@ public func getPlaylists(serverUrl: String, token: String, userId: String)async 
             errorHandler: FfiConverterTypeAppError_lift
         )
 }
+public func getProviderCapabilities(provider: BackendProvider) -> ProviderCapabilities  {
+    return try!  FfiConverterTypeProviderCapabilities_lift(try! rustCall() {
+    uniffi_aurelia_core_fn_func_get_provider_capabilities(
+        FfiConverterTypeBackendProvider_lower(provider),$0
+    )
+})
+}
 public func getRecentlyPlayed(serverUrl: String, token: String, userId: String)async throws  -> [Song]  {
     return
         try  await uniffiRustCallAsync(
@@ -3619,6 +4080,16 @@ public func getSongShareUrls(song: Song)async throws  -> [String: String]  {
             liftFunc: FfiConverterDictionaryStringString.lift,
             errorHandler: FfiConverterTypeAppError_lift
         )
+}
+/**
+ * Returns the current sync progress for UI polling.
+ * Updated after each page during a full sync; resets to default between syncs.
+ */
+public func getSyncProgress() -> SyncProgress  {
+    return try!  FfiConverterTypeSyncProgress_lift(try! rustCall() {
+    uniffi_aurelia_core_fn_func_get_sync_progress($0
+    )
+})
 }
 /**
  * Get sync state as a typed struct (better for UI binding)
@@ -3666,6 +4137,40 @@ public func markItemPlayed(serverUrl: String, token: String, userId: String, ite
             errorHandler: FfiConverterTypeAppError_lift
         )
 }
+public func mediaControlsClearNowPlaying()throws   {try rustCallWithError(FfiConverterTypeAppError_lift) {
+    uniffi_aurelia_core_fn_func_media_controls_clear_now_playing($0
+    )
+}
+}
+public func mediaControlsInit(hwnd: UInt64?)throws   {try rustCallWithError(FfiConverterTypeAppError_lift) {
+    uniffi_aurelia_core_fn_func_media_controls_init(
+        FfiConverterOptionUInt64.lower(hwnd),$0
+    )
+}
+}
+public func mediaControlsPopEvent() -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+    uniffi_aurelia_core_fn_func_media_controls_pop_event($0
+    )
+})
+}
+public func mediaControlsSetPlaybackStatus(isPlaying: Bool, positionSecs: Double?)throws   {try rustCallWithError(FfiConverterTypeAppError_lift) {
+    uniffi_aurelia_core_fn_func_media_controls_set_playback_status(
+        FfiConverterBool.lower(isPlaying),
+        FfiConverterOptionDouble.lower(positionSecs),$0
+    )
+}
+}
+public func mediaControlsUpdateNowPlaying(title: String, artist: String?, album: String?, durationSecs: Double?, coverUrl: String?)throws   {try rustCallWithError(FfiConverterTypeAppError_lift) {
+    uniffi_aurelia_core_fn_func_media_controls_update_now_playing(
+        FfiConverterString.lower(title),
+        FfiConverterOptionString.lower(artist),
+        FfiConverterOptionString.lower(album),
+        FfiConverterOptionDouble.lower(durationSecs),
+        FfiConverterOptionString.lower(coverUrl),$0
+    )
+}
+}
 public func ping() -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_aurelia_core_fn_func_ping($0
@@ -3709,6 +4214,24 @@ public func setLibrarySyncState(appDataDir: String, stateJson: String)throws   {
 }
 }
 /**
+ * Sync favorite status for all songs after initial library sync.
+ * Fetches the list of favorite IDs from Jellyfin and updates cached songs.
+ */
+public func syncFavorites(serverUrl: String, token: String, userId: String, appDataDir: String)async throws  -> UInt32  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_aurelia_core_fn_func_sync_favorites(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(userId),FfiConverterString.lower(appDataDir)
+                )
+            },
+            pollFunc: ffi_aurelia_core_rust_future_poll_u32,
+            completeFunc: ffi_aurelia_core_rust_future_complete_u32,
+            freeFunc: ffi_aurelia_core_rust_future_free_u32,
+            liftFunc: FfiConverterUInt32.lift,
+            errorHandler: FfiConverterTypeAppError_lift
+        )
+}
+/**
  * Smart sync: paginated + incremental. Decides whether to do a full or delta sync
  * based on the existing SyncState. Handles large libraries without OOM and
  * resumes interrupted full syncs.
@@ -3729,7 +4252,6 @@ public func syncLibrarySmart(serverUrl: String, token: String, userId: String, a
 }
 /**
  * Sync only songs (fast startup). Artists/albums are fetched on-demand.
- * DEPRECATED: Use sync_library_smart() instead for paginated + incremental sync.
  */
 public func syncSongsOnly(serverUrl: String, token: String, userId: String, appDataDir: String)async throws  -> Bool  {
     return
@@ -3792,7 +4314,43 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_add_playlist_items() != 46373) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_authenticate() != 60022) {
+    if (uniffi_aurelia_core_checksum_func_audio_get_position_secs() != 52501) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_get_volume_player() != 37228) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_init_player() != 29341) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_is_finished_player() != 33404) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_is_playing_player() != 51987) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_pause_player() != 21962) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_play_url() != 50783) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_resume_player() != 35269) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_seek_player() != 15002) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_set_volume_player() != 9428) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_audio_stop_player() != 14955) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_authenticate() != 43633) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_build_image_url() != 4929) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_build_mobile_stream_url() != 27250) {
@@ -3822,6 +4380,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_derive_mobile_home_data() != 22516) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_aurelia_core_checksum_func_detect_provider() != 4821) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_aurelia_core_checksum_func_fetch_album() != 8785) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3838,6 +4399,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_cached_song() != 35126) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_get_favorite_ids() != 7917) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_instant_mix() != 9719) {
@@ -3858,6 +4422,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_get_playlists() != 13349) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_aurelia_core_checksum_func_get_provider_capabilities() != 18095) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_aurelia_core_checksum_func_get_recently_played() != 2943) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3865,6 +4432,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_song_share_urls() != 18046) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_get_sync_progress() != 32226) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_sync_state() != 52332) {
@@ -3882,6 +4452,21 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_mark_item_played() != 53251) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_aurelia_core_checksum_func_media_controls_clear_now_playing() != 25211) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_media_controls_init() != 10081) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_media_controls_pop_event() != 15134) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_media_controls_set_playback_status() != 64605) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_aurelia_core_checksum_func_media_controls_update_now_playing() != 39691) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_aurelia_core_checksum_func_ping() != 25925) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -3897,10 +4482,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_set_library_sync_state() != 42285) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_aurelia_core_checksum_func_sync_favorites() != 39978) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_aurelia_core_checksum_func_sync_library_smart() != 54797) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_sync_songs_only() != 43201) {
+    if (uniffi_aurelia_core_checksum_func_sync_songs_only() != 1256) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_toggle_favorite() != 55632) {

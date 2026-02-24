@@ -3,6 +3,8 @@ import { Effect } from 'effect'
 import type { Result } from '../../lib/api/result'
 import type {
   Artist,
+  AuthRequest,
+  BackendProvider,
   Credentials,
   HomeViewData,
   LastFmCredentials,
@@ -14,6 +16,7 @@ import type {
   Playlist,
   PlaylistCreateData,
   PlaylistUpdateData,
+  ProviderCapabilities,
   RpcActivity,
   Song,
   SyncStateInfo,
@@ -121,6 +124,21 @@ export const getSongShareUrlsEffect = (itemId: string): Effect.Effect<Record<str
 export const getSavedCredentialsEffect = (): Effect.Effect<Credentials | null, ApiError> =>
   runApiRequest<Credentials | null>('getSavedCredentials', () => getApiClient().getSavedCredentials())
 
+export const detectProviderEffect = (
+  serverUrl: string,
+): Effect.Effect<BackendProvider, ApiError> =>
+  runApiRequest<BackendProvider>('detectProvider', () =>
+    getApiClient().detectProvider(serverUrl),
+  )
+
+export const getProviderCapabilitiesEffect = (
+  provider: BackendProvider,
+  serverUrl: string,
+): Effect.Effect<ProviderCapabilities, ApiError> =>
+  runApiRequest<ProviderCapabilities>('getProviderCapabilities', () =>
+    getApiClient().getProviderCapabilities(provider, serverUrl),
+  )
+
 export const getSyncStateEffect = (): Effect.Effect<SyncStateInfo, ApiError> =>
   runApiRequest<SyncStateInfo>('getSyncState', () => getApiClient().getSyncState())
 
@@ -139,24 +157,18 @@ export const markItemPlayedEffect = (itemId: string): Effect.Effect<void, ApiErr
 export const clearImageFromCacheEffect = (itemId: string, imageType: string): Effect.Effect<void, ApiError> =>
   runApiRequest<void>('clearImageFromCache', () => getApiClient().clearImageFromCache(itemId, imageType))
 
-export const loginToJellyfinEffect = (
-  serverUrl: string,
-  username: string,
-  password: string,
-  deviceId: string,
+export const authenticateEffect = (
+  request: AuthRequest,
 ): Effect.Effect<Credentials, ApiError> =>
-  runApiRequest<Credentials>('loginToJellyfin', () =>
-    getApiClient().loginToJellyfin(serverUrl, username, password, deviceId),
+  runApiRequest<Credentials>('authenticate', () =>
+    getApiClient().authenticate(request),
   )
 
 export const saveCredentialsEffect = (
-  serverUrl: string,
-  username: string,
-  token: string,
-  userId: string,
+  credentials: Credentials,
 ): Effect.Effect<void, ApiError> =>
   runApiRequest<void>('saveCredentials', () =>
-    getApiClient().saveCredentials(serverUrl, username, token, userId),
+    getApiClient().saveCredentials(credentials),
   )
 
 export const syncLibraryEffect = (): Effect.Effect<void, ApiError> =>

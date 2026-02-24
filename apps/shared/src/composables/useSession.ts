@@ -32,6 +32,22 @@ const sessionState = ref<SessionState>({
   sessionId:     null,
 })
 
+type UnsupportedDecision = 'cancel' | 'continue' | 'switch'
+
+const requestUnsupportedFeatureDecision = async (
+  featureName: string,
+  provider: string,
+): Promise<UnsupportedDecision> => {
+  const input = window.prompt(
+    `${featureName} is unsupported by ${provider}. Type: continue, cancel, or switch.`,
+    'cancel',
+  )?.trim().toLowerCase()
+
+  if (input === 'continue') return 'continue'
+  if (input === 'switch') return 'switch'
+  return 'cancel'
+}
+
 const initializeSession = async (): Promise<void> => {
   try {
     let label = 'web'
@@ -72,6 +88,22 @@ const initializeSession = async (): Promise<void> => {
 const registerCapabilities = async (authStore: ReturnType<typeof useAuthStore>): Promise<void> => {
   if (!authStore.serverUrl || !authStore.token || sessionState.value.isRegistered)
     return
+
+  const supportsRegistration = authStore.providerCapabilities?.supportsClientCapabilitiesRegistration
+  if (supportsRegistration === false) {
+    const decision = await requestUnsupportedFeatureDecision(
+      'Client capability registration',
+      authStore.provider,
+    )
+    if (decision === 'cancel') return
+    if (decision === 'switch') {
+      logger.warn('User opted to switch provider/server after unsupported feature prompt')
+      return
+    }
+    // Continue with degraded behavior.
+    sessionState.value.isRegistered = true
+    return
+  }
 
   logger.debug(
     'Registering client capabilities with server:',

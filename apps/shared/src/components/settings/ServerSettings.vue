@@ -1,34 +1,60 @@
 <script setup lang="ts">
   import {
+    Check,
     Link,
     LogOut,
+    Plus,
+    RefreshCw,
     Server,
+    Trash2,
     User,
   } from 'lucide-vue-next'
-  import { onMounted, ref } from 'vue'
+  import { computed, onMounted, ref } from 'vue'
+
+  import type { Credentials } from '../../generated'
 
   import { apiClient } from '../../api/apiClient'
+  import {
+    buildProfileId,
+    getActiveProfileId,
+    loadProfiles,
+    removeProfile,
+    setActiveProfileId,
+    type AuthProfile,
+  } from '../../lib/profileStorage'
+  import AddProfileDialog from '../auth/AddProfileDialog.vue'
   import Button from '../ui/Button.vue'
 
-  interface Credentials {
-    serverUrl: string
-    token:     string
-    userId:    string
-    username:  string
-  }
-
-  defineProps<{
+  const props = defineProps<{
     credentials: Credentials | null
   }>()
 
-  defineEmits<{
+  const emit = defineEmits<{
     (e: 'logout'): void
   }>()
 
   const aureliaServerUrl = ref('')
+  const profileActionError = ref('')
+  const profiles = ref<AuthProfile[]>([])
+  const removingProfileId = ref<null | string>(null)
+  const showAddProfileDialog = ref(false)
   let saveTimeout: null | ReturnType<typeof setTimeout> = null
+  const switchingProfileId = ref<null | string>(null)
+
+  const activeProfileId = computed(() => {
+    const explicitActive = getActiveProfileId()
+    if (explicitActive) return explicitActive
+    if (!props.credentials) return null
+    return buildProfileId(props.credentials)
+  })
+
+  const refreshProfiles = (): void => {
+    profiles.value = loadProfiles()
+  }
 
   onMounted(async () => {
+    refreshProfiles()
+
     try {
       const result = await apiClient.getSetting('aurelia_server_url')
       if (result.status === 'ok' && result.data) {
@@ -38,6 +64,64 @@
       // Setting not found, leave empty
     }
   })
+
+  const switchProfile = async (profile: AuthProfile): Promise<void> => {
+    profileActionError.value = ''
+    switchingProfileId.value = profile.id
+
+    try {
+      const saveResult = await apiClient.saveCredentials(profile.credentials)
+      if (saveResult.status === 'error') {
+        throw new Error(String(saveResult.error))
+      }
+
+      setActiveProfileId(profile.id)
+      window.location.reload()
+    } catch (error) {
+      profileActionError.value = `Failed to switch profile: ${String(error)}`
+    } finally {
+      switchingProfileId.value = null
+    }
+  }
+
+  const removeSavedProfile = async (profile: AuthProfile): Promise<void> => {
+    profileActionError.value = ''
+    removingProfileId.value = profile.id
+
+    try {
+      const isActive = activeProfileId.value === profile.id
+      const remaining = removeProfile(profile.id)
+      profiles.value = remaining
+
+      if (!isActive) {
+        return
+      }
+
+      if (remaining.length === 0) {
+        const clearResult = await apiClient.clearSavedCredentials()
+        if (clearResult.status === 'error') {
+          throw new Error(String(clearResult.error))
+        }
+        setActiveProfileId(null)
+        emit('logout')
+        return
+      }
+
+      const fallbackProfile = remaining[0]
+      const saveResult = await apiClient.saveCredentials(fallbackProfile.credentials)
+      if (saveResult.status === 'error') {
+        throw new Error(String(saveResult.error))
+      }
+
+      setActiveProfileId(fallbackProfile.id)
+      window.location.reload()
+    } catch (error) {
+      profileActionError.value = `Failed to remove profile: ${String(error)}`
+      refreshProfiles()
+    } finally {
+      removingProfileId.value = null
+    }
+  }
 
   const onAureliaUrlInput = (event: Event): void => {
     const value = (event.target as HTMLInputElement).value
@@ -56,6 +140,20 @@
         // Ignore save errors
       }
     }, 500)
+  }
+
+  const onProfileAdded = (): void => {
+    refreshProfiles()
+  }
+
+  const handleLogout = async (): Promise<void> => {
+    try {
+      await apiClient.clearSavedCredentials()
+    } catch {
+      // Ignore backend logout errors and continue local logout.
+    }
+    setActiveProfileId(null)
+    emit('logout')
   }
 </script>
 
@@ -86,7 +184,7 @@
         <div class='space-y-2'>
           <label class='text-sm font-medium text-muted-foreground flex items-center space-x-2'>
             <Link class='size-4' />
-            <span>Jellyfin Server</span>
+            <span>Media Server</span>
           </label>
           <p
             class='
@@ -135,10 +233,74 @@
         </p>
       </div>
 
+      <!-- Saved Profiles -->
+      <div class='space-y-3'>
+        <div class='flex items-center justify-between'>
+          <label class='text-sm font-medium text-muted-foreground'>
+            Saved Profiles
+          </label>
+          <Button
+            @click='showAddProfileDialog = true'
+            size='sm'
+            variant='outline'
+          >
+            <Plus class='size-3 mr-1' />
+            Add Profile
+          </Button>
+        </div>
+        <div class='space-y-2'>
+          <div
+            v-for='profile in profiles'
+            :key='profile.id'
+            class='
+              border border-border/20 rounded-lg p-3
+              flex items-center justify-between gap-3
+            '
+          >
+            <div class='min-w-0'>
+              <p class='text-sm font-medium truncate'>
+                {{ profile.label }}
+              </p>
+              <p class='text-xs text-muted-foreground truncate'>
+                {{ profile.credentials.serverUrl }}
+              </p>
+            </div>
+
+            <div class='flex items-center gap-2'>
+              <Button
+                @click='switchProfile(profile)'
+                :disabled='switchingProfileId === profile.id || activeProfileId === profile.id'
+                size='sm'
+                variant='outline'
+              >
+                <RefreshCw v-if='switchingProfileId === profile.id' class='size-3 mr-1 animate-spin' />
+                <Check v-else-if='activeProfileId === profile.id' class='size-3 mr-1' />
+                {{ activeProfileId === profile.id ? 'Active' : 'Switch' }}
+              </Button>
+              <Button
+                @click='removeSavedProfile(profile)'
+                :disabled='removingProfileId === profile.id'
+                size='sm'
+                variant='destructive'
+              >
+                <Trash2 v-if='removingProfileId !== profile.id' class='size-3 mr-1' />
+                {{ removingProfileId === profile.id ? 'Removing...' : 'Remove' }}
+              </Button>
+            </div>
+          </div>
+          <p v-if='profiles.length === 0' class='text-xs text-muted-foreground'>
+            No saved profiles yet. Add one to enable quick switching.
+          </p>
+          <p v-if='profileActionError' class='text-xs text-destructive'>
+            {{ profileActionError }}
+          </p>
+        </div>
+      </div>
+
       <!-- Actions -->
       <div class='flex justify-end pt-2 border-t border-border/20'>
         <Button
-          @click='$emit("logout")'
+          @click='handleLogout'
           :disabled='!credentials'
           class='px-6'
           variant='destructive'
@@ -148,5 +310,11 @@
         </Button>
       </div>
     </div>
+
+    <AddProfileDialog
+      @profile-added='onProfileAdded'
+      @update:open='showAddProfileDialog = $event'
+      :open='showAddProfileDialog'
+    />
   </div>
 </template>

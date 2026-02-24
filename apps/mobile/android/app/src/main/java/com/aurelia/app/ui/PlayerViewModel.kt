@@ -170,9 +170,15 @@ class PlayerViewModel(
         bitRate: Int?,
     ): String? {
         val parts = mutableListOf<String>()
-        codec?.let { parts.add(it.uppercase()) }
+        codec?.let {
+            val codecDisplay = it.substringAfterLast('/')
+            parts.add(codecDisplay.uppercase())
+        }
         sampleRate?.let { parts.add("${it / 1000.0} kHz") }
-        bitRate?.let { parts.add("${it / 1000} kbps") }
+        bitRate?.let {
+            val bitRateBps = if (it in 1 until 10_000) it * 1000 else it
+            parts.add("${bitRateBps / 1000} kbps")
+        }
         return if (parts.isEmpty()) null else parts.joinToString(" / ")
     }
 

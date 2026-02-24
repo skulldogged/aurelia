@@ -26,12 +26,14 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Plus
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,9 +60,17 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.aurelia.app.audio.EQPresets
 import com.aurelia.app.audio.VisualizerStyle
+import com.aurelia.app.storage.SessionProfile
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.EqualizerSection
 import com.aurelia.app.ui.components.VisualizerSection
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import uniffi.aurelia_core.AuthRequest
+import uniffi.aurelia_core.BackendProvider
+import uniffi.aurelia_core.authenticate
+import uniffi.aurelia_core.detectProvider
 
 // Heights matching MainScreen
 private val MiniPlayerHeight = 64.dp
@@ -71,6 +81,7 @@ fun SettingsScreen(
   sessionStore: SessionStore,
   settingsViewModel: SettingsViewModel,
   onLogout: () -> Unit,
+  onSessionSwitched: () -> Unit,
   hasPlayerBar: Boolean = false,
 ) {
   val context = LocalContext.current
@@ -85,6 +96,20 @@ fun SettingsScreen(
   var disableBackdropBlur by remember { mutableStateOf(sessionStore.getDebugDisablePlayerBackdropBlur()) }
   var disableBackdropImageLayer by remember { mutableStateOf(sessionStore.getDebugDisablePlayerBackdropImageLayer()) }
   var disablePlayerTransitions by remember { mutableStateOf(sessionStore.getDebugDisablePlayerTransitions()) }
+  var profiles by remember { mutableStateOf(sessionStore.getProfiles()) }
+  var activeProfileId by remember { mutableStateOf(sessionStore.getActiveProfileId()) }
+  var switchingProfileId by remember { mutableStateOf<String?>(null) }
+  var removingProfileId by remember { mutableStateOf<String?>(null) }
+  var showAddProfileDialog by remember { mutableStateOf(false) }
+  var addProfileServerUrl by remember { mutableStateOf("") }
+  var addProfileUsername by remember { mutableStateOf("") }
+  var addProfilePassword by remember { mutableStateOf("") }
+  var addProfileProviderSelection by remember { mutableStateOf(LoginProviderSelection.AUTO) }
+  var addProfileDetectedProvider by remember { mutableStateOf<BackendProvider?>(null) }
+  var addProfileError by remember { mutableStateOf<String?>(null) }
+  var addProfileIsDetectingProvider by remember { mutableStateOf(false) }
+  var addProfileIsSubmitting by remember { mutableStateOf(false) }
+  val scope = androidx.compose.runtime.rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
 
   // Show snackbar for sync/clear results
@@ -112,6 +137,17 @@ fun SettingsScreen(
   val bottomPadding =
     NavBarContentHeight + systemNavBarInset + 24.dp +
       (if (hasPlayerBar) MiniPlayerHeight + 12.dp else 0.dp)
+
+  val resetAddProfileState = {
+    addProfileServerUrl = ""
+    addProfileUsername = ""
+    addProfilePassword = ""
+    addProfileProviderSelection = LoginProviderSelection.AUTO
+    addProfileDetectedProvider = null
+    addProfileError = null
+    addProfileIsDetectingProvider = false
+    addProfileIsSubmitting = false
+  }
 
   if (showClearCacheDialog) {
     AlertDialog(
@@ -163,6 +199,210 @@ fun SettingsScreen(
       },
       dismissButton = {
         TextButton(onClick = { showLogoutDialog = false }) {
+          Text("Cancel")
+        }
+      },
+    )
+  }
+
+  if (showAddProfileDialog) {
+    AlertDialog(
+      onDismissRequest = {
+        if (!addProfileIsSubmitting) {
+          showAddProfileDialog = false
+          resetAddProfileState()
+        }
+      },
+      title = { Text("Add profile") },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+          Text(
+            text = "Sign in to add another provider profile.",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant,
+          )
+
+          Text(
+            text = "Provider",
+            style = MaterialTheme.typography.labelLarge,
+            color = colors.onSurface,
+          )
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+              selected = addProfileProviderSelection == LoginProviderSelection.AUTO,
+              onClick = { addProfileProviderSelection = LoginProviderSelection.AUTO },
+              label = { Text("Auto") },
+            )
+            FilterChip(
+              selected = addProfileProviderSelection == LoginProviderSelection.JELLYFIN,
+              onClick = { addProfileProviderSelection = LoginProviderSelection.JELLYFIN },
+              label = { Text("Jellyfin") },
+            )
+            FilterChip(
+              selected = addProfileProviderSelection == LoginProviderSelection.NAVIDROME,
+              onClick = { addProfileProviderSelection = LoginProviderSelection.NAVIDROME },
+              label = { Text("Navidrome") },
+            )
+          }
+
+          if (addProfileProviderSelection == LoginProviderSelection.AUTO) {
+            TextButton(
+              onClick = {
+                if (addProfileServerUrl.isBlank() || addProfileIsDetectingProvider || addProfileIsSubmitting) {
+                  return@TextButton
+                }
+                addProfileError = null
+                addProfileIsDetectingProvider = true
+                scope.launch(Dispatchers.IO) {
+                  try {
+                    val provider = detectProvider(addProfileServerUrl.trim())
+                    withContext(Dispatchers.Main) {
+                      addProfileDetectedProvider = provider
+                      addProfileIsDetectingProvider = false
+                    }
+                  } catch (error: Exception) {
+                    withContext(Dispatchers.Main) {
+                      addProfileError = error.message ?: "Provider detection failed"
+                      addProfileIsDetectingProvider = false
+                    }
+                  }
+                }
+              },
+              enabled = !addProfileIsDetectingProvider && !addProfileIsSubmitting && addProfileServerUrl.isNotBlank(),
+            ) {
+              Text(if (addProfileIsDetectingProvider) "Detecting provider..." else "Detect provider")
+            }
+
+            val detectedProviderLabel = when (addProfileDetectedProvider) {
+              BackendProvider.JELLYFIN -> "Detected provider: Jellyfin"
+              BackendProvider.NAVIDROME -> "Detected provider: Navidrome"
+              null -> "Detected provider: not detected"
+            }
+            Text(
+              text = detectedProviderLabel,
+              style = MaterialTheme.typography.bodySmall,
+              color = colors.onSurfaceVariant,
+            )
+          }
+
+          androidx.compose.material3.OutlinedTextField(
+            value = addProfileServerUrl,
+            onValueChange = {
+              addProfileServerUrl = it
+              addProfileDetectedProvider = null
+            },
+            label = { Text("Server URL") },
+            placeholder = { Text("https://your-server") },
+            singleLine = true,
+            enabled = !addProfileIsSubmitting,
+            modifier = Modifier.fillMaxWidth(),
+          )
+
+          androidx.compose.material3.OutlinedTextField(
+            value = addProfileUsername,
+            onValueChange = { addProfileUsername = it },
+            label = { Text("Username") },
+            singleLine = true,
+            enabled = !addProfileIsSubmitting,
+            modifier = Modifier.fillMaxWidth(),
+          )
+
+          androidx.compose.material3.OutlinedTextField(
+            value = addProfilePassword,
+            onValueChange = { addProfilePassword = it },
+            label = { Text("Password") },
+            singleLine = true,
+            enabled = !addProfileIsSubmitting,
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+          )
+
+          if (!addProfileError.isNullOrBlank()) {
+            Text(
+              text = addProfileError ?: "",
+              style = MaterialTheme.typography.bodySmall,
+              color = colors.error,
+            )
+          }
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            if (addProfileServerUrl.isBlank() || addProfileUsername.isBlank() || addProfilePassword.isBlank()) {
+              addProfileError = "All fields are required"
+              return@Button
+            }
+
+            val previousActiveProfileId = activeProfileId
+            addProfileError = null
+            addProfileIsSubmitting = true
+            scope.launch(Dispatchers.IO) {
+              try {
+                val resolvedProvider = when (addProfileProviderSelection) {
+                  LoginProviderSelection.JELLYFIN -> BackendProvider.JELLYFIN
+                  LoginProviderSelection.NAVIDROME -> BackendProvider.NAVIDROME
+                  LoginProviderSelection.AUTO -> addProfileDetectedProvider ?: detectProvider(addProfileServerUrl.trim())
+                }
+
+                val response = authenticate(
+                  AuthRequest(
+                    provider = resolvedProvider,
+                    serverUrl = addProfileServerUrl.trim(),
+                    username = addProfileUsername.trim(),
+                    password = addProfilePassword,
+                    deviceId = sessionStore.getDeviceId(),
+                  ),
+                )
+
+                sessionStore.save(
+                  serverUrl = addProfileServerUrl.trim(),
+                  userId = response.userId,
+                  token = response.token,
+                  username = addProfileUsername.trim(),
+                  provider = resolvedProvider,
+                )
+
+                if (!previousActiveProfileId.isNullOrBlank()) {
+                  sessionStore.switchProfile(previousActiveProfileId)
+                }
+
+                withContext(Dispatchers.Main) {
+                  profiles = sessionStore.getProfiles()
+                  activeProfileId = sessionStore.getActiveProfileId()
+                  addProfileIsSubmitting = false
+                  showAddProfileDialog = false
+                  resetAddProfileState()
+                }
+              } catch (error: Exception) {
+                withContext(Dispatchers.Main) {
+                  addProfileError = error.message ?: "Failed to add profile"
+                  addProfileIsSubmitting = false
+                }
+              }
+            }
+          },
+          enabled = !addProfileIsSubmitting,
+        ) {
+          if (addProfileIsSubmitting) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(16.dp),
+              strokeWidth = 2.dp,
+              color = colors.onPrimary,
+            )
+          } else {
+            Text("Add")
+          }
+        }
+      },
+      dismissButton = {
+        TextButton(
+          onClick = {
+            showAddProfileDialog = false
+            resetAddProfileState()
+          },
+          enabled = !addProfileIsSubmitting,
+        ) {
           Text("Cancel")
         }
       },
@@ -435,6 +675,7 @@ fun SettingsScreen(
         SettingsSection(title = "Server") {
           val serverUrl = sessionStore.getServerUrl() ?: "Not connected"
           val username = sessionStore.getUserId() ?: "Unknown"
+          val provider = sessionStore.getProvider()?.name?.lowercase() ?: "unknown"
 
           SettingsInfoItem(
             icon = Icons.Filled.Storage,
@@ -449,6 +690,15 @@ fun SettingsScreen(
             icon = Icons.Filled.Info,
             title = "Logged in as",
             subtitle = username,
+          )
+          HorizontalDivider(
+            modifier = Modifier.padding(start = 56.dp),
+            color = colors.outline.copy(alpha = 0.2f),
+          )
+          SettingsInfoItem(
+            icon = Icons.Filled.Info,
+            title = "Provider",
+            subtitle = provider,
           )
           HorizontalDivider(
             modifier = Modifier.padding(start = 56.dp),
@@ -494,6 +744,81 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurfaceVariant,
               )
+            }
+          }
+        }
+
+        SettingsSection(title = "Profiles") {
+          SettingsActionItem(
+            icon = Icons.Filled.Plus,
+            title = "Add profile",
+            subtitle = "Sign in to another provider account",
+            onClick = {
+              resetAddProfileState()
+              showAddProfileDialog = true
+            },
+          )
+
+          if (profiles.isNotEmpty()) {
+            HorizontalDivider(
+              modifier = Modifier.padding(start = 56.dp),
+              color = colors.outline.copy(alpha = 0.2f),
+            )
+          }
+
+          if (profiles.isEmpty()) {
+            SettingsInfoItem(
+              icon = Icons.Filled.Info,
+              title = "No saved profiles",
+              subtitle = "Sign in to add a provider profile",
+            )
+          } else {
+            profiles.forEachIndexed { index, profile ->
+              ProfileActionItem(
+                profile = profile,
+                isActive = profile.id == activeProfileId,
+                isRemoving = removingProfileId == profile.id,
+                isSwitching = switchingProfileId == profile.id,
+                onRemove = {
+                  val wasActive = profile.id == activeProfileId
+                  removingProfileId = profile.id
+                  val removed = sessionStore.removeProfile(profile.id)
+                  profiles = sessionStore.getProfiles()
+                  activeProfileId = sessionStore.getActiveProfileId()
+                  removingProfileId = null
+
+                  if (!removed) {
+                    android.util.Log.w("SettingsScreen", "Failed to remove profile ${profile.id}")
+                    return@ProfileActionItem
+                  }
+
+                  if (profiles.isEmpty()) {
+                    onLogout()
+                  } else if (wasActive) {
+                    onSessionSwitched()
+                  }
+                },
+                onSwitch = {
+                  if (profile.id == activeProfileId) {
+                    return@ProfileActionItem
+                  }
+                  switchingProfileId = profile.id
+                  val switched = sessionStore.switchProfile(profile.id)
+                  profiles = sessionStore.getProfiles()
+                  activeProfileId = sessionStore.getActiveProfileId()
+                  switchingProfileId = null
+
+                  if (switched) {
+                    onSessionSwitched()
+                  }
+                },
+              )
+              if (index < profiles.lastIndex) {
+                HorizontalDivider(
+                  modifier = Modifier.padding(start = 56.dp),
+                  color = colors.outline.copy(alpha = 0.2f),
+                )
+              }
             }
           }
         }
@@ -659,6 +984,91 @@ private fun SettingsActionItem(
         tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
         modifier = Modifier.size(20.dp),
       )
+    }
+  }
+}
+
+@Composable
+private fun ProfileActionItem(
+  profile: SessionProfile,
+  isActive: Boolean,
+  isRemoving: Boolean,
+  isSwitching: Boolean,
+  onRemove: () -> Unit,
+  onSwitch: () -> Unit,
+) {
+  val colors = MaterialTheme.colorScheme
+
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(16.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(16.dp),
+  ) {
+    Icon(
+      imageVector = Icons.Filled.Storage,
+      contentDescription = null,
+      tint = colors.onSurfaceVariant,
+      modifier = Modifier.size(24.dp),
+    )
+
+    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+      Text(
+        text = profile.username.ifBlank { profile.userId },
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.Medium,
+        color = colors.onSurface,
+      )
+      Text(
+        text = "${profile.provider.name.lowercase()} • ${profile.serverUrl}",
+        style = MaterialTheme.typography.bodySmall,
+        color = colors.onSurfaceVariant,
+      )
+      if (isActive) {
+        Text(
+          text = "Active",
+          style = MaterialTheme.typography.labelSmall,
+          color = colors.primary,
+        )
+      }
+    }
+
+    if (!isActive) {
+      TextButton(
+        enabled = !isRemoving && !isSwitching,
+        onClick = onSwitch,
+      ) {
+        if (isSwitching) {
+          CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            strokeWidth = 2.dp,
+            color = colors.primary,
+          )
+        } else {
+          Text("Switch")
+        }
+      }
+    }
+
+    TextButton(
+      enabled = !isRemoving && !isSwitching,
+      onClick = onRemove,
+    ) {
+      if (isRemoving) {
+        CircularProgressIndicator(
+          modifier = Modifier.size(16.dp),
+          strokeWidth = 2.dp,
+          color = colors.error,
+        )
+      } else {
+        Icon(
+          imageVector = Icons.Filled.Delete,
+          contentDescription = "Remove profile",
+          tint = colors.error,
+          modifier = Modifier.size(18.dp),
+        )
+      }
     }
   }
 }

@@ -9,7 +9,7 @@ The web version uses:
 - **Frontend**: Vue 3 app using Web Audio API (shares code with desktop)
 - **Database**: Same redb database as desktop
 - **Auth**: Session cookies
-- **Audio**: Browser streams directly from Jellyfin URLs
+- **Audio**: Browser streams directly from provider URLs (Jellyfin or Navidrome)
 
 ## Project Structure
 
@@ -50,17 +50,19 @@ The frontend will start on `http://localhost:5173` and proxy API calls to the ba
 
 ## API Endpoints
 
-- `POST /api/auth/login` - Authenticate with Jellyfin
+- `POST /api/auth/detect-provider` - Detect backend provider from server URL
+- `POST /api/auth/provider-capabilities` - Get provider capability flags
+- `POST /api/auth/authenticate` - Authenticate with selected provider
 - `GET /api/auth/credentials` - Get saved credentials
 - `GET /api/library` - Get library data
-- `POST /api/library/sync` - Sync with Jellyfin
+- `POST /api/library/sync` - Sync with active provider
 - `GET /api/playlists` - Get playlists
-- `POST /api/audio/stream-url` - Get Jellyfin stream URL
+- `POST /api/audio/stream-url` - Get provider stream URL
 - `WS /ws` - WebSocket for real-time updates
 
 ## Differences from Desktop
 
 1. **Audio**: Uses Web Audio API instead of Rust audio player
-2. **Images**: Browser loads directly from Jellyfin (no local caching)
+2. **Images**: Browser loads directly from active provider (no local caching)
 3. **Window Controls**: None (browser handles this)
 4. **Discord/Last.fm**: Handled by backend or direct browser calls

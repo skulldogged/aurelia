@@ -23,23 +23,21 @@ pub type ApiResult<T> = Result<T, AppError>;
 #[allow(async_fn_in_trait)]
 pub trait Api {
     // ─── Auth ────────────────────────────────────────────────────
-    #[api(POST "/auth/login")]
-    async fn login_to_jellyfin(
+    #[api(POST "/auth/detect-provider")]
+    async fn detect_provider(&self, server_url: String) -> ApiResult<BackendProvider>;
+
+    #[api(POST "/auth/provider-capabilities")]
+    async fn get_provider_capabilities(
         &self,
+        provider: BackendProvider,
         server_url: String,
-        username: String,
-        password: String,
-        device_id: String,
-    ) -> ApiResult<serde_json::Value>; // Returns LoginResponse
+    ) -> ApiResult<ProviderCapabilities>;
+
+    #[api(POST "/auth/authenticate")]
+    async fn authenticate(&self, request: AuthRequest) -> ApiResult<Credentials>;
 
     #[api(POST "/auth/credentials")]
-    async fn save_credentials(
-        &self,
-        server_url: String,
-        username: String,
-        token: String,
-        user_id: String,
-    ) -> ApiResult<()>;
+    async fn save_credentials(&self, credentials: Credentials) -> ApiResult<()>;
 
     #[api(GET "/auth/credentials")]
     async fn get_saved_credentials(&self) -> ApiResult<Option<Credentials>>;

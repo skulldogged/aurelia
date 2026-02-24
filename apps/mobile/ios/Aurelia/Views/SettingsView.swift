@@ -1,3 +1,4 @@
+import AureliaCore
 import SwiftUI
 
 struct SettingsView: View {
@@ -8,6 +9,9 @@ struct SettingsView: View {
     @State private var lyricsServerUrl: String = SessionStore.shared.lyricsServerUrl ?? ""
     @State private var visualizerEnabled: Bool = SessionStore.shared.visualizerEnabled
     @State private var visualizerStyle: VisualizerStyle = .init(rawValue: SessionStore.shared.visualizerStyle) ?? .bars
+    @State private var profiles: [SessionProfile] = []
+    @State private var activeProfileId: String?
+    @State private var showAddProfileSheet = false
 
     var body: some View {
         NavigationStack {
@@ -27,6 +31,14 @@ struct SettingsView: View {
             visualizerEnabled = SessionStore.shared.visualizerEnabled
             visualizerStyle = VisualizerStyle(rawValue: SessionStore.shared.visualizerStyle) ?? .bars
             playerController.refreshVisualizerSettings()
+            profiles = SessionStore.shared.getProfiles()
+            activeProfileId = SessionStore.shared.getActiveProfileId()
+        }
+        .sheet(isPresented: $showAddProfileSheet) {
+            AddProfileSheet {
+                profiles = SessionStore.shared.getProfiles()
+                activeProfileId = SessionStore.shared.getActiveProfileId()
+            }
         }
     }
 
@@ -110,6 +122,25 @@ struct SettingsView: View {
             }
 
             Section {
+                Button {
+                    showAddProfileSheet = true
+                } label: {
+                    Label("Add Profile", systemImage: "plus")
+                }
+
+                if profiles.isEmpty {
+                    Text("No saved profiles")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(profiles) { profile in
+                        profileRow(profile)
+                    }
+                }
+            } header: {
+                Text("Profiles")
+            }
+
+            Section {
                 TextField("http://localhost:3030", text: $lyricsServerUrl)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -120,7 +151,7 @@ struct SettingsView: View {
             } header: {
                 Text("Lyrics Server")
             } footer: {
-                Text("URL of the lyrics daemon for synced lyrics from sidecar files. Leave empty to use Jellyfin lyrics only.")
+                Text("URL of the lyrics daemon for synced lyrics from sidecar files. Leave empty to use only server-provided lyrics.")
             }
 
             Section("About") {
@@ -151,5 +182,78 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .listRowBackground(Rectangle().fill(.ultraThinMaterial))
         #endif
+    }
+
+    @ViewBuilder
+    private func profileRow(_ profile: SessionProfile) -> some View {
+        let isActive = profile.id == activeProfileId
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(profile.username.isEmpty ? profile.userId : profile.username)
+                    .font(.headline)
+                Spacer()
+                if isActive {
+                    Text("Active")
+                        .font(.caption)
+                        .foregroundStyle(.tint)
+                }
+            }
+
+            Text("\(providerLabel(profile.provider)) • \(profile.serverUrl)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            HStack(spacing: 12) {
+                if !isActive {
+                    Button("Switch") {
+                        switchToProfile(profile.id)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Button("Remove", role: .destructive) {
+                    removeProfile(profile)
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func switchToProfile(_ profileId: String) {
+        playerController.stop()
+        guard appViewModel.switchProfile(profileId) else { return }
+        profiles = SessionStore.shared.getProfiles()
+        activeProfileId = SessionStore.shared.getActiveProfileId()
+    }
+
+    private func removeProfile(_ profile: SessionProfile) {
+        let wasActive = profile.id == activeProfileId
+        guard SessionStore.shared.removeProfile(profile.id) else { return }
+
+        profiles = SessionStore.shared.getProfiles()
+        activeProfileId = SessionStore.shared.getActiveProfileId()
+
+        if profiles.isEmpty {
+            appViewModel.logout()
+            return
+        }
+
+        if wasActive {
+            playerController.stop()
+            appViewModel.refreshAfterSessionChange()
+        }
+    }
+
+    private func providerLabel(_ provider: BackendProvider) -> String {
+        switch provider {
+        case .jellyfin:
+            return "jellyfin"
+        case .navidrome:
+            return "navidrome"
+        }
     }
 }

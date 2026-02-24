@@ -6,24 +6,56 @@ struct MainTabView: View {
     var onMiniPlayerTap: () -> Void
     var onMiniPlayerLyricsTap: () -> Void
     var onMiniPlayerQueueTap: () -> Void
+    @Environment(\.tabBarPlacement) private var tabBarPlacement
+    @Environment(AppViewModel.self) private var appViewModel
     @Environment(AudioPlayerController.self) private var playerController
+    @State private var profiles: [SessionProfile] = []
+    @State private var activeProfileId: String?
+    @State private var showAddProfileSheet = false
 
     var body: some View {
-        if useSidebarAdaptable {
-            tabs
-                .tabViewStyle(.sidebarAdaptable)
-        } else {
-            tabs
-                .tabViewStyle(.automatic)
-                .tabViewBottomAccessoryIfAvailable(isEnabled: playerController.snapshot.currentSongId != nil) {
-                    TabBarMiniPlayer(
-                        playerPresentationProgress: $playerPresentationProgress,
-                        onTap: onMiniPlayerTap,
-                        onLyricsTap: onMiniPlayerLyricsTap,
-                        onQueueTap: onMiniPlayerQueueTap
-                    )
-                }
-                .background(Color.clear)
+        Group {
+            if useSidebarAdaptable {
+                tabs
+                    .tabViewStyle(.sidebarAdaptable)
+                    .overlay(alignment: .bottomLeading) {
+                        if showsSidebarAccountMenu {
+                            SidebarAccountMenu(
+                                activeProfileLabel: activeProfileLabel,
+                                activeProfileId: activeProfileId,
+                                profiles: profiles,
+                                onAddProfile: { showAddProfileSheet = true },
+                                onLogout: handleLogout,
+                                onSwitchProfile: switchToProfile
+                            )
+                            .padding(.leading, AureliaSpacing.m)
+                            .padding(.bottom, sidebarAccountBottomPadding)
+                        }
+                    }
+            } else {
+                tabs
+                    .tabViewStyle(.automatic)
+                    .tabViewBottomAccessoryIfAvailable(isEnabled: playerController.snapshot.currentSongId != nil) {
+                        TabBarMiniPlayer(
+                            playerPresentationProgress: $playerPresentationProgress,
+                            onTap: onMiniPlayerTap,
+                            onLyricsTap: onMiniPlayerLyricsTap,
+                            onQueueTap: onMiniPlayerQueueTap
+                        )
+                    }
+                    .background(Color.clear)
+            }
+        }
+        .sheet(isPresented: $showAddProfileSheet) {
+            AddProfileSheet {
+                refreshProfiles()
+            }
+        }
+        .onAppear {
+            refreshProfiles()
+        }
+        .onChange(of: appViewModel.sessionVersion) { _, _ in
+            refreshProfiles()
         }
     }
 
@@ -87,6 +119,44 @@ struct MainTabView: View {
         UIDevice.current.userInterfaceIdiom == .pad || ProcessInfo.processInfo.isMacCatalystApp
     }
 
+    private var showsSidebarAccountMenu: Bool {
+        tabBarPlacement == .sidebar || tabBarPlacement == .topBar
+    }
+
+    private var activeProfileLabel: String {
+        if let activeProfileId,
+           let profile = profiles.first(where: { $0.id == activeProfileId })
+        {
+            return profile.username.isEmpty ? profile.userId : profile.username
+        }
+        return "Account"
+    }
+
+    private var sidebarAccountBottomPadding: CGFloat {
+        if playerController.snapshot.currentSongId == nil {
+            return AureliaSpacing.s
+        }
+        // Keep the account chip visible when the shared mini-player inset is present.
+        return 84
+    }
+
+    private func refreshProfiles() {
+        profiles = SessionStore.shared.getProfiles()
+        activeProfileId = SessionStore.shared.getActiveProfileId()
+    }
+
+    private func switchToProfile(_ profile: SessionProfile) {
+        guard profile.id != activeProfileId else { return }
+        playerController.stop()
+        guard appViewModel.switchProfile(profile.id) else { return }
+        refreshProfiles()
+    }
+
+    private func handleLogout() {
+        playerController.stop()
+        appViewModel.logout()
+    }
+
     private struct TabBarMiniPlayer: View {
         @Binding var playerPresentationProgress: CGFloat
         var onTap: () -> Void
@@ -99,6 +169,77 @@ struct MainTabView: View {
                 .opacity(Double(max(CGFloat(0), CGFloat(1) - playerPresentationProgress * CGFloat(1.4))))
                 .offset(y: playerPresentationProgress * 42)
                 .allowsHitTesting(playerPresentationProgress < 0.95)
+        }
+    }
+
+    private struct SidebarAccountMenu: View {
+        let activeProfileLabel: String
+        let activeProfileId: String?
+        let profiles: [SessionProfile]
+        let onAddProfile: () -> Void
+        let onLogout: () -> Void
+        let onSwitchProfile: (SessionProfile) -> Void
+
+        var body: some View {
+            Menu {
+                Section("Profiles") {
+                    if profiles.isEmpty {
+                        Text("No saved profiles")
+                    }
+                    ForEach(profiles) { profile in
+                        Button {
+                            onSwitchProfile(profile)
+                        } label: {
+                            if profile.id == activeProfileId {
+                                Label(profile.label, systemImage: "checkmark")
+                            } else {
+                                Text(profile.label)
+                            }
+                        }
+                        .disabled(profile.id == activeProfileId)
+                    }
+                }
+
+                Button {
+                    onAddProfile()
+                } label: {
+                    Label("Add Profile", systemImage: "plus")
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    onLogout()
+                } label: {
+                    Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.fill")
+                        .font(.title3)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(activeProfileLabel)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                        Text("Account")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(width: 250, alignment: .leading)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .menuStyle(.borderlessButton)
+            .buttonStyle(.plain)
         }
     }
 

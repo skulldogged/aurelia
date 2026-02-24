@@ -40,7 +40,7 @@ final class AudioPlayerController: @unchecked Sendable {
     private let visualizerAnalyzer = PlayerAudioTapAnalyzer()
     private let logger = Logger(subsystem: "com.aurelia.app", category: "AudioPlayer")
 
-    // Keep queue depth conservative to avoid overloading Jellyfin with parallel transcodes.
+    // Keep queue depth conservative to avoid overloading providers with parallel transcodes.
     private static let maxPreloadedItems = 3
     private static let initialPreloadedItems = 1
 
@@ -852,7 +852,17 @@ final class AudioPlayerController: @unchecked Sendable {
     ) -> String {
         let resolvedServerUrl = serverUrl ?? lastServerUrl
         let resolvedToken = token ?? lastToken
+        let provider = resolveBackendProvider(token: resolvedToken)
         guard !resolvedServerUrl.isEmpty, !resolvedToken.isEmpty else {
+            return buildMobileStreamUrl(
+                serverUrl: resolvedServerUrl,
+                token: resolvedToken,
+                itemId: song.id,
+                container: song.container
+            )
+        }
+
+        if provider == .navidrome {
             return buildMobileStreamUrl(
                 serverUrl: resolvedServerUrl,
                 token: resolvedToken,
@@ -934,8 +944,8 @@ final class AudioPlayerController: @unchecked Sendable {
     private func avUrlAssetOptions(for song: Song?) -> [String: Any]? {
         var options: [String: Any] = [:]
 
-        if !lastToken.isEmpty {
-            // AmpFin-style explicit token header for Jellyfin playback.
+        if !lastToken.isEmpty && resolveBackendProvider(token: lastToken) == .jellyfin {
+            // Jellyfin playback supports explicit token header.
             options["AVURLAssetHTTPHeaderFieldsKey"] = ["X-Emby-Token": lastToken]
         }
 
@@ -946,6 +956,13 @@ final class AudioPlayerController: @unchecked Sendable {
         }
 
         return options.isEmpty ? nil : options
+    }
+
+    private func resolveBackendProvider(token: String) -> BackendProvider {
+        if let provider = sessionStore.provider {
+            return provider
+        }
+        return token.hasPrefix("nd:") ? .navidrome : .jellyfin
     }
 
     private func attachVisualizerTap(to item: AVPlayerItem) {

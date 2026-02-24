@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,21 +23,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aurelia.app.storage.SessionStore
+import uniffi.aurelia_core.BackendProvider
 
 @Composable
 fun LoginScreen(
@@ -96,7 +100,7 @@ fun LoginScreen(
           color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
-          text = "Sign in to your Jellyfin library",
+          text = "Sign in to your media server library",
           style = MaterialTheme.typography.bodyLarge,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -118,10 +122,58 @@ fun LoginScreen(
             value = state.serverUrl,
             onValueChange = viewModel::updateServerUrl,
             label = { Text("Server URL") },
-            placeholder = { Text("https://your-jellyfin") },
+            placeholder = { Text("https://your-server") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
           )
+
+          Text(
+            text = "Provider",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+          )
+
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+          ) {
+            FilterChip(
+              selected = state.providerSelection == LoginProviderSelection.AUTO,
+              onClick = { viewModel.updateProviderSelection(LoginProviderSelection.AUTO) },
+              label = { Text("Auto") },
+            )
+            FilterChip(
+              selected = state.providerSelection == LoginProviderSelection.JELLYFIN,
+              onClick = { viewModel.updateProviderSelection(LoginProviderSelection.JELLYFIN) },
+              label = { Text("Jellyfin") },
+            )
+            FilterChip(
+              selected = state.providerSelection == LoginProviderSelection.NAVIDROME,
+              onClick = { viewModel.updateProviderSelection(LoginProviderSelection.NAVIDROME) },
+              label = { Text("Navidrome") },
+            )
+          }
+
+          if (state.providerSelection == LoginProviderSelection.AUTO) {
+            TextButton(
+              onClick = viewModel::detectProviderNow,
+              enabled = !state.isSubmitting && !state.isDetectingProvider && state.serverUrl.isNotBlank(),
+            ) {
+              Text(if (state.isDetectingProvider) "Detecting provider..." else "Detect provider")
+            }
+
+            val detectedProviderLabel =
+              when (state.detectedProvider) {
+                BackendProvider.JELLYFIN -> "Detected provider: Jellyfin"
+                BackendProvider.NAVIDROME -> "Detected provider: Navidrome"
+                null -> "Detected provider: not detected"
+              }
+            Text(
+              text = detectedProviderLabel,
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+          }
 
           OutlinedTextField(
             value = state.username,

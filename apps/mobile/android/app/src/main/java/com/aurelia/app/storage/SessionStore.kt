@@ -3,15 +3,42 @@ package com.aurelia.app.storage
 import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import uniffi.aurelia_core.BackendProvider
 import uniffi.aurelia_core.Credentials
 import uniffi.aurelia_core.clearCredentials
 import uniffi.aurelia_core.loadCredentials
 import uniffi.aurelia_core.saveCredentials
+import java.io.File
+
+@Serializable
+private data class StoredSessionProfile(
+  val id: String,
+  val provider: String,
+  val serverUrl: String,
+  val username: String,
+  val token: String,
+  val userId: String,
+  val updatedAt: Long,
+)
+
+data class SessionProfile(
+  val id: String,
+  val label: String,
+  val provider: BackendProvider,
+  val serverUrl: String,
+  val userId: String,
+  val username: String,
+)
 
 class SessionStore(
   context: Context,
 ) {
   private val prefs = context.getSharedPreferences("aurelia_session", Context.MODE_PRIVATE)
+  private val json = Json { ignoreUnknownKeys = true }
   private var migrationAttempted = false
 
   fun save(
@@ -19,30 +46,39 @@ class SessionStore(
     userId: String,
     token: String,
     username: String = "",
+    provider: BackendProvider = BackendProvider.JELLYFIN,
   ) {
-    val appDataDir = getAppDataDir()
-    if (appDataDir.isNullOrEmpty()) {
+    val baseAppDataDir = getBaseAppDataDir()
+    if (baseAppDataDir.isNullOrEmpty()) {
       Log.w(TAG, "Cannot save credentials: appDataDir not set")
       return
     }
     try {
       val credentials = Credentials(
+        provider = provider,
         serverUrl = serverUrl,
         username = username,
         token = token,
         userId = userId,
       )
-      saveCredentials(appDataDir, credentials)
+      val profileId = upsertProfile(credentials)
+      setActiveProfileId(profileId)
+      val profileAppDataDir = resolveProfileAppDataDir(baseAppDataDir, profileId)
+      saveCredentials(profileAppDataDir, credentials)
     } catch (e: Exception) {
       Log.e(TAG, "Failed to save credentials to redb", e)
     }
   }
 
   fun setAppDataDir(path: String) {
-    prefs.edit { putString("appDataDir", path) }
+    prefs.edit { putString(KEY_APP_DATA_DIR, path) }
   }
 
-  fun getAppDataDir(): String? = prefs.getString("appDataDir", null)
+  fun getAppDataDir(): String? {
+    val baseAppDataDir = getBaseAppDataDir() ?: return null
+    val activeProfileId = getActiveProfileId() ?: return baseAppDataDir
+    return resolveProfileAppDataDir(baseAppDataDir, activeProfileId)
+  }
 
   fun setUseDynamicColor(enabled: Boolean) {
     prefs.edit { putBoolean("useDynamicColor", enabled) }
@@ -59,7 +95,8 @@ class SessionStore(
         Log.e(TAG, "Failed to clear credentials from redb", e)
       }
     }
-    // Also clear legacy SharedPreferences credentials (but keep settings)
+    setActiveProfileId(null)
+    // Also clear previous SharedPreferences credentials (but keep settings)
     prefs.edit {
       remove("serverUrl")
         .remove("userId")
@@ -68,13 +105,17 @@ class SessionStore(
   }
 
   fun getCredentials(): Credentials? {
-    val appDataDir = getAppDataDir() ?: return null
+    val baseAppDataDir = getBaseAppDataDir() ?: return null
 
     // Attempt migration from SharedPreferences on first access
     if (!migrationAttempted) {
       migrationAttempted = true
-      migrateFromSharedPreferences(appDataDir)
+      migrateFromSharedPreferences(baseAppDataDir)
     }
+
+    bootstrapActiveProfileFromLegacyCredentials(baseAppDataDir)
+
+    val appDataDir = getAppDataDir() ?: return null
 
     return try {
       loadCredentials(appDataDir)
@@ -89,6 +130,57 @@ class SessionStore(
   fun getUserId(): String? = getCredentials()?.userId
 
   fun getToken(): String? = getCredentials()?.token
+
+  fun getProvider(): BackendProvider? = getCredentials()?.provider
+
+  fun getProfiles(): List<SessionProfile> =
+    loadStoredProfiles()
+      .sortedByDescending { it.updatedAt }
+      .mapNotNull { storedProfile ->
+        val provider = storedProfile.provider.toBackendProvider() ?: return@mapNotNull null
+        val username = storedProfile.username.ifBlank { storedProfile.userId }
+        SessionProfile(
+          id = storedProfile.id,
+          label = "$username @ ${storedProfile.serverUrl} (${provider.name.lowercase()})",
+          provider = provider,
+          serverUrl = storedProfile.serverUrl,
+          userId = storedProfile.userId,
+          username = username,
+        )
+      }
+
+  fun getActiveProfileId(): String? = prefs.getString(KEY_ACTIVE_PROFILE_ID, null)
+
+  fun switchProfile(profileId: String): Boolean {
+    val baseAppDataDir = getBaseAppDataDir() ?: return false
+    val storedProfile = loadStoredProfiles().firstOrNull { it.id == profileId } ?: return false
+    val credentials = storedProfile.toCredentials() ?: return false
+    return try {
+      setActiveProfileId(profileId)
+      val profileAppDataDir = resolveProfileAppDataDir(baseAppDataDir, profileId)
+      saveCredentials(profileAppDataDir, credentials)
+      true
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to switch profile", e)
+      false
+    }
+  }
+
+  fun removeProfile(profileId: String): Boolean {
+    val profiles = loadStoredProfiles().toMutableList()
+    val removed = profiles.removeAll { it.id == profileId }
+    if (!removed) return false
+
+    saveStoredProfiles(profiles)
+    if (getActiveProfileId() == profileId) {
+      val replacement = profiles.maxByOrNull { it.updatedAt }
+      setActiveProfileId(replacement?.id)
+      if (replacement != null) {
+        switchProfile(replacement.id)
+      }
+    }
+    return true
+  }
 
   fun setLyricsServerUrl(url: String?) {
     prefs.edit {
@@ -184,7 +276,7 @@ class SessionStore(
         if (existingCreds != null) {
           // Already have credentials in redb, just clear old ones
           clearOldSharedPreferencesCredentials()
-          Log.d(TAG, "Credentials already in redb, cleared legacy SharedPreferences")
+          Log.d(TAG, "Credentials already in redb, cleared previous SharedPreferences")
           return
         }
       } catch (e: Exception) {
@@ -194,6 +286,7 @@ class SessionStore(
       // Migrate to redb
       try {
         val credentials = Credentials(
+          provider = BackendProvider.JELLYFIN,
           serverUrl = oldServerUrl,
           username = "",
           token = oldToken,
@@ -216,7 +309,125 @@ class SessionStore(
     }
   }
 
+  private fun getBaseAppDataDir(): String? = prefs.getString(KEY_APP_DATA_DIR, null)
+
+  private fun setActiveProfileId(profileId: String?) {
+    prefs.edit {
+      if (profileId.isNullOrBlank()) {
+        remove(KEY_ACTIVE_PROFILE_ID)
+      } else {
+        putString(KEY_ACTIVE_PROFILE_ID, profileId)
+      }
+    }
+  }
+
+  private fun bootstrapActiveProfileFromLegacyCredentials(baseAppDataDir: String) {
+    if (!getActiveProfileId().isNullOrBlank()) return
+    val legacyCredentials = try {
+      loadCredentials(baseAppDataDir)
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to load legacy credentials for bootstrap", e)
+      null
+    } ?: return
+
+    val profileId = upsertProfile(legacyCredentials)
+    setActiveProfileId(profileId)
+    try {
+      val profileAppDataDir = resolveProfileAppDataDir(baseAppDataDir, profileId)
+      if (loadCredentials(profileAppDataDir) == null) {
+        saveCredentials(profileAppDataDir, legacyCredentials)
+      }
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to bootstrap profile credentials", e)
+    }
+  }
+
+  private fun buildProfileId(credentials: Credentials): String {
+    val provider = credentials.provider.name.lowercase()
+    val username = credentials.username.trim().lowercase()
+    val serverUrl = credentials.serverUrl.trim().lowercase()
+    return "$provider|$username|$serverUrl"
+  }
+
+  private fun profileDirectoryName(profileId: String): String {
+    val slug = profileId
+      .lowercase()
+      .replace(Regex("[^a-z0-9]+"), "-")
+      .trim('-')
+      .ifBlank { "profile" }
+    val checksum = profileId.hashCode().toUInt().toString(16)
+    return "$slug-$checksum"
+  }
+
+  private fun resolveProfileAppDataDir(baseAppDataDir: String, profileId: String): String {
+    val profileDir = File(baseAppDataDir, "profiles/${profileDirectoryName(profileId)}")
+    if (!profileDir.exists()) {
+      profileDir.mkdirs()
+    }
+    return profileDir.absolutePath
+  }
+
+  private fun upsertProfile(credentials: Credentials): String {
+    val profileId = buildProfileId(credentials)
+    val profiles = loadStoredProfiles().toMutableList()
+    val provider = credentials.provider.name.lowercase()
+    val updatedProfile = StoredSessionProfile(
+      id = profileId,
+      provider = provider,
+      serverUrl = credentials.serverUrl,
+      username = credentials.username,
+      token = credentials.token,
+      userId = credentials.userId,
+      updatedAt = System.currentTimeMillis(),
+    )
+    profiles.removeAll { it.id == profileId }
+    profiles += updatedProfile
+    saveStoredProfiles(profiles)
+    return profileId
+  }
+
+  private fun loadStoredProfiles(): List<StoredSessionProfile> {
+    val raw = prefs.getString(KEY_PROFILES_JSON, null) ?: return emptyList()
+    return try {
+      json.decodeFromString<List<StoredSessionProfile>>(raw)
+    } catch (e: Exception) {
+      Log.w(TAG, "Failed to parse stored profiles", e)
+      emptyList()
+    }
+  }
+
+  private fun saveStoredProfiles(profiles: List<StoredSessionProfile>) {
+    val encoded = try {
+      json.encodeToString(profiles)
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to encode stored profiles", e)
+      return
+    }
+    prefs.edit { putString(KEY_PROFILES_JSON, encoded) }
+  }
+
   companion object {
     private const val TAG = "SessionStore"
+    private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
+    private const val KEY_APP_DATA_DIR = "appDataDir"
+    private const val KEY_PROFILES_JSON = "saved_profiles_json"
   }
+}
+
+private fun String.toBackendProvider(): BackendProvider? =
+  when (lowercase()) {
+    "jellyfin" -> BackendProvider.JELLYFIN
+    "navidrome" -> BackendProvider.NAVIDROME
+    else -> null
+  }
+
+private fun StoredSessionProfile.toCredentials(): Credentials? {
+  val provider = provider.toBackendProvider() ?: return null
+  return Credentials(
+    provider = provider,
+    serverUrl = serverUrl,
+    username = username,
+    token = token,
+    userId = userId,
+  )
 }

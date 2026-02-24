@@ -127,6 +127,7 @@ fun MainScreen(
   sessionStore: SessionStore,
   playerController: PlayerController,
   onLogout: () -> Unit,
+  onSessionSwitched: () -> Unit,
 ) {
   val navController = rememberNavController()
 
@@ -369,6 +370,7 @@ fun MainScreen(
             sessionStore = sessionStore,
             settingsViewModel = settingsViewModel,
             onLogout = onLogout,
+            onSessionSwitched = onSessionSwitched,
             hasPlayerBar = libraryState.nowPlaying != null,
           )
         }

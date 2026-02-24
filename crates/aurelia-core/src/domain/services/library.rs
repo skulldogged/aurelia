@@ -3,15 +3,16 @@ use crate::domain::errors::DomainError;
 use crate::domain::models::{SyncDelta, SyncReport, SyncState};
 use crate::models::{Album, Artist, Song};
 use redb::{Database, ReadableDatabase, ReadableTable, ReadableTableMetadata};
+use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, info};
 
 pub struct LibraryService {
-    db: &'static Database,
+    db: Arc<Database>,
 }
 
 impl LibraryService {
-    pub fn new(db: &'static Database) -> Self {
+    pub fn new(db: Arc<Database>) -> Self {
         Self { db }
     }
 
