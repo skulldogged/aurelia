@@ -8,10 +8,10 @@ import kotlinx.coroutines.flow.StateFlow
 class AppViewModel(
   private val sessionStore: SessionStore,
 ) : ViewModel() {
-  private val mutableState = MutableStateFlow(checkSessionState())
+  private val mutableState = MutableStateFlow(checkSessionState(sessionVersion = 0))
   val state: StateFlow<AppState> = mutableState
 
-  private fun checkSessionState(sessionVersion: Int = mutableState.value.sessionVersion): AppState {
+  private fun checkSessionState(sessionVersion: Int): AppState {
     val hasSession =
       !sessionStore.getServerUrl().isNullOrBlank() &&
         !sessionStore.getUserId().isNullOrBlank() &&

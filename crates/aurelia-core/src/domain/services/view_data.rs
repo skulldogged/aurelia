@@ -135,44 +135,49 @@ pub fn derive_home_view_data(
 ) -> HomeViewData {
     let mut albums: Vec<Album> = Vec::new();
     let mut album_song_counts: HashMap<String, usize> = HashMap::new();
+    let mut album_song_first: HashMap<String, Song> = HashMap::new();
 
     for song in all_songs {
-        if let Some(album_id) = &song.album_id {
-            let count = album_song_counts.entry(album_id.clone()).or_insert(0);
-            *count += 1;
-        }
+        let Some(album_key) = album_group_key(song) else {
+            continue;
+        };
+
+        let count = album_song_counts.entry(album_key.clone()).or_insert(0);
+        *count += 1;
+        album_song_first
+            .entry(album_key)
+            .or_insert_with(|| song.clone());
     }
 
-    let mut seen_albums: HashMap<String, bool> = HashMap::new();
-    for song in all_songs {
-        if let Some(album_id) = &song.album_id
-            && !seen_albums.contains_key(album_id)
-        {
-            seen_albums.insert(album_id.clone(), true);
-            let song_count = album_song_counts.get(album_id).copied().unwrap_or(0) as i64;
-            albums.push(Album {
-                id: Some(album_id.clone()),
-                name: song.album.clone().unwrap_or_default(),
-                artist: song
-                    .artists
-                    .as_ref()
-                    .and_then(|artists| artists.first())
-                    .cloned()
-                    .unwrap_or_default(),
-                artist_id: song
-                    .artist_ids
-                    .as_ref()
-                    .and_then(|ids| ids.first())
-                    .cloned(),
-                album_art_url: song.album_art_url.clone(),
-                song_count,
-                songs: None,
-                image_tags: None,
-                provider_ids: None,
-                date_created: song.date_created.clone(),
-                date_modified: None,
-            });
-        }
+    for (album_key, first_song) in album_song_first {
+        let song_count = album_song_counts.get(&album_key).copied().unwrap_or(0) as i64;
+        albums.push(Album {
+            id: Some(
+                first_song
+                    .album_id
+                    .clone()
+                    .unwrap_or(album_key),
+            ),
+            name: first_song.album.clone().unwrap_or_default(),
+            artist: first_song
+                .artists
+                .as_ref()
+                .and_then(|artists| artists.first())
+                .cloned()
+                .unwrap_or_default(),
+            artist_id: first_song
+                .artist_ids
+                .as_ref()
+                .and_then(|ids| ids.first())
+                .cloned(),
+            album_art_url: first_song.album_art_url.clone(),
+            song_count,
+            songs: None,
+            image_tags: None,
+            provider_ids: None,
+            date_created: first_song.date_created.clone(),
+            date_modified: first_song.date_modified.clone(),
+        });
     }
 
     let mut recently_added = albums.clone();
@@ -191,6 +196,12 @@ pub fn derive_home_view_data(
         .take(limits.featured_albums as usize)
         .cloned()
         .collect();
+
+    let recently_played = if recently_played.is_empty() {
+        derive_recently_played_fallback(all_songs, limits.recently_added_albums as usize)
+    } else {
+        recently_played
+    };
 
     HomeViewData {
         recently_played,
@@ -227,6 +238,18 @@ pub fn derive_mobile_home_data(
     recently_played.sort_by(|a, b| b.date_played.cmp(&a.date_played));
     recently_played.truncate(limits.recently_played as usize);
 
+    if recently_played.is_empty() {
+        recently_played = derive_recently_played_fallback(all_songs, limits.recently_played as usize);
+    }
+
+    if most_played.is_empty() {
+        most_played = recently_played
+            .iter()
+            .take(limits.most_played as usize)
+            .cloned()
+            .collect();
+    }
+
     let derived_home = derive_home_view_data(
         all_songs,
         recently_played.clone(),
@@ -245,6 +268,55 @@ pub fn derive_mobile_home_data(
         random_albums: derived_home.random_albums,
         featured_albums: derived_home.featured_albums,
     }
+}
+
+fn album_group_key(song: &Song) -> Option<String> {
+    if let Some(album_id) = &song.album_id {
+        if !album_id.trim().is_empty() {
+            return Some(album_id.clone());
+        }
+    }
+
+    let album_name = song.album.as_deref()?.trim();
+    if album_name.is_empty() {
+        return None;
+    }
+
+    let album_artist = song
+        .artists
+        .as_ref()
+        .and_then(|artists| artists.first())
+        .map(|name| name.trim().to_lowercase())
+        .unwrap_or_else(|| "unknown".to_string());
+
+    Some(format!(
+        "album-name:{}|artist:{}",
+        album_name.to_lowercase(),
+        album_artist
+    ))
+}
+
+fn derive_recently_played_fallback(all_songs: &[Song], limit: usize) -> Vec<Song> {
+    let mut fallback: Vec<Song> = all_songs.to_vec();
+    fallback.sort_by(|a, b| {
+        let b_key = b
+            .date_played
+            .as_ref()
+            .or(b.date_modified.as_ref())
+            .or(b.date_created.as_ref())
+            .map(String::as_str)
+            .unwrap_or("");
+        let a_key = a
+            .date_played
+            .as_ref()
+            .or(a.date_modified.as_ref())
+            .or(a.date_created.as_ref())
+            .map(String::as_str)
+            .unwrap_or("");
+        b_key.cmp(a_key)
+    });
+    fallback.truncate(limit);
+    fallback
 }
 
 #[cfg(test)]
@@ -424,5 +496,84 @@ mod tests {
         assert_eq!(derived.recently_added.len(), 2);
         assert_eq!(derived.random_albums.len(), 2);
         assert_eq!(derived.featured_albums.len(), 1);
+    }
+
+    #[test]
+    fn derive_home_view_data_falls_back_when_album_id_missing() {
+        let songs = vec![
+            song(
+                "1",
+                None,
+                Some("Fallback Album"),
+                Some("artist-1"),
+                Some("Artist 1"),
+                Some("2025-01-01"),
+            ),
+            song(
+                "2",
+                None,
+                Some("Fallback Album"),
+                Some("artist-1"),
+                Some("Artist 1"),
+                Some("2025-01-02"),
+            ),
+        ];
+
+        let mut rng = StdRng::seed_from_u64(999);
+        let derived = derive_home_view_data(
+            &songs,
+            Vec::new(),
+            HomeViewLimits {
+                featured_albums: 5,
+                random_albums: 5,
+                recently_added_albums: 5,
+            },
+            &mut rng,
+        );
+
+        assert_eq!(derived.recently_added.len(), 1);
+        assert_eq!(derived.random_albums.len(), 1);
+        assert_eq!(derived.featured_albums.len(), 1);
+    }
+
+    #[test]
+    fn derive_mobile_home_data_falls_back_when_play_stats_missing() {
+        let mut songs = vec![
+            song(
+                "1",
+                Some("alb-1"),
+                Some("Album 1"),
+                Some("art-1"),
+                Some("Artist 1"),
+                Some("2025-01-01"),
+            ),
+            song(
+                "2",
+                Some("alb-2"),
+                Some("Album 2"),
+                Some("art-2"),
+                Some("Artist 2"),
+                Some("2025-01-03"),
+            ),
+        ];
+        songs[0].play_count = Some(0);
+        songs[0].date_played = None;
+        songs[1].play_count = Some(0);
+        songs[1].date_played = None;
+
+        let mut rng = StdRng::seed_from_u64(1234);
+        let derived = derive_mobile_home_data(
+            &songs,
+            MobileHomeViewLimits {
+                most_played: 2,
+                recently_played: 2,
+                album_section: 2,
+                featured_albums: 2,
+            },
+            &mut rng,
+        );
+
+        assert!(!derived.recently_played.is_empty());
+        assert!(!derived.most_played.is_empty());
     }
 }

@@ -129,7 +129,9 @@ export const useHomePage = (emit: {
 
   const mostPlayed = computed(() => {
     const allSongs = libraryStore.allSongs
-    if (allSongs.length === 0) return []
+    if (allSongs.length === 0) {
+      return homeStore.recentlyPlayedSongs.slice(0, 10)
+    }
 
     // Simple cache invalidation - only recompute if library changed
     if (mostPlayedCache.value.length > 0 &&
@@ -142,6 +144,10 @@ export const useHomePage = (emit: {
       .filter(song => (song.playCount ?? 0) > 0)
       .sort((a, b) => (b.playCount || 0) - (a.playCount || 0))
       .slice(0, 10)
+
+    if (result.length === 0) {
+      return homeStore.recentlyPlayedSongs.slice(0, 10)
+    }
 
     mostPlayedCache.value = result
     lastLibrarySongCount.value = allSongs.length

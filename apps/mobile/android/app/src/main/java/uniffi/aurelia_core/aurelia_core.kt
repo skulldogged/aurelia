@@ -1858,7 +1858,7 @@ data class Credentials (
     var `provider`: BackendProvider
     , 
     /**
-     * Jellyfin server URL
+     * Backend server URL
      */
     var `serverUrl`: kotlin.String
     , 
