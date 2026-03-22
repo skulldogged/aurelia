@@ -852,6 +852,12 @@ static partial class _UniFFILib {
     
     
     
+    
+    
+    
+    
+    
+    
 
     static _UniFFILib() {
         _UniFFILib.uniffiCheckContractApiVersion();
@@ -908,7 +914,11 @@ static partial class _UniFFILib {
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
-    public static extern ulong uniffi_aurelia_core_fn_func_authenticate(RustBuffer @serverUrl,RustBuffer @username,RustBuffer @password,RustBuffer @deviceId
+    public static extern ulong uniffi_aurelia_core_fn_func_authenticate(RustBuffer @request
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern RustBuffer uniffi_aurelia_core_fn_func_build_image_url(RustBuffer @serverUrl,RustBuffer @token,RustBuffer @itemId,RustBuffer @imageType,RustBuffer @width,RustBuffer @quality,ref UniffiRustCallStatus _uniffi_out_err
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -945,6 +955,10 @@ static partial class _UniFFILib {
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern RustBuffer uniffi_aurelia_core_fn_func_derive_mobile_home_data(RustBuffer @songs,long @mostPlayedLimit,long @recentlyPlayedLimit,long @albumSectionLimit,long @featuredAlbumsLimit,ref UniffiRustCallStatus _uniffi_out_err
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ulong uniffi_aurelia_core_fn_func_detect_provider(RustBuffer @serverUrl
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -997,6 +1011,10 @@ static partial class _UniFFILib {
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ulong uniffi_aurelia_core_fn_func_get_playlists(RustBuffer @serverUrl,RustBuffer @token,RustBuffer @userId
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern RustBuffer uniffi_aurelia_core_fn_func_get_provider_capabilities(RustBuffer @provider,ref UniffiRustCallStatus _uniffi_out_err
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -1356,6 +1374,10 @@ static partial class _UniFFILib {
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ushort uniffi_aurelia_core_checksum_func_build_image_url(
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ushort uniffi_aurelia_core_checksum_func_build_mobile_stream_url(
     );
 
@@ -1389,6 +1411,10 @@ static partial class _UniFFILib {
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ushort uniffi_aurelia_core_checksum_func_derive_mobile_home_data(
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ushort uniffi_aurelia_core_checksum_func_detect_provider(
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -1441,6 +1467,10 @@ static partial class _UniFFILib {
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ushort uniffi_aurelia_core_checksum_func_get_playlists(
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ushort uniffi_aurelia_core_checksum_func_get_provider_capabilities(
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -1627,8 +1657,14 @@ static partial class _UniFFILib {
         }
         {
             var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_authenticate();
-            if (checksum != 60022) {
-                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_authenticate` checksum `60022`, library returned `{checksum}`");
+            if (checksum != 43633) {
+                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_authenticate` checksum `43633`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_build_image_url();
+            if (checksum != 4929) {
+                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_build_image_url` checksum `4929`, library returned `{checksum}`");
             }
         }
         {
@@ -1683,6 +1719,12 @@ static partial class _UniFFILib {
             var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_derive_mobile_home_data();
             if (checksum != 22516) {
                 throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_derive_mobile_home_data` checksum `22516`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_detect_provider();
+            if (checksum != 4821) {
+                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_detect_provider` checksum `4821`, library returned `{checksum}`");
             }
         }
         {
@@ -1761,6 +1803,12 @@ static partial class _UniFFILib {
             var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_get_playlists();
             if (checksum != 13349) {
                 throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_get_playlists` checksum `13349`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_get_provider_capabilities();
+            if (checksum != 18095) {
+                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_get_provider_capabilities` checksum `18095`, library returned `{checksum}`");
             }
         }
         {
@@ -1891,8 +1939,8 @@ static partial class _UniFFILib {
         }
         {
             var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_sync_songs_only();
-            if (checksum != 43201) {
-                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_sync_songs_only` checksum `43201`, library returned `{checksum}`");
+            if (checksum != 1256) {
+                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_sync_songs_only` checksum `1256`, library returned `{checksum}`");
             }
         }
         {
@@ -2407,10 +2455,55 @@ class FfiConverterTypeArtist: FfiConverterRustBuffer<Artist> {
 
 
 /// <summary>
-/// User credentials for Jellyfin authentication
+/// Authentication request payload.
+/// </summary>
+public record AuthRequest (
+    BackendProvider @provider, 
+    string @serverUrl, 
+    string @username, 
+    string @password, 
+    string @deviceId
+) {
+}
+
+class FfiConverterTypeAuthRequest: FfiConverterRustBuffer<AuthRequest> {
+    public static FfiConverterTypeAuthRequest INSTANCE = new FfiConverterTypeAuthRequest();
+
+    public override AuthRequest Read(BigEndianStream stream) {
+        return new AuthRequest(
+            @provider: FfiConverterTypeBackendProvider.INSTANCE.Read(stream),
+            @serverUrl: FfiConverterString.INSTANCE.Read(stream),
+            @username: FfiConverterString.INSTANCE.Read(stream),
+            @password: FfiConverterString.INSTANCE.Read(stream),
+            @deviceId: FfiConverterString.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(AuthRequest value) {
+        return 0
+            + FfiConverterTypeBackendProvider.INSTANCE.AllocationSize(value.@provider)
+            + FfiConverterString.INSTANCE.AllocationSize(value.@serverUrl)
+            + FfiConverterString.INSTANCE.AllocationSize(value.@username)
+            + FfiConverterString.INSTANCE.AllocationSize(value.@password)
+            + FfiConverterString.INSTANCE.AllocationSize(value.@deviceId);
+    }
+
+    public override void Write(AuthRequest value, BigEndianStream stream) {
+            FfiConverterTypeBackendProvider.INSTANCE.Write(value.@provider, stream);
+            FfiConverterString.INSTANCE.Write(value.@serverUrl, stream);
+            FfiConverterString.INSTANCE.Write(value.@username, stream);
+            FfiConverterString.INSTANCE.Write(value.@password, stream);
+            FfiConverterString.INSTANCE.Write(value.@deviceId, stream);
+    }
+}
+
+
+
+/// <summary>
+/// User credentials for backend authentication
 /// </summary>
 /// <param name="server_url">
-/// Jellyfin server URL
+/// Backend server URL
 /// </param>
 /// <param name="username">
 /// Username
@@ -2422,8 +2515,9 @@ class FfiConverterTypeArtist: FfiConverterRustBuffer<Artist> {
 /// User ID
 /// </param>
 public record Credentials (
+    BackendProvider @provider, 
     /// <summary>
-    /// Jellyfin server URL
+    /// Backend server URL
     /// </summary>
     string @serverUrl, 
     /// <summary>
@@ -2446,6 +2540,7 @@ class FfiConverterTypeCredentials: FfiConverterRustBuffer<Credentials> {
 
     public override Credentials Read(BigEndianStream stream) {
         return new Credentials(
+            @provider: FfiConverterTypeBackendProvider.INSTANCE.Read(stream),
             @serverUrl: FfiConverterString.INSTANCE.Read(stream),
             @username: FfiConverterString.INSTANCE.Read(stream),
             @token: FfiConverterString.INSTANCE.Read(stream),
@@ -2455,6 +2550,7 @@ class FfiConverterTypeCredentials: FfiConverterRustBuffer<Credentials> {
 
     public override int AllocationSize(Credentials value) {
         return 0
+            + FfiConverterTypeBackendProvider.INSTANCE.AllocationSize(value.@provider)
             + FfiConverterString.INSTANCE.AllocationSize(value.@serverUrl)
             + FfiConverterString.INSTANCE.AllocationSize(value.@username)
             + FfiConverterString.INSTANCE.AllocationSize(value.@token)
@@ -2462,6 +2558,7 @@ class FfiConverterTypeCredentials: FfiConverterRustBuffer<Credentials> {
     }
 
     public override void Write(Credentials value, BigEndianStream stream) {
+            FfiConverterTypeBackendProvider.INSTANCE.Write(value.@provider, stream);
             FfiConverterString.INSTANCE.Write(value.@serverUrl, stream);
             FfiConverterString.INSTANCE.Write(value.@username, stream);
             FfiConverterString.INSTANCE.Write(value.@token, stream);
@@ -2581,7 +2678,7 @@ class FfiConverterTypeLibraryData: FfiConverterRustBuffer<LibraryData> {
 
 
 /// <summary>
-/// Response from successful Jellyfin login
+/// Response from successful login
 /// </summary>
 /// <param name="token">
 /// User authentication token
@@ -3126,6 +3223,51 @@ class FfiConverterTypePlaylistUpdateData: FfiConverterRustBuffer<PlaylistUpdateD
             FfiConverterOptionalBoolean.INSTANCE.Write(value.@isPublic, stream);
             FfiConverterOptionalSequenceTypeSong.INSTANCE.Write(value.@songs, stream);
             FfiConverterOptionalBoolean.INSTANCE.Write(value.@isFavorite, stream);
+    }
+}
+
+
+
+/// <summary>
+/// Provider capabilities for feature gating.
+/// </summary>
+public record ProviderCapabilities (
+    bool @supportsClientCapabilitiesRegistration, 
+    bool @supportsPlaybackProgressReporting, 
+    bool @supportsSidecarLyricsLookup, 
+    bool @supportsServerLyrics, 
+    bool @supportsInstantMix
+) {
+}
+
+class FfiConverterTypeProviderCapabilities: FfiConverterRustBuffer<ProviderCapabilities> {
+    public static FfiConverterTypeProviderCapabilities INSTANCE = new FfiConverterTypeProviderCapabilities();
+
+    public override ProviderCapabilities Read(BigEndianStream stream) {
+        return new ProviderCapabilities(
+            @supportsClientCapabilitiesRegistration: FfiConverterBoolean.INSTANCE.Read(stream),
+            @supportsPlaybackProgressReporting: FfiConverterBoolean.INSTANCE.Read(stream),
+            @supportsSidecarLyricsLookup: FfiConverterBoolean.INSTANCE.Read(stream),
+            @supportsServerLyrics: FfiConverterBoolean.INSTANCE.Read(stream),
+            @supportsInstantMix: FfiConverterBoolean.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(ProviderCapabilities value) {
+        return 0
+            + FfiConverterBoolean.INSTANCE.AllocationSize(value.@supportsClientCapabilitiesRegistration)
+            + FfiConverterBoolean.INSTANCE.AllocationSize(value.@supportsPlaybackProgressReporting)
+            + FfiConverterBoolean.INSTANCE.AllocationSize(value.@supportsSidecarLyricsLookup)
+            + FfiConverterBoolean.INSTANCE.AllocationSize(value.@supportsServerLyrics)
+            + FfiConverterBoolean.INSTANCE.AllocationSize(value.@supportsInstantMix);
+    }
+
+    public override void Write(ProviderCapabilities value, BigEndianStream stream) {
+            FfiConverterBoolean.INSTANCE.Write(value.@supportsClientCapabilitiesRegistration, stream);
+            FfiConverterBoolean.INSTANCE.Write(value.@supportsPlaybackProgressReporting, stream);
+            FfiConverterBoolean.INSTANCE.Write(value.@supportsSidecarLyricsLookup, stream);
+            FfiConverterBoolean.INSTANCE.Write(value.@supportsServerLyrics, stream);
+            FfiConverterBoolean.INSTANCE.Write(value.@supportsInstantMix, stream);
     }
 }
 
@@ -3952,6 +4094,73 @@ class FfiConverterTypeAppError : FfiConverterRustBuffer<AppException>, CallStatu
                 break;
             default:
                 throw new InternalException(String.Format("invalid error value '{0}' in FfiConverterTypeAppError.Write()", value));
+        }
+    }
+}
+
+
+
+
+
+/// <summary>
+/// Supported backend providers.
+/// </summary>
+public enum BackendProvider: int {
+    
+    Jellyfin,
+    Navidrome
+}
+
+class FfiConverterTypeBackendProvider: FfiConverterRustBuffer<BackendProvider> {
+    public static FfiConverterTypeBackendProvider INSTANCE = new FfiConverterTypeBackendProvider();
+
+    public override BackendProvider Read(BigEndianStream stream) {
+        var value = stream.ReadInt() - 1;
+        if (Enum.IsDefined(typeof(BackendProvider), value)) {
+            return (BackendProvider)value;
+        } else {
+            throw new InternalException(String.Format("invalid enum value '{0}' in FfiConverterTypeBackendProvider.Read()", value));
+        }
+    }
+
+    public override int AllocationSize(BackendProvider value) {
+        return 4;
+    }
+
+    public override void Write(BackendProvider value, BigEndianStream stream) {
+        stream.WriteInt((int)value + 1);
+    }
+}
+
+
+
+
+
+
+class FfiConverterOptionalUInt32: FfiConverterRustBuffer<uint?> {
+    public static FfiConverterOptionalUInt32 INSTANCE = new FfiConverterOptionalUInt32();
+
+    public override uint? Read(BigEndianStream stream) {
+        if (stream.ReadByte() == 0) {
+            return null;
+        }
+        return FfiConverterUInt32.INSTANCE.Read(stream);
+    }
+
+    public override int AllocationSize(uint? value) {
+        if (value == null) {
+            return 1;
+        } else {
+            return 1 + FfiConverterUInt32.INSTANCE.AllocationSize((uint)value);
+        }
+    }
+
+    public override void Write(uint? value, BigEndianStream stream) {
+        if (value == null) {
+            stream.WriteByte(0);
+        } else {
+            stream.WriteByte(1);
+            FfiConverterUInt32.INSTANCE.Write((uint)value, stream);
         }
     }
 }
@@ -5194,11 +5403,11 @@ public static class AureliaCore {
     );
    }
     /// <exception cref="AppException"></exception>
-   public static async Task<LoginResponse> Authenticate(string @serverUrl, string @username, string @password, string @deviceId) 
+   public static async Task<LoginResponse> Authenticate(AuthRequest @request) 
    {
     return await _UniFFIAsync.UniffiRustCallAsync(
         // Get rust future
-        _UniFFILib.uniffi_aurelia_core_fn_func_authenticate(FfiConverterString.INSTANCE.Lower(@serverUrl), FfiConverterString.INSTANCE.Lower(@username), FfiConverterString.INSTANCE.Lower(@password), FfiConverterString.INSTANCE.Lower(@deviceId)),
+        _UniFFILib.uniffi_aurelia_core_fn_func_authenticate(FfiConverterTypeAuthRequest.INSTANCE.Lower(@request)),
         // Poll
         (ulong future, IntPtr continuation, ulong data) => _UniFFILib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, continuation, data),
         // Complete
@@ -5213,6 +5422,15 @@ public static class AureliaCore {
         FfiConverterTypeAppError.INSTANCE
     );
    }
+    /// <exception cref="AppException"></exception>
+    public static string? BuildImageUrl(string @serverUrl, string @token, string @itemId, string @imageType, uint? @width, uint? @quality) {
+        return FfiConverterOptionalString.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeAppError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_aurelia_core_fn_func_build_image_url(FfiConverterString.INSTANCE.Lower(@serverUrl), FfiConverterString.INSTANCE.Lower(@token), FfiConverterString.INSTANCE.Lower(@itemId), FfiConverterString.INSTANCE.Lower(@imageType), FfiConverterOptionalUInt32.INSTANCE.Lower(@width), FfiConverterOptionalUInt32.INSTANCE.Lower(@quality), ref _status)
+));
+    }
+
+
     /// <summary>
     /// Build a stream URL optimized for mobile playback.
     /// Uses HLS transcoding for non-seekable containers so that Media3/ExoPlayer can seek natively.
@@ -5316,6 +5534,26 @@ public static class AureliaCore {
     }
 
 
+    /// <exception cref="AppException"></exception>
+   public static async Task<BackendProvider> DetectProvider(string @serverUrl) 
+   {
+    return await _UniFFIAsync.UniffiRustCallAsync(
+        // Get rust future
+        _UniFFILib.uniffi_aurelia_core_fn_func_detect_provider(FfiConverterString.INSTANCE.Lower(@serverUrl)),
+        // Poll
+        (ulong future, IntPtr continuation, ulong data) => _UniFFILib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, continuation, data),
+        // Complete
+        (ulong future, ref UniffiRustCallStatus status) => {
+            return _UniFFILib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, ref status);
+        },
+        // Free
+        (ulong future) => _UniFFILib.ffi_aurelia_core_rust_future_free_rust_buffer(future),
+        // Lift
+        (result) => FfiConverterTypeBackendProvider.INSTANCE.Lift(result),
+        // Error
+        FfiConverterTypeAppError.INSTANCE
+    );
+   }
     /// <summary>
     /// Fetch a single album from server and cache it
     /// </summary>
@@ -5547,6 +5785,14 @@ public static class AureliaCore {
         FfiConverterTypeAppError.INSTANCE
     );
    }
+    public static ProviderCapabilities GetProviderCapabilities(BackendProvider @provider) {
+        return FfiConverterTypeProviderCapabilities.INSTANCE.Lift(
+    _UniffiHelpers.RustCall( (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_aurelia_core_fn_func_get_provider_capabilities(FfiConverterTypeBackendProvider.INSTANCE.Lower(@provider), ref _status)
+));
+    }
+
+
     /// <exception cref="AppException"></exception>
    public static async Task<Song[]> GetRecentlyPlayed(string @serverUrl, string @token, string @userId) 
    {
@@ -5820,7 +6066,6 @@ public static class AureliaCore {
    }
     /// <summary>
     /// Sync only songs (fast startup). Artists/albums are fetched on-demand.
-    /// DEPRECATED: Use sync_library_smart() instead for paginated + incremental sync.
     /// </summary>
     /// <exception cref="AppException"></exception>
    public static async Task<bool> SyncSongsOnly(string @serverUrl, string @token, string @userId, string @appDataDir) 

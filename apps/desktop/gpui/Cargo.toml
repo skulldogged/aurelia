@@ -1,0 +1,23 @@
+[package]
+name = "aurelia-gpui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+aurelia-core = { path = "../../../crates/aurelia-core", features = ["desktop"] }
+dirs = "6.0"
+futures = "0.3"
+gpui = { path = "../../../../twitch_gpui/vendor/zed/crates/gpui" }
+gpui-component = { path = "../../../../twitch_gpui/vendor/gpui-component/crates/ui" }
+gpui-component-assets = { path = "../../../../twitch_gpui/vendor/gpui-component/crates/assets" }
+http = "1"
+image = "0.25"
+rand = "0.8"
+raw-window-handle = "0.6"
+rust-embed = "8.7"
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1.43", features = ["rt-multi-thread", "sync", "time"] }
+tracing = "0.1"
+windows-sys = { version = "0.59", features = ["Win32_UI_WindowsAndMessaging"] }
+zed-reqwest = { version = "0.12.15-zed", default-features = false, features = ["charset", "http2", "macos-system-configuration", "multipart", "rustls-tls-native-roots", "socks", "stream"] }

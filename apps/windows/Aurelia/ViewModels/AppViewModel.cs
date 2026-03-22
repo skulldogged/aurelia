@@ -76,12 +76,17 @@ public class AppViewModel : INotifyPropertyChanged {
     }
   }
 
-  public async Task LoginAsync(string serverUrl, string username, string password) {
+  public async Task LoginAsync(
+      string serverUrl,
+      string username,
+      string password,
+      AureliaCore.BackendProvider? provider = null
+  ) {
     IsLoading = true;
     IsSyncing = true;
     try {
       string normalizedUrl = ApiService.NormalizeServerUrl(serverUrl);
-      _ = await ApiService.LoginWithPasswordAsync(normalizedUrl, username, password);
+      _ = await ApiService.LoginWithPasswordAsync(normalizedUrl, username, password, provider);
       await ApiService.SyncLibraryAsync();
     } finally {
       IsLoading = false;

@@ -28,24 +28,45 @@ public class ApiService {
     return GetToken();
   }
 
-  public async Task<SessionInfo> LoginAsync(string serverUrl, string username, string password) {
+  public async Task<AureliaCore.BackendProvider?> DetectProviderAsync(string serverUrl) {
+    string normalizedUrl = NormalizeServerUrl(serverUrl);
+    try {
+      return await AureliaCore.AureliaCore.DetectProvider(normalizedUrl);
+    } catch {
+      return null;
+    }
+  }
+
+  public async Task<SessionInfo> LoginAsync(
+      string serverUrl,
+      string username,
+      string password,
+      AureliaCore.BackendProvider? provider = null
+  ) {
     string normalizedUrl = NormalizeServerUrl(serverUrl);
     string deviceId = (await _sessionService.GetOrCreateDeviceIdAsync()).DeviceId
             ?? Guid.NewGuid().ToString();
+    AureliaCore.BackendProvider resolvedProvider = provider
+            ?? await DetectProviderAsync(normalizedUrl)
+            ?? AureliaCore.BackendProvider.Jellyfin;
 
     try {
-      LoginResponse response = await AureliaCore.AureliaCore.Authenticate(
-          normalizedUrl,
-          username,
-          password,
-          deviceId
+      var request = new AureliaCore.AuthRequest(
+        resolvedProvider,
+        normalizedUrl,
+        username,
+        password,
+        deviceId
       );
+      LoginResponse response = await AureliaCore.AureliaCore.Authenticate(request);
 
       var credentials = new JellyfinCredentials(
           normalizedUrl,
           response.userId,
           response.token,
-          deviceId
+          deviceId,
+          resolvedProvider,
+          username
       );
       await _sessionService.SaveCredentialsAsync(credentials);
 
@@ -62,8 +83,13 @@ public class ApiService {
     }
   }
 
-  public async Task<SessionInfo> LoginWithPasswordAsync(string serverUrl, string username, string password) {
-    return await LoginAsync(serverUrl, username, password);
+  public async Task<SessionInfo> LoginWithPasswordAsync(
+      string serverUrl,
+      string username,
+      string password,
+      AureliaCore.BackendProvider? provider = null
+  ) {
+    return await LoginAsync(serverUrl, username, password, provider);
   }
 
   public Task<List<User>> GetUsersAsync(string serverUrl) {

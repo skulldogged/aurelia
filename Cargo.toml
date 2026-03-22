@@ -1,15 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["apps/desktop/tauri/src-tauri", "apps/web/backend", "crates/aurelia-core", "crates/aurelia-api", "crates/aurelia-api-macros", "crates/uniffi-bindgen", "crates/aurelia-lyrics", "crates/aurelia-sidecar-daemon"]
+members = ["apps/desktop/gpui", "apps/desktop/tauri/src-tauri", "apps/web/backend", "crates/aurelia-core", "crates/aurelia-api", "crates/aurelia-api-macros", "crates/uniffi-bindgen", "crates/aurelia-lyrics", "crates/aurelia-sidecar-daemon"]
 
 [profile.dev]
-opt-level = 1
+opt-level = 2
+
+[profile.dev.package."*"]
+opt-level = 2
 
 [profile.release]
 lto = "thin"
 
-[profile.local-release]
-inherits = "release"
-lto = "off"
-codegen-units = 64
-incremental = true

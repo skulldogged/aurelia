@@ -4,7 +4,18 @@ public record JellyfinCredentials(
     string ServerUrl,
     string? UserId = null,
     string? AccessToken = null,
-    string? DeviceId = null
+    string? DeviceId = null,
+    AureliaCore.BackendProvider Provider = AureliaCore.BackendProvider.Jellyfin,
+    string? Username = null
+);
+
+public record SessionProfile(
+    string Id,
+    string Label,
+    AureliaCore.BackendProvider Provider,
+    string ServerUrl,
+    string UserId,
+    string Username
 );
 
 public record User(

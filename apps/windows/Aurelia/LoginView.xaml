@@ -13,15 +13,37 @@
                 Margin="0,0,0,8" />
 
             <TextBlock 
-                Text="Sign in to your Jellyfin server"
+                Text="Sign in to your media server"
                 FontSize="14"
                 Opacity="0.7"
                 HorizontalAlignment="Center"
                 Margin="0,0,0,32" />
 
+            <StackPanel Margin="0,0,0,12">
+                <TextBlock Text="Provider" Margin="0,0,0,6" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <ComboBox x:Name="ProviderBox" SelectedIndex="0">
+                        <ComboBoxItem Content="Auto-detect" />
+                        <ComboBoxItem Content="Jellyfin" />
+                        <ComboBoxItem Content="Navidrome" />
+                    </ComboBox>
+                    <Button 
+                        Grid.Column="1"
+                        x:Name="DetectProviderButton"
+                        Content="Detect"
+                        Click="DetectProvider_Click" />
+                </Grid>
+                <TextBlock
+                    x:Name="DetectedProviderText"
+                    FontSize="12"
+                    Opacity="0.7"
+                    Margin="0,6,0,0"
+                    Visibility="Collapsed" />
+            </StackPanel>
+
             <TextBox 
                 x:Name="ServerUrlBox"
-                PlaceholderText="Server URL (e.g., https://jellyfin.example.com)"
+                PlaceholderText="Server URL (e.g., https://music.example.com)"
                 Margin="0,0,0,12" />
 
             <TextBox 
