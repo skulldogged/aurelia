@@ -1,0 +1,82 @@
+apps/desktop/gpui/assets/icons/repeat.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/heart.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/skip-forward.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/src/assets.rs
+  a9e3da20195183fe 1-34
+apps/desktop/gpui/assets/icons/square.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/src/main.rs
+  a9e3da20195183fe 2
+apps/desktop/gpui/assets/icons/volume-x.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/disc-3.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/music.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/pause.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/mic-vocal.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/users.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/log-out.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/download.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/volume-1.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/src/app.rs
+  a9e3da20195183fe 23-24,26-28,30,35,38-89,91-92,97-116,157-158,161-162,166-169,177,180,183-186,189,191-192,195,232-243,319-321,350-351,536-540,543,565-580,582,586-613,620,630-631,633-640,644-650,660,684-686,698,883-885,932-933,955,963-969,1602,1605,1609,1624,1628,1643-1645,1699,2000-2015,2019-2022,2025-2026,2028-2029,2031-2086,2088-2094,2096,2101-2106,2109-2110,2113-2115,2117,2119,2122,2131,2134,2137,2141,2147-2152,2159-2174,2178-2183,2185,2190,2192-2193,2195-2240,2255-2256,2268,2326,2328,2511,2513,2515-2516,2521-2522,2524-2525,2527,2545,2609-2611,2707,2755,2757,2762,2769-2771,2788-2791,2797-2798,2800,2807-2809,2816,2821,2840-2845,2854-2855,2857,2861-2863,2878,2881,2892-2897,2905-2906,2908,2912-2914,3166,3169,3175-3181,3183-3204,3207-3210,3217-3218,3220-3238,3241-3246,3249-3251,3256-3262,3265-3267,3273,3276-3278,3282-3283,3285-3293,3295-3320,3322-3346,3348-3349,3351-3360,3362-3365,3368-3369,3371-3376,3386-3387,3393-3395,3403-3407,3409,3417-3418,3437-3438,3441-3442,3445,3450-3453,3455,3473-3474,3476,3479-3483,3492,3501-3503,3505-3510,3517,3521,3531,3538,3540-3541,3543,3573-3574,3577,3590,3598,3611-3612,3631,3633-3634,3639,3713-3717,3756-3757,3769-3771,3775,3787-3789,3791-3797,3800-3807,3810-3818,3924-3954,3962-3963,4003-4033,4035-4047,4079,4081-4090,4092,4094-4099,4103,4105,4122-4124,4126-4157,4159-4170,4172-4176,4179-4180,4182-4188,4193,4195-4196,4202,4212-4214,4216-4226,4232-4233,4235-4237,4243-4245,4247,4250-4256,4261-4269,4271-4277,4363,4471
+apps/desktop/gpui/Cargo.toml
+  a9e3da20195183fe 18
+apps/windows/Aurelia/Services/ApiService.cs
+  4f4df5bd4d7593b7 54,61
+apps/desktop/gpui/assets/icons/skip-back.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/shuffle.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/volume-2.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/list-music.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/house.svg
+  a9e3da20195183fe 1
+apps/desktop/gpui/assets/icons/refresh-cw.svg
+  a9e3da20195183fe 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "7579f49f48de896a32876746319f30d029609917",
+  "prompts": {
+    "4f4df5bd4d7593b7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_36d311d2dffe6trh4P6LiL5kmz",
+        "model": "unknown"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 5,
+      "accepted_lines": 2,
+      "overriden_lines": 2
+    },
+    "a9e3da20195183fe": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_2f2201759ffe1FCUPVpC2GM9yA",
+        "model": "unknown"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "messages": [],
+      "total_additions": 1942,
+      "total_deletions": 1677,
+      "accepted_lines": 986,
+      "overriden_lines": 145
+    }
+  }
+}
