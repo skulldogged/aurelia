@@ -1,9 +1,9 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::OnceLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use aurelia_core::media_controls::MediaControlsState;
 use aurelia_core::models::{
@@ -11,16 +11,18 @@ use aurelia_core::models::{
     PlaylistCreateData, PlaylistUpdateData, Song,
 };
 use gpui::{
-    actions, div, img, linear_color_stop, linear_gradient, prelude::*, px, relative, rgb, rgba,
-    size, uniform_list, AnyElement, App, AsyncApp, Application, Bounds, Context, Entity,
+    actions, bounce, div, ease_in_out, img, linear_color_stop, linear_gradient, point, prelude::*, px,
+    relative, rgb, rgba, size, uniform_list, Animation, AnimationExt as _, AnyElement, App,
+    AsyncApp, Application, Bounds, Context, Entity,
     Focusable, FocusHandle, Image as GpuiImage, ImageFormat as GpuiImageFormat, MouseButton,
     ObjectFit, Point, ScrollHandle, ScrollStrategy, SharedString, StatefulInteractiveElement,
-    UniformListScrollHandle, WeakEntity, Window, WindowBackgroundAppearance, WindowBounds,
+    Transformation, UniformListScrollHandle, WeakEntity, Window, WindowBackgroundAppearance,
+    WindowBounds,
     WindowOptions,
 };
 use gpui::http_client::{AsyncBody, HttpClient, Request, Response, Url};
 use gpui_component::avatar::Avatar;
-use gpui_component::button::{Button, ButtonVariants};
+use gpui_component::button::{Button, ButtonCustomVariant, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
 use gpui_component::scroll::ScrollableElement;
 use gpui_component::slider::{Slider, SliderEvent, SliderState};
@@ -33,11 +35,14 @@ use tokio::runtime::Runtime;
 use zed_reqwest as reqwest;
 
 use crate::assets::Assets;
+use crate::theme;
+use crate::theme::{AccentColorName, ColorSchemeName};
 use image::imageops::FilterType;
 use rand::seq::SliceRandom;
 
 // Custom icon names for our SVGs in assets/icons/
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 enum AppIcon {
     Play,
     Pause,
@@ -93,21 +98,6 @@ actions!(aurelia, [Quit]);
 const APP_NAME: &str = "Aurelia GPUI";
 
 const APP_DIR_NAME: &str = "aurelia-gpui";
-
-// -- Design System (matches web default-dark / zinc palette) --
-
-mod theme {
-    pub const BACKGROUND: u32 = 0x09090b;
-    pub const BACKGROUND_DARK: u32 = 0x030304;
-    pub const FOREGROUND: u32 = 0xfafafa;
-    pub const CARD: u32 = 0x121215;
-    pub const BORDER: u32 = 0x27272a;
-    pub const MUTED_FG: u32 = 0x9f9fa9;
-    pub const SIDEBAR_BG: u32 = 0x000000;
-    pub const SIDEBAR_ITEM_ACTIVE: u32 = 0x27272a;
-    pub const SIDEBAR_ITEM_HOVER: u32 = 0x18181b;
-    pub const PLAYER_BG: u32 = 0x030304;
-}
 
 fn format_duration(secs: f64) -> String {
     let total = secs.max(0.0) as u64;
@@ -165,6 +155,18 @@ pub fn run() {
             }
             gpui_component::init(cx);
 
+            let default_palette = crate::theme::resolve_palette(
+                crate::theme::default_scheme_for_appearance(cx.window_appearance()),
+                AccentColorName::Blue,
+            );
+            crate::theme::apply_theme(cx, default_palette);
+
+            if let Some(font) = crate::assets::CustomAssets::get("Rubik[wght].ttf") {
+                cx.text_system()
+                    .add_fonts(vec![font.data])
+                    .expect("failed to load bundled Rubik font");
+            }
+
             cx.bind_keys([gpui::KeyBinding::new("cmd-q", Quit, None)]);
 
             let bounds = Bounds::centered(None, size(px(1400.0), px(900.0)), cx);
@@ -205,18 +207,16 @@ enum ViewTab {
     Albums,
     Artists,
     Playlists,
-    Search,
     Settings,
 }
 
 impl ViewTab {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 6] = [
         Self::Home,
         Self::Songs,
         Self::Albums,
         Self::Artists,
         Self::Playlists,
-        Self::Search,
         Self::Settings,
     ];
 
@@ -227,7 +227,6 @@ impl ViewTab {
             Self::Albums => "Albums",
             Self::Artists => "Artists",
             Self::Playlists => "Playlists",
-            Self::Search => "Search",
             Self::Settings => "Settings",
         }
     }
@@ -239,7 +238,6 @@ impl ViewTab {
             Self::Albums => Icon::new(AppIcon::Disc3),
             Self::Artists => Icon::new(AppIcon::Users),
             Self::Playlists => Icon::new(AppIcon::ListMusic),
-            Self::Search => Icon::new(IconName::Search),
             Self::Settings => Icon::new(IconName::Settings),
         }
     }
@@ -297,15 +295,21 @@ enum RepeatMode {
 #[derive(Clone, Debug)]
 struct DesktopAppState {
     app_data_dir: Arc<str>,
+    selected_scheme_name: ColorSchemeName,
+    accent_color_name: AccentColorName,
     session: Option<SessionData>,
     library: LibrarySnapshot,
     selected_tab: ViewTab,
     right_panel: RightPanel,
     selected_song_id: Option<String>,
+    last_scrolled_song_id: Option<String>,
     selected_album_id: Option<String>,
+    last_scrolled_album_id: Option<String>,
     selected_artist_id: Option<String>,
+    last_scrolled_artist_id: Option<String>,
     selected_playlist_id: Option<String>,
     search_query: String,
+    search_active: bool,
     status: String,
     sync_status: String,
     playback_status: String,
@@ -313,9 +317,20 @@ struct DesktopAppState {
     lyrics: Option<ParsedLyrics>,
     player: PlayerState,
     favorite_ids: Vec<String>,
+    featured_albums: Vec<Album>,
+    current_featured_index: usize,
     minimize_to_tray: bool,
     close_to_tray: bool,
     lyrics_server_url: String,
+    recent_songs_prev_bounce: u64,
+    recent_songs_next_bounce: u64,
+    recent_albums_prev_bounce: u64,
+    recent_albums_next_bounce: u64,
+    featured_prev_bounce: u64,
+    featured_next_bounce: u64,
+    featured_transition_nonce: u64,
+    featured_prev_album: Option<Album>,
+    featured_transition_start: Option<Instant>,
     // Pending clears for InputState fields (workaround: async closures lack &mut Window)
     pending_clear_password: bool,
     pending_clear_playlist_name: bool,
@@ -325,15 +340,21 @@ impl DesktopAppState {
     fn new(app_data_dir: Arc<str>) -> Self {
         Self {
             app_data_dir,
+            selected_scheme_name: ColorSchemeName::DefaultDark,
+            accent_color_name: AccentColorName::Blue,
             session: None,
             library: LibrarySnapshot::default(),
-            selected_tab: ViewTab::Songs,
+            selected_tab: ViewTab::Home,
             right_panel: RightPanel::None,
             selected_song_id: None,
+            last_scrolled_song_id: None,
             selected_album_id: None,
+            last_scrolled_album_id: None,
             selected_artist_id: None,
+            last_scrolled_artist_id: None,
             selected_playlist_id: None,
             search_query: String::new(),
+            search_active: false,
             status: "Starting up...".to_string(),
             sync_status: "Idle".to_string(),
             playback_status: "Stopped".to_string(),
@@ -344,9 +365,20 @@ impl DesktopAppState {
                 ..Default::default()
             },
             favorite_ids: Vec::new(),
+            featured_albums: Vec::new(),
+            current_featured_index: 0,
             minimize_to_tray: false,
             close_to_tray: false,
             lyrics_server_url: String::new(),
+            recent_songs_prev_bounce: 0,
+            recent_songs_next_bounce: 0,
+            recent_albums_prev_bounce: 0,
+            recent_albums_next_bounce: 0,
+            featured_prev_bounce: 0,
+            featured_next_bounce: 0,
+            featured_transition_nonce: 0,
+            featured_prev_album: None,
+            featured_transition_start: None,
             pending_clear_password: false,
             pending_clear_playlist_name: false,
         }
@@ -447,6 +479,9 @@ impl DesktopAppState {
     }
 
     fn featured_album(&self) -> Option<Album> {
+        if !self.featured_albums.is_empty() {
+            return self.featured_albums.get(self.current_featured_index).cloned();
+        }
         self.player
             .current_song()
             .and_then(|song| song.album_id.as_ref())
@@ -471,39 +506,26 @@ impl DesktopAppState {
             .or_else(|| self.recently_added_albums().into_iter().next())
     }
 
-    fn home_highlight_albums(&self) -> Vec<Album> {
-        let mut seen = HashSet::new();
-        let mut albums = Vec::new();
+    fn next_featured_album(&mut self) {
+        if self.featured_albums.len() > 1 {
+            self.featured_prev_album = self.featured_albums.get(self.current_featured_index).cloned();
+            self.featured_transition_nonce = self.featured_transition_nonce.wrapping_add(1);
+            self.featured_transition_start = Some(Instant::now());
+            self.current_featured_index = (self.current_featured_index + 1) % self.featured_albums.len();
+        }
+    }
 
-        for song in &self.library.recent {
-            let Some(album_id) = song.album_id.as_ref() else {
-                continue;
+    fn prev_featured_album(&mut self) {
+        if self.featured_albums.len() > 1 {
+            self.featured_prev_album = self.featured_albums.get(self.current_featured_index).cloned();
+            self.featured_transition_nonce = self.featured_transition_nonce.wrapping_add(1);
+            self.featured_transition_start = Some(Instant::now());
+            self.current_featured_index = if self.current_featured_index == 0 {
+                self.featured_albums.len() - 1
+            } else {
+                self.current_featured_index - 1
             };
-            if !seen.insert(album_id.clone()) {
-                continue;
-            }
-            if let Some(album) = self
-                .library
-                .albums
-                .iter()
-                .find(|album| album.id.as_deref() == Some(album_id.as_str()))
-            {
-                albums.push(album.clone());
-            }
         }
-
-        for album in self.recently_added_albums() {
-            if let Some(id) = album.id.as_ref() {
-                if seen.insert(id.clone()) {
-                    albums.push(album);
-                }
-            }
-            if albums.len() >= 12 {
-                break;
-            }
-        }
-
-        albums
     }
 
     fn filtered_songs(&self) -> Vec<Song> {
@@ -542,13 +564,14 @@ struct DesktopApp {
     seek_slider: Entity<SliderState>,
     volume_slider: Entity<SliderState>,
     songs_scroll_handle: UniformListScrollHandle,
+    albums_scroll_handle: UniformListScrollHandle,
+    artists_scroll_handle: UniformListScrollHandle,
     recent_songs_scroll_handle: ScrollHandle,
     recent_albums_scroll_handle: ScrollHandle,
     focus_handle: FocusHandle,
     state: DesktopAppState,
-    featured_background_source_url: Option<String>,
-    featured_background_image: Option<Arc<GpuiImage>>,
-    featured_background_loading: bool,
+    featured_background_cache: HashMap<String, Arc<GpuiImage>>,
+    featured_background_loading: HashSet<String>,
     runtime: Arc<Runtime>,
     media_controls: Arc<MediaControlsState>,
 }
@@ -639,6 +662,8 @@ impl DesktopApp {
                 .default_value(100.0)
         });
         let songs_scroll_handle = UniformListScrollHandle::new();
+        let albums_scroll_handle = UniformListScrollHandle::new();
+        let artists_scroll_handle = UniformListScrollHandle::new();
         let recent_songs_scroll_handle = ScrollHandle::new();
         let recent_albums_scroll_handle = ScrollHandle::new();
 
@@ -659,13 +684,14 @@ impl DesktopApp {
             seek_slider,
             volume_slider,
             songs_scroll_handle,
+            albums_scroll_handle,
+            artists_scroll_handle,
             recent_songs_scroll_handle,
             recent_albums_scroll_handle,
             focus_handle: cx.focus_handle(),
             state: DesktopAppState::new(app_data_dir),
-            featured_background_source_url: None,
-            featured_background_image: None,
-            featured_background_loading: false,
+            featured_background_cache: HashMap::new(),
+            featured_background_loading: HashSet::new(),
             runtime,
             media_controls,
         };
@@ -676,6 +702,7 @@ impl DesktopApp {
         let initial_volume = (app.state.player.volume * 100.0).round() as f32;
         app.volume_slider
             .update(cx, |slider, cx| slider.set_value(initial_volume, window, cx));
+        app.apply_current_theme(cx);
         app.bootstrap_session(cx);
         app.start_pollers(cx);
         app
@@ -730,26 +757,41 @@ impl DesktopApp {
 
     fn sync_featured_background(&mut self, album: Option<&Album>, cx: &mut Context<Self>) {
         let Some(album) = album else {
-            self.featured_background_source_url = None;
-            self.featured_background_image = None;
-            self.featured_background_loading = false;
             return;
         };
 
-        let Some(art_url) = self.album_image_url(album, 1200.0) else {
-            self.featured_background_source_url = None;
-            self.featured_background_image = None;
-            self.featured_background_loading = false;
+        let Some(art_url) = self.album_image_url(album, 220.0) else {
             return;
         };
 
-        if self.featured_background_source_url.as_deref() == Some(art_url.as_str()) {
+        // Already cached - nothing to do
+        if self.featured_background_cache.contains_key(art_url.as_str()) {
             return;
         }
 
-        self.featured_background_source_url = Some(art_url.clone());
-        self.featured_background_image = None;
-        self.featured_background_loading = true;
+        // Already loading - nothing to do
+        if self.featured_background_loading.contains(art_url.as_str()) {
+            return;
+        }
+
+        self.load_blurred_background(art_url, cx);
+    }
+
+    fn preload_featured_backgrounds(&mut self, cx: &mut Context<Self>) {
+        let albums = self.state.featured_albums.clone();
+        for album in &albums {
+            if let Some(art_url) = self.album_image_url(album, 220.0) {
+                if !self.featured_background_cache.contains_key(art_url.as_str())
+                    && !self.featured_background_loading.contains(art_url.as_str())
+                {
+                    self.load_blurred_background(art_url, cx);
+                }
+            }
+        }
+    }
+
+    fn load_blurred_background(&mut self, art_url: String, cx: &mut Context<Self>) {
+        self.featured_background_loading.insert(art_url.clone());
 
         let runtime = Arc::clone(&self.runtime);
         cx.spawn(move |view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
@@ -758,19 +800,14 @@ impl DesktopApp {
                 let result = load_blurred_featured_background(runtime, art_url.clone()).await;
 
                 let _ = view.update(&mut async_cx, |this, cx| {
-                    if this.featured_background_source_url.as_deref() != Some(art_url.as_str()) {
-                        return;
-                    }
-
-                    this.featured_background_loading = false;
+                    this.featured_background_loading.remove(art_url.as_str());
 
                     match result {
                         Ok(image) => {
-                            this.featured_background_image = Some(image);
+                            this.featured_background_cache.insert(art_url, image);
                         }
                         Err(error) => {
                             tracing::warn!("failed to load blurred featured background: {error}");
-                            this.featured_background_image = None;
                         }
                     }
 
@@ -808,10 +845,26 @@ impl DesktopApp {
         if let Ok(Some(value)) = aurelia_core::load_setting(app_data_dir, "lyricsServerUrl".to_string()) {
             self.state.lyrics_server_url = value;
         }
+        if let Ok(Some(value)) = aurelia_core::load_setting(self.state.app_data_dir.to_string(), "colorScheme".to_string())
+            && let Some(name) = ColorSchemeName::from_str(&value)
+        {
+            self.state.selected_scheme_name = name;
+        }
+        if let Ok(Some(value)) = aurelia_core::load_setting(self.state.app_data_dir.to_string(), "accentColor".to_string())
+            && let Some(name) = AccentColorName::from_str(&value)
+        {
+            self.state.accent_color_name = name;
+        }
     }
 
     fn persist_setting(&self, key: &str, value: String) {
         let _ = aurelia_core::save_setting(self.state.app_data_dir.to_string(), key.to_string(), value);
+    }
+
+    fn apply_current_theme(&mut self, cx: &mut Context<Self>) {
+        let palette = crate::theme::resolve_palette(self.state.selected_scheme_name, self.state.accent_color_name);
+        crate::theme::apply_theme(cx, palette);
+        cx.notify();
     }
 
     fn credentials(&self) -> Option<&Credentials> {
@@ -854,29 +907,36 @@ impl DesktopApp {
     }
 
     fn load_initial_data(&mut self, cx: &mut Context<Self>) {
-        self.load_cached_library();
+        self.load_cached_library(cx);
         self.refresh_playlists(cx);
         self.refresh_recent(cx);
         self.refresh_favorites(cx);
         self.sync_library(cx);
     }
 
-    fn load_cached_library(&mut self) {
+    fn load_cached_library(&mut self, cx: &mut Context<Self>) {
         let app_data_dir = self.state.app_data_dir.to_string();
         match aurelia_core::load_cached_songs(app_data_dir) {
             Ok(songs) => {
                 self.state.library.songs = songs.clone();
                 self.state.library.albums = derive_albums(&songs, self.credentials());
                 self.state.library.artists = derive_artists(&songs, self.credentials());
-                if self.state.selected_song_id.is_none() {
-                    self.state.selected_song_id = songs.first().map(|song| song.id.clone());
-                }
+                self.rebuild_featured_albums(cx);
                 self.state.status = format!("Loaded {} cached songs", self.state.library.songs.len());
             }
             Err(error) => {
                 self.state.status = format!("Failed to load cached library: {error}");
             }
         }
+    }
+
+    fn rebuild_featured_albums(&mut self, cx: &mut Context<Self>) {
+        let mut albums = self.state.library.albums.clone();
+        let mut rng = rand::thread_rng();
+        albums.shuffle(&mut rng);
+        self.state.featured_albums = albums.into_iter().take(20).collect();
+        self.state.current_featured_index = 0;
+        self.preload_featured_backgrounds(cx);
     }
 
     fn login(&mut self, cx: &mut Context<Self>) {
@@ -999,7 +1059,7 @@ impl DesktopApp {
             match sync_result {
                 Ok(Ok(report)) => {
                     let _ = view.update(&mut async_cx, |this, cx| {
-                        this.load_cached_library();
+                        this.load_cached_library(cx);
                         this.state.sync_status = format!(
                             "Sync complete: {} songs, {} artists, {} albums",
                             report.songs_updated, report.artists_updated, report.albums_updated
@@ -1610,15 +1670,79 @@ impl DesktopApp {
         }));
     }
 
-    fn scroll_carousel_by(&mut self, handle: &ScrollHandle, delta_px: f32, cx: &mut Context<Self>) {
+    fn animate_carousel_to(&mut self, handle: ScrollHandle, target_x: f32, cx: &mut Context<Self>) {
+        let start = handle.offset().x.to_f64() as f32;
+        let clamped_target = target_x.clamp(-(handle.max_offset().width.to_f64() as f32), 0.0);
+        if (start - clamped_target).abs() < 0.5 {
+            return;
+        }
+
+        cx.spawn(move |view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
+            let mut async_cx = async_cx.clone();
+            async move {
+                let steps = 9;
+                let duration_ms = 140u64;
+                for step in 1..=steps {
+                    async_cx
+                        .background_executor()
+                        .timer(Duration::from_millis(duration_ms / steps as u64))
+                        .await;
+
+                    let t = step as f32 / steps as f32;
+                    let eased = 1.0 - (1.0 - t) * (1.0 - t);
+                    let next_x = start + (clamped_target - start) * eased;
+
+                    let _ = view.update(&mut async_cx, |_, cx| {
+                        let offset = handle.offset();
+                        handle.set_offset(Point {
+                            x: px(next_x),
+                            y: offset.y,
+                        });
+                        cx.notify();
+                    });
+                }
+            }
+        })
+        .detach();
+    }
+
+    fn animate_carousel_by(&mut self, handle: ScrollHandle, delta_px: f32, cx: &mut Context<Self>) {
         let offset = handle.offset();
         let max_offset = handle.max_offset();
-        let next_x = (offset.x.to_f64() - delta_px as f64).clamp(-max_offset.width.to_f64(), 0.0);
-        handle.set_offset(Point {
-            x: px(next_x as f32),
-            y: offset.y,
-        });
-        cx.notify();
+        if max_offset.width <= px(0.0) {
+            return;
+        }
+        let target_x = (offset.x.to_f64() as f32 + delta_px)
+            .clamp(-(max_offset.width.to_f64() as f32), 0.0);
+        self.animate_carousel_to(handle, target_x, cx);
+    }
+
+    fn trigger_carousel_bounce(&mut self, key: &'static str) {
+        match key {
+            "recent-songs-prev" => self.state.recent_songs_prev_bounce = self.state.recent_songs_prev_bounce.wrapping_add(1),
+            "recent-songs-next" => self.state.recent_songs_next_bounce = self.state.recent_songs_next_bounce.wrapping_add(1),
+            "recent-albums-prev" => self.state.recent_albums_prev_bounce = self.state.recent_albums_prev_bounce.wrapping_add(1),
+            "recent-albums-next" => self.state.recent_albums_next_bounce = self.state.recent_albums_next_bounce.wrapping_add(1),
+            "featured-prev" => self.state.featured_prev_bounce = self.state.featured_prev_bounce.wrapping_add(1),
+            "featured-next" => self.state.featured_next_bounce = self.state.featured_next_bounce.wrapping_add(1),
+            _ => {}
+        }
+    }
+
+    fn featured_transition_opacity(&mut self) -> f32 {
+        match self.state.featured_transition_start {
+            Some(start) => {
+                let t = (start.elapsed().as_secs_f32() / 0.2).min(1.0);
+                if t >= 1.0 {
+                    self.state.featured_prev_album = None;
+                    self.state.featured_transition_start = None;
+                    1.0
+                } else {
+                    ease_in_out(t)
+                }
+            }
+            None => 1.0,
+        }
     }
 
     fn create_playlist(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1860,6 +1984,7 @@ impl DesktopApp {
 
     fn select_tab(&mut self, tab: ViewTab, cx: &mut Context<Self>) {
         self.state.selected_tab = tab;
+        self.state.search_active = false;
         cx.notify();
     }
 
@@ -1869,6 +1994,7 @@ impl DesktopApp {
 
     fn use_search_text(&mut self, cx: &mut Context<Self>) {
         self.state.search_query = self.search_input.read(cx).value().to_string();
+        self.state.search_active = !self.state.search_query.trim().is_empty();
         cx.notify();
     }
 
@@ -1882,6 +2008,18 @@ impl DesktopApp {
             "Lyrics server URL saved".to_string()
         };
         cx.notify();
+    }
+
+    fn set_color_scheme(&mut self, scheme_name: ColorSchemeName, cx: &mut Context<Self>) {
+        self.state.selected_scheme_name = scheme_name;
+        self.persist_setting("colorScheme", scheme_name.as_str().to_string());
+        self.apply_current_theme(cx);
+    }
+
+    fn set_accent_color(&mut self, accent_name: AccentColorName, cx: &mut Context<Self>) {
+        self.state.accent_color_name = accent_name;
+        self.persist_setting("accentColor", accent_name.as_str().to_string());
+        self.apply_current_theme(cx);
     }
 
     fn poll_audio_and_media(&mut self, cx: &mut Context<Self>) {
@@ -2022,8 +2160,8 @@ impl DesktopApp {
 
         div()
             .size_full()
-            .bg(rgb(theme::BACKGROUND))
-            .text_color(rgb(theme::FOREGROUND))
+            .bg(rgb(theme::background()))
+            .text_color(rgb(theme::foreground()))
             .flex()
             .items_center()
             .justify_center()
@@ -2041,13 +2179,13 @@ impl DesktopApp {
                                 div()
                                     .text_size(px(32.0))
                                     .font_weight(gpui::FontWeight::BOLD)
-                                    .text_color(rgb(theme::FOREGROUND))
+                                    .text_color(rgb(theme::foreground()))
                                     .child("Aurelia"),
                             )
                             .child(
                                 div()
                                     .text_size(px(14.0))
-                                    .text_color(rgb(theme::MUTED_FG))
+                                    .text_color(rgb(theme::muted_foreground()))
                                     .child("Sign in to your music server"),
                             ),
                     )
@@ -2057,9 +2195,9 @@ impl DesktopApp {
                             .gap(px(16.0))
                             .p(px(24.0))
                             .rounded(px(12.0))
-                            .bg(rgb(theme::CARD))
+                            .bg(rgb(theme::card()))
                             .border_1()
-                            .border_color(rgb(theme::BORDER))
+                            .border_color(rgb(theme::border()))
                             .child(
                                 v_flex()
                                     .gap(px(6.0))
@@ -2089,7 +2227,7 @@ impl DesktopApp {
                         this.child(
                             div()
                                 .text_size(px(12.0))
-                                .text_color(rgb(theme::MUTED_FG))
+                                .text_color(rgb(theme::muted_foreground()))
                                 .text_center()
                                 .child(self.state.status.clone()),
                         )
@@ -2106,12 +2244,13 @@ impl DesktopApp {
         };
         let right_panel_open = self.state.right_panel != RightPanel::None;
         let has_player = self.state.player.current_song().is_some();
+        let search_active = self.state.search_active;
 
         v_flex()
             .relative()
             .size_full()
-            .bg(rgb(theme::BACKGROUND))
-            .text_color(rgb(theme::FOREGROUND))
+            .bg(rgb(theme::background()))
+            .text_color(rgb(theme::foreground()))
             // Top: header bar
             .child(self.render_header(window, cx))
             // Middle: sidebar + content + inspector
@@ -2127,12 +2266,30 @@ impl DesktopApp {
             .when(has_player, |this| {
                 this.child(self.render_player_bar(progress, right_panel_open, cx))
             })
+            // Search popup overlay (rendered last so it's on top)
+            .when(search_active, |this| {
+                this.child(
+                    div()
+                        .absolute()
+                        .size_full()
+                        .top_0()
+                        .left_0()
+                        .on_mouse_up(
+                            MouseButton::Left,
+                            cx.listener(|this, _, _, cx| {
+                                this.state.search_active = false;
+                                cx.notify();
+                            }),
+                        ),
+                )
+                .child(self.render_search_popup(cx))
+            })
     }
 
     fn render_header(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         TitleBar::new()
-            .bg(rgb(theme::BACKGROUND))
-            .border_color(rgb(theme::BORDER))
+            .bg(rgb(theme::background()))
+            .border_color(rgb(theme::border()))
             .child(
                 h_flex()
                     .items_center()
@@ -2175,8 +2332,8 @@ impl DesktopApp {
             .flex_shrink_0()
             .h_full()
             .border_r_1()
-            .border_color(rgb(theme::BORDER))
-            .bg(rgb(theme::SIDEBAR_BG))
+            .border_color(rgb(theme::border()))
+            .bg(rgb(theme::sidebar()))
             .justify_between()
             .child(
                 v_flex()
@@ -2192,6 +2349,13 @@ impl DesktopApp {
                     // Nav items
                     .children(ViewTab::ALL.into_iter().map(|tab| {
                         let selected = self.state.selected_tab == tab;
+                        let badge_count = match tab {
+                            ViewTab::Songs => Some(self.state.library.songs.len()),
+                            ViewTab::Albums => Some(self.state.library.albums.len()),
+                            ViewTab::Artists => Some(self.state.library.artists.len()),
+                            ViewTab::Playlists => Some(self.state.library.playlists.len()),
+                            _ => None,
+                        };
                         div()
                             .id(SharedString::from(format!("nav-{}", tab.label())))
                             .px(px(12.0))
@@ -2200,20 +2364,20 @@ impl DesktopApp {
                             .cursor_pointer()
                             .text_size(px(13.0))
                             .bg(if selected {
-                                rgb(theme::SIDEBAR_ITEM_ACTIVE)
+                                rgb(theme::accent())
                             } else {
                                 rgba(0x00000000)
                             })
                             .text_color(if selected {
-                                rgb(theme::FOREGROUND)
+                                rgb(theme::accent_foreground())
                             } else {
-                                rgb(theme::MUTED_FG)
+                                rgb(theme::muted_foreground())
                             })
                             .hover(|style| {
                                 if selected {
                                     style
                                 } else {
-                                    style.bg(rgb(theme::SIDEBAR_ITEM_HOVER))
+                                    style.bg(rgb(theme::sidebar_item_hover()))
                                 }
                             })
                             .on_mouse_up(
@@ -2222,13 +2386,52 @@ impl DesktopApp {
                             )
                             .child(
                                 h_flex()
+                                    .w_full()
+                                    .justify_between()
+                                    .items_center()
                                     .gap(px(10.0))
                                     .child(
-                                        tab.icon()
-                                            .small()
-                                            .text_color(rgb(theme::MUTED_FG)),
+                                        h_flex()
+                                            .items_center()
+                                            .gap(px(10.0))
+                                            .child(
+                                                tab.icon()
+                                                    .small()
+                                                    .text_color(if selected {
+                                                        rgb(theme::accent_foreground())
+                                                    } else {
+                                                        rgb(theme::muted_foreground())
+                                                    }),
+                                            )
+                                            .child(tab.label().to_string()),
                                     )
-                                    .child(tab.label().to_string()),
+                                    .when_some(badge_count, |this, count| {
+                                        this.child(
+                                            div()
+                                                .px(px(8.0))
+                                                .py(px(2.0))
+                                                .rounded(px(999.0))
+                                                .border_1()
+                                                .border_color(if selected {
+                                                    rgba(0xffffff29)
+                                                } else {
+                                                    rgb(theme::border())
+                                                })
+                                                .bg(if selected {
+                                                    rgba(0xffffff14)
+                                                } else {
+                                                    rgb(theme::sidebar_item_hover())
+                                                })
+                                                .text_size(px(11.0))
+                                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                                .text_color(if selected {
+                                                    rgb(theme::foreground())
+                                                } else {
+                                                    rgb(theme::muted_foreground())
+                                                })
+                                                .child(count.to_string()),
+                                        )
+                                    }),
                             )
                     })),
             )
@@ -2237,7 +2440,7 @@ impl DesktopApp {
                 v_flex()
                     .p(px(12.0))
                     .border_t_1()
-                    .border_color(rgb(theme::BORDER))
+                    .border_color(rgb(theme::border()))
                     .gap(px(8.0))
                     .child(
                         v_flex()
@@ -2246,14 +2449,14 @@ impl DesktopApp {
                                 div()
                                     .text_size(px(12.0))
                                     .font_weight(gpui::FontWeight::MEDIUM)
-                                    .text_color(rgb(theme::FOREGROUND))
+                                    .text_color(rgb(theme::foreground()))
                                     .truncate()
                                     .child(username),
                             )
                             .child(
                                 div()
                                     .text_size(px(11.0))
-                                    .text_color(rgb(theme::MUTED_FG))
+                                    .text_color(rgb(theme::muted_foreground()))
                                     .truncate()
                                     .child(server),
                             ),
@@ -2281,6 +2484,46 @@ impl DesktopApp {
                 .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
                 .child(self.render_home(cx))
                 .into_any_element(),
+            ViewTab::Songs => div()
+                .id("content-scroll")
+                .flex_1()
+                .min_w(px(0.0))
+                .h_full()
+                .overflow_hidden()
+                .p(px(0.0))
+                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
+                .child(self.render_songs(cx))
+                .into_any_element(),
+            ViewTab::Albums if self.state.selected_album_id.is_none() => div()
+                .id("content-scroll")
+                .flex_1()
+                .min_w(px(0.0))
+                .h_full()
+                .overflow_hidden()
+                .p(px(0.0))
+                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
+                .child(self.render_albums(cx))
+                .into_any_element(),
+            ViewTab::Artists if self.state.selected_artist_id.is_none() => div()
+                .id("content-scroll")
+                .flex_1()
+                .min_w(px(0.0))
+                .h_full()
+                .overflow_hidden()
+                .p(px(0.0))
+                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
+                .child(self.render_artists(cx))
+                .into_any_element(),
+            ViewTab::Playlists => div()
+                .id("content-scroll")
+                .flex_1()
+                .min_w(px(0.0))
+                .h_full()
+                .overflow_hidden()
+                .p(px(0.0))
+                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
+                .child(self.render_playlists(cx))
+                .into_any_element(),
             _ => div()
                 .id("content-scroll")
                 .flex_1()
@@ -2292,13 +2535,10 @@ impl DesktopApp {
                 .pr(if right_panel_open { px(20.0) } else { px(24.0) })
                 .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
                 .child(match self.state.selected_tab {
-                    ViewTab::Songs => self.render_songs(cx).into_any_element(),
                     ViewTab::Albums => self.render_albums(cx).into_any_element(),
                     ViewTab::Artists => self.render_artists(cx).into_any_element(),
-                    ViewTab::Playlists => self.render_playlists(cx).into_any_element(),
-                    ViewTab::Search => self.render_search(cx).into_any_element(),
                     ViewTab::Settings => self.render_settings(cx).into_any_element(),
-                    ViewTab::Home => unreachable!(),
+                    ViewTab::Home | ViewTab::Songs | ViewTab::Playlists => unreachable!(),
                 })
                 .into_any_element(),
         }
@@ -2312,12 +2552,6 @@ impl DesktopApp {
             .recently_added_albums()
             .into_iter()
             .take(8)
-            .collect::<Vec<_>>();
-        let highlights = self
-            .state
-            .home_highlight_albums()
-            .into_iter()
-            .take(10)
             .collect::<Vec<_>>();
         let recent_songs = self.state.library.recent.iter().take(8).cloned().collect::<Vec<_>>();
         let recent_song_card_width = 192.0;
@@ -2337,7 +2571,20 @@ impl DesktopApp {
                 let artist_id_for_name = artist_id.clone();
                 let art_url = self.album_image_url(album, 220.0);
                 let track_count = album.song_count;
-                let blurred_background = self.featured_background_image.clone();
+                let has_nav = self.state.featured_albums.len() > 1;
+                let dot_count = self.state.featured_albums.len();
+                let active_index = self.state.current_featured_index;
+                let prev_bounce = self.state.featured_prev_bounce;
+                let next_bounce = self.state.featured_next_bounce;
+                let blurred_background = art_url
+                    .as_deref()
+                    .and_then(|url| self.featured_background_cache.get(url).cloned());
+                let old_album_data = self.state.featured_prev_album.clone();
+                let old_blurred_background = old_album_data.as_ref()
+                    .and_then(|old_album| self.album_image_url(old_album, 220.0))
+                    .and_then(|url| self.featured_background_cache.get(url.as_str()).cloned());
+                let is_transitioning = old_album_data.is_some();
+                let transition_opacity = self.featured_transition_opacity();
 
                 this.child(
                     div()
@@ -2345,21 +2592,48 @@ impl DesktopApp {
                         .h(px(320.0))
                         .overflow_hidden()
                         .rounded(px(0.0))
-                        .bg(rgb(theme::BACKGROUND_DARK))
+                        .bg(rgb(theme::background_dark()))
+                        .when(is_transitioning && old_blurred_background.is_some(), |el| {
+                            el.child(
+                                div()
+                                    .absolute()
+                                    .top_0()
+                                    .left_0()
+                                    .size_full()
+                                    .opacity(1.0 - transition_opacity)
+                                    .child(
+                                        img(old_blurred_background.unwrap().clone())
+                                            .size_full()
+                                            .object_fit(ObjectFit::Cover)
+                                            .opacity(0.22)
+                                            .with_fallback(|| div().size_full().bg(rgb(theme::card())).into_any_element())
+                                            .with_loading(|| div().size_full().bg(rgb(theme::card())).into_any_element()),
+                                    )
+                                    .child(
+                                        div()
+                                            .absolute()
+                                            .top_0()
+                                            .left_0()
+                                            .size_full()
+                                            .bg(rgba(0x0000005e)),
+                                    ),
+                            )
+                        })
                         .child(
                             div()
                                 .absolute()
                                 .top_0()
                                 .left_0()
                                 .size_full()
-                                .when_some(blurred_background.clone(), |this, image| {
+                                .opacity(transition_opacity)
+                                .when_some(blurred_background, |this, image| {
                                     this.child(
                                         img(image)
                                             .size_full()
                                             .object_fit(ObjectFit::Cover)
                                             .opacity(0.22)
-                                            .with_fallback(|| div().size_full().bg(rgb(theme::CARD)).into_any_element())
-                                            .with_loading(|| div().size_full().bg(rgb(theme::CARD)).into_any_element()),
+                                            .with_fallback(|| div().size_full().bg(rgb(theme::card())).into_any_element())
+                                            .with_loading(|| div().size_full().bg(rgb(theme::card())).into_any_element()),
                                     )
                                 })
                                 .child(
@@ -2369,28 +2643,100 @@ impl DesktopApp {
                                         .left_0()
                                         .size_full()
                                         .bg(rgba(0x0000005e)),
-                                )
-                                .child(
-                                    div()
-                                        .absolute()
-                                        .bottom_0()
-                                        .left_0()
-                                        .right_0()
-                                        .h(px(144.0))
-                                        .bg(linear_gradient(
-                                            180.0,
-                                            linear_color_stop(rgba(0x09090b00), 0.0),
-                                            linear_color_stop(rgba(0x09090bff), 1.0),
-                                        )),
                                 ),
                         )
+                        .child(
+                            div()
+                                .absolute()
+                                .bottom_0()
+                                .left_0()
+                                .right_0()
+                                .h(px(144.0))
+                                .bg(linear_gradient(
+                                    180.0,
+                                    linear_color_stop(rgba(theme::background_alpha(0)), 0.0),
+                                    linear_color_stop(rgba(theme::background_alpha(255)), 1.0),
+                                )),
+                        )
+                        .when(is_transitioning, |el| {
+                            let old_album = old_album_data.clone().unwrap();
+                            let old_art_url = self.album_image_url(&old_album, 220.0);
+                            el.child(
+                                div()
+                                    .absolute()
+                                    .top_0()
+                                    .left_0()
+                                    .w_full()
+                                    .h_full()
+                                    .px(px(24.0))
+                                    .pt(px(20.0))
+                                    .pb(px(if has_nav { 40.0 } else { 20.0 }))
+                                    .opacity(1.0 - transition_opacity)
+                                    .child(
+                                        h_flex()
+                                            .justify_between()
+                                            .gap(px(28.0))
+                                            .items_center()
+                                            .w_full()
+                                            .h_full()
+                                            .child(
+                                                v_flex()
+                                                    .gap(px(10.0))
+                                                    .flex_1()
+                                                    .child(
+                                                        div()
+                                                            .text_size(px(34.0))
+                                                            .font_weight(gpui::FontWeight::BOLD)
+                                                            .text_color(rgb(theme::foreground()))
+                                                            .child(old_album.name.clone()),
+                                                    )
+                                                    .child(
+                                                        h_flex()
+                                                            .gap(px(8.0))
+                                                            .mb(px(10.0))
+                                                            .items_center()
+                                                            .child(
+                                                                div()
+                                                                    .text_size(px(14.0))
+                                                                    .text_color(rgba(theme::accent_alpha(199)))
+                                                                    .child(old_album.artist.clone()),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .text_size(px(14.0))
+                                                                    .text_color(rgb(theme::foreground()))
+                                                                    .child(format!(
+                                                                        "\u{00b7}  {} track{}",
+                                                                        old_album.song_count,
+                                                                        if old_album.song_count == 1 { "" } else { "s" }
+                                                                    )),
+                                                            ),
+                                                    )
+                                                    .child(h_flex().gap(px(10.0)).h(px(40.0))),
+                                            )
+                                            .child(
+                                                div()
+                                                    .flex_shrink_0()
+                                                    .child(cover_art(
+                                                        old_art_url.as_deref(),
+                                                        220.0,
+                                                        18.0,
+                                                        false,
+                                                        AppIcon::Music,
+                                                    )),
+                                            ),
+                                    ),
+                            )
+                        })
                         .child(
                             div()
                                 .relative()
                                 .w_full()
                                 .h_full()
                                 .px(px(24.0))
-                                .py(px(20.0))
+                                .pt(px(20.0))
+                                .pb(px(if has_nav { 40.0 } else { 20.0 }))
+                                .opacity(transition_opacity)
                                 .child(
                                     h_flex()
                                         .justify_between()
@@ -2406,9 +2752,9 @@ impl DesktopApp {
                                                     div()
                                                         .text_size(px(34.0))
                                                         .font_weight(gpui::FontWeight::BOLD)
-                                                        .text_color(rgb(theme::FOREGROUND))
+                                                        .text_color(rgb(theme::foreground()))
                                                         .cursor_pointer()
-                                                        .hover(|style| style.text_color(rgba(0xffffffd8)))
+                                                        .hover(|style| style.text_color(rgba(theme::accent_alpha(216))))
                                                         .on_mouse_up(
                                                             MouseButton::Left,
                                                             cx.listener(move |this, _, _, cx| {
@@ -2427,10 +2773,10 @@ impl DesktopApp {
                                                         .child(
                                                             div()
                                                                 .text_size(px(14.0))
-                                                                .text_color(rgba(0xffffffc7))
+                                                                .text_color(rgba(theme::accent_alpha(199)))
                                                                 .when_some(artist_id_for_name.clone(), |this, artist_id| {
                                                                     this.cursor_pointer()
-                                                                        .hover(|style| style.text_color(rgba(0xffffffff)))
+                                                                        .hover(|style| style.text_color(rgb(theme::accent())))
                                                                         .on_mouse_up(
                                                                             MouseButton::Left,
                                                                             cx.listener(move |this, _, _, cx| {
@@ -2443,9 +2789,9 @@ impl DesktopApp {
                                                         .child(
                                                             div()
                                                                 .text_size(px(14.0))
-                                                                .text_color(rgba(0xffffff8a))
+                                                                .text_color(rgb(theme::foreground()))
                                                                 .child(format!(
-                                                                    "·  {} track{}",
+                                                                    "\u{00b7}  {} track{}",
                                                                     track_count,
                                                                     if track_count == 1 { "" } else { "s" }
                                                                 )),
@@ -2454,35 +2800,7 @@ impl DesktopApp {
                                                 .child(
                                                     h_flex()
                                                         .gap(px(10.0))
-                                                        .child(
-                                                            Button::new("home-play-featured")
-                                                                .label("Play")
-                                                                .icon(Icon::new(AppIcon::Play))
-                                                                .primary()
-                                                                .small()
-                                                                .rounded(px(999.0))
-                                                                .px(px(22.0))
-                                                                .h(px(40.0))
-                                                                .on_click(cx.listener(move |this, _, _, cx| {
-                                                                    if let Some(album_id) = play_album_id.clone() {
-                                                                        this.play_album_by_id(album_id, cx);
-                                                                    }
-                                                                })),
-                                                        )
-                                                        .child(
-                                                            Button::new("home-open-featured")
-                                                                .label("Shuffle")
-                                                                .icon(Icon::new(AppIcon::Shuffle))
-                                                                .small()
-                                                                .rounded(px(999.0))
-                                                                .px(px(22.0))
-                                                                .h(px(40.0))
-                                                                .on_click(cx.listener(move |this, _, _, cx| {
-                                                                    if let Some(album_id) = shuffle_album_id.clone() {
-                                                                        this.shuffle_album_by_id(album_id, cx);
-                                                                    }
-                                                                })),
-                                                        )
+                                                        .h(px(40.0)),
                                                 ),
                                         )
                                         .child(
@@ -2507,22 +2825,192 @@ impl DesktopApp {
                                                 )),
                                         ),
                                 ),
-                        ),
+                        )
+                        .child(
+                            div()
+                                .absolute()
+                                .top_0()
+                                .left_0()
+                                .w_full()
+                                .h_full()
+                                .px(px(24.0))
+                                .pt(px(20.0))
+                                .pb(px(if has_nav { 40.0 } else { 20.0 }))
+                                .child(
+                                    v_flex()
+                                        .h_full()
+                                        .child(div().h(px(170.0)))
+                                        .child(
+                                            h_flex()
+                                                .gap(px(10.0))
+                                                .child(
+                                                    Button::new("home-play-featured")
+                                                        .label("Play")
+                                                        .icon(Icon::new(AppIcon::Play))
+                                                        .custom(
+                                                            ButtonCustomVariant::new(cx)
+                                                                .color(rgb(theme::accent()).into())
+                                                                .foreground(rgb(theme::accent_foreground()).into())
+                                                                .border(rgb(theme::accent()).into())
+                                                                .hover(rgb(theme::accent_hover()).into())
+                                                                .active(rgb(theme::accent_active()).into()),
+                                                        )
+                                                        .small()
+                                                        .rounded(px(999.0))
+                                                        .px(px(22.0))
+                                                        .h(px(40.0))
+                                                        .on_click(cx.listener(move |this, _, _, cx| {
+                                                            if let Some(album_id) = play_album_id.clone() {
+                                                                this.play_album_by_id(album_id, cx);
+                                                            }
+                                                        })),
+                                                )
+                                                .child(
+                                                    Button::new("home-open-featured")
+                                                        .label("Shuffle")
+                                                        .icon(Icon::new(AppIcon::Shuffle))
+                                                        .small()
+                                                        .rounded(px(999.0))
+                                                        .px(px(22.0))
+                                                        .h(px(40.0))
+                                                        .on_click(cx.listener(move |this, _, _, cx| {
+                                                            if let Some(album_id) = shuffle_album_id.clone() {
+                                                                this.shuffle_album_by_id(album_id, cx);
+                                                            }
+                                                        })),
+                                                ),
+                                        ),
+                                ),
+                        )
+                        .when(has_nav, |el| {
+                            el.child(
+                                div()
+                                    .absolute()
+                                    .bottom_0()
+                                    .left_0()
+                                    .right_0()
+                                    .px(px(24.0))
+                                    .pb(px(12.0))
+                                    .child(
+                                        h_flex()
+                                            .w_full()
+                                            .justify_between()
+                                            .items_center()
+                                            .child(
+                                                h_flex()
+                                                    .gap(px(6.0))
+                                                    .items_center()
+                                                    .children((0..dot_count).map(|idx| {
+                                                        let is_active = idx == active_index;
+                                                        div()
+                                                            .id(SharedString::from(format!("featured-dot-{idx}")))
+                                                            .rounded(px(999.0))
+                                                            .cursor_pointer()
+                                                            .bg(if is_active {
+                                                                rgb(theme::accent())
+                                                            } else {
+                                                                rgba(0xffffff66)
+                                                            })
+                                                            .hover(|style| {
+                                                                if is_active {
+                                                                    style
+                                                                } else {
+                                                                    style.bg(rgba(0xffffff99))
+                                                                }
+                                                            })
+                                                            .when(is_active, |el| el.w(px(24.0)).h(px(6.0)))
+                                                            .when(!is_active, |el| el.w(px(6.0)).h(px(6.0)))
+                                                            .on_mouse_up(
+                                                                MouseButton::Left,
+                                                                cx.listener(move |this, _, _, cx| {
+                                                                    this.state.featured_prev_album = this.state.featured_albums.get(this.state.current_featured_index).cloned();
+                                                                    this.state.featured_transition_nonce = this.state.featured_transition_nonce.wrapping_add(1);
+                                                                    this.state.featured_transition_start = Some(Instant::now());
+                                                                    this.state.current_featured_index = idx;
+                                                                    let album = this.state.featured_albums.get(idx).cloned();
+                                                                    this.sync_featured_background(album.as_ref(), cx);
+                                                                    cx.notify();
+                                                                }),
+                                                            )
+                                                    })),
+                                            )
+                                            .child(
+                                                h_flex()
+                                                    .gap(px(6.0))
+                                                    .child(
+                                                        Button::new("featured-prev")
+                                                            .custom(
+                                                                ButtonCustomVariant::new(cx)
+                                                                    .color(rgba(theme::accent_alpha(if theme::is_dark() { 26 } else { 18 })).into())
+                                                                    .foreground(rgb(theme::accent()).into())
+                                                                    .border(rgba(theme::accent_alpha(if theme::is_dark() { 38 } else { 28 })).into())
+                                                                    .hover(rgba(theme::accent_alpha(if theme::is_dark() { 51 } else { 40 })).into())
+                                                                    .active(rgba(theme::accent_alpha(if theme::is_dark() { 36 } else { 50 })).into()),
+                                                            )
+                                                            .size(px(32.0))
+                                                            .rounded(px(999.0))
+                                                            .child(
+                                                                Icon::new(IconName::ChevronLeft)
+                                                                    .with_animation(
+                                                                        SharedString::from(format!("featured-prev-bounce-{prev_bounce}")),
+                                                                        Animation::new(Duration::from_millis(210))
+                                                                            .with_easing(bounce(ease_in_out)),
+                                                                        |icon, delta| {
+                                                                            let offset = -3.0 * delta;
+                                                                            icon.transform(Transformation::translate(point(px(offset), px(0.0))))
+                                                                        },
+                                                                    ),
+                                                            )
+                                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                                this.trigger_carousel_bounce("featured-prev");
+                                                                this.state.prev_featured_album();
+                                                                this.sync_featured_background(
+                                                                    this.state.featured_album().as_ref(),
+                                                                    cx,
+                                                                );
+                                                                cx.notify();
+                                                            })),
+                                                    )
+                                                    .child(
+                                                        Button::new("featured-next")
+                                                            .custom(
+                                                                ButtonCustomVariant::new(cx)
+                                                                    .color(rgba(theme::accent_alpha(if theme::is_dark() { 26 } else { 18 })).into())
+                                                                    .foreground(rgb(theme::accent()).into())
+                                                                    .border(rgba(theme::accent_alpha(if theme::is_dark() { 38 } else { 28 })).into())
+                                                                    .hover(rgba(theme::accent_alpha(if theme::is_dark() { 51 } else { 40 })).into())
+                                                                    .active(rgba(theme::accent_alpha(if theme::is_dark() { 36 } else { 50 })).into()),
+                                                            )
+                                                            .size(px(32.0))
+                                                            .rounded(px(999.0))
+                                                            .child(
+                                                                Icon::new(IconName::ChevronRight)
+                                                                    .with_animation(
+                                                                        SharedString::from(format!("featured-next-bounce-{next_bounce}")),
+                                                                        Animation::new(Duration::from_millis(210))
+                                                                            .with_easing(bounce(ease_in_out)),
+                                                                        |icon, delta| {
+                                                                            let offset = 3.0 * delta;
+                                                                            icon.transform(Transformation::translate(point(px(offset), px(0.0))))
+                                                                        },
+                                                                    ),
+                                                            )
+                                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                                this.trigger_carousel_bounce("featured-next");
+                                                                this.state.next_featured_album();
+                                                                this.sync_featured_background(
+                                                                    this.state.featured_album().as_ref(),
+                                                                    cx,
+                                                                );
+                                                                cx.notify();
+                                                            })),
+                                                    ),
+                                            ),
+                                    ),
+                            )
+                        }),
                 )
             })
-            .child(
-                div().px(px(24.0)).child(
-                    h_flex()
-                        .gap(px(12.0))
-                        .items_start()
-                        .w_full()
-                        .flex_wrap()
-                        .child(stat_card("Songs", self.state.library.songs.len()))
-                        .child(stat_card("Albums", self.state.library.albums.len()))
-                        .child(stat_card("Artists", self.state.library.artists.len()))
-                        .child(stat_card("Playlists", self.state.library.playlists.len())),
-                ),
-            )
             .when(!recent_songs.is_empty(), |this| {
                 this.child(
                     v_flex()
@@ -2531,81 +3019,79 @@ impl DesktopApp {
                             "Recently Played",
                             "home-recent-songs-prev",
                             "home-recent-songs-next",
+                            self.state.recent_songs_prev_bounce,
+                            self.state.recent_songs_next_bounce,
                             cx,
                             move |this, cx| {
+                                this.trigger_carousel_bounce("recent-songs-prev");
                                 let handle = this.recent_songs_scroll_handle.clone();
-                                this.scroll_carousel_by(&handle, recent_song_card_width, cx);
+                                this.animate_carousel_by(handle, recent_song_card_width, cx);
                             },
                             move |this, cx| {
+                                this.trigger_carousel_bounce("recent-songs-next");
                                 let handle = this.recent_songs_scroll_handle.clone();
-                                this.scroll_carousel_by(&handle, -recent_song_card_width, cx);
+                                this.animate_carousel_by(handle, -recent_song_card_width, cx);
                             },
                         ))
                         .child(
-                            div()
+                            h_flex()
                                 .id("home-recent-songs-scroll")
                                 .w_full()
+                                .gap(px(12.0))
                                 .track_scroll(&self.recent_songs_scroll_handle)
-                                .overflow_x_scroll()
-                                .on_scroll_wheel(cx.listener(|_, _, window, cx| {
-                                    window.prevent_default();
-                                    cx.stop_propagation();
-                                }))
-                                .child(
-                                    h_flex().gap(px(12.0)).children(recent_songs.into_iter().map(|song| {
-                                        let art_url = self.song_image_url(&song, 156.0);
-                                        let song_id = song.id.clone();
-                                        let album_id = song.album_id.clone();
-                                        div()
-                                            .w(px(180.0))
-                                            .flex_shrink_0()
-                                            .rounded(px(12.0))
-                                            .border_1()
-                                            .border_color(rgb(theme::BORDER))
-                                            .bg(rgb(theme::CARD))
-                                            .p(px(12.0))
-                                            .cursor_pointer()
-                                            .hover(|style| style.bg(rgb(theme::SIDEBAR_ITEM_HOVER)))
-                                            .on_mouse_up(
-                                                MouseButton::Left,
-                                                cx.listener(move |this, _, _, cx| {
-                                                    this.state.selected_song_id = Some(song_id.clone());
-                                                    if let Some(album_id) = album_id.clone() {
-                                                        this.state.selected_album_id = Some(album_id);
-                                                    }
-                                                    cx.notify();
-                                                }),
-                                            )
-                                            .child(cover_art(art_url.as_deref(), 156.0, 12.0, false, AppIcon::Music))
-                                            .child(
-                                                v_flex()
-                                                    .gap(px(4.0))
-                                                    .mt(px(10.0))
-                                                    .min_w(px(0.0))
-                                                    .child(
-                                                        div()
-                                                            .w_full()
-                                                            .text_size(px(13.0))
-                                                            .font_weight(gpui::FontWeight::MEDIUM)
-                                                            .truncate()
-                                                            .child(song.name.clone()),
+                                .overflow_hidden()
+                                .children(recent_songs.into_iter().map(|song| {
+                                                let art_url = self.song_image_url(&song, 156.0);
+                                                let song_id = song.id.clone();
+                                                let album_id = song.album_id.clone();
+                                                div()
+                                                    .w(px(180.0))
+                                                    .flex_shrink_0()
+                                                    .rounded(px(12.0))
+                                                    .border_1()
+                                                    .border_color(rgb(theme::border()))
+                                                    .bg(rgb(theme::card()))
+                                                    .p(px(12.0))
+                                                    .cursor_pointer()
+                                                    .hover(|style| style.bg(rgb(theme::sidebar_item_hover())))
+                                                    .on_mouse_up(
+                                                        MouseButton::Left,
+                                                        cx.listener(move |this, _, _, cx| {
+                                                            if let Some(album_id) = album_id.clone() {
+                                                                this.state.selected_album_id = Some(album_id);
+                                                            }
+                                                            this.play_song_by_id(song_id.clone(), cx);
+                                                        }),
                                                     )
+                                                    .child(cover_art(art_url.as_deref(), 156.0, 12.0, false, AppIcon::Music))
                                                     .child(
-                                                        div()
-                                                            .w_full()
-                                                            .text_size(px(11.0))
-                                                            .text_color(rgb(theme::MUTED_FG))
-                                                            .truncate()
+                                                        v_flex()
+                                                            .gap(px(4.0))
+                                                            .mt(px(10.0))
+                                                            .min_w(px(0.0))
                                                             .child(
-                                                                song.artists
-                                                                    .as_ref()
-                                                                    .and_then(|artists| artists.first().cloned())
-                                                                    .unwrap_or_else(|| "Unknown Artist".to_string()),
+                                                                div()
+                                                                    .w_full()
+                                                                    .text_size(px(13.0))
+                                                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                                                    .truncate()
+                                                                    .child(song.name.clone()),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .w_full()
+                                                                    .text_size(px(11.0))
+                                                                    .text_color(rgb(theme::muted_foreground()))
+                                                                    .truncate()
+                                                                    .child(
+                                                                        song.artists
+                                                                            .as_ref()
+                                                                            .and_then(|artists| artists.first().cloned())
+                                                                            .unwrap_or_else(|| "Unknown Artist".to_string()),
+                                                                    ),
                                                             ),
-                                                    ),
-                                            )
-                                    })),
-                                ),
+                                                    )
+                                            })),
                         ),
                 )
             })
@@ -2617,141 +3103,72 @@ impl DesktopApp {
                             "Recently Added",
                             "home-recent-albums-prev",
                             "home-recent-albums-next",
+                            self.state.recent_albums_prev_bounce,
+                            self.state.recent_albums_next_bounce,
                             cx,
                             move |this, cx| {
+                                this.trigger_carousel_bounce("recent-albums-prev");
                                 let handle = this.recent_albums_scroll_handle.clone();
-                                this.scroll_carousel_by(&handle, recent_album_card_width, cx);
+                                this.animate_carousel_by(handle, recent_album_card_width, cx);
                             },
                             move |this, cx| {
+                                this.trigger_carousel_bounce("recent-albums-next");
                                 let handle = this.recent_albums_scroll_handle.clone();
-                                this.scroll_carousel_by(&handle, -recent_album_card_width, cx);
+                                this.animate_carousel_by(handle, -recent_album_card_width, cx);
                             },
                         ))
                         .child(
-                            div()
+                            h_flex()
                                 .id("home-recent-albums-scroll")
                                 .w_full()
+                                .gap(px(12.0))
                                 .track_scroll(&self.recent_albums_scroll_handle)
-                                .overflow_x_scroll()
-                                .on_scroll_wheel(cx.listener(|_, _, window, cx| {
-                                    window.prevent_default();
-                                    cx.stop_propagation();
-                                }))
-                                .child(
-                                    h_flex().gap(px(12.0)).children(recently_added.into_iter().map(|album| {
-                                        let art_url = self.album_image_url(&album, 156.0);
-                                        let album_id = album.id.clone();
-                                        let artist_id = album.artist_id.clone();
-                                        div()
-                                            .w(px(180.0))
-                                            .flex_shrink_0()
-                                            .rounded(px(12.0))
-                                            .border_1()
-                                            .border_color(rgb(theme::BORDER))
-                                            .bg(rgb(theme::CARD))
-                                            .p(px(12.0))
-                                            .cursor_pointer()
-                                            .hover(|style| style.bg(rgb(theme::SIDEBAR_ITEM_HOVER)))
-                                            .on_mouse_up(
-                                                MouseButton::Left,
-                                                cx.listener(move |this, _, _, cx| {
-                                                    if let Some(album_id) = album_id.clone() {
-                                                        this.show_album(album_id, cx);
-                                                    }
-                                                }),
-                                            )
-                                            .child(cover_art(art_url.as_deref(), 156.0, 12.0, false, AppIcon::Disc3))
-                                            .child(
-                                                v_flex()
-                                                    .gap(px(4.0))
-                                                    .mt(px(10.0))
-                                                    .min_w(px(0.0))
-                                                    .child(
-                                                        div()
-                                                            .w_full()
-                                                            .text_size(px(13.0))
-                                                            .font_weight(gpui::FontWeight::MEDIUM)
-                                                            .truncate()
-                                                            .child(album.name.clone()),
+                                .overflow_hidden()
+                                .children(recently_added.into_iter().map(|album| {
+                                                let art_url = self.album_image_url(&album, 156.0);
+                                                let album_id = album.id.clone();
+                                                div()
+                                                    .w(px(180.0))
+                                                    .flex_shrink_0()
+                                                    .rounded(px(12.0))
+                                                    .border_1()
+                                                    .border_color(rgb(theme::border()))
+                                                    .bg(rgb(theme::card()))
+                                                    .p(px(12.0))
+                                                    .cursor_pointer()
+                                                    .hover(|style| style.bg(rgb(theme::sidebar_item_hover())))
+                                                    .on_mouse_up(
+                                                        MouseButton::Left,
+                                                        cx.listener(move |this, _, _, cx| {
+                                                            if let Some(album_id) = album_id.clone() {
+                                                                this.show_album(album_id, cx);
+                                                            }
+                                                        }),
                                                     )
+                                                    .child(cover_art(art_url.as_deref(), 156.0, 12.0, false, AppIcon::Disc3))
                                                     .child(
-                                                        div()
-                                                            .w_full()
-                                                            .text_size(px(11.0))
-                                                            .text_color(rgb(theme::MUTED_FG))
-                                                            .truncate()
-                                                            .child(album.artist.clone()),
+                                                        v_flex()
+                                                            .gap(px(4.0))
+                                                            .mt(px(10.0))
+                                                            .min_w(px(0.0))
+                                                            .child(
+                                                                div()
+                                                                    .w_full()
+                                                                    .text_size(px(13.0))
+                                                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                                                    .truncate()
+                                                                    .child(album.name.clone()),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .w_full()
+                                                                    .text_size(px(11.0))
+                                                                    .text_color(rgb(theme::muted_foreground()))
+                                                                    .truncate()
+                                                                    .child(album.artist.clone()),
+                                                            ),
                                                     )
-                                                    .when_some(artist_id, |this, artist_id| {
-                                                        this.child(
-                                                            Button::new(SharedString::from(format!("open-artist-{artist_id}")))
-                                                                .label("Artist")
-                                                                .ghost()
-                                                                .xsmall()
-                                                                .on_click(cx.listener(move |this, _, _, cx| {
-                                                                    this.show_artist(artist_id.clone(), cx);
-                                                                })),
-                                                        )
-                                                    }),
-                                            )
-                                    })),
-                                ),
-                        ),
-                )
-            })
-            .when(!highlights.is_empty(), |this| {
-                this.child(
-                    v_flex()
-                        .px(px(24.0))
-                        .child(section_header("Library Highlights"))
-                        .child(
-                            card_container().children(highlights.into_iter().enumerate().map(|(i, album)| {
-                                let art_url = self.album_image_url(&album, 52.0);
-                                let album_id = album.id.clone();
-                                h_flex()
-                                    .justify_between()
-                                    .px(px(12.0))
-                                    .py(px(10.0))
-                                    .when(i > 0, |this| this.border_t_1().border_color(rgb(theme::BORDER)))
-                                    .child(
-                                        h_flex()
-                                            .gap(px(12.0))
-                                            .items_center()
-                                            .child(cover_art(art_url.as_deref(), 52.0, 10.0, false, AppIcon::Disc3))
-                                            .child(
-                                                v_flex()
-                                                    .gap(px(2.0))
-                                                    .min_w(px(0.0))
-                                                    .child(
-                                                        div()
-                                                            .w_full()
-                                                            .text_size(px(13.0))
-                                                            .font_weight(gpui::FontWeight::MEDIUM)
-                                                            .truncate()
-                                                            .child(album.name.clone()),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .w_full()
-                                                            .text_size(px(11.0))
-                                                            .text_color(rgb(theme::MUTED_FG))
-                                                            .truncate()
-                                                            .child(album.artist.clone()),
-                                                    ),
-                                            ),
-                                    )
-                                    .child(
-                                        Button::new(SharedString::from(format!("home-highlight-{i}")))
-                                            .label("Open")
-                                            .ghost()
-                                            .xsmall()
-                                            .on_click(cx.listener(move |this, _, _, cx| {
-                                                if let Some(album_id) = album_id.clone() {
-                                                    this.show_album(album_id, cx);
-                                                }
                                             })),
-                                    )
-                            })),
                         ),
                 )
             })
@@ -2759,75 +3176,77 @@ impl DesktopApp {
 
     fn render_songs(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let songs = self.state.filtered_songs();
-        let count = songs.len();
-        if let Some(selected_id) = self.state.selected_song_id.as_ref()
-            && let Some(index) = songs.iter().position(|song| &song.id == selected_id)
-        {
-            self.songs_scroll_handle
-                .scroll_to_item(index, ScrollStrategy::Center);
+        if self.state.last_scrolled_song_id != self.state.selected_song_id {
+            if let Some(selected_id) = self.state.selected_song_id.as_ref()
+                && let Some(index) = songs.iter().position(|song| &song.id == selected_id)
+            {
+                self.songs_scroll_handle
+                    .scroll_to_item(index, ScrollStrategy::Top);
+                self.state.last_scrolled_song_id = Some(selected_id.clone());
+            }
+        } else if self.state.selected_song_id.is_none() {
+            self.state.last_scrolled_song_id = None;
         }
         v_flex()
-            .gap(px(16.0))
-            .child(page_header("Songs", Some(&format!("{count} songs"))))
+            .size_full()
+            .w_full()
+            .min_h(px(0.0))
+            .gap(px(0.0))
             .child(
-                card_container().child(
-                    uniform_list(
-                        "songs-list",
-                        songs.len(),
-                        cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
-                            range
-                                .map(|index| {
-                                    let song = songs[index].clone();
-                                    let song_id = song.id.clone();
-                                    let album_id = song.album_id.clone();
-                                    let selected = this
-                                        .state
-                                        .selected_song_id
-                                        .as_ref()
-                                        .is_some_and(|id| id == &song.id);
-                                    let is_playing = this
-                                        .state
-                                        .player
-                                        .current_song()
-                                        .is_some_and(|current| current.id == song.id);
+                uniform_list(
+                    "songs-list",
+                    songs.len(),
+                    cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
+                        range
+                            .map(|index| {
+                                let song = songs[index].clone();
+                                let song_id = song.id.clone();
+                                let album_id = song.album_id.clone();
+                                let selected = this
+                                    .state
+                                    .selected_song_id
+                                    .as_ref()
+                                    .is_some_and(|id| id == &song.id);
+                                let is_playing = this
+                                    .state
+                                    .player
+                                    .current_song()
+                                    .is_some_and(|current| current.id == song.id);
 
-                                    div()
-                                        .id(("song", index))
-                                        .cursor_pointer()
-                                        .rounded(px(6.0))
-                                        .bg(if selected {
-                                            rgb(theme::SIDEBAR_ITEM_ACTIVE)
+                                div()
+                                    .id(("song", index))
+                                    .cursor_pointer()
+                                    .bg(if selected {
+                                        rgba(theme::accent_alpha(if theme::is_dark() { 42 } else { 30 }))
+                                    } else {
+                                        rgba(0x00000000)
+                                    })
+                                    .hover(|style| {
+                                        if selected {
+                                            style
                                         } else {
-                                            rgba(0x00000000)
-                                        })
-                                        .hover(|style| {
-                                            if selected {
-                                                style
-                                            } else {
-                                                style.bg(rgb(theme::SIDEBAR_ITEM_HOVER))
-                                            }
-                                        })
-                                        .on_mouse_up(
-                                            MouseButton::Left,
-                                            cx.listener(move |this, _, _, cx| {
-                                                this.state.selected_song_id = Some(song_id.clone());
-                                                this.state.selected_album_id = album_id.clone();
-                                                cx.notify();
-                                            }),
-                                        )
-                                        .child(song_row(
-                                            &song,
-                                            this.song_image_url(&song, 44.0),
-                                            is_playing,
-                                            index == 0,
-                                        ))
-                                })
-                                .collect::<Vec<_>>()
-                        }),
-                    )
-                    .track_scroll(&self.songs_scroll_handle)
-                    .h(px(700.0)),
-                ),
+                                            style.bg(rgb(theme::sidebar_item_hover()))
+                                        }
+                                    })
+                                    .on_mouse_up(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, _, _, cx| {
+                                            this.state.selected_album_id = album_id.clone();
+                                            this.play_song_by_id(song_id.clone(), cx);
+                                        }),
+                                    )
+                                    .child(song_row(
+                                        &song,
+                                        this.song_image_url(&song, 44.0),
+                                        is_playing,
+                                        index == 0,
+                                    ))
+                            })
+                            .collect::<Vec<_>>()
+                    }),
+                )
+                .track_scroll(self.songs_scroll_handle.clone())
+                .size_full(),
             )
     }
 
@@ -2837,48 +3256,72 @@ impl DesktopApp {
         }
 
         let albums = self.state.library.albums.clone();
-        let count = albums.len();
+        if self.state.last_scrolled_album_id != self.state.selected_album_id {
+            if let Some(selected_id) = self.state.selected_album_id.as_ref()
+                && let Some(index) = albums.iter().position(|album| album.id.as_ref() == Some(selected_id))
+            {
+                self.albums_scroll_handle
+                    .scroll_to_item(index, ScrollStrategy::Top);
+                self.state.last_scrolled_album_id = Some(selected_id.clone());
+            }
+        } else if self.state.selected_album_id.is_none() {
+            self.state.last_scrolled_album_id = None;
+        }
         v_flex()
-            .gap(px(16.0))
-            .child(page_header("Albums", Some(&format!("{count} albums"))))
+            .size_full()
+            .w_full()
+            .min_h(px(0.0))
+            .gap(px(0.0))
             .child(
-                card_container().children(albums.into_iter().map(|album| {
-                    let album_id = album.id.clone();
-                    let album_match_id = album.id.clone();
-                    let selected = self
-                        .state
-                        .selected_album_id
-                        .as_ref()
-                        .is_some_and(|id| Some(id) == album.id.as_ref());
-                    div()
-                        .cursor_pointer()
-                        .rounded(px(6.0))
-                        .bg(if selected {
-                            rgb(theme::SIDEBAR_ITEM_ACTIVE)
-                        } else {
-                            rgba(0x00000000)
-                        })
-                        .hover(|style| {
-                            if selected { style } else { style.bg(rgb(theme::SIDEBAR_ITEM_HOVER)) }
-                        })
-                        .on_mouse_up(
-                            MouseButton::Left,
-                            cx.listener(move |this, _, _, cx| {
-                                this.state.selected_album_id = album_id.clone();
-                                if let Some(song) = this
+                uniform_list(
+                    "albums-list",
+                    albums.len(),
+                    cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
+                        range
+                            .map(|index| {
+                                let album = albums[index].clone();
+                                let album_id = album.id.clone();
+                                let album_match_id = album.id.clone();
+                                let selected = this
                                     .state
-                                    .library
-                                    .songs
-                                    .iter()
-                                    .find(|song| song.album_id == album_match_id)
-                                {
-                                    this.state.selected_song_id = Some(song.id.clone());
-                                }
-                                cx.notify();
-                            }),
-                        )
-                        .child(album_line(&album, self.album_image_url(&album, 52.0)))
-                })),
+                                    .selected_album_id
+                                    .as_ref()
+                                    .is_some_and(|id| Some(id) == album.id.as_ref());
+                                div()
+                                    .id(("album", index))
+                                    .cursor_pointer()
+                                    .when(index > 0, |this| this.border_t_1().border_color(rgb(theme::border())))
+                                    .bg(if selected {
+                                        rgba(theme::accent_alpha(if theme::is_dark() { 42 } else { 30 }))
+                                    } else {
+                                        rgba(0x00000000)
+                                    })
+                                    .hover(|style| {
+                                        if selected { style } else { style.bg(rgb(theme::sidebar_item_hover())) }
+                                    })
+                                    .on_mouse_up(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, _, _, cx| {
+                                            this.state.selected_album_id = album_id.clone();
+                                            if let Some(song) = this
+                                                .state
+                                                .library
+                                                .songs
+                                                .iter()
+                                                .find(|song| song.album_id == album_match_id)
+                                            {
+                                                this.state.selected_song_id = Some(song.id.clone());
+                                            }
+                                            cx.notify();
+                                        }),
+                                    )
+                                    .child(album_line(&album, this.album_image_url(&album, 52.0)))
+                            })
+                            .collect::<Vec<_>>()
+                    }),
+                )
+                .track_scroll(self.albums_scroll_handle.clone())
+                .size_full(),
             )
             .into_any_element()
     }
@@ -2889,38 +3332,62 @@ impl DesktopApp {
         }
 
         let artists = self.state.library.artists.clone();
-        let count = artists.len();
+        if self.state.last_scrolled_artist_id != self.state.selected_artist_id {
+            if let Some(selected_id) = self.state.selected_artist_id.as_ref()
+                && let Some(index) = artists.iter().position(|artist| &artist.id == selected_id)
+            {
+                self.artists_scroll_handle
+                    .scroll_to_item(index, ScrollStrategy::Top);
+                self.state.last_scrolled_artist_id = Some(selected_id.clone());
+            }
+        } else if self.state.selected_artist_id.is_none() {
+            self.state.last_scrolled_artist_id = None;
+        }
         v_flex()
-            .gap(px(16.0))
-            .child(page_header("Artists", Some(&format!("{count} artists"))))
+            .size_full()
+            .w_full()
+            .min_h(px(0.0))
+            .gap(px(0.0))
             .child(
-                card_container().children(artists.into_iter().map(|artist| {
-                    let artist_id = artist.id.clone();
-                    let selected = self
-                        .state
-                        .selected_artist_id
-                        .as_ref()
-                        .is_some_and(|id| id == &artist.id);
-                    div()
-                        .cursor_pointer()
-                        .rounded(px(6.0))
-                        .bg(if selected {
-                            rgb(theme::SIDEBAR_ITEM_ACTIVE)
-                        } else {
-                            rgba(0x00000000)
-                        })
-                        .hover(|style| {
-                            if selected { style } else { style.bg(rgb(theme::SIDEBAR_ITEM_HOVER)) }
-                        })
-                        .on_mouse_up(
-                            MouseButton::Left,
-                            cx.listener(move |this, _, _, cx| {
-                                this.state.selected_artist_id = Some(artist_id.clone());
-                                cx.notify();
-                            }),
-                        )
-                        .child(artist_line(&artist, self.artist_image_url(&artist, 52.0)))
-                })),
+                uniform_list(
+                    "artists-list",
+                    artists.len(),
+                    cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
+                        range
+                            .map(|index| {
+                                let artist = artists[index].clone();
+                                let artist_id = artist.id.clone();
+                                let selected = this
+                                    .state
+                                    .selected_artist_id
+                                    .as_ref()
+                                    .is_some_and(|id| id == &artist.id);
+                                div()
+                                    .id(("artist", index))
+                                    .cursor_pointer()
+                                    .when(index > 0, |this| this.border_t_1().border_color(rgb(theme::border())))
+                                    .bg(if selected {
+                                        rgba(theme::accent_alpha(if theme::is_dark() { 42 } else { 30 }))
+                                    } else {
+                                        rgba(0x00000000)
+                                    })
+                                    .hover(|style| {
+                                        if selected { style } else { style.bg(rgb(theme::sidebar_item_hover())) }
+                                    })
+                                    .on_mouse_up(
+                                        MouseButton::Left,
+                                        cx.listener(move |this, _, _, cx| {
+                                            this.state.selected_artist_id = Some(artist_id.clone());
+                                            cx.notify();
+                                        }),
+                                    )
+                                    .child(artist_line(&artist, this.artist_image_url(&artist, 52.0)))
+                            })
+                            .collect::<Vec<_>>()
+                    }),
+                )
+                .track_scroll(self.artists_scroll_handle.clone())
+                .size_full(),
             )
             .into_any_element()
     }
@@ -2974,10 +3441,10 @@ impl DesktopApp {
                                     .child(
                                         div()
                                             .text_size(px(14.0))
-                                            .text_color(rgb(theme::MUTED_FG))
+                                            .text_color(rgb(theme::muted_foreground()))
                                             .when_some(artist_id.clone(), |this, artist_id| {
                                                 this.cursor_pointer()
-                                                    .hover(|style| style.text_color(rgb(theme::FOREGROUND)))
+                                                    .hover(|style| style.text_color(rgb(theme::foreground())))
                                                     .on_mouse_up(
                                                         MouseButton::Left,
                                                         cx.listener(move |this, _, _, cx| this.show_artist(artist_id.clone(), cx)),
@@ -3103,7 +3570,7 @@ impl DesktopApp {
                                 this.child(
                                     div()
                                         .text_size(px(13.0))
-                                        .text_color(rgb(theme::MUTED_FG))
+                                        .text_color(rgb(theme::muted_foreground()))
                                         .max_w(px(760.0))
                                         .child(overview.clone()),
                                 )
@@ -3172,15 +3639,18 @@ impl DesktopApp {
 
     fn render_playlists(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let playlists = self.state.library.playlists.clone();
-        let count = playlists.len();
         let playlist_name = self.playlist_name.clone();
 
         v_flex()
+            .size_full()
+            .w_full()
+            .min_h(px(0.0))
             .gap(px(16.0))
-            .child(page_header("Playlists", Some(&format!("{count} playlists"))))
             // Create controls
             .child(
                 h_flex()
+                    .px(px(24.0))
+                    .pt(px(24.0))
                     .gap(px(8.0))
                     .child(div().flex_1().child(Input::new(&playlist_name)))
                     .child(
@@ -3207,172 +3677,631 @@ impl DesktopApp {
             // Playlist list
             .when(!playlists.is_empty(), |this| {
                 this.child(
-                    card_container().children(playlists.into_iter().map(|playlist| {
-                        let selected = self
-                            .state
-                            .selected_playlist_id
-                            .as_ref()
-                            .is_some_and(|id| id == &playlist.id);
-                        let playlist_id = playlist.id.clone();
-                        let play_playlist_id = playlist.id.clone();
-                        h_flex()
-                            .justify_between()
-                            .cursor_pointer()
-                            .px(px(12.0))
-                            .py(px(10.0))
-                            .rounded(px(6.0))
-                            .bg(if selected {
-                                rgb(theme::SIDEBAR_ITEM_ACTIVE)
-                            } else {
-                                rgba(0x00000000)
-                            })
-                            .hover(|style| {
-                                if selected { style } else { style.bg(rgb(theme::SIDEBAR_ITEM_HOVER)) }
-                            })
-                            .on_mouse_up(
-                                MouseButton::Left,
-                                cx.listener(move |this, _, _, cx| {
-                                    this.state.selected_playlist_id = Some(playlist_id.clone());
-                                    cx.notify();
-                                }),
-                            )
-                            .child(playlist_line(&playlist))
-                            .child(
-                                Button::new(SharedString::from(format!("play-pl-{}", play_playlist_id)))
-                                    .icon(Icon::new(AppIcon::Play))
-                                    .ghost()
-                                    .xsmall()
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.play_playlist(play_playlist_id.clone(), cx);
-                                    })),
-                            )
-                    })),
+                    div().flex_1().min_h(px(0.0)).child(
+                        uniform_list(
+                            "playlists-list",
+                            playlists.len(),
+                            cx.processor(move |this, range: std::ops::Range<usize>, _window, cx| {
+                                range
+                                    .map(|index| {
+                                        let playlist = playlists[index].clone();
+                                        let selected = this
+                                            .state
+                                            .selected_playlist_id
+                                            .as_ref()
+                                            .is_some_and(|id| id == &playlist.id);
+                                        let playlist_id = playlist.id.clone();
+                                        let play_playlist_id = playlist.id.clone();
+                                        h_flex()
+                                            .id(("playlist", index))
+                                            .justify_between()
+                                            .cursor_pointer()
+                                            .px(px(12.0))
+                                            .py(px(10.0))
+                                            .when(index > 0, |this| this.border_t_1().border_color(rgb(theme::border())))
+                                            .bg(if selected {
+                                                rgba(theme::accent_alpha(if theme::is_dark() { 42 } else { 30 }))
+                                            } else {
+                                                rgba(0x00000000)
+                                            })
+                                            .hover(|style| {
+                                                if selected { style } else { style.bg(rgb(theme::sidebar_item_hover())) }
+                                            })
+                                            .on_mouse_up(
+                                                MouseButton::Left,
+                                                cx.listener(move |this, _, _, cx| {
+                                                    this.state.selected_playlist_id = Some(playlist_id.clone());
+                                                    cx.notify();
+                                                }),
+                                            )
+                                            .child(playlist_line(&playlist))
+                                            .child(
+                                                Button::new(SharedString::from(format!("play-pl-{}", play_playlist_id)))
+                                                    .icon(Icon::new(AppIcon::Play))
+                                                    .ghost()
+                                                    .xsmall()
+                                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                                        this.play_playlist(play_playlist_id.clone(), cx);
+                                                    })),
+                                            )
+                                    })
+                                    .collect::<Vec<_>>()
+                            }),
+                        )
+                        .size_full(),
+                    ),
                 )
             })
     }
 
-    fn render_search(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_search_popup(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let songs = self.state.filtered_songs();
-        let count = songs.len();
+        let max_results = songs.len().min(50);
+
         v_flex()
-            .gap(px(16.0))
-            .child(page_header("Search", Some(&format!("{count} results"))))
+            .absolute()
+            .left(px(12.0))
+            .top(px(84.0))
+            .w(px(360.0))
+            .max_h(px(420.0))
+            .rounded(px(10.0))
+            .border_1()
+            .border_color(rgb(theme::border()))
+            .bg(rgb(theme::background()))
+            .shadow_lg()
+            .overflow_hidden()
+            .when(songs.is_empty(), |this| {
+                this.child(
+                    div()
+                        .p(px(16.0))
+                        .text_size(px(12.0))
+                        .text_color(rgb(theme::muted_foreground()))
+                        .text_center()
+                        .child("No results found"),
+                )
+            })
             .when(!songs.is_empty(), |this| {
                 this.child(
-                    card_container().children(songs.into_iter().take(200).enumerate().map(|(i, song)| {
-                        let song_id = song.id.clone();
-                        div()
-                            .cursor_pointer()
-                            .rounded(px(6.0))
-                            .hover(|style| style.bg(rgb(theme::SIDEBAR_ITEM_HOVER)))
-                            .on_mouse_up(
-                                MouseButton::Left,
-                                cx.listener(move |this, _, _, cx| {
-                                    this.state.selected_song_id = Some(song_id.clone());
-                                    this.play_song_by_id(song_id.clone(), cx);
-                                }),
+                    v_flex()
+                        .overflow_y_scrollbar()
+                        .children((0..max_results).map(|index| {
+                            let song = songs[index].clone();
+                            let song_id = song.id.clone();
+                            let image_url = self.song_image_url(&song, 40.0);
+                            let artist = song
+                                .artists
+                                .as_ref()
+                                .and_then(|a| a.first().cloned())
+                                .unwrap_or_else(|| "Unknown".to_string());
+                            let duration = format_duration(song.duration.unwrap_or_default());
+
+                            div()
+                                .id(("search-result", index))
+                                .cursor_pointer()
+                                .when(index > 0, |this| this.border_t_1().border_color(rgb(theme::border())))
+                                .hover(|style| style.bg(rgb(theme::sidebar_item_hover())))
+                                .on_mouse_up(
+                                    MouseButton::Left,
+                                    cx.listener(move |this, _, _, cx| {
+                                        this.state.selected_song_id = Some(song_id.clone());
+                                        this.play_song_by_id(song_id.clone(), cx);
+                                        this.state.search_active = false;
+                                        cx.notify();
+                                    }),
+                                )
+                                .child(
+                                    h_flex()
+                                        .gap(px(10.0))
+                                        .items_center()
+                                        .px(px(12.0))
+                                        .py(px(8.0))
+                                        .child(cover_art(image_url.as_deref(), 40.0, 6.0, false, AppIcon::Music))
+                                        .child(
+                                            v_flex()
+                                                .gap(px(1.0))
+                                                .flex_1()
+                                                .overflow_hidden()
+                                                .child(
+                                                    div()
+                                                        .text_size(px(12.0))
+                                                        .font_weight(gpui::FontWeight::MEDIUM)
+                                                        .text_color(rgb(theme::foreground()))
+                                                        .truncate()
+                                                        .child(song.name.clone()),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .text_size(px(11.0))
+                                                        .text_color(rgb(theme::muted_foreground()))
+                                                        .truncate()
+                                                        .child(artist),
+                                                ),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_size(px(10.0))
+                                                .text_color(rgb(theme::muted_foreground()))
+                                                .flex_shrink_0()
+                                                .child(duration),
+                                        ),
+                                )
+                        }))
+                        .when(songs.len() > max_results, |this: gpui_component::scroll::Scrollable<gpui::Div>| {
+                            this.child(
+                                div()
+                                    .px(px(12.0))
+                                    .py(px(8.0))
+                                    .text_size(px(11.0))
+                                    .text_color(rgb(theme::muted_foreground()))
+                                    .text_center()
+                                    .border_t_1()
+                                    .border_color(rgb(theme::border()))
+                                    .child(format!("{} more results...", songs.len() - max_results)),
                             )
-                            .child(song_row(&song, self.song_image_url(&song, 44.0), false, i == 0))
-                    })),
+                        }),
                 )
             })
     }
 
     fn render_settings(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let selected_scheme = self.state.selected_scheme_name;
+        let selected_accent = self.state.accent_color_name;
+
+        let _scheme_colors = crate::theme::scheme(selected_scheme).colors;
+        let accent_colors = crate::theme::scheme(selected_scheme)
+            .accent_colors
+            .iter()
+            .copied()
+            .collect::<Vec<_>>();
+
         let minimize_to_tray = self.state.minimize_to_tray;
         let close_to_tray = self.state.close_to_tray;
         let lyrics_server_input = self.lyrics_server_input.clone();
 
+        let song_count = self.state.library.songs.len();
+        let album_count = self.state.library.albums.len();
+        let artist_count = self.state.library.artists.len();
+        let playlist_count = self.state.library.playlists.len();
+
+        let username = self
+            .credentials()
+            .map(|c| c.username.clone())
+            .unwrap_or_default();
+        let server_url = self
+            .credentials()
+            .map(|c| c.server_url.clone())
+            .unwrap_or_default();
+        let provider = self
+            .credentials()
+            .map(|c| format!("{:?}", c.provider))
+            .unwrap_or_default();
+
         v_flex()
-            .gap(px(16.0))
-            .max_w(px(560.0))
-            .child(page_header("Settings", None))
-            // Behavior section
-            .child(section_header("Behavior"))
+            .w_full()
+            .gap(px(24.0))
+            // Page header
             .child(
-                card_container()
+                v_flex()
+                    .gap(px(4.0))
                     .child(
-                        h_flex()
-                            .justify_between()
-                            .px(px(12.0))
-                            .py(px(10.0))
-                            .child(
-                                v_flex()
-                                    .gap(px(2.0))
-                                    .child(div().text_size(px(13.0)).child("Minimize to tray"))
-                                    .child(
-                                        div()
-                                            .text_size(px(11.0))
-                                            .text_color(rgb(theme::MUTED_FG))
-                                            .child("Keep running in the system tray when minimized"),
-                                    ),
-                            )
-                            .child(
-                                Switch::new("minimize-tray")
-                                    .checked(minimize_to_tray)
-                                    .on_click(cx.listener(|this, checked: &bool, _, cx| {
-                                        this.state.minimize_to_tray = *checked;
-                                        this.persist_setting("minimizeToTray", checked.to_string());
-                                        cx.notify();
-                                    })),
-                            ),
+                        div()
+                            .text_size(px(24.0))
+                            .font_weight(gpui::FontWeight::BOLD)
+                            .child("Settings"),
                     )
-                    .child(separator())
                     .child(
-                        h_flex()
-                            .justify_between()
-                            .px(px(12.0))
-                            .py(px(10.0))
+                        div()
+                            .text_size(px(13.0))
+                            .text_color(rgb(theme::muted_foreground()))
+                            .child("Customize your experience"),
+                    ),
+            )
+            // Appearance section
+            .child(
+                v_flex()
+                    .gap(px(12.0))
+                    .child(settings_section_header("Appearance", IconName::Palette))
+                    .child(
+                        card_container()
                             .child(
                                 v_flex()
-                                    .gap(px(2.0))
-                                    .child(div().text_size(px(13.0)).child("Close to tray"))
+                                    .gap(px(14.0))
+                                    .px(px(16.0))
+                                    .py(px(14.0))
+                                    .child(field_label("Color scheme"))
+                                    .child(
+                                        div()
+                                            .grid()
+                                            .grid_cols(2)
+                                            .gap(px(8.0))
+                                            .children(crate::theme::schemes().iter().map(|scheme| {
+                                                let is_selected = scheme.name == selected_scheme;
+                                                let scheme_bg = scheme.colors.background;
+                                                let scheme_accent = scheme.colors.primary;
+                                                let scheme_fg = scheme.colors.foreground;
+
+                                                div()
+                                                    .id(SharedString::from(format!("scheme-{}", scheme.name.as_str())))
+                                                    .w_full()
+                                                    .p(px(10.0))
+                                                    .rounded(px(8.0))
+                                                    .cursor_pointer()
+                                                    .border_1()
+                                                    .border_color(if is_selected {
+                                                        rgb(theme::accent())
+                                                    } else {
+                                                        rgb(theme::border())
+                                                    })
+                                                    .bg(rgb(theme::card()))
+                                                    .hover(|style| {
+                                                        style.border_color(if is_selected {
+                                                            rgb(theme::accent())
+                                                        } else {
+                                                            rgb(theme::muted_foreground())
+                                                        })
+                                                    })
+                                                    .on_mouse_up(
+                                                        MouseButton::Left,
+                                                        cx.listener(move |this, _, _, cx| {
+                                                            this.set_color_scheme(scheme.name, cx);
+                                                        }),
+                                                    )
+                                                    .child(
+                                                        h_flex()
+                                                            .gap(px(10.0))
+                                                            .items_center()
+                                                            .child(
+                                                                h_flex()
+                                                                    .gap(px(0.0))
+                                                                    .child(
+                                                                        div()
+                                                                            .w(px(24.0))
+                                                                            .h(px(24.0))
+                                                                            .rounded_l(px(6.0))
+                                                                            .bg(rgb(scheme_bg)),
+                                                                    )
+                                                                    .child(
+                                                                        div()
+                                                                            .w(px(24.0))
+                                                                            .h(px(24.0))
+                                                                            .bg(rgb(scheme_accent)),
+                                                                    )
+                                                                    .child(
+                                                                        div()
+                                                                            .w(px(24.0))
+                                                                            .h(px(24.0))
+                                                                            .rounded_r(px(6.0))
+                                                                            .bg(rgb(scheme_fg)),
+                                                                    ),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .text_size(px(12.0))
+                                                                    .font_weight(if is_selected {
+                                                                        gpui::FontWeight::SEMIBOLD
+                                                                    } else {
+                                                                        gpui::FontWeight::NORMAL
+                                                                    })
+                                                                    .text_color(if is_selected {
+                                                                        rgb(theme::foreground())
+                                                                    } else {
+                                                                        rgb(theme::muted_foreground())
+                                                                    })
+                                                                    .child(scheme.name.label().to_string()),
+                                                            ),
+                                                    )
+                                            })),
+                                    )
                                     .child(
                                         div()
                                             .text_size(px(11.0))
-                                            .text_color(rgb(theme::MUTED_FG))
-                                            .child("Keep running when the window is closed"),
+                                            .text_color(rgb(theme::muted_foreground()))
+                                            .child("Changes apply immediately and persist across sessions."),
                                     ),
                             )
+                            .child(separator())
                             .child(
-                                Switch::new("close-tray")
-                                    .checked(close_to_tray)
-                                    .on_click(cx.listener(|this, checked: &bool, _, cx| {
-                                        this.state.close_to_tray = *checked;
-                                        this.persist_setting("closeToTray", checked.to_string());
-                                        cx.notify();
-                                    })),
+                                v_flex()
+                                    .gap(px(14.0))
+                                    .px(px(16.0))
+                                    .py(px(14.0))
+                                    .child(field_label("Accent color"))
+                                    .child(
+                                        h_flex()
+                                            .gap(px(10.0))
+                                            .items_center()
+                                            .children(accent_colors.iter().map(|accent| {
+                                                let accent_name = accent.name;
+                                                let is_selected = accent_name == selected_accent;
+                                                let dot_size = if is_selected { px(30.0) } else { px(26.0) };
+
+                                                div()
+                                                    .id(SharedString::from(format!("accent-{}", accent_name.as_str())))
+                                                    .w(dot_size)
+                                                    .h(dot_size)
+                                                    .rounded(px(999.0))
+                                                    .bg(rgb(accent.hex))
+                                                    .cursor_pointer()
+                                                    .border_2()
+                                                    .border_color(if is_selected {
+                                                        rgb(theme::foreground())
+                                                    } else {
+                                                        rgba(0x00000000)
+                                                    })
+                                                    .hover(|style| {
+                                                        style.border_color(if is_selected {
+                                                            rgb(theme::foreground())
+                                                        } else {
+                                                            rgb(theme::muted_foreground())
+                                                        })
+                                                    })
+                                                    .on_mouse_up(
+                                                        MouseButton::Left,
+                                                        cx.listener(move |this, _, _, cx| {
+                                                            this.set_accent_color(accent_name, cx);
+                                                        }),
+                                                    )
+                                            }))
+                                            .child(
+                                                div()
+                                                    .ml(px(8.0))
+                                                    .text_size(px(12.0))
+                                                    .text_color(rgb(theme::muted_foreground()))
+                                                    .child(selected_accent.label().to_string()),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(11.0))
+                                            .text_color(rgb(theme::muted_foreground()))
+                                            .child("Shared across all color schemes in the Aurelia ecosystem."),
+                                    ),
+                            ),
+                    ),
+            )
+            // Behavior section
+            .child(
+                v_flex()
+                    .gap(px(12.0))
+                    .child(settings_section_header("Behavior", IconName::Settings))
+                    .child(
+                        card_container()
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .px(px(16.0))
+                                    .py(px(12.0))
+                                    .child(
+                                        v_flex()
+                                            .gap(px(2.0))
+                                            .child(
+                                                div()
+                                                    .text_size(px(13.0))
+                                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                                    .child("Minimize to tray"),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_size(px(11.0))
+                                                    .text_color(rgb(theme::muted_foreground()))
+                                                    .child("Keep running in the system tray when minimized"),
+                                            ),
+                                    )
+                                    .child(
+                                        Switch::new("minimize-tray")
+                                            .checked(minimize_to_tray)
+                                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                                this.state.minimize_to_tray = *checked;
+                                                this.persist_setting("minimizeToTray", checked.to_string());
+                                                cx.notify();
+                                            })),
+                                    ),
+                            )
+                            .child(separator())
+                            .child(
+                                h_flex()
+                                    .justify_between()
+                                    .items_center()
+                                    .px(px(16.0))
+                                    .py(px(12.0))
+                                    .child(
+                                        v_flex()
+                                            .gap(px(2.0))
+                                            .child(
+                                                div()
+                                                    .text_size(px(13.0))
+                                                    .font_weight(gpui::FontWeight::MEDIUM)
+                                                    .child("Close to tray"),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_size(px(11.0))
+                                                    .text_color(rgb(theme::muted_foreground()))
+                                                    .child("Keep running when the window is closed"),
+                                            ),
+                                    )
+                                    .child(
+                                        Switch::new("close-tray")
+                                            .checked(close_to_tray)
+                                            .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                                                this.state.close_to_tray = *checked;
+                                                this.persist_setting("closeToTray", checked.to_string());
+                                                cx.notify();
+                                            })),
+                                    ),
                             ),
                     ),
             )
             // Lyrics section
-            .child(section_header("Lyrics"))
             .child(
-                card_container()
+                v_flex()
+                    .gap(px(12.0))
+                    .child(settings_section_header_with_app_icon("Lyrics", AppIcon::ListMusic))
                     .child(
-                        v_flex()
+                        card_container().child(
+                            v_flex()
+                                .gap(px(10.0))
+                                .px(px(16.0))
+                                .py(px(14.0))
+                                .child(
+                                    div()
+                                        .text_size(px(12.0))
+                                        .text_color(rgb(theme::muted_foreground()))
+                                        .child("Optional custom lyrics server URL used when fetching synced lyrics."),
+                                )
+                                .child(
+                                    h_flex()
+                                        .gap(px(8.0))
+                                        .items_center()
+                                        .child(
+                                            div()
+                                                .flex_1()
+                                                .child(Input::new(&lyrics_server_input).cleanable(true)),
+                                        )
+                                        .child(
+                                            Button::new("save-lyrics-url")
+                                                .label("Save")
+                                                .ghost()
+                                                .small()
+                                                .on_click(cx.listener(|this, _, _, cx| this.save_lyrics_server_url(cx))),
+                                        ),
+                                ),
+                        ),
+                    ),
+            )
+            // Library section
+            .child(
+                v_flex()
+                    .gap(px(12.0))
+                    .child(settings_section_header("Library", IconName::Folder))
+                    .child(
+                        div()
+                            .grid()
+                            .grid_cols(4)
                             .gap(px(8.0))
-                            .px(px(12.0))
-                            .py(px(10.0))
-                            .child(
-                                div()
-                                    .text_size(px(12.0))
-                                    .text_color(rgb(theme::MUTED_FG))
-                                    .child("Optional custom lyrics server URL used when fetching lyrics."),
-                            )
-                            .child(
-                                h_flex()
-                                    .gap(px(8.0))
-                                    .items_center()
-                                    .child(div().flex_1().child(Input::new(&lyrics_server_input).cleanable(true)))
-                                    .child(
-                                        Button::new("save-lyrics-url")
-                                            .label("Save")
-                                            .ghost()
-                                            .xsmall()
-                                            .on_click(cx.listener(|this, _, _, cx| this.save_lyrics_server_url(cx))),
-                                    ),
-                            ),
+                            .child(stat_card("Songs", song_count))
+                            .child(stat_card("Albums", album_count))
+                            .child(stat_card("Artists", artist_count))
+                            .child(stat_card("Playlists", playlist_count)),
+                    ),
+            )
+            // Account section
+            .child(
+                v_flex()
+                    .gap(px(12.0))
+                    .child(settings_section_header("Account", IconName::User))
+                    .child(
+                        card_container().child(
+                            v_flex()
+                                .gap(px(10.0))
+                                .px(px(16.0))
+                                .py(px(14.0))
+                                .child(
+                                    h_flex()
+                                        .justify_between()
+                                        .items_center()
+                                        .child(
+                                            div()
+                                                .text_size(px(12.0))
+                                                .text_color(rgb(theme::muted_foreground()))
+                                                .child("Username"),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_size(px(13.0))
+                                                .font_weight(gpui::FontWeight::MEDIUM)
+                                                .child(username),
+                                        ),
+                                )
+                                .child(separator())
+                                .child(
+                                    h_flex()
+                                        .justify_between()
+                                        .items_center()
+                                        .child(
+                                            div()
+                                                .text_size(px(12.0))
+                                                .text_color(rgb(theme::muted_foreground()))
+                                                .child("Server"),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_size(px(13.0))
+                                                .font_weight(gpui::FontWeight::MEDIUM)
+                                                .max_w(px(300.0))
+                                                .truncate()
+                                                .child(server_url),
+                                        ),
+                                )
+                                .child(separator())
+                                .child(
+                                    h_flex()
+                                        .justify_between()
+                                        .items_center()
+                                        .child(
+                                            div()
+                                                .text_size(px(12.0))
+                                                .text_color(rgb(theme::muted_foreground()))
+                                                .child("Provider"),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_size(px(13.0))
+                                                .font_weight(gpui::FontWeight::MEDIUM)
+                                                .child(provider),
+                                        ),
+                                ),
+                        ),
+                    ),
+            )
+            // About section
+            .child(
+                v_flex()
+                    .gap(px(12.0))
+                    .child(settings_section_header("About", IconName::Info))
+                    .child(
+                        card_container().child(
+                            v_flex()
+                                .gap(px(8.0))
+                                .px(px(16.0))
+                                .py(px(14.0))
+                                .child(
+                                    h_flex()
+                                        .justify_between()
+                                        .items_center()
+                                        .child(
+                                            div()
+                                                .text_size(px(12.0))
+                                                .text_color(rgb(theme::muted_foreground()))
+                                                .child("Application"),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_size(px(13.0))
+                                                .font_weight(gpui::FontWeight::MEDIUM)
+                                                .child(APP_NAME),
+                                        ),
+                                )
+                                .child(separator())
+                                .child(
+                                    h_flex()
+                                        .justify_between()
+                                        .items_center()
+                                        .child(
+                                            div()
+                                                .text_size(px(12.0))
+                                                .text_color(rgb(theme::muted_foreground()))
+                                                .child("Version"),
+                                        )
+                                        .child(
+                                            div()
+                                                .text_size(px(13.0))
+                                                .font_weight(gpui::FontWeight::MEDIUM)
+                                                .child(env!("CARGO_PKG_VERSION")),
+                                        ),
+                                ),
+                        ),
                     ),
             )
     }
@@ -3390,8 +4319,8 @@ impl DesktopApp {
             .flex_shrink_0()
             .h_full()
             .border_l_1()
-            .border_color(rgb(theme::BORDER))
-            .bg(rgb(theme::BACKGROUND_DARK))
+            .border_color(rgb(theme::border()))
+            .bg(rgb(theme::background_dark()))
             .child(
                 h_flex()
                     .justify_between()
@@ -3399,12 +4328,12 @@ impl DesktopApp {
                     .px(px(16.0))
                     .py(px(14.0))
                     .border_b_1()
-                    .border_color(rgb(theme::BORDER))
+                    .border_color(rgb(theme::border()))
                     .child(
                         div()
                             .text_size(px(11.0))
                             .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_color(rgb(theme::MUTED_FG))
+                            .text_color(rgb(theme::muted_foreground()))
                             .child(title),
                     )
                     .child(
@@ -3450,7 +4379,7 @@ impl DesktopApp {
                             .child(
                                 div()
                                     .text_size(px(11.0))
-                                    .text_color(rgb(theme::MUTED_FG))
+                                    .text_color(rgb(theme::muted_foreground()))
                                     .child(format!("{} track{}", queue_len, if queue_len == 1 { "" } else { "s" })),
                             ),
                     )
@@ -3464,7 +4393,7 @@ impl DesktopApp {
                         this.child(
                             div()
                                 .text_size(px(10.0))
-                                .text_color(rgb(theme::MUTED_FG))
+                                .text_color(rgb(theme::muted_foreground()))
                                 .child(format!("{} earlier track{}", hidden_before, if hidden_before == 1 { "" } else { "s" })),
                         )
                     })
@@ -3485,7 +4414,7 @@ impl DesktopApp {
                         this.child(
                             div()
                                 .text_size(px(10.0))
-                                .text_color(rgb(theme::MUTED_FG))
+                                .text_color(rgb(theme::muted_foreground()))
                                 .child(format!("{} more track{}", hidden_after, if hidden_after == 1 { "" } else { "s" })),
                         )
                     }),
@@ -3505,7 +4434,7 @@ impl DesktopApp {
                     .child(
                         div()
                             .text_size(px(11.0))
-                            .text_color(rgb(theme::MUTED_FG))
+                            .text_color(rgb(theme::muted_foreground()))
                             .child(self.state.lyrics_status.clone()),
                     )
                     .when(!has_lyrics, |this| {
@@ -3581,20 +4510,22 @@ impl DesktopApp {
                             .gap(px(16.0))
                             .w_full()
                             .max_w(px(980.0))
-                            .px(px(16.0))
+                            .pl(px(16.0))
+                            .pr(px(24.0))
                             .py(px(10.0))
                             .rounded(px(18.0))
                             .border_1()
-                            .border_color(rgb(theme::BORDER))
-                            .bg(rgb(theme::PLAYER_BG))
+                            .border_color(rgb(theme::border()))
+                            .bg(rgb(theme::player_bg()))
                             .child(
                                 h_flex()
                                     .gap(px(12.0))
                                     .items_center()
+                                    .h(px(52.0))
                                     .w(px(252.0))
                                     .min_w(px(0.0))
                                     .flex_shrink_0()
-                                    .child(cover_art(song_art.as_deref(), 46.0, 10.0, false, AppIcon::Music))
+                                    .child(cover_art(song_art.as_deref(), 52.0, 10.0, false, AppIcon::Music))
                                     .child(
                                         v_flex()
                                             .gap(px(2.0))
@@ -3617,7 +4548,7 @@ impl DesktopApp {
                                                 div()
                                                     .w_full()
                                                     .text_size(px(10.0))
-                                                    .text_color(rgb(theme::MUTED_FG))
+                                                    .text_color(rgb(theme::muted_foreground()))
                                                     .truncate()
                                                     .child(format!("{artist_name}  ·  {album_name}")),
                                             )
@@ -3625,7 +4556,7 @@ impl DesktopApp {
                                                 div()
                                                     .w_full()
                                                     .text_size(px(10.0))
-                                                    .text_color(rgb(theme::MUTED_FG))
+                                                    .text_color(rgb(theme::muted_foreground()))
                                                     .truncate()
                                                     .child(song_file_info),
                                             ),
@@ -3660,7 +4591,14 @@ impl DesktopApp {
                                             .child(
                                                 Button::new("play-pause-btn")
                                                     .icon(Icon::new(if is_playing { AppIcon::Pause } else { AppIcon::Play }))
-                                                    .primary()
+                                                    .custom(
+                                                        ButtonCustomVariant::new(cx)
+                                                            .color(rgb(theme::accent()).into())
+                                                            .foreground(rgb(theme::accent_foreground()).into())
+                                                            .border(rgb(theme::accent()).into())
+                                                            .hover(rgb(theme::accent_hover()).into())
+                                                            .active(rgb(theme::accent_active()).into()),
+                                                    )
                                                     .rounded(px(999.0))
                                                     .w(px(42.0))
                                                     .h(px(42.0))
@@ -3694,7 +4632,7 @@ impl DesktopApp {
                                             .child(
                                                 div()
                                                     .text_size(px(10.0))
-                                                    .text_color(rgb(theme::MUTED_FG))
+                                                    .text_color(rgb(theme::muted_foreground()))
                                                     .w(px(34.0))
                                                     .text_right()
                                                     .child(format_duration(position)),
@@ -3707,7 +4645,7 @@ impl DesktopApp {
                                             .child(
                                                 div()
                                                     .text_size(px(11.0))
-                                                    .text_color(rgb(theme::MUTED_FG))
+                                                    .text_color(rgb(theme::muted_foreground()))
                                                     .w(px(34.0))
                                                     .child(format_duration(duration)),
                                             ),
@@ -3718,7 +4656,7 @@ impl DesktopApp {
                                     .gap(px(6.0))
                                     .items_center()
                                     .justify_end()
-                                    .w(px(214.0))
+                                    .w(px(228.0))
                                     .flex_shrink_0()
                                     .child(
                                         Button::new("favorite-current")
@@ -3750,8 +4688,13 @@ impl DesktopApp {
                                         h_flex()
                                             .gap(px(6.0))
                                             .items_center()
-                                            .child(Icon::new(AppIcon::Volume2).small().text_color(rgb(theme::MUTED_FG)))
-                                            .child(div().w(px(64.0)).child(Slider::new(&volume_slider))),
+                                            .child(Icon::new(AppIcon::Volume2).small().text_color(rgb(theme::muted_foreground())))
+                                            .child(
+                                                div()
+                                                    .w(px(80.0))
+                                                    .px(px(8.0))
+                                                    .child(Slider::new(&volume_slider)),
+                                            ),
                                     ),
                             ),
                     ),
@@ -3767,6 +4710,10 @@ impl Focusable for DesktopApp {
 
 impl Render for DesktopApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Request animation frames while featured transition is active
+        if self.state.featured_transition_start.is_some() {
+            window.request_animation_frame();
+        }
         // Flush any pending input clears from async callbacks
         self.flush_pending_clears(window, cx);
         let seek_value = (self.state.player.position_secs / self.state.player.duration_secs.max(1.0) * 1000.0)
@@ -3776,6 +4723,7 @@ impl Render for DesktopApp {
         div()
             .track_focus(&self.focus_handle(cx))
             .size_full()
+            .font_weight(gpui::FontWeight::MEDIUM)
             .child(if self.state.session.is_some() {
                 self.render_shell(window, cx).into_any_element()
             } else {
@@ -3923,48 +4871,60 @@ fn raw_hwnd(window: &Window) -> Option<*mut std::ffi::c_void> {
 
 // -- UI helper functions --
 
-fn page_header(title: &str, subtitle: Option<&str>) -> impl IntoElement {
-    h_flex()
-        .items_end()
-        .gap(px(8.0))
-        .mb(px(4.0))
-        .child(
-            div()
-                .text_size(px(24.0))
-                .font_weight(gpui::FontWeight::BOLD)
-                .child(title.to_string()),
-        )
-        .when_some(subtitle, |this, sub| {
-            this.child(
-                div()
-                    .text_size(px(12.0))
-                    .text_color(rgb(theme::MUTED_FG))
-                    .pb(px(3.0))
-                    .child(sub.to_string()),
-            )
-        })
-}
-
 fn section_header(title: &str) -> impl IntoElement {
     div()
         .text_size(px(11.0))
         .font_weight(gpui::FontWeight::SEMIBOLD)
-        .text_color(rgb(theme::MUTED_FG))
+        .text_color(rgb(theme::muted_foreground()))
         .mt(px(8.0))
         .child(title.to_uppercase())
+}
+
+fn settings_section_header(title: &str, icon: IconName) -> impl IntoElement {
+    h_flex()
+        .gap(px(8.0))
+        .items_center()
+        .child(
+            Icon::new(icon)
+                .small()
+                .text_color(rgb(theme::muted_foreground())),
+        )
+        .child(
+            div()
+                .text_size(px(13.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .child(title.to_string()),
+        )
+}
+
+fn settings_section_header_with_app_icon(title: &str, icon: AppIcon) -> impl IntoElement {
+    h_flex()
+        .gap(px(8.0))
+        .items_center()
+        .child(
+            Icon::new(icon)
+                .small()
+                .text_color(rgb(theme::muted_foreground())),
+        )
+        .child(
+            div()
+                .text_size(px(13.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .child(title.to_string()),
+        )
 }
 
 fn detail_dot() -> impl IntoElement {
     div()
         .text_size(px(12.0))
-        .text_color(rgb(theme::MUTED_FG))
+        .text_color(rgb(theme::muted_foreground()))
         .child("-")
 }
 
 fn detail_meta_text(text: &str) -> impl IntoElement {
     div()
         .text_size(px(12.0))
-        .text_color(rgb(theme::MUTED_FG))
+        .text_color(rgb(theme::muted_foreground()))
         .child(text.to_string())
 }
 
@@ -3972,29 +4932,68 @@ fn carousel_header(
     title: &str,
     prev_id: &'static str,
     next_id: &'static str,
+    prev_bounce_nonce: u64,
+    next_bounce_nonce: u64,
     cx: &mut Context<DesktopApp>,
     on_prev: impl Fn(&mut DesktopApp, &mut Context<DesktopApp>) + 'static,
     on_next: impl Fn(&mut DesktopApp, &mut Context<DesktopApp>) + 'static,
 ) -> impl IntoElement {
+    let button_variant = ButtonCustomVariant::new(cx)
+        .color(rgba(theme::accent_alpha(if theme::is_dark() { 26 } else { 18 })).into())
+        .foreground(rgb(theme::accent()).into())
+        .border(rgba(theme::accent_alpha(if theme::is_dark() { 38 } else { 28 })).into())
+        .hover(rgba(theme::accent_alpha(if theme::is_dark() { 51 } else { 40 })).into())
+        .active(rgba(theme::accent_alpha(if theme::is_dark() { 36 } else { 50 })).into());
+
     h_flex()
         .justify_between()
         .items_center()
-        .child(section_header(title))
+        .pb(px(14.0))
+        .child(
+            div()
+                .text_size(px(24.0))
+                .font_weight(gpui::FontWeight::BOLD)
+                .child(title.to_string()),
+        )
         .child(
             h_flex()
                 .gap(px(8.0))
                 .child(
                     Button::new(prev_id)
-                        .icon(Icon::new(IconName::ChevronLeft))
-                        .ghost()
-                        .small()
+                        .custom(button_variant)
+                        .size(px(36.0))
+                        .rounded(px(999.0))
+                        .child(
+                            Icon::new(IconName::ChevronLeft)
+                                .with_animation(
+                                    SharedString::from(format!("{prev_id}-bounce-{prev_bounce_nonce}")),
+                                    Animation::new(Duration::from_millis(210))
+                                        .with_easing(bounce(ease_in_out)),
+                                    |icon, delta| {
+                                        let offset = -3.0 * delta;
+                                        icon.transform(Transformation::translate(point(px(offset), px(0.0))))
+                                    },
+                                ),
+                        )
                         .on_click(cx.listener(move |this, _, _, cx| on_prev(this, cx))),
                 )
                 .child(
                     Button::new(next_id)
-                        .icon(Icon::new(IconName::ChevronRight))
-                        .ghost()
-                        .small()
+                        .custom(button_variant)
+                        .size(px(36.0))
+                        .rounded(px(999.0))
+                        .child(
+                            Icon::new(IconName::ChevronRight)
+                                .with_animation(
+                                    SharedString::from(format!("{next_id}-bounce-{next_bounce_nonce}")),
+                                    Animation::new(Duration::from_millis(210))
+                                        .with_easing(bounce(ease_in_out)),
+                                    |icon, delta| {
+                                        let offset = 3.0 * delta;
+                                        icon.transform(Transformation::translate(point(px(offset), px(0.0))))
+                                    },
+                                ),
+                        )
                         .on_click(cx.listener(move |this, _, _, cx| on_next(this, cx))),
                 ),
         )
@@ -4004,7 +5003,7 @@ fn field_label(text: &str) -> impl IntoElement {
     div()
         .text_size(px(12.0))
         .font_weight(gpui::FontWeight::MEDIUM)
-        .text_color(rgb(theme::MUTED_FG))
+        .text_color(rgb(theme::muted_foreground()))
         .child(text.to_string())
 }
 
@@ -4012,8 +5011,8 @@ fn card_container() -> gpui::Div {
     v_flex()
         .rounded(px(8.0))
         .border_1()
-        .border_color(rgb(theme::BORDER))
-        .bg(rgb(theme::CARD))
+        .border_color(rgb(theme::border()))
+        .bg(rgb(theme::card()))
         .overflow_hidden()
 }
 
@@ -4024,8 +5023,8 @@ fn stat_card(label: &str, value: usize) -> impl IntoElement {
         .p(px(16.0))
         .rounded(px(8.0))
         .border_1()
-        .border_color(rgb(theme::BORDER))
-        .bg(rgb(theme::CARD))
+        .border_color(rgb(theme::border()))
+        .bg(rgb(theme::card()))
         .child(
             div()
                 .text_size(px(24.0))
@@ -4035,7 +5034,7 @@ fn stat_card(label: &str, value: usize) -> impl IntoElement {
         .child(
             div()
                 .text_size(px(11.0))
-                .text_color(rgb(theme::MUTED_FG))
+                .text_color(rgb(theme::muted_foreground()))
                 .child(label.to_string()),
         )
 }
@@ -4044,7 +5043,7 @@ fn separator() -> impl IntoElement {
     div()
         .h(px(1.0))
         .w_full()
-        .bg(rgb(theme::BORDER))
+        .bg(rgb(theme::border()))
 }
 
 fn panel_empty_state(title: &str, body: &str) -> impl IntoElement {
@@ -4052,8 +5051,8 @@ fn panel_empty_state(title: &str, body: &str) -> impl IntoElement {
         .gap(px(6.0))
         .rounded(px(12.0))
         .border_1()
-        .border_color(rgb(theme::BORDER))
-        .bg(rgb(theme::CARD))
+        .border_color(rgb(theme::border()))
+        .bg(rgb(theme::card()))
         .p(px(16.0))
         .child(
             div()
@@ -4064,7 +5063,7 @@ fn panel_empty_state(title: &str, body: &str) -> impl IntoElement {
         .child(
             div()
                 .text_size(px(11.0))
-                .text_color(rgb(theme::MUTED_FG))
+                .text_color(rgb(theme::muted_foreground()))
                 .child(body.to_string()),
         )
 }
@@ -4073,7 +5072,7 @@ fn lyrics_line(line: &str) -> impl IntoElement {
     div()
         .text_size(px(13.0))
         .py(px(2.0))
-        .text_color(rgb(theme::FOREGROUND))
+        .text_color(rgb(theme::foreground()))
         .child(line.to_string())
 }
 
@@ -4094,7 +5093,7 @@ fn song_row(song: &Song, image_url: Option<String>, is_playing: bool, is_first: 
         .px(px(12.0))
         .py(px(8.0))
         .when(!is_first, |this| {
-            this.border_t_1().border_color(rgb(theme::BORDER))
+            this.border_t_1().border_color(rgb(theme::border()))
         })
         .child(
             h_flex()
@@ -4115,13 +5114,13 @@ fn song_row(song: &Song, image_url: Option<String>, is_playing: bool, is_first: 
                                 } else {
                                     gpui::FontWeight::NORMAL
                                 })
-                                .text_color(rgb(theme::FOREGROUND))
+                                .text_color(rgb(theme::foreground()))
                                 .child(song.name.clone()),
                         )
                         .child(
                             div()
                                 .text_size(px(11.0))
-                                .text_color(rgb(theme::MUTED_FG))
+                                .text_color(rgb(theme::muted_foreground()))
                                 .child(format!("{artist}  ·  {album}")),
                         ),
                 ),
@@ -4129,7 +5128,7 @@ fn song_row(song: &Song, image_url: Option<String>, is_playing: bool, is_first: 
         .child(
             div()
                 .text_size(px(11.0))
-                .text_color(rgb(theme::MUTED_FG))
+                .text_color(rgb(theme::muted_foreground()))
                 .flex_shrink_0()
                 .pl(px(12.0))
                 .child(duration),
@@ -4143,14 +5142,14 @@ fn queue_item(song: &Song, number: usize, is_current: bool) -> impl IntoElement 
         .py(px(4.0))
         .rounded(px(4.0))
         .bg(if is_current {
-            rgb(theme::SIDEBAR_ITEM_ACTIVE)
+            rgba(theme::accent_alpha(if theme::is_dark() { 42 } else { 30 }))
         } else {
             rgba(0x00000000)
         })
         .child(
             div()
                 .text_size(px(11.0))
-                .text_color(rgb(theme::MUTED_FG))
+                .text_color(rgb(theme::muted_foreground()))
                 .w(px(20.0))
                 .text_right()
                 .child(number.to_string()),
@@ -4172,7 +5171,7 @@ fn queue_item(song: &Song, number: usize, is_current: bool) -> impl IntoElement 
                 .child(
                     div()
                         .text_size(px(10.0))
-                        .text_color(rgb(theme::MUTED_FG))
+                        .text_color(rgb(theme::muted_foreground()))
                         .child(
                             song.artists
                                 .as_ref()
@@ -4184,7 +5183,7 @@ fn queue_item(song: &Song, number: usize, is_current: bool) -> impl IntoElement 
         .child(
             div()
                 .text_size(px(10.0))
-                .text_color(rgb(theme::MUTED_FG))
+                .text_color(rgb(theme::muted_foreground()))
                 .child(format_duration(song.duration.unwrap_or_default())),
         )
 }
@@ -4211,7 +5210,7 @@ fn album_line(album: &Album, image_url: Option<String>) -> impl IntoElement {
                         .child(
                             div()
                                 .text_size(px(11.0))
-                                .text_color(rgb(theme::MUTED_FG))
+                                .text_color(rgb(theme::muted_foreground()))
                                 .child(album.artist.clone()),
                         ),
                 ),
@@ -4219,7 +5218,7 @@ fn album_line(album: &Album, image_url: Option<String>) -> impl IntoElement {
         .child(
             div()
                 .text_size(px(11.0))
-                .text_color(rgb(theme::MUTED_FG))
+                .text_color(rgb(theme::muted_foreground()))
                 .child(format!(
                     "{} track{}",
                     album.song_count,
@@ -4249,7 +5248,7 @@ fn artist_line(artist: &Artist, image_url: Option<String>) -> impl IntoElement {
         .child(
             div()
                 .text_size(px(11.0))
-                .text_color(rgb(theme::MUTED_FG))
+                .text_color(rgb(theme::muted_foreground()))
                 .child(format!(
                     "{count} song{}",
                     if count == 1 { "" } else { "s" }
@@ -4270,7 +5269,7 @@ fn playlist_line(playlist: &Playlist) -> impl IntoElement {
         .child(
             div()
                 .text_size(px(11.0))
-                .text_color(rgb(theme::MUTED_FG))
+                .text_color(rgb(theme::muted_foreground()))
                 .child(format!(
                     "{count} item{}",
                     if count == 1 { "" } else { "s" }
@@ -4333,10 +5332,10 @@ fn art_placeholder(
         .flex()
         .items_center()
         .justify_center()
-        .bg(rgb(theme::SIDEBAR_ITEM_HOVER))
-        .text_color(rgb(theme::MUTED_FG))
+        .bg(rgb(theme::sidebar_item_hover()))
+        .text_color(rgb(theme::muted_foreground()))
         .border_1()
-        .border_color(rgb(theme::BORDER))
+        .border_color(rgb(theme::border()))
         .child(Icon::new(icon));
 
     if round {
@@ -4365,6 +5364,10 @@ impl ReqwestHttpClient {
 }
 
 impl HttpClient for ReqwestHttpClient {
+    fn type_name(&self) -> &'static str {
+        "reqwest"
+    }
+
     fn user_agent(&self) -> Option<&http::HeaderValue> {
         Some(&self.user_agent)
     }
@@ -4469,3 +5472,5 @@ fn build_blurred_featured_background(bytes: Vec<u8>) -> anyhow::Result<GpuiImage
 
     Ok(GpuiImage::from_bytes(GpuiImageFormat::Png, encoded))
 }
+
+

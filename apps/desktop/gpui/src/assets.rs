@@ -6,6 +6,8 @@ use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
 #[folder = "assets"]
 #[include = "icons/**/*.svg"]
+#[include = "*.ttf"]
+#[include = "*.txt"]
 pub struct CustomAssets;
 
 /// Combined asset source: custom app icons first, then gpui-component bundled icons.
