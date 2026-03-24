@@ -35,6 +35,10 @@ use tokio::runtime::Runtime;
 use zed_reqwest as reqwest;
 
 use crate::assets::Assets;
+use crate::lyrics::{
+    LyricsLineRender, LyricsUiState, LyricsWordRender, LyricsWordState, compute_active_state,
+    effective_position_secs, next_request_nonce, render_line, render_words, reset_for_song,
+};
 use crate::theme;
 use crate::theme::{AccentColorName, ColorSchemeName};
 use image::imageops::FilterType;
@@ -314,7 +318,10 @@ struct DesktopAppState {
     sync_status: String,
     playback_status: String,
     lyrics_status: String,
+    lyrics_error: Option<String>,
+    lyrics_loading: bool,
     lyrics: Option<ParsedLyrics>,
+    lyrics_ui: LyricsUiState,
     player: PlayerState,
     favorite_ids: Vec<String>,
     featured_albums: Vec<Album>,
@@ -359,7 +366,10 @@ impl DesktopAppState {
             sync_status: "Idle".to_string(),
             playback_status: "Stopped".to_string(),
             lyrics_status: "No lyrics loaded".to_string(),
+            lyrics_error: None,
+            lyrics_loading: false,
             lyrics: None,
+            lyrics_ui: LyricsUiState::default(),
             player: PlayerState {
                 volume: 1.0,
                 ..Default::default()
@@ -568,6 +578,7 @@ struct DesktopApp {
     artists_scroll_handle: UniformListScrollHandle,
     recent_songs_scroll_handle: ScrollHandle,
     recent_albums_scroll_handle: ScrollHandle,
+    lyrics_scroll_handle: ScrollHandle,
     focus_handle: FocusHandle,
     state: DesktopAppState,
     featured_background_cache: HashMap<String, Arc<GpuiImage>>,
@@ -666,6 +677,7 @@ impl DesktopApp {
         let artists_scroll_handle = UniformListScrollHandle::new();
         let recent_songs_scroll_handle = ScrollHandle::new();
         let recent_albums_scroll_handle = ScrollHandle::new();
+        let lyrics_scroll_handle = ScrollHandle::new();
 
         cx.subscribe(&volume_slider, |this: &mut Self, _entity, event: &SliderEvent, cx| {
             let SliderEvent::Change(value) = event;
@@ -688,6 +700,7 @@ impl DesktopApp {
             artists_scroll_handle,
             recent_songs_scroll_handle,
             recent_albums_scroll_handle,
+            lyrics_scroll_handle,
             focus_handle: cx.focus_handle(),
             state: DesktopAppState::new(app_data_dir),
             featured_background_cache: HashMap::new(),
@@ -842,7 +855,9 @@ impl DesktopApp {
         if let Ok(Some(value)) = aurelia_core::load_setting(app_data_dir.clone(), "closeToTray".to_string()) {
             self.state.close_to_tray = value == "true";
         }
-        if let Ok(Some(value)) = aurelia_core::load_setting(app_data_dir, "lyricsServerUrl".to_string()) {
+        if let Ok(Some(value)) = aurelia_core::load_setting(app_data_dir.clone(), "lyricsServerUrl".to_string()) {
+            self.state.lyrics_server_url = value;
+        } else if let Ok(Some(value)) = aurelia_core::load_setting(app_data_dir, "lyrics_server_url".to_string()) {
             self.state.lyrics_server_url = value;
         }
         if let Ok(Some(value)) = aurelia_core::load_setting(self.state.app_data_dir.to_string(), "colorScheme".to_string())
@@ -1318,6 +1333,12 @@ impl DesktopApp {
         let runtime = Arc::clone(&self.runtime);
         let media_controls = Arc::clone(&self.media_controls);
 
+        reset_for_song(&mut self.state.lyrics_ui, Some(song.id.clone()));
+        self.state.lyrics = None;
+        self.state.lyrics_error = None;
+        self.state.lyrics_loading = false;
+        self.state.lyrics_status = format!("Preparing lyrics for {}", song.name);
+
         self.state.playback_status = format!("Starting {}", song.name);
         cx.notify();
 
@@ -1408,13 +1429,18 @@ impl DesktopApp {
             return;
         };
         let runtime = Arc::clone(&self.runtime);
+        let request_nonce = next_request_nonce(&mut self.state.lyrics_ui);
+        let requested_song_id = song.id.clone();
         let lyrics_server_url = if self.state.lyrics_server_url.trim().is_empty() {
             None
         } else {
             Some(self.state.lyrics_server_url.clone())
         };
 
+        reset_for_song(&mut self.state.lyrics_ui, Some(song.id.clone()));
         self.state.lyrics_status = format!("Loading lyrics for {}", song.name);
+        self.state.lyrics_error = None;
+        self.state.lyrics_loading = true;
         self.state.lyrics = None;
         cx.notify();
 
@@ -1442,19 +1468,45 @@ impl DesktopApp {
             match result {
                 Ok(lyrics) if !lyrics.is_empty() => {
                     let _ = view.update(&mut async_cx, |this, cx| {
+                        if this.state.lyrics_ui.request_nonce != request_nonce
+                            || this.state.player.current_song().map(|current| current.id.as_str()) != Some(requested_song_id.as_str())
+                        {
+                            return;
+                        }
                         this.state.lyrics = Some(lyrics);
+                        this.state.lyrics_loading = false;
+                        this.state.lyrics_error = None;
                         this.state.lyrics_status = "Lyrics loaded".to_string();
+                        this.state.lyrics_ui.sampled_position_secs = this.state.player.position_secs;
+                        this.state.lyrics_ui.sampled_at = Some(Instant::now());
+                        this.sync_active_lyrics_state();
+                        this.state.lyrics_ui.last_auto_scrolled_line = None;
+                        this.scroll_active_lyrics_line_into_view(false, cx);
                         cx.notify();
                     });
                 }
                 Ok(_) => {
                     let _ = view.update(&mut async_cx, |this, cx| {
+                        if this.state.lyrics_ui.request_nonce != request_nonce
+                            || this.state.player.current_song().map(|current| current.id.as_str()) != Some(requested_song_id.as_str())
+                        {
+                            return;
+                        }
+                        this.state.lyrics_loading = false;
+                        this.state.lyrics_error = None;
                         this.state.lyrics_status = "No lyrics available".to_string();
                         cx.notify();
                     });
                 }
                 Err(error) => {
                     let _ = view.update(&mut async_cx, |this, cx| {
+                        if this.state.lyrics_ui.request_nonce != request_nonce
+                            || this.state.player.current_song().map(|current| current.id.as_str()) != Some(requested_song_id.as_str())
+                        {
+                            return;
+                        }
+                        this.state.lyrics_loading = false;
+                        this.state.lyrics_error = Some(error.to_string());
                         this.state.lyrics_status = format!("Lyrics failed: {error}");
                         cx.notify();
                     });
@@ -1572,6 +1624,10 @@ impl DesktopApp {
         } else {
             RightPanel::Lyrics
         };
+        if self.state.right_panel == RightPanel::Lyrics {
+            self.state.lyrics_ui.last_auto_scrolled_line = None;
+            self.scroll_active_lyrics_line_into_view(false, cx);
+        }
         cx.notify();
     }
 
@@ -1652,11 +1708,119 @@ impl DesktopApp {
         let position = (duration * fraction.clamp(0.0, 1.0)).max(0.0);
         let runtime = Arc::clone(&self.runtime);
         self.state.player.position_secs = position;
+        self.state.lyrics_ui.sampled_position_secs = position;
+        self.state.lyrics_ui.sampled_at = Some(Instant::now());
+        self.sync_active_lyrics_state();
         cx.notify();
 
         drop(runtime.spawn(async move {
             let _ = aurelia_core::audio_seek_player(position).await;
         }));
+    }
+
+    fn seek_to_lyrics_time(&mut self, time_secs: f64, cx: &mut Context<Self>) {
+        let duration = self.state.player.duration_secs.max(0.0);
+        if duration <= 0.0 {
+            return;
+        }
+        self.seek_to((time_secs / duration).clamp(0.0, 1.0), cx);
+    }
+
+    fn sync_active_lyrics_state(&mut self) {
+        let Some(lyrics) = self.state.lyrics.as_ref() else {
+            self.state.lyrics_ui.active_line_index = None;
+            self.state.lyrics_ui.active_word_index = None;
+            self.state.lyrics_ui.active_word_progress = 0.0;
+            return;
+        };
+
+        let active = compute_active_state(lyrics, self.current_lyrics_position_secs());
+        self.state.lyrics_ui.active_line_index = active.line_index;
+        self.state.lyrics_ui.active_word_index = active.word_index;
+        self.state.lyrics_ui.active_word_progress = active.word_progress;
+    }
+
+    fn current_lyrics_position_secs(&self) -> f64 {
+        let effective = effective_position_secs(&self.state.lyrics_ui, self.state.player.is_playing);
+        effective.min(self.state.player.duration_secs.max(0.0))
+    }
+
+    fn scroll_active_lyrics_line_into_view(&mut self, animated: bool, cx: &mut Context<Self>) {
+        if self.state.right_panel != RightPanel::Lyrics {
+            return;
+        }
+        let Some(active_line) = self.state.lyrics_ui.active_line_index else {
+            return;
+        };
+        if animated && self.state.lyrics_ui.last_auto_scrolled_line == Some(active_line) {
+            return;
+        }
+        let Some(scroll_item_index) = self.active_lyrics_scroll_item_index() else {
+            return;
+        };
+        let handle = self.lyrics_scroll_handle.clone();
+        let Some(item_bounds) = handle.bounds_for_item(scroll_item_index) else {
+            return;
+        };
+        let viewport_bounds = handle.bounds();
+        let viewport_center = viewport_bounds.center().y.to_f64() as f32;
+        let item_center = item_bounds.center().y.to_f64() as f32;
+        let max_scroll = handle.max_offset().height.to_f64() as f32;
+        let target_y = (viewport_center - item_center).clamp(-max_scroll, 0.0);
+
+        if !animated {
+            let offset = handle.offset();
+            handle.set_offset(Point {
+                x: offset.x,
+                y: px(target_y),
+            });
+            self.state.lyrics_ui.last_auto_scrolled_line = Some(active_line);
+            cx.notify();
+            return;
+        }
+
+        cx.spawn(move |view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
+            let mut async_cx = async_cx.clone();
+            async move {
+                let start = handle.offset().y.to_f64() as f32;
+                let delta = target_y - start;
+                let steps = 14u64;
+
+                for step in 1..=steps {
+                    async_cx
+                        .background_executor()
+                        .timer(Duration::from_millis(12))
+                        .await;
+                    let t = step as f32 / steps as f32;
+                    let eased = 1.0 - (1.0 - t) * (1.0 - t);
+                    let next_y = start + (delta * eased);
+
+                    let _ = view.update(&mut async_cx, |_, cx| {
+                        let offset = handle.offset();
+                        handle.set_offset(Point {
+                            x: offset.x,
+                            y: px(next_y.clamp(-max_scroll, 0.0)),
+                        });
+                        cx.notify();
+                    });
+                }
+
+                let _ = view.update(&mut async_cx, |this, _| {
+                    this.state.lyrics_ui.last_auto_scrolled_line = Some(active_line);
+                });
+            }
+        })
+        .detach();
+    }
+
+    fn active_lyrics_scroll_item_index(&self) -> Option<usize> {
+        self.state.lyrics.as_ref().and_then(|lyrics| {
+            if lyrics.synced.is_empty() {
+                None
+            } else {
+                self.state.lyrics_ui.active_line_index.map(|index| index + 1)
+            }
+        })
     }
 
     fn set_volume(&mut self, volume: f64, cx: &mut Context<Self>) {
@@ -2002,11 +2166,15 @@ impl DesktopApp {
         let value = self.lyrics_server_input.read(cx).value().trim().to_string();
         self.state.lyrics_server_url = value.clone();
         self.persist_setting("lyricsServerUrl", value);
+        self.persist_setting("lyrics_server_url", self.state.lyrics_server_url.clone());
         self.state.status = if self.state.lyrics_server_url.is_empty() {
             "Lyrics server cleared".to_string()
         } else {
             "Lyrics server URL saved".to_string()
         };
+        if let Some(song) = self.state.player.current_song().cloned() {
+            self.fetch_lyrics_for(song, cx);
+        }
         cx.notify();
     }
 
@@ -2030,7 +2198,7 @@ impl DesktopApp {
             let mut async_cx = async_cx.clone();
             async move {
             loop {
-                async_cx.background_executor().timer(Duration::from_millis(400)).await;
+                async_cx.background_executor().timer(Duration::from_millis(33)).await;
 
                 let position_result = runtime
                     .spawn(async {
@@ -2046,6 +2214,9 @@ impl DesktopApp {
                         let previous_is_playing = this.state.player.is_playing;
                         let previous_display_second = this.state.player.position_secs.floor() as i64;
                         let next_display_second = position.floor() as i64;
+                        let previous_active_line = this.state.lyrics_ui.active_line_index;
+                        let previous_active_word = this.state.lyrics_ui.active_word_index;
+                        let previous_word_progress = this.state.lyrics_ui.active_word_progress;
                         let mut should_notify = false;
 
                         if previous_is_playing != is_playing {
@@ -2058,6 +2229,20 @@ impl DesktopApp {
                             should_notify = true;
                         } else {
                             this.state.player.position_secs = position;
+                        }
+                        this.state.lyrics_ui.sampled_position_secs = position;
+                        this.state.lyrics_ui.sampled_at = Some(Instant::now());
+
+                        this.sync_active_lyrics_state();
+                        if previous_active_line != this.state.lyrics_ui.active_line_index {
+                            should_notify = true;
+                            this.scroll_active_lyrics_line_into_view(true, cx);
+                        }
+                        if previous_active_word != this.state.lyrics_ui.active_word_index {
+                            should_notify = true;
+                        }
+                        if (previous_word_progress - this.state.lyrics_ui.active_word_progress).abs() > 0.015 {
+                            should_notify = true;
                         }
 
                         if is_finished {
@@ -4347,7 +4532,7 @@ impl DesktopApp {
             )
             .child(match self.state.right_panel {
                 RightPanel::Queue => self.render_queue_panel(cx).into_any_element(),
-                RightPanel::Lyrics => self.render_lyrics_panel().into_any_element(),
+                RightPanel::Lyrics => self.render_lyrics_panel(cx).into_any_element(),
                 RightPanel::None => div().into_any_element(),
             })
     }
@@ -4359,8 +4544,10 @@ impl DesktopApp {
         let hidden_before = start;
         let hidden_after = queue_len.saturating_sub(start + 18);
 
-        div()
+        v_flex()
+            .id("lyrics-panel-scroll")
             .flex_1()
+            .track_scroll(&self.lyrics_scroll_handle)
             .overflow_y_scrollbar()
             .child(
                 v_flex()
@@ -4421,46 +4608,122 @@ impl DesktopApp {
             )
     }
 
-    fn render_lyrics_panel(&mut self) -> impl IntoElement {
-        let has_lyrics = self.state.lyrics.is_some();
+    fn render_lyrics_panel(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let song = self.state.player.current_song().cloned();
+        let has_lyrics = self.state.lyrics.as_ref().is_some_and(|lyrics| lyrics.is_valid());
+        let is_synced = self.state.lyrics.as_ref().is_some_and(|lyrics| !lyrics.synced.is_empty());
+        let active_line_index = self.state.lyrics_ui.active_line_index;
+        let lyrics_content = self
+            .state
+            .lyrics
+            .as_ref()
+            .map(|lyrics| {
+                if !lyrics.synced.is_empty() {
+                    let active = compute_active_state(lyrics, self.current_lyrics_position_secs());
+                    lyrics
+                        .synced
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, _)| render_line(lyrics, index, &active).map(|line| (index, line)))
+                        .map(|(index, line)| self.render_synced_lyrics_line(index, line, cx))
+                        .collect::<Vec<_>>()
+                } else {
+                    lyrics
+                        .plain
+                        .iter()
+                        .map(|line| lyrics_plain_line(line).into_any_element())
+                        .collect::<Vec<_>>()
+                }
+            })
+            .unwrap_or_default();
 
-        div()
+        v_flex()
+            .id("lyrics-panel-scroll")
             .flex_1()
+            .track_scroll(&self.lyrics_scroll_handle)
             .overflow_y_scrollbar()
+            .p(px(16.0))
+            .gap(px(12.0))
             .child(
-                v_flex()
-                    .p(px(16.0))
-                    .gap(px(12.0))
+                h_flex()
+                    .justify_between()
+                    .items_center()
                     .child(
-                        div()
-                            .text_size(px(11.0))
-                            .text_color(rgb(theme::muted_foreground()))
-                            .child(self.state.lyrics_status.clone()),
+                        v_flex()
+                            .gap(px(4.0))
+                            .child(
+                                div()
+                                    .text_size(px(11.0))
+                                    .text_color(rgb(theme::muted_foreground()))
+                                    .child(self.state.lyrics_status.clone()),
+                            )
+                            .when(song.is_some(), |this| {
+                                let song = song.clone().unwrap();
+                                this.child(
+                                    div()
+                                        .text_size(px(13.0))
+                                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                                        .child(song.name),
+                                )
+                            }),
                     )
-                    .when(!has_lyrics, |this| {
-                        this.child(panel_empty_state(
-                            "No lyrics to show",
-                            "Lyrics appear here when the current song has synced or plain text lyrics.",
-                        ))
-                    })
-                    .children(
-                        self.state
-                            .lyrics
-                            .as_ref()
-                            .map(|lyrics| {
-                                if !lyrics.synced.is_empty() {
-                                    lyrics
-                                        .synced
-                                        .iter()
-                                        .map(|line| lyrics_line(&line.line))
-                                        .collect::<Vec<_>>()
-                                } else {
-                                    lyrics.plain.iter().map(|line| lyrics_line(line)).collect::<Vec<_>>()
-                                }
-                            })
-                            .unwrap_or_default(),
-                    ),
+                    .when(has_lyrics, |this| {
+                        this.child(
+                            div()
+                                .text_size(px(10.0))
+                                .text_color(rgb(theme::muted_foreground()))
+                                .child(if is_synced { "Synced" } else { "Plain" }),
+                        )
+                    }),
             )
+            .when(self.state.lyrics_loading, |this| {
+                this.child(panel_empty_state(
+                    "Loading lyrics",
+                    "Fetching sidecar, Jellyfin, and fallback lyrics for the current track.",
+                ))
+            })
+            .when(!self.state.lyrics_loading && self.state.lyrics_error.is_some(), |this| {
+                this.child(panel_empty_state(
+                    "Unable to load lyrics",
+                    self.state.lyrics_error.as_deref().unwrap_or("Lyrics request failed."),
+                ))
+            })
+            .when(!self.state.lyrics_loading && !has_lyrics && self.state.lyrics_error.is_none(), |this| {
+                this.child(panel_empty_state(
+                    "No lyrics to show",
+                    "Lyrics appear here when the current song has synced, TTML, or plain text lyrics.",
+                ))
+            })
+            .children(lyrics_content)
+            .when(has_lyrics, |this| {
+                let lyrics = self.state.lyrics.as_ref().unwrap();
+                let language = lyrics.language.as_deref().unwrap_or("Unknown language");
+                let source = if lyrics.are_from_remote { "Remote" } else { "Sidecar" };
+                let section_count = lyrics.sections.as_ref().map(|sections| sections.len()).unwrap_or_default();
+                let songwriter_count = lyrics.songwriters.as_ref().map(|names| names.len()).unwrap_or_default();
+
+                this.child(
+                    v_flex()
+                        .gap(px(4.0))
+                        .pt(px(8.0))
+                        .border_t_1()
+                        .border_color(rgb(theme::border()))
+                        .child(lyrics_meta_row("Source", source))
+                        .child(lyrics_meta_row("Language", language))
+                        .when(section_count > 0, |this| {
+                            this.child(lyrics_meta_row("Sections", &section_count.to_string()))
+                        })
+                        .when(songwriter_count > 0, |this| {
+                            this.child(lyrics_meta_row("Writers", &songwriter_count.to_string()))
+                        })
+                        .when(active_line_index.is_some(), |this| {
+                            this.child(lyrics_meta_row(
+                                "Active line",
+                                &format!("{}", active_line_index.unwrap_or_default() + 1),
+                            ))
+                        }),
+                )
+            })
     }
 
     fn render_player_bar(&mut self, _progress: f64, _right_panel_open: bool, cx: &mut Context<Self>) -> impl IntoElement {
@@ -4700,6 +4963,115 @@ impl DesktopApp {
                     ),
             )
     }
+
+    fn render_synced_lyrics_line(
+        &self,
+        index: usize,
+        line: LyricsLineRender<'_>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let line_time_secs = line.line.time_ms as f64 / 1000.0;
+        let has_word_sync = line.line.words.as_ref().is_some_and(|words| !words.is_empty());
+        let Some(lyrics) = self.state.lyrics.as_ref() else {
+            return div().into_any_element();
+        };
+        let active_state = compute_active_state(lyrics, self.state.player.position_secs);
+        let words = if has_word_sync {
+            render_words(line.line, &active_state, index)
+        } else {
+            Vec::new()
+        };
+
+        v_flex()
+            .gap(px(4.0))
+            .child(
+                div()
+                    .when(line.section_label.is_some(), |this| {
+                        this.child(
+                            div()
+                                .text_size(px(10.0))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(rgb(theme::muted_foreground()))
+                                .child(line.section_label.unwrap_or_default().to_uppercase()),
+                        )
+                    })
+                    .child(
+                        div()
+                            .py(px(6.0))
+                            .w_full()
+                            .cursor_pointer()
+                            .when(line.is_active, |this| {
+                                this.rounded(px(10.0)).bg(rgb(theme::card())).px(px(10.0)).py(px(10.0))
+                            })
+                            .when(!line.is_active, |this| this.px(px(10.0)))
+                            .on_mouse_up(MouseButton::Left, cx.listener(move |this, _, _, cx| {
+                                this.seek_to_lyrics_time(line_time_secs, cx);
+                            }))
+                            .child(if has_word_sync {
+                                lyrics_word_line(words, line.is_active).into_any_element()
+                            } else {
+                                let line_color = if line.is_active {
+                                    theme::accent()
+                                } else if line.is_background_vocal {
+                                    theme::muted_foreground()
+                                } else {
+                                    theme::foreground()
+                                };
+                                let target_opacity = if line.is_active {
+                                    1.0
+                                } else if line.is_background_vocal {
+                                    0.5
+                                } else {
+                                    0.72
+                                };
+
+                                div()
+                                    .w_full()
+                                    .whitespace_normal()
+                                    .text_center()
+                                    .text_size(px(if line.is_active { 21.0 } else { 18.0 }))
+                                    .font_weight(if line.is_active {
+                                        gpui::FontWeight::BOLD
+                                    } else {
+                                        gpui::FontWeight::MEDIUM
+                                    })
+                                    .text_color(rgb(line_color))
+                                    .opacity(target_opacity)
+                                    .child(line.line.line.clone())
+                                    .with_animation(
+                                        SharedString::from(format!(
+                                            "lyrics-line-{}-{}",
+                                            index,
+                                            self.state.lyrics_ui.active_line_index.unwrap_or(usize::MAX)
+                                        )),
+                                        Animation::new(Duration::from_millis(220)).with_easing(ease_in_out),
+                                        move |element, delta| {
+                                            let opacity = if line.is_active {
+                                                0.78 + (0.22 * delta)
+                                            } else {
+                                                target_opacity + ((0.72 - target_opacity) * (1.0 - delta))
+                                            };
+                                            element.opacity(opacity)
+                                        },
+                                    )
+                                    .into_any_element()
+                            }),
+                    )
+                    .when(line.translation.is_some(), |this| {
+                        this.child(
+                            div()
+                                .w_full()
+                                .whitespace_normal()
+                                .text_center()
+                                .text_size(px(13.0))
+                                .text_color(rgb(theme::muted_foreground()))
+                                .opacity(if line.is_active { 0.95 } else { 0.72 })
+                                .child(line.translation.unwrap_or_default().to_string()),
+                        )
+                    }),
+            )
+            .into_any_element()
+    }
 }
 
 impl Focusable for DesktopApp {
@@ -4711,11 +5083,29 @@ impl Focusable for DesktopApp {
 impl Render for DesktopApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Request animation frames while featured transition is active
-        if self.state.featured_transition_start.is_some() {
+        let should_animate_lyrics = self.state.right_panel == RightPanel::Lyrics
+            && self.state.player.is_playing
+            && self.state.lyrics.as_ref().is_some_and(|lyrics| !lyrics.synced.is_empty());
+        if self.state.featured_transition_start.is_some() || should_animate_lyrics {
             window.request_animation_frame();
         }
         // Flush any pending input clears from async callbacks
         self.flush_pending_clears(window, cx);
+        if should_animate_lyrics {
+            let previous_active_line = self.state.lyrics_ui.active_line_index;
+            let previous_active_word = self.state.lyrics_ui.active_word_index;
+            let previous_word_progress = self.state.lyrics_ui.active_word_progress;
+            self.sync_active_lyrics_state();
+            if previous_active_line != self.state.lyrics_ui.active_line_index {
+                self.scroll_active_lyrics_line_into_view(true, cx);
+            }
+            if previous_active_line != self.state.lyrics_ui.active_line_index
+                || previous_active_word != self.state.lyrics_ui.active_word_index
+                || (previous_word_progress - self.state.lyrics_ui.active_word_progress).abs() > 0.004
+            {
+                cx.notify();
+            }
+        }
         let seek_value = (self.state.player.position_secs / self.state.player.duration_secs.max(1.0) * 1000.0)
             .clamp(0.0, 1000.0) as f32;
         self.set_seek_slider_value(seek_value, window, cx);
@@ -5068,12 +5458,102 @@ fn panel_empty_state(title: &str, body: &str) -> impl IntoElement {
         )
 }
 
-fn lyrics_line(line: &str) -> impl IntoElement {
+fn lyrics_meta_row(label: &str, value: &str) -> impl IntoElement {
+    h_flex()
+        .justify_between()
+        .gap(px(12.0))
+        .child(
+            div()
+                .text_size(px(10.0))
+                .text_color(rgb(theme::muted_foreground()))
+                .child(label.to_string()),
+        )
+        .child(
+            div()
+                .text_size(px(10.0))
+                .text_color(rgb(theme::foreground()))
+                .child(value.to_string()),
+        )
+}
+
+fn lyrics_plain_line(line: &str) -> impl IntoElement {
     div()
-        .text_size(px(13.0))
-        .py(px(2.0))
+        .w_full()
+        .whitespace_normal()
+        .text_center()
+        .text_size(px(16.0))
+        .py(px(4.0))
         .text_color(rgb(theme::foreground()))
+        .opacity(0.85)
         .child(line.to_string())
+}
+
+fn lyrics_word_line(words: Vec<LyricsWordRender>, is_active: bool) -> impl IntoElement {
+    let base_color = if is_active {
+        theme::foreground()
+    } else {
+        theme::muted_foreground()
+    };
+    let base_alpha = if is_active { 148 } else { 110 };
+
+    div()
+        .w_full()
+        .child(lyrics_words_as_text(&words, is_active, base_color, base_alpha))
+}
+
+fn lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, base_color: u32, base_alpha: u8) -> impl IntoElement {
+    h_flex()
+        .flex_wrap()
+        .gap(px(0.0))
+        .w_full()
+        .justify_center()
+        .children(words.iter().enumerate().map(move |(index, word)| {
+            let fill_width = match word.state {
+                LyricsWordState::Sung => 1.0,
+                LyricsWordState::Filling => word.progress,
+                LyricsWordState::Upcoming => 0.0,
+            };
+            let content = format!("{}{}", word.text, word.trailing_whitespace);
+
+            let animated_fill = fill_width.clamp(0.0, 1.0);
+            let foreground = div()
+                .whitespace_nowrap()
+                .overflow_hidden()
+                .child(
+                    div()
+                        .whitespace_nowrap()
+                        .child(content.clone())
+                        .text_color(rgb(theme::accent()))
+                        .opacity(if is_active { 1.0 } else { 0.72 }),
+                )
+                .max_w(px(220.0 * animated_fill))
+                .with_animation(
+                    SharedString::from(format!("lyrics-word-fill-{index}")),
+                    Animation::new(Duration::from_millis(70)).with_easing(ease_in_out),
+                    move |element, delta| {
+                        let width = 220.0 * (animated_fill * delta.max(0.22));
+                        element.max_w(px(width.max(0.0)))
+                    },
+                );
+
+            div()
+                .relative()
+                .whitespace_nowrap()
+                .child(
+                    div()
+                        .whitespace_nowrap()
+                        .text_color(rgba((base_color << 8) | base_alpha as u32))
+                        .child(content),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .child(foreground),
+                )
+                .into_any_element()
+        }))
 }
 
 fn song_row(song: &Song, image_url: Option<String>, is_playing: bool, is_first: bool) -> impl IntoElement {
@@ -5472,5 +5952,3 @@ fn build_blurred_featured_background(bytes: Vec<u8>) -> anyhow::Result<GpuiImage
 
     Ok(GpuiImage::from_bytes(GpuiImageFormat::Png, encoded))
 }
-
-
