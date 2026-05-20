@@ -41,3 +41,9 @@
     <init>(android.content.Context, androidx.work.WorkerParameters);
 }
 
+# LiteRT-LM uses reflection for annotated Kotlin tool functions.
+-keep class com.google.ai.edge.litertlm.** { *; }
+-keepclassmembers class * {
+    @com.google.ai.edge.litertlm.Tool <methods>;
+}
+-dontwarn com.google.ai.edge.litertlm.**

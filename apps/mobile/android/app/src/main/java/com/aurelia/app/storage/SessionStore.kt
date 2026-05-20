@@ -38,6 +38,7 @@ class SessionStore(
   context: Context,
 ) {
   private val prefs = context.getSharedPreferences("aurelia_session", Context.MODE_PRIVATE)
+  private val externalFilesDir = context.getExternalFilesDir(null)?.absolutePath
   private val json = Json { ignoreUnknownKeys = true }
   private var migrationAttempted = false
 
@@ -193,6 +194,52 @@ class SessionStore(
   }
 
   fun getLyricsServerUrl(): String? = prefs.getString("lyricsServerUrl", null)
+
+  fun setOnDeviceAiModelPath(path: String?) {
+    prefs.edit {
+      if (path.isNullOrBlank()) {
+        remove(KEY_ON_DEVICE_AI_MODEL_PATH)
+      } else {
+        putString(KEY_ON_DEVICE_AI_MODEL_PATH, path)
+      }
+    }
+  }
+
+  fun getOnDeviceAiModelPath(): String? {
+    prefs.getString(KEY_ON_DEVICE_AI_MODEL_PATH, null)
+      ?.takeIf { it.isNotBlank() }
+      ?.let { return it }
+
+    val modelDirs =
+      listOfNotNull(
+        externalFilesDir?.let { File(it, "models") },
+        getBaseAppDataDir()?.let { File(it, "models") },
+      ).distinctBy { it.absolutePath }
+
+    val discoveredModel = modelDirs.firstNotNullOfOrNull { modelDir ->
+      modelDir
+        .listFiles { file -> file.isFile && file.extension.equals("litertlm", ignoreCase = true) }
+        ?.sortedBy { it.name.lowercase() }
+        ?.firstOrNull()
+    }
+
+    return discoveredModel?.absolutePath
+      ?: modelDirs.firstOrNull()?.let { File(it, "gemma-4.litertlm").absolutePath }
+  }
+
+  fun getOnDeviceAiModelsDir(): String? {
+    val modelDir =
+      externalFilesDir?.let { File(it, "models") }
+        ?: getBaseAppDataDir()?.let { File(it, "models") }
+        ?: return null
+    modelDir.mkdirs()
+    return modelDir.absolutePath
+  }
+
+  fun getOnDeviceAiCacheDir(): String? {
+    val baseAppDataDir = getBaseAppDataDir() ?: return null
+    return File(baseAppDataDir, "ai-cache").apply { mkdirs() }.absolutePath
+  }
 
   // EQ Settings
   fun setEQEnabled(enabled: Boolean) {
@@ -410,6 +457,7 @@ class SessionStore(
     private const val TAG = "SessionStore"
     private const val KEY_ACTIVE_PROFILE_ID = "active_profile_id"
     private const val KEY_APP_DATA_DIR = "appDataDir"
+    private const val KEY_ON_DEVICE_AI_MODEL_PATH = "on_device_ai_model_path"
     private const val KEY_PROFILES_JSON = "saved_profiles_json"
   }
 }

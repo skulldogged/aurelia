@@ -35,6 +35,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.outlined.PlaylistPlay
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MusicNote
@@ -119,6 +121,7 @@ private val navItems =
     NavItem(Screen.Songs, "Songs", Icons.Filled.MusicNote, Icons.Outlined.MusicNote),
     NavItem(Screen.Albums, "Albums", Icons.Filled.Album, Icons.Outlined.Album),
     NavItem(Screen.Artists, "Artists", Icons.Filled.Person, Icons.Outlined.Person),
+    NavItem(Screen.Playlists, "Playlists", Icons.AutoMirrored.Filled.PlaylistPlay, Icons.AutoMirrored.Outlined.PlaylistPlay),
     NavItem(Screen.Search, "Search", Icons.Filled.Search, Icons.Outlined.Search),
   )
 
@@ -349,6 +352,7 @@ fun MainScreen(
         composable<Screen.Playlists> {
           PlaylistsScreen(
             viewModel = playlistViewModel,
+            librarySongs = libraryState.songs,
             onOpenPlayer = { openPlayerAnimated() },
             onNavigateToPlaylist = { navController.navigate(it) },
             hasPlayerBar = libraryState.nowPlaying != null,

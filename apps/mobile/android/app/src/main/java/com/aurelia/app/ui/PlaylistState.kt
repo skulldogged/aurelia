@@ -1,5 +1,7 @@
 package com.aurelia.app.ui
 
+import com.aurelia.app.ai.AiGenerationState
+import com.aurelia.app.ai.AiModelDownloadState
 import uniffi.aurelia_core.Playlist
 import uniffi.aurelia_core.Song
 
@@ -16,4 +18,9 @@ data class PlaylistDetailState(
   val playlist: Playlist? = null,
   val songs: List<Song> = emptyList(),
   val error: String? = null,
+)
+
+data class SmartPlaylistState(
+  val generation: AiGenerationState = AiGenerationState.Idle,
+  val modelDownload: AiModelDownloadState = AiModelDownloadState.Idle,
 )

@@ -1,8 +1,18 @@
 package com.aurelia.app.ui
 
 import android.os.SystemClock
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aurelia.app.ai.AiGenerationState
+import com.aurelia.app.ai.AiModelDownloadState
+import com.aurelia.app.ai.AiModelDownloader
+import com.aurelia.app.ai.GemmaPlaylistGenerator
+import com.aurelia.app.ai.GemmaRuntimeConfig
+import com.aurelia.app.ai.OnDeviceAiModels
+import com.aurelia.app.ai.SmartPlaylistPlanner
+import com.aurelia.app.ai.SmartPlaylistPreview
+import com.aurelia.app.ai.SmartPlaylistRequest
 import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
@@ -20,6 +30,8 @@ import uniffi.aurelia_core.createPlaylist
 import uniffi.aurelia_core.deletePlaylist
 import uniffi.aurelia_core.getPlaylistItems
 import uniffi.aurelia_core.getPlaylists
+import uniffi.aurelia_core.Song
+import java.io.File
 
 class PlaylistViewModel(
   private val sessionStore: SessionStore,
@@ -30,8 +42,14 @@ class PlaylistViewModel(
 
   private val mutableDetailState = MutableStateFlow(PlaylistDetailState())
   val detailState: StateFlow<PlaylistDetailState> = mutableDetailState
+
+  private val mutableSmartPlaylistState = MutableStateFlow(SmartPlaylistState())
+  val smartPlaylistState: StateFlow<SmartPlaylistState> = mutableSmartPlaylistState
+
   private var loadJob: Job? = null
   private var lastLoadedAtMs: Long = 0L
+  private val onDevicePlaylistGenerator by lazy { GemmaPlaylistGenerator() }
+  private val aiModelDownloader by lazy { AiModelDownloader() }
 
   fun ensureLoaded(force: Boolean = false) {
     if (!force && loadJob?.isActive == true) return
@@ -66,6 +84,54 @@ class PlaylistViewModel(
 
   fun loadPlaylists() {
     ensureLoaded(force = false)
+  }
+
+  fun refreshAiModelState() {
+    val path = sessionStore.getOnDeviceAiModelPath()
+    val state =
+      if (!path.isNullOrBlank() && File(path).exists()) {
+        AiModelDownloadState.Ready(path)
+      } else {
+        AiModelDownloadState.Missing(path)
+      }
+    mutableSmartPlaylistState.update { it.copy(modelDownload = state) }
+  }
+
+  fun downloadAiModel() {
+    val current = mutableSmartPlaylistState.value.modelDownload
+    if (current is AiModelDownloadState.Downloading) return
+
+    val modelsDir = sessionStore.getOnDeviceAiModelsDir()
+    if (modelsDir.isNullOrBlank()) {
+      mutableSmartPlaylistState.update {
+        it.copy(modelDownload = AiModelDownloadState.Error("Model folder is not available"))
+      }
+      return
+    }
+
+    val model = OnDeviceAiModels.default
+    mutableSmartPlaylistState.update {
+      it.copy(modelDownload = AiModelDownloadState.Downloading(model.name, 0L, null))
+    }
+
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        val downloadedFile = aiModelDownloader.download(model, File(modelsDir)) { bytesRead, totalBytes ->
+          mutableSmartPlaylistState.update {
+            it.copy(modelDownload = AiModelDownloadState.Downloading(model.name, bytesRead, totalBytes))
+          }
+        }
+        sessionStore.setOnDeviceAiModelPath(downloadedFile.absolutePath)
+        mutableSmartPlaylistState.update {
+          it.copy(modelDownload = AiModelDownloadState.Ready(downloadedFile.absolutePath))
+        }
+      } catch (error: Exception) {
+        Log.w("PlaylistViewModel", "Failed to download AI model", error)
+        mutableSmartPlaylistState.update {
+          it.copy(modelDownload = AiModelDownloadState.Error(error.message ?: "Model download failed"))
+        }
+      }
+    }
   }
 
   fun createPlaylist(
@@ -172,6 +238,76 @@ class PlaylistViewModel(
         mutableState.update { it.copy(error = "Failed to add songs to playlist") }
       }
     }
+  }
+
+  fun generateSmartPlaylist(
+    request: SmartPlaylistRequest,
+    librarySongs: List<Song>,
+  ) {
+    if (request.prompt.isBlank()) {
+      mutableSmartPlaylistState.update {
+        it.copy(generation = AiGenerationState.Error("Describe the playlist you want"))
+      }
+      return
+    }
+    if (librarySongs.isEmpty()) {
+      mutableSmartPlaylistState.update {
+        it.copy(generation = AiGenerationState.Error("Sync your library before generating a playlist"))
+      }
+      return
+    }
+    refreshAiModelState()
+    if (mutableSmartPlaylistState.value.modelDownload !is AiModelDownloadState.Ready) {
+      mutableSmartPlaylistState.update {
+        it.copy(generation = AiGenerationState.Error("Download the on-device AI model before generating a playlist"))
+      }
+      return
+    }
+
+    mutableSmartPlaylistState.update {
+      it.copy(generation = AiGenerationState.Loading())
+    }
+
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        val candidates = SmartPlaylistPlanner.prepareCandidates(librarySongs, request)
+        val modelPath = sessionStore.getOnDeviceAiModelPath()
+        val cacheDir = sessionStore.getOnDeviceAiCacheDir()
+        val preview = onDevicePlaylistGenerator.generate(
+          request = request,
+          candidates = candidates,
+          runtimeConfig = GemmaRuntimeConfig(
+            modelPath = modelPath,
+            cacheDir = cacheDir,
+          ),
+        )
+        mutableSmartPlaylistState.update {
+          it.copy(generation = AiGenerationState.Preview(preview))
+        }
+      } catch (error: Exception) {
+        Log.w("PlaylistViewModel", "Failed to generate smart playlist", error)
+        mutableSmartPlaylistState.update {
+          it.copy(generation = AiGenerationState.Error(error.message ?: error.javaClass.simpleName))
+        }
+      }
+    }
+  }
+
+  fun playSmartPlaylist(preview: SmartPlaylistPreview) {
+    val serverUrl = sessionStore.getServerUrl() ?: return
+    val token = sessionStore.getToken() ?: return
+    if (preview.songs.isEmpty()) return
+
+    playerController.setQueue(preview.songs, serverUrl, token)
+  }
+
+  fun saveSmartPlaylist(preview: SmartPlaylistPreview) {
+    val playlistName = preview.name.trim().ifBlank { "Smart Playlist" }.take(80)
+    createPlaylist(playlistName, preview.songs.mapNotNull { runCatching { it.id }.getOrNull() }.filter { it.isNotBlank() })
+  }
+
+  fun clearSmartPlaylistGeneration() {
+    mutableSmartPlaylistState.update { it.copy(generation = AiGenerationState.Idle) }
   }
 
   fun playPlaylist(startIndex: Int = 0) {

@@ -191,6 +191,7 @@ dependencies {
   implementation("androidx.palette:palette:1.0.0")
   implementation("com.squareup.okhttp3:okhttp:5.3.2")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+  implementation("com.google.ai.edge.litertlm:litertlm-android:0.12.0")
   implementation("androidx.graphics:graphics-shapes:1.1.0")
   implementation("androidx.work:work-runtime-ktx:2.10.1")
 
