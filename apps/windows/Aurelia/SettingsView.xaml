@@ -39,26 +39,7 @@
                     Margin="0,0,0,12" />
 
                 <StackPanel MaxWidth="460" Margin="0,0,0,24">
-                    <TextBlock Text="Provider" Margin="0,0,0,6" />
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,10">
-                        <ComboBox x:Name="SwitchProviderBox" SelectedIndex="0">
-                            <ComboBoxItem Content="Auto-detect" />
-                            <ComboBoxItem Content="Jellyfin" />
-                            <ComboBoxItem Content="Navidrome" />
-                        </ComboBox>
-                        <Button
-                            Grid.Column="1"
-                            x:Name="DetectSwitchProviderButton"
-                            Content="Detect"
-                            Click="DetectSwitchProvider_Click" />
-                    </Grid>
 
-                    <TextBlock
-                        x:Name="DetectedSwitchProviderText"
-                        FontSize="12"
-                        Opacity="0.7"
-                        Margin="0,0,0,10"
-                        Visibility="Collapsed" />
 
                     <TextBox
                         x:Name="SwitchServerUrlBox"
@@ -136,10 +117,17 @@
                     Margin="0,24,0,4" />
 
                 <TextBlock
-                    Text="Lyrics daemon URL"
+                    Text="Jellyfin lyrics are used by default. Enable this only when you want to fall back to a local sidecar daemon."
                     FontSize="13"
                     Opacity="0.7"
                     Margin="0,0,0,6" />
+
+                <CheckBox
+                    x:Name="LyricsSidecarEnabledBox"
+                    Content="Enable sidecar lyrics service"
+                    Checked="LyricsSidecarEnabled_Changed"
+                    Unchecked="LyricsSidecarEnabled_Changed"
+                    Margin="0,0,0,8" />
 
                 <TextBox
                     x:Name="LyricsServerUrlBox"

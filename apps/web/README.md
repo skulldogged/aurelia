@@ -9,7 +9,7 @@ The web version uses:
 - **Frontend**: Vue 3 app using Web Audio API (shares code with desktop)
 - **Database**: Same redb database as desktop
 - **Auth**: Session cookies
-- **Audio**: Browser streams directly from provider URLs (Jellyfin or Navidrome)
+- **Audio**: Browser streams directly from provider URLs (Jellyfin)
 
 ## Project Structure
 

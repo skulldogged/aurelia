@@ -1,6 +1,9 @@
 //! Lyrics format conversion utilities
 
-use crate::models::{JellyfinLyrics, ParsedLyrics, ParsedLyricsLine, ParsedLyricsWord};
+use crate::models::{
+    JellyfinLyricLine, JellyfinLyrics, ParsedLyrics, ParsedLyricsAgent, ParsedLyricsLine,
+    ParsedLyricsSection, ParsedLyricsWord,
+};
 use std::fmt::Write;
 
 /// Convert 100ns ticks to milliseconds.
@@ -59,11 +62,13 @@ fn extract_words_from_cues(
     for cue in cues {
         let start = cue.position.max(0) as usize;
         let end = (cue.end_position.max(0) as usize).min(chars.len());
-        let word: String = if start < end {
-            chars[start..end].iter().collect()
-        } else {
-            String::new()
-        };
+        let word = cue.word.clone().unwrap_or_else(|| {
+            if start < end {
+                chars[start..end].iter().collect()
+            } else {
+                String::new()
+            }
+        });
 
         // Skip empty cues (pure whitespace separators)
         let trimmed = word.trim().to_string();
@@ -81,6 +86,41 @@ fn extract_words_from_cues(
     if words.is_empty() { None } else { Some(words) }
 }
 
+fn jellyfin_line_to_parsed(
+    lyrics: &JellyfinLyrics,
+    line: &JellyfinLyricLine,
+    index: usize,
+) -> Option<ParsedLyricsLine> {
+    let text = line.text.trim().to_string();
+    let ticks = line.timestamp?;
+    let words = line
+        .cues
+        .as_deref()
+        .and_then(|cues| extract_words_from_cues(&line.text, cues));
+
+    let end_from_words = words
+        .as_ref()
+        .and_then(|w| w.last())
+        .and_then(|w| w.end_time_ms);
+
+    let end_from_line = line.end.map(ticks_to_ms);
+
+    let end_from_next = lyrics
+        .lyrics
+        .get(index + 1)
+        .and_then(|next| next.timestamp)
+        .map(ticks_to_ms);
+
+    Some(ParsedLyricsLine {
+        time_ms: ticks_to_ms(ticks),
+        end_time_ms: end_from_line.or(end_from_words).or(end_from_next),
+        line: text,
+        words,
+        agent_id: line.agent_id.clone(),
+        translation: line.translation.clone(),
+    })
+}
+
 /// Convert Jellyfin lyrics directly to [`ParsedLyrics`] without an intermediate LRC string.
 ///
 /// Jellyfin timestamps are in 100ns tick units.  If the server parsed a TTML
@@ -94,45 +134,43 @@ pub fn jellyfin_to_parsed_lyrics(lyrics: &JellyfinLyrics) -> ParsedLyrics {
 
     for (i, line) in lyrics.lyrics.iter().enumerate() {
         let text = line.text.trim().to_string();
-        if let Some(ticks) = line.timestamp {
+        if line.timestamp.is_some() {
             has_timestamps = true;
-            let time_ms = ticks_to_ms(ticks);
-
-            // Try to extract word-level cues
-            let words = line
-                .cues
-                .as_deref()
-                .and_then(|cues| extract_words_from_cues(&line.text, cues));
-
-            // Derive line end_time_ms:
-            //   1. Last word's end_time if we have word cues
-            //   2. Otherwise next line's start time
-            //   3. Otherwise None
-            let end_from_words = words
-                .as_ref()
-                .and_then(|w| w.last())
-                .and_then(|w| w.end_time_ms);
-
-            let end_from_next = lyrics
-                .lyrics
-                .get(i + 1)
-                .and_then(|next| next.timestamp)
-                .map(ticks_to_ms);
-
-            let end_time_ms = end_from_words.or(end_from_next);
-
-            synced.push(ParsedLyricsLine {
-                time_ms,
-                end_time_ms,
-                line: text,
-                words,
-                agent_id: None,
-                translation: None,
-            });
+            if let Some(parsed_line) = jellyfin_line_to_parsed(lyrics, line, i) {
+                synced.push(parsed_line);
+            }
         } else {
             plain.push(text);
         }
     }
+
+    let agents = lyrics.agents.as_ref().map(|agents| {
+        agents
+            .iter()
+            .map(|agent| ParsedLyricsAgent {
+                id: agent.id.clone(),
+                agent_type: agent.agent_type.clone(),
+            })
+            .collect()
+    });
+
+    let sections = lyrics.sections.as_ref().map(|sections| {
+        sections
+            .iter()
+            .map(|section| ParsedLyricsSection {
+                name: section.name.clone(),
+                start_time_ms: section.start_time_ms,
+                end_time_ms: section.end_time_ms,
+                lines: section
+                    .lines
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, line)| jellyfin_line_to_parsed(lyrics, line, i))
+                    .collect(),
+                agent_id: section.agent_id.clone(),
+            })
+            .collect()
+    });
 
     if has_timestamps && !synced.is_empty() {
         synced.sort_by_key(|l| l.time_ms);
@@ -140,20 +178,20 @@ pub fn jellyfin_to_parsed_lyrics(lyrics: &JellyfinLyrics) -> ParsedLyrics {
         ParsedLyrics {
             plain: plain_from_synced,
             synced,
-            sections: None,
-            agents: None,
-            songwriters: None,
-            language: None,
+            sections,
+            agents,
+            songwriters: lyrics.songwriters.clone(),
+            language: lyrics.language.clone(),
             are_from_remote: true,
         }
     } else {
         ParsedLyrics {
             plain: plain.into_iter().filter(|l| !l.is_empty()).collect(),
             synced: vec![],
-            sections: None,
-            agents: None,
-            songwriters: None,
-            language: None,
+            sections,
+            agents,
+            songwriters: lyrics.songwriters.clone(),
+            language: lyrics.language.clone(),
             are_from_remote: true,
         }
     }
@@ -162,26 +200,41 @@ pub fn jellyfin_to_parsed_lyrics(lyrics: &JellyfinLyrics) -> ParsedLyrics {
 #[cfg(test)]
 mod tests {
     use super::{jellyfin_to_lrc, jellyfin_to_parsed_lyrics};
-    use crate::models::{JellyfinLyricLine, JellyfinLyricLineCue, JellyfinLyrics};
+    use crate::models::{
+        JellyfinLyricAgent, JellyfinLyricLine, JellyfinLyricLineCue, JellyfinLyricSection,
+        JellyfinLyrics,
+    };
 
     fn make_line(text: &str, ticks: Option<f64>) -> JellyfinLyricLine {
         JellyfinLyricLine {
             text: text.to_string(),
             timestamp: ticks,
+            end: None,
             cues: None,
+            agent_id: None,
+            translation: None,
+            section: None,
+        }
+    }
+
+    fn make_lyrics(lyrics: Vec<JellyfinLyricLine>) -> JellyfinLyrics {
+        JellyfinLyrics {
+            metadata: None,
+            lyrics,
+            songwriters: None,
+            language: None,
+            agents: None,
+            sections: None,
         }
     }
 
     #[test]
     fn converts_jellyfin_timestamps_to_lrc() {
-        let lyrics = JellyfinLyrics {
-            metadata: None,
-            lyrics: vec![
-                make_line("Intro", Some(0.0)),
-                make_line("Verse", Some(12_340_000.0)),
-                make_line("No timestamp", None),
-            ],
-        };
+        let lyrics = make_lyrics(vec![
+            make_line("Intro", Some(0.0)),
+            make_line("Verse", Some(12_340_000.0)),
+            make_line("No timestamp", None),
+        ]);
 
         let rendered = jellyfin_to_lrc(&lyrics).expect("lrc render");
         let lines: Vec<&str> = rendered.lines().collect();
@@ -193,13 +246,10 @@ mod tests {
 
     #[test]
     fn parsed_lyrics_without_cues_have_no_words() {
-        let lyrics = JellyfinLyrics {
-            metadata: None,
-            lyrics: vec![
-                make_line("Hello world", Some(0.0)),
-                make_line("Goodbye world", Some(50_000_000.0)),
-            ],
-        };
+        let lyrics = make_lyrics(vec![
+            make_line("Hello world", Some(0.0)),
+            make_line("Goodbye world", Some(50_000_000.0)),
+        ]);
 
         let parsed = jellyfin_to_parsed_lyrics(&lyrics);
         assert_eq!(parsed.synced.len(), 2);
@@ -213,27 +263,30 @@ mod tests {
     #[test]
     fn parsed_lyrics_extracts_word_cues() {
         // "Hello world" — 'Hello' at chars 0..5, 'world' at chars 6..11
-        let lyrics = JellyfinLyrics {
-            metadata: None,
-            lyrics: vec![JellyfinLyricLine {
-                text: "Hello world".to_string(),
-                timestamp: Some(0.0),
-                cues: Some(vec![
-                    JellyfinLyricLineCue {
-                        position: 0,
-                        end_position: 5,
-                        start: 0,
-                        end: Some(5_000_000), // 500ms
-                    },
-                    JellyfinLyricLineCue {
-                        position: 6,
-                        end_position: 11,
-                        start: 5_000_000,
-                        end: Some(10_000_000), // 1000ms
-                    },
-                ]),
-            }],
-        };
+        let lyrics = make_lyrics(vec![JellyfinLyricLine {
+            text: "Hello world".to_string(),
+            timestamp: Some(0.0),
+            end: None,
+            cues: Some(vec![
+                JellyfinLyricLineCue {
+                    position: 0,
+                    end_position: 5,
+                    start: 0,
+                    end: Some(5_000_000), // 500ms
+                    word: None,
+                },
+                JellyfinLyricLineCue {
+                    position: 6,
+                    end_position: 11,
+                    start: 5_000_000,
+                    end: Some(10_000_000), // 1000ms
+                    word: None,
+                },
+            ]),
+            agent_id: None,
+            translation: None,
+            section: None,
+        }]);
 
         let parsed = jellyfin_to_parsed_lyrics(&lyrics);
         assert_eq!(parsed.synced.len(), 1);
@@ -255,34 +308,38 @@ mod tests {
 
     #[test]
     fn whitespace_only_cues_are_skipped() {
-        let lyrics = JellyfinLyrics {
-            metadata: None,
-            lyrics: vec![JellyfinLyricLine {
-                text: "Hi there".to_string(),
-                timestamp: Some(0.0),
-                cues: Some(vec![
-                    JellyfinLyricLineCue {
-                        position: 0,
-                        end_position: 2,
-                        start: 0,
-                        end: Some(2_000_000),
-                    },
-                    // Whitespace-only cue (the space between words)
-                    JellyfinLyricLineCue {
-                        position: 2,
-                        end_position: 3,
-                        start: 2_000_000,
-                        end: Some(3_000_000),
-                    },
-                    JellyfinLyricLineCue {
-                        position: 3,
-                        end_position: 8,
-                        start: 3_000_000,
-                        end: Some(6_000_000),
-                    },
-                ]),
-            }],
-        };
+        let lyrics = make_lyrics(vec![JellyfinLyricLine {
+            text: "Hi there".to_string(),
+            timestamp: Some(0.0),
+            end: None,
+            cues: Some(vec![
+                JellyfinLyricLineCue {
+                    position: 0,
+                    end_position: 2,
+                    start: 0,
+                    end: Some(2_000_000),
+                    word: None,
+                },
+                // Whitespace-only cue (the space between words)
+                JellyfinLyricLineCue {
+                    position: 2,
+                    end_position: 3,
+                    start: 2_000_000,
+                    end: Some(3_000_000),
+                    word: None,
+                },
+                JellyfinLyricLineCue {
+                    position: 3,
+                    end_position: 8,
+                    start: 3_000_000,
+                    end: Some(6_000_000),
+                    word: None,
+                },
+            ]),
+            agent_id: None,
+            translation: None,
+            section: None,
+        }]);
 
         let parsed = jellyfin_to_parsed_lyrics(&lyrics);
         let words = parsed.synced[0].words.as_ref().expect("should have words");
@@ -293,17 +350,70 @@ mod tests {
 
     #[test]
     fn empty_cues_array_produces_no_words() {
-        let lyrics = JellyfinLyrics {
-            metadata: None,
-            lyrics: vec![JellyfinLyricLine {
-                text: "No cues here".to_string(),
-                timestamp: Some(0.0),
-                cues: Some(vec![]),
-            }],
-        };
+        let lyrics = make_lyrics(vec![JellyfinLyricLine {
+            text: "No cues here".to_string(),
+            timestamp: Some(0.0),
+            end: None,
+            cues: Some(vec![]),
+            agent_id: None,
+            translation: None,
+            section: None,
+        }]);
 
         let parsed = jellyfin_to_parsed_lyrics(&lyrics);
         assert!(parsed.synced[0].words.is_none());
+    }
+
+    #[test]
+    fn parsed_lyrics_preserves_ttml_fork_metadata() {
+        let make_fork_line = || JellyfinLyricLine {
+            text: "Hello world".to_string(),
+            timestamp: Some(5_000_000.0),
+            end: Some(40_000_000.0),
+            cues: Some(vec![JellyfinLyricLineCue {
+                position: 0,
+                end_position: 6,
+                start: 10_000_000,
+                end: Some(15_000_000),
+                word: Some("Hello ".to_string()),
+            }]),
+            agent_id: Some("singerA".to_string()),
+            translation: Some("Bonjour le monde".to_string()),
+            section: Some("Verse 1".to_string()),
+        };
+
+        let lyrics = JellyfinLyrics {
+            metadata: None,
+            lyrics: vec![make_fork_line()],
+            songwriters: Some(vec!["Songwriter One".to_string()]),
+            language: Some("en".to_string()),
+            agents: Some(vec![JellyfinLyricAgent {
+                id: "singerA".to_string(),
+                agent_type: "person".to_string(),
+                name: Some("Alice".to_string()),
+            }]),
+            sections: Some(vec![JellyfinLyricSection {
+                name: "Verse 1".to_string(),
+                start_time_ms: 500,
+                end_time_ms: 4000,
+                lines: vec![make_fork_line()],
+                agent_id: Some("singerA".to_string()),
+            }]),
+        };
+
+        let parsed = jellyfin_to_parsed_lyrics(&lyrics);
+
+        assert_eq!(parsed.language.as_deref(), Some("en"));
+        assert_eq!(parsed.songwriters.as_deref(), Some(&["Songwriter One".to_string()][..]));
+        assert_eq!(parsed.agents.as_ref().map(Vec::len), Some(1));
+        assert_eq!(parsed.sections.as_ref().map(Vec::len), Some(1));
+        assert_eq!(parsed.synced[0].end_time_ms, Some(4000));
+        assert_eq!(parsed.synced[0].agent_id.as_deref(), Some("singerA"));
+        assert_eq!(
+            parsed.synced[0].translation.as_deref(),
+            Some("Bonjour le monde")
+        );
+        assert_eq!(parsed.synced[0].words.as_ref().unwrap()[0].word, "Hello");
     }
 }
 

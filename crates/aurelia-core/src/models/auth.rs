@@ -9,7 +9,6 @@ use specta::Type;
 #[serde(rename_all = "camelCase")]
 pub enum BackendProvider {
     Jellyfin,
-    Navidrome,
 }
 
 impl Default for BackendProvider {

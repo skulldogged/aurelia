@@ -151,7 +151,7 @@ final class SessionStore: @unchecked Sendable {
                 let username = storedProfile.username.isEmpty ? storedProfile.userId : storedProfile.username
                 return SessionProfile(
                     id: storedProfile.id,
-                    label: "\(username) @ \(storedProfile.serverUrl) (\(provider.storageValue))",
+                    label: "\(username) @ \(storedProfile.serverUrl)",
                     provider: provider,
                     serverUrl: storedProfile.serverUrl,
                     userId: storedProfile.userId,
@@ -497,8 +497,6 @@ private extension BackendProvider {
         switch self {
         case .jellyfin:
             return "jellyfin"
-        case .navidrome:
-            return "navidrome"
         }
     }
 }
@@ -508,8 +506,6 @@ private extension String {
         switch lowercased() {
         case "jellyfin":
             return .jellyfin
-        case "navidrome":
-            return .navidrome
         default:
             return nil
         }

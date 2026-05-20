@@ -16,7 +16,23 @@ class AppViewModel(
       !sessionStore.getServerUrl().isNullOrBlank() &&
         !sessionStore.getUserId().isNullOrBlank() &&
         !sessionStore.getToken().isNullOrBlank()
-    return AppState(isLoading = false, isLoggedIn = hasSession, sessionVersion = sessionVersion)
+    val appDataDir = sessionStore.getAppDataDir()
+    val isInitialSyncComplete = if (hasSession && !appDataDir.isNullOrBlank()) {
+      try {
+        val syncState = uniffi.aurelia_core.getSyncState(appDataDir)
+        syncState.lastSyncTime != "1970-01-01T00:00:00Z"
+      } catch (e: Exception) {
+        false
+      }
+    } else {
+      false
+    }
+    return AppState(
+      isLoading = false,
+      isLoggedIn = hasSession,
+      isInitialSyncComplete = isInitialSyncComplete,
+      sessionVersion = sessionVersion
+    )
   }
 
   fun checkSession() {

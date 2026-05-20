@@ -852,17 +852,7 @@ final class AudioPlayerController: @unchecked Sendable {
     ) -> String {
         let resolvedServerUrl = serverUrl ?? lastServerUrl
         let resolvedToken = token ?? lastToken
-        let provider = resolveBackendProvider(token: resolvedToken)
         guard !resolvedServerUrl.isEmpty, !resolvedToken.isEmpty else {
-            return buildMobileStreamUrl(
-                serverUrl: resolvedServerUrl,
-                token: resolvedToken,
-                itemId: song.id,
-                container: song.container
-            )
-        }
-
-        if provider == .navidrome {
             return buildMobileStreamUrl(
                 serverUrl: resolvedServerUrl,
                 token: resolvedToken,
@@ -959,10 +949,7 @@ final class AudioPlayerController: @unchecked Sendable {
     }
 
     private func resolveBackendProvider(token: String) -> BackendProvider {
-        if let provider = sessionStore.provider {
-            return provider
-        }
-        return token.hasPrefix("nd:") ? .navidrome : .jellyfin
+        return .jellyfin
     }
 
     private func attachVisualizerTap(to item: AVPlayerItem) {

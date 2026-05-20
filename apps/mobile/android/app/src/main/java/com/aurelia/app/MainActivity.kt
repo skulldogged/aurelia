@@ -24,6 +24,7 @@ import com.aurelia.app.ui.AppViewModel
 import com.aurelia.app.ui.viewModelFactory
 import com.aurelia.app.ui.LoginScreen
 import com.aurelia.app.ui.MainScreen
+import com.aurelia.app.ui.SetupScreen
 import com.aurelia.app.ui.SharedPlayerControllerViewModel
 import com.aurelia.app.ui.theme.AureliaTheme
 import com.aurelia.app.sync.SyncWorker
@@ -88,25 +89,41 @@ private fun AureliaApp() {
         // Show nothing while checking session - themed background only
       }
       appState.isLoggedIn -> {
-        // Schedule background sync when user is logged in
-        LaunchedEffect(Unit) {
-          SyncWorker.schedule(context)
-        }
-        key(appState.sessionVersion) {
-          MainScreen(
-            sessionStore = sessionStore,
-            playerController = playerController,
-            onLogout = {
-              SyncWorker.cancel(context)
-              sessionStore.clear()
-              appViewModel.checkSession()
-            },
-            onSessionSwitched = {
-              playerController.stop()
-              SyncWorker.schedule(context)
-              appViewModel.refreshForSessionSwitch()
-            },
-          )
+        if (appState.isInitialSyncComplete) {
+          // Schedule background sync when user is logged in and initial sync is complete
+          LaunchedEffect(Unit) {
+            SyncWorker.schedule(context)
+          }
+          key(appState.sessionVersion) {
+            MainScreen(
+              sessionStore = sessionStore,
+              playerController = playerController,
+              onLogout = {
+                SyncWorker.cancel(context)
+                sessionStore.clear()
+                appViewModel.checkSession()
+              },
+              onSessionSwitched = {
+                playerController.stop()
+                SyncWorker.schedule(context)
+                appViewModel.refreshForSessionSwitch()
+              },
+            )
+          }
+        } else {
+          key(appState.sessionVersion) {
+            SetupScreen(
+              sessionStore = sessionStore,
+              onLogout = {
+                SyncWorker.cancel(context)
+                sessionStore.clear()
+                appViewModel.checkSession()
+              },
+              onSetupComplete = {
+                appViewModel.checkSession()
+              }
+            )
+          }
         }
       }
       else -> {

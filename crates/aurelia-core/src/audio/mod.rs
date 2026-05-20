@@ -29,6 +29,8 @@ pub struct AudioState {
     pub player: TokioMutex<Option<AudioPlayer>>,
     /// Shared analyzer buffer for spectrum events
     pub analyzer_buffer: Mutex<Option<Arc<AnalyzerBuffer>>>,
+    /// Persistent FFT processor so spectrum smoothing carries across frames.
+    spectrum_analyzer: Mutex<SpectrumAnalyzer>,
 }
 
 impl Default for AudioState {
@@ -36,6 +38,7 @@ impl Default for AudioState {
         Self {
             player: TokioMutex::new(None),
             analyzer_buffer: Mutex::new(None),
+            spectrum_analyzer: Mutex::new(SpectrumAnalyzer::new()),
         }
     }
 }
@@ -47,6 +50,12 @@ impl AudioState {
 }
 
 use anyhow::Result;
+
+#[derive(Clone, Debug, uniffi::Record)]
+pub struct SpectrumSnapshot {
+    pub frequency_data: Vec<u8>,
+    pub time_domain_data: Vec<u8>,
+}
 
 /// Initialize the audio player
 pub async fn audio_init(state: &AudioState) -> Result<()> {
@@ -248,6 +257,26 @@ pub async fn audio_is_analyzer_enabled(state: &AudioState) -> Result<bool> {
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
     Ok(player.is_analyzer_enabled())
+}
+
+/// Read the current analyzer buffer and compute FFT/waveform data.
+pub fn audio_get_spectrum_snapshot(state: &AudioState) -> Result<SpectrumSnapshot> {
+    let analyzer_buffer = state
+        .analyzer_buffer
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+
+    let samples = analyzer_buffer.read_samples();
+    let mut analyzer = state.spectrum_analyzer.lock().unwrap();
+    let frequency_data = analyzer.compute_spectrum(&samples).to_vec();
+    let time_domain_data = analyzer.compute_waveform(&samples).to_vec();
+
+    Ok(SpectrumSnapshot {
+        frequency_data,
+        time_domain_data,
+    })
 }
 
 /// Reinitialize audio player

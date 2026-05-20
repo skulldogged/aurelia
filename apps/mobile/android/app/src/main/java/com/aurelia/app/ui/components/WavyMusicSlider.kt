@@ -85,7 +85,6 @@ fun WavyMusicSlider(
   )
 
   val phaseShiftAnim = remember { Animatable(0f) }
-  val phaseShift = phaseShiftAnim.value
 
   LaunchedEffect(shouldShowWave, waveAnimationDuration) {
     if (shouldShowWave && waveAnimationDuration > 0) {
@@ -173,6 +172,7 @@ fun WavyMusicSlider(
               }
 
             onDrawWithContent {
+              val phaseShift = phaseShiftAnim.value
               // Inactive track
               val currentProgressPxEndVisual = thumbRadiusPx + localTrackWidth * normalizedValue
               if (hideInactiveTrackPortion) {

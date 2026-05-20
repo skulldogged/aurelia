@@ -85,11 +85,7 @@ class LoginViewModel(
 
     viewModelScope.launch(Dispatchers.IO) {
       try {
-        val resolvedProvider = when (current.providerSelection) {
-          LoginProviderSelection.JELLYFIN -> BackendProvider.JELLYFIN
-          LoginProviderSelection.NAVIDROME -> BackendProvider.NAVIDROME
-          LoginProviderSelection.AUTO -> current.detectedProvider ?: detectProvider(current.serverUrl.trim())
-        }
+        val resolvedProvider = BackendProvider.JELLYFIN
 
         val response = authenticate(
           AuthRequest(

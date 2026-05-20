@@ -50,7 +50,7 @@ export type AuthRequest = { provider: BackendProvider; serverUrl: string; userna
 /**
  * Supported backend providers.
  */
-export type BackendProvider = "jellyfin" | "navidrome"
+export type BackendProvider = "jellyfin"
 
 /**
  * Provider capabilities for feature gating.

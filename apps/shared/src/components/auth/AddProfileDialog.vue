@@ -39,9 +39,6 @@
   })
 
   const loading = ref(false)
-  const detectingProvider = ref(false)
-  const detectedProvider = ref<BackendProvider | null>(null)
-  const providerSelection = ref<'auto' | BackendProvider>('auto')
   const error = ref('')
 
   const open = computed({
@@ -59,34 +56,14 @@
     return `aurelia-${appLabel}-${deviceId}`
   }
 
-  const detectProvider = async (): Promise<void> => {
-    if (!form.value.serverUrl.trim()) return
-    detectingProvider.value = true
-    try {
-      detectedProvider.value = await runAureliaEffect(detectProviderEffect(form.value.serverUrl))
-    } catch {
-      detectedProvider.value = null
-    } finally {
-      detectingProvider.value = false
-    }
-  }
-
-  const resolveProvider = (): BackendProvider =>
-    providerSelection.value === 'auto'
-      ? (detectedProvider.value ?? 'jellyfin')
-      : providerSelection.value
-
   const resetForm = (): void => {
     form.value = {
       password:  '',
       serverUrl: '',
       username:  '',
     }
-    providerSelection.value = 'auto'
-    detectedProvider.value = null
     error.value = ''
     loading.value = false
-    detectingProvider.value = false
   }
 
   watch(() => props.open, isOpen => {
@@ -98,14 +75,10 @@
     loading.value = true
 
     try {
-      if (providerSelection.value === 'auto' && !detectedProvider.value) {
-        await detectProvider()
-      }
-
       const credentials = await runAureliaEffect(authenticateEffect({
         deviceId:  getDeviceId(),
         password:  form.value.password,
-        provider:  resolveProvider(),
+        provider:  'jellyfin',
         serverUrl: form.value.serverUrl,
         username:  form.value.username,
       }))
@@ -140,32 +113,6 @@
       </DialogHeader>
 
       <div class='space-y-4'>
-        <div class='grid gap-2'>
-          <Label for='add-profile-provider'>Provider</Label>
-          <div class='flex gap-2'>
-            <select
-              id='add-profile-provider'
-              v-model='providerSelection'
-              class='w-full border border-input bg-background rounded-md h-10 px-3'
-            >
-              <option value='auto'>Auto-detect</option>
-              <option value='jellyfin'>Jellyfin</option>
-              <option value='navidrome'>Navidrome</option>
-            </select>
-            <Button
-              @click='detectProvider'
-              :disabled='detectingProvider || !form.serverUrl'
-              type='button'
-              variant='outline'
-            >
-              {{ detectingProvider ? 'Detecting...' : 'Detect' }}
-            </Button>
-          </div>
-          <p v-if='detectedProvider' class='text-xs text-muted-foreground'>
-            Detected: {{ detectedProvider }}
-          </p>
-        </div>
-
         <div class='grid gap-2'>
           <Label for='add-profile-server-url'>Server URL</Label>
           <Input

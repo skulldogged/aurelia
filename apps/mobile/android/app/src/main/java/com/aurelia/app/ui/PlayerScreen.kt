@@ -75,6 +75,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -114,6 +115,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.data.model.Lyrics
 import com.aurelia.app.data.model.SyncedLine
@@ -303,7 +305,7 @@ private fun PlayerBackdrop(
         if (!disableImageLayer) {
             if (disableTransitions) {
                 if (!albumArtUrl.isNullOrBlank()) {
-                    SubcomposeAsyncImage(
+                    AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(optimizedArtworkUrl(albumArtUrl, backdropSize))
                             .crossfade(false)
@@ -320,7 +322,7 @@ private fun PlayerBackdrop(
                                     alpha = if (isDark) 0.32f else 0.40f
                                     scaleX = 1.14f
                                     scaleY = 1.14f
-                                },
+                                    },
                         contentScale = ContentScale.Crop,
                     )
                 }
@@ -332,7 +334,7 @@ private fun PlayerBackdrop(
                     label = "album-art-background",
                 ) { artUrl ->
                     if (!artUrl.isNullOrBlank()) {
-                        SubcomposeAsyncImage(
+                        AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(optimizedArtworkUrl(artUrl, backdropSize))
                                 .crossfade(true)
@@ -436,13 +438,11 @@ fun PlayerScreen(
   }
   
   // Visualizer state
-  val visualizerState by AudioManager.visualizerState.collectAsStateWithLifecycle()
   val visualizerEnabled = remember(sessionStore) { sessionStore.getVisualizerEnabled() }
   val visualizerStyleName = remember(sessionStore) { sessionStore.getVisualizerStyle() }
   val visualizerStyle = remember(visualizerStyleName) {
     try { VisualizerStyle.valueOf(visualizerStyleName) } catch (_: Exception) { VisualizerStyle.BARS }
   }
-  val shouldShowVisualizer = visualizerEnabled && visualizerState.enabled && state.isPlaying && visualizerState.frequencyData.isNotEmpty()
   
   // Extract dynamic colors from album art
   val albumColors = rememberAlbumArtColors(state.albumArtUrl, miniPlayerSeedColors)
@@ -480,29 +480,14 @@ fun PlayerScreen(
       modifier = Modifier.fillMaxSize(),
     )
 
-    AnimatedVisibility(
-      visible = shouldShowVisualizer,
+    FullscreenVisualizer(
+      visualizerEnabled = visualizerEnabled,
+      isPlaying = state.isPlaying,
+      visualizerStyle = visualizerStyle,
+      primaryColor = primaryColor,
+      disablePlayerTransitions = disablePlayerTransitions,
       modifier = Modifier.align(Alignment.BottomCenter),
-      enter = if (disablePlayerTransitions) EnterTransition.None else fadeIn(animationSpec = tween(300)),
-      exit = if (disablePlayerTransitions) ExitTransition.None else fadeOut(animationSpec = tween(300)),
-    ) {
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(160.dp)
-          .graphicsLayer { alpha = 0.40f },
-      ) {
-        AudioVisualizer(
-          frequencyData = visualizerState.frequencyData,
-          timeDomainData = visualizerState.waveform,
-          style = visualizerStyle,
-          accentColor = primaryColor,
-          modifier = Modifier.fillMaxSize(),
-          boost = 0.88f,
-        )
-      }
-    }
-    VisualizerFrameMetrics(tag = "FullscreenVisualizer", enabled = shouldShowVisualizer)
+    )
 
     Column(
       modifier =
@@ -883,10 +868,9 @@ private fun SyncedLyricsPanel(
   primaryColor: Color,
   modifier: Modifier = Modifier,
 ) {
-  val currentPositionMs = positionState.value
   LyricsView(
     lyrics = lyrics,
-    currentPosition = currentPositionMs,
+    positionState = positionState,
     onLineClick = onLineClick,
     primaryColor = primaryColor,
     modifier = modifier,
@@ -1234,7 +1218,7 @@ private fun SecondaryControls(
 @Composable
 private fun LyricsView(
   lyrics: Lyrics?,
-  currentPosition: Long,
+  positionState: State<Long>,
   onLineClick: (Int) -> Unit,
   primaryColor: Color,
   modifier: Modifier = Modifier,
@@ -1260,8 +1244,9 @@ private fun LyricsView(
       labels
     }
 
-  val currentLineIndex =
-    remember(currentPosition, syncedLines) {
+  val currentLineIndex by remember(syncedLines) {
+    derivedStateOf {
+      val currentPosition = positionState.value
       if (syncedLines.isNullOrEmpty()) {
         -1
       } else {
@@ -1273,6 +1258,7 @@ private fun LyricsView(
           }?.index ?: -1
       }
     }
+  }
 
   BoxWithConstraints(modifier = modifier) {
     val containerHeight = maxHeight
@@ -1352,7 +1338,7 @@ private fun LyricsView(
               // Word-synced karaoke line with gradient fill - always white
               WordSyncedLine(
                 line = line,
-                currentPosition = currentPosition,
+                positionState = positionState,
                 isActive = isCurrentLine,
                 isBackground = isBackground,
                 isSecondary = isSecondary,
@@ -1441,7 +1427,7 @@ private fun LyricsView(
 @Composable
 private fun WordSyncedLine(
   line: SyncedLine,
-  currentPosition: Long,
+  positionState: State<Long>,
   isActive: Boolean,
   isBackground: Boolean,
   isSecondary: Boolean = false,
@@ -1450,6 +1436,7 @@ private fun WordSyncedLine(
 ) {
   val words = line.words ?: return
   val density = LocalDensity.current
+  val currentPosition = positionState.value
 
   val activeWordIndex = remember(currentPosition, words) {
     words.withIndex().lastOrNull { (_, word) ->
@@ -1509,6 +1496,15 @@ private fun WordSyncedLine(
 
   var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
+  // Cache character bounding boxes to avoid making reflection JNI calls on every frame
+  val charBoundsList = remember(textLayoutResult) {
+    textLayoutResult?.let { layoutResult ->
+      List(layoutResult.layoutInput.text.length) { i ->
+        layoutResult.getBoundingBox(i)
+      }
+    } ?: emptyList()
+  }
+
   // Pre-compute character ranges for each word
   val wordCharRanges = remember(wordInfos) {
     var charIndex = 0
@@ -1520,51 +1516,50 @@ private fun WordSyncedLine(
     }
   }
 
-          // Build a clip path for the bright overlay based on word positions
-          val highlightPath = remember(textLayoutResult, activeWordIndex, wordProgress, wordCharRanges) {
-            textLayoutResult?.let { layoutResult ->
-              if (activeWordIndex < 0) return@remember null
-              
-              val path = Path()
-              
-              wordCharRanges.forEach { charRange ->
-                if (charRange.wordIndex < activeWordIndex) {
-                  // Fully sung word: add bounding box for every character
-                  // This handles multi-line words and descenders correctly
-                  for (i in charRange.start..charRange.end) {
-                    path.addRect(layoutResult.getBoundingBox(i))
-                  }
-                } else if (charRange.wordIndex == activeWordIndex) {
-                  // Active word: calculate progress
-                  val startBounds = layoutResult.getBoundingBox(charRange.start)
-                  val endBounds = layoutResult.getBoundingBox(charRange.end)
-                  
-                  // Only animate progress for single-line words
-                  if (startBounds.top == endBounds.top) {
-                    val wordLeft = startBounds.left
-                    val wordRight = endBounds.right
-                    val clipRight = wordLeft + (wordRight - wordLeft) * wordProgress
-                    
-                    for (i in charRange.start..charRange.end) {
-                      val charBounds = layoutResult.getBoundingBox(i)
-                      if (charBounds.right <= clipRight) {
-                        path.addRect(charBounds)
-                      } else if (charBounds.left < clipRight) {
-                        path.addRect(Rect(
-                          left = charBounds.left,
-                          top = charBounds.top,
-                          right = clipRight,
-                          bottom = charBounds.bottom
-                        ))
-                      }
-                    }
-                  }
-                }
-              }
-              
-              path
+  // Build a clip path for the bright overlay based on word positions
+  val highlightPath = remember(charBoundsList, activeWordIndex, wordProgress, wordCharRanges) {
+    if (charBoundsList.isEmpty()) return@remember null
+    if (activeWordIndex < 0) return@remember null
+    
+    val path = Path()
+    
+    wordCharRanges.forEach { charRange ->
+      if (charRange.wordIndex < activeWordIndex) {
+        // Fully sung word: add bounding box for every character
+        for (i in charRange.start..charRange.end) {
+          val bounds = charBoundsList.getOrNull(i) ?: continue
+          path.addRect(bounds)
+        }
+      } else if (charRange.wordIndex == activeWordIndex) {
+        // Active word: calculate progress
+        val startBounds = charBoundsList.getOrNull(charRange.start) ?: return@forEach
+        val endBounds = charBoundsList.getOrNull(charRange.end) ?: return@forEach
+        
+        // Only animate progress for single-line words
+        if (startBounds.top == endBounds.top) {
+          val wordLeft = startBounds.left
+          val wordRight = endBounds.right
+          val clipRight = wordLeft + (wordRight - wordLeft) * wordProgress
+          
+          for (i in charRange.start..charRange.end) {
+            val charBounds = charBoundsList.getOrNull(i) ?: continue
+            if (charBounds.right <= clipRight) {
+              path.addRect(charBounds)
+            } else if (charBounds.left < clipRight) {
+              path.addRect(Rect(
+                left = charBounds.left,
+                top = charBounds.top,
+                right = clipRight,
+                bottom = charBounds.bottom
+              ))
             }
           }
+        }
+      }
+    }
+    
+    path
+  }
 
   val textStyle = MaterialTheme.typography.titleLarge.copy(
     fontSize = 28.sp,
@@ -1781,3 +1776,41 @@ private fun QueueItemRow(
     }
   }
 }
+
+@Composable
+private fun FullscreenVisualizer(
+  visualizerEnabled: Boolean,
+  isPlaying: Boolean,
+  visualizerStyle: VisualizerStyle,
+  primaryColor: Color,
+  disablePlayerTransitions: Boolean,
+  modifier: Modifier = Modifier,
+) {
+  val visualizerState by AudioManager.visualizerState.collectAsStateWithLifecycle()
+  val shouldShowVisualizer = visualizerEnabled && visualizerState.enabled && isPlaying && visualizerState.frequencyData.isNotEmpty()
+
+  AnimatedVisibility(
+    visible = shouldShowVisualizer,
+    modifier = modifier,
+    enter = if (disablePlayerTransitions) EnterTransition.None else fadeIn(animationSpec = tween(300)),
+    exit = if (disablePlayerTransitions) ExitTransition.None else fadeOut(animationSpec = tween(300)),
+  ) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(160.dp)
+        .graphicsLayer { alpha = 0.40f },
+    ) {
+      AudioVisualizer(
+        frequencyData = visualizerState.frequencyData,
+        timeDomainData = visualizerState.waveform,
+        style = visualizerStyle,
+        accentColor = primaryColor,
+        modifier = Modifier.fillMaxSize(),
+        boost = 0.88f,
+      )
+    }
+  }
+  VisualizerFrameMetrics(tag = "FullscreenVisualizer", enabled = shouldShowVisualizer)
+}
+

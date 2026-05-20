@@ -26,7 +26,6 @@ fn normalize_component(value: &str) -> String {
 pub fn profile_storage_key(credentials: &Credentials) -> String {
     let provider = match credentials.provider {
         crate::BackendProvider::Jellyfin => "jellyfin",
-        crate::BackendProvider::Navidrome => "navidrome",
     };
 
     let normalized_username = normalize_component(&credentials.username);

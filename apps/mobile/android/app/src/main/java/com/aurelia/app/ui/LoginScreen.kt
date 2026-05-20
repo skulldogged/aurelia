@@ -127,53 +127,7 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth(),
           )
 
-          Text(
-            text = "Provider",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-          )
 
-          Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth(),
-          ) {
-            FilterChip(
-              selected = state.providerSelection == LoginProviderSelection.AUTO,
-              onClick = { viewModel.updateProviderSelection(LoginProviderSelection.AUTO) },
-              label = { Text("Auto") },
-            )
-            FilterChip(
-              selected = state.providerSelection == LoginProviderSelection.JELLYFIN,
-              onClick = { viewModel.updateProviderSelection(LoginProviderSelection.JELLYFIN) },
-              label = { Text("Jellyfin") },
-            )
-            FilterChip(
-              selected = state.providerSelection == LoginProviderSelection.NAVIDROME,
-              onClick = { viewModel.updateProviderSelection(LoginProviderSelection.NAVIDROME) },
-              label = { Text("Navidrome") },
-            )
-          }
-
-          if (state.providerSelection == LoginProviderSelection.AUTO) {
-            TextButton(
-              onClick = viewModel::detectProviderNow,
-              enabled = !state.isSubmitting && !state.isDetectingProvider && state.serverUrl.isNotBlank(),
-            ) {
-              Text(if (state.isDetectingProvider) "Detecting provider..." else "Detect provider")
-            }
-
-            val detectedProviderLabel =
-              when (state.detectedProvider) {
-                BackendProvider.JELLYFIN -> "Detected provider: Jellyfin"
-                BackendProvider.NAVIDROME -> "Detected provider: Navidrome"
-                null -> "Detected provider: not detected"
-              }
-            Text(
-              text = detectedProviderLabel,
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
 
           OutlinedTextField(
             value = state.username,

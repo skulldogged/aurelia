@@ -222,68 +222,7 @@ fun SettingsScreen(
             color = colors.onSurfaceVariant,
           )
 
-          Text(
-            text = "Provider",
-            style = MaterialTheme.typography.labelLarge,
-            color = colors.onSurface,
-          )
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-              selected = addProfileProviderSelection == LoginProviderSelection.AUTO,
-              onClick = { addProfileProviderSelection = LoginProviderSelection.AUTO },
-              label = { Text("Auto") },
-            )
-            FilterChip(
-              selected = addProfileProviderSelection == LoginProviderSelection.JELLYFIN,
-              onClick = { addProfileProviderSelection = LoginProviderSelection.JELLYFIN },
-              label = { Text("Jellyfin") },
-            )
-            FilterChip(
-              selected = addProfileProviderSelection == LoginProviderSelection.NAVIDROME,
-              onClick = { addProfileProviderSelection = LoginProviderSelection.NAVIDROME },
-              label = { Text("Navidrome") },
-            )
-          }
 
-          if (addProfileProviderSelection == LoginProviderSelection.AUTO) {
-            TextButton(
-              onClick = {
-                if (addProfileServerUrl.isBlank() || addProfileIsDetectingProvider || addProfileIsSubmitting) {
-                  return@TextButton
-                }
-                addProfileError = null
-                addProfileIsDetectingProvider = true
-                scope.launch(Dispatchers.IO) {
-                  try {
-                    val provider = detectProvider(addProfileServerUrl.trim())
-                    withContext(Dispatchers.Main) {
-                      addProfileDetectedProvider = provider
-                      addProfileIsDetectingProvider = false
-                    }
-                  } catch (error: Exception) {
-                    withContext(Dispatchers.Main) {
-                      addProfileError = error.message ?: "Provider detection failed"
-                      addProfileIsDetectingProvider = false
-                    }
-                  }
-                }
-              },
-              enabled = !addProfileIsDetectingProvider && !addProfileIsSubmitting && addProfileServerUrl.isNotBlank(),
-            ) {
-              Text(if (addProfileIsDetectingProvider) "Detecting provider..." else "Detect provider")
-            }
-
-            val detectedProviderLabel = when (addProfileDetectedProvider) {
-              BackendProvider.JELLYFIN -> "Detected provider: Jellyfin"
-              BackendProvider.NAVIDROME -> "Detected provider: Navidrome"
-              null -> "Detected provider: not detected"
-            }
-            Text(
-              text = detectedProviderLabel,
-              style = MaterialTheme.typography.bodySmall,
-              color = colors.onSurfaceVariant,
-            )
-          }
 
           androidx.compose.material3.OutlinedTextField(
             value = addProfileServerUrl,
@@ -339,11 +278,7 @@ fun SettingsScreen(
             addProfileIsSubmitting = true
             scope.launch(Dispatchers.IO) {
               try {
-                val resolvedProvider = when (addProfileProviderSelection) {
-                  LoginProviderSelection.JELLYFIN -> BackendProvider.JELLYFIN
-                  LoginProviderSelection.NAVIDROME -> BackendProvider.NAVIDROME
-                  LoginProviderSelection.AUTO -> addProfileDetectedProvider ?: detectProvider(addProfileServerUrl.trim())
-                }
+                val resolvedProvider = BackendProvider.JELLYFIN
 
                 val response = authenticate(
                   AuthRequest(
@@ -1021,7 +956,7 @@ private fun ProfileActionItem(
         color = colors.onSurface,
       )
       Text(
-        text = "${profile.provider.name.lowercase()} • ${profile.serverUrl}",
+        text = profile.serverUrl,
         style = MaterialTheme.typography.bodySmall,
         color = colors.onSurfaceVariant,
       )

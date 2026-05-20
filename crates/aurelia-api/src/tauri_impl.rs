@@ -664,9 +664,21 @@ impl Api for TauriApiImpl {
             .unwrap_or_default();
 
         let lyrics_server_url = if !app_dir.is_empty() {
-            aurelia_core::load_setting(app_dir, "lyrics_server_url".to_string())
-                .ok()
-                .flatten()
+            let sidecar_enabled = aurelia_core::load_setting(
+                app_dir.clone(),
+                "lyrics_sidecar_enabled".to_string(),
+            )
+            .ok()
+            .flatten()
+            .is_some_and(|value| value == "true");
+
+            if sidecar_enabled {
+                aurelia_core::load_setting(app_dir, "lyrics_server_url".to_string())
+                    .ok()
+                    .flatten()
+            } else {
+                None
+            }
         } else {
             None
         };

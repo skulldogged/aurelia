@@ -649,6 +649,8 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_get_position_secs(
     ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_get_spectrum_snapshot_player(
+    ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_get_volume_player(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_init_player(
@@ -664,6 +666,8 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_aurelia_core_checksum_func_audio_resume_player(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_seek_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_set_analyzer_enabled_player(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_set_volume_player(
     ): Short
@@ -787,6 +791,8 @@ internal object UniffiLib {
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_get_position_secs(
 ): Long
+external fun uniffi_aurelia_core_fn_func_audio_get_spectrum_snapshot_player(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_audio_get_volume_player(
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_init_player(
@@ -802,6 +808,8 @@ external fun uniffi_aurelia_core_fn_func_audio_play_url(`url`: RustBuffer.ByValu
 external fun uniffi_aurelia_core_fn_func_audio_resume_player(
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_seek_player(`positionSecs`: Double,
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_set_analyzer_enabled_player(`enabled`: Byte,
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_set_volume_player(`volume`: Double,
 ): Long
@@ -1032,6 +1040,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_audio_get_position_secs() != 52501.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_get_spectrum_snapshot_player() != 1492.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_audio_get_volume_player() != 37228.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1054,6 +1065,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_audio_seek_player() != 15002.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_set_analyzer_enabled_player() != 3796.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_audio_set_volume_player() != 9428.toShort()) {
@@ -1560,6 +1574,25 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
         val byteBuf = toUtf8(value)
         buf.putInt(byteBuf.limit())
         buf.put(byteBuf)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
+    override fun read(buf: ByteBuffer): ByteArray {
+        val len = buf.getInt()
+        val byteArr = ByteArray(len)
+        buf.get(byteArr)
+        return byteArr
+    }
+    override fun allocationSize(value: ByteArray): ULong {
+        return 4UL + value.size.toULong()
+    }
+    override fun write(value: ByteArray, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        buf.put(value)
     }
 }
 
@@ -2893,6 +2926,44 @@ public object FfiConverterTypeSong: FfiConverterRustBuffer<Song> {
 
 
 
+data class SpectrumSnapshot (
+    var `frequencyData`: kotlin.ByteArray
+    , 
+    var `timeDomainData`: kotlin.ByteArray
+    
+){
+    
+
+    
+
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSpectrumSnapshot: FfiConverterRustBuffer<SpectrumSnapshot> {
+    override fun read(buf: ByteBuffer): SpectrumSnapshot {
+        return SpectrumSnapshot(
+            FfiConverterByteArray.read(buf),
+            FfiConverterByteArray.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SpectrumSnapshot) = (
+            FfiConverterByteArray.allocationSize(value.`frequencyData`) +
+            FfiConverterByteArray.allocationSize(value.`timeDomainData`)
+    )
+
+    override fun write(value: SpectrumSnapshot, buf: ByteBuffer) {
+            FfiConverterByteArray.write(value.`frequencyData`, buf)
+            FfiConverterByteArray.write(value.`timeDomainData`, buf)
+    }
+}
+
+
+
 /**
  * Progress update during sync (for UI feedback)
  */
@@ -3415,8 +3486,7 @@ public object FfiConverterTypeAppError : FfiConverterRustBuffer<AppException> {
 
 enum class BackendProvider {
     
-    JELLYFIN,
-    NAVIDROME;
+    JELLYFIN;
 
     
 
@@ -4274,6 +4344,17 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
     )
     }
 
+    @Throws(AppException::class) fun `audioGetSpectrumSnapshotPlayer`(): SpectrumSnapshot {
+            return FfiConverterTypeSpectrumSnapshot.lift(
+    uniffiRustCallWithError(AppException) { _status ->
+    UniffiLib.uniffi_aurelia_core_fn_func_audio_get_spectrum_snapshot_player(
+    
+        _status)
+}
+    )
+    }
+    
+
     @Throws(AppException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
      suspend fun `audioGetVolumePlayer`() : kotlin.Double {
@@ -4388,6 +4469,22 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
      suspend fun `audioSeekPlayer`(`positionSecs`: kotlin.Double) {
         return uniffiRustCallAsync(
         UniffiLib.uniffi_aurelia_core_fn_func_audio_seek_player(FfiConverterDouble.lower(`positionSecs`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioSetAnalyzerEnabledPlayer`(`enabled`: kotlin.Boolean) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_set_analyzer_enabled_player(FfiConverterBoolean.lower(`enabled`),),
         { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
         { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },

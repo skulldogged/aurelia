@@ -960,7 +960,7 @@ pub fn apply_theme(cx: &mut impl BorrowAppContext, palette: AppPalette) {
         theme.slider_bar = muted;
         theme.slider_thumb = accent;
         theme.switch = muted;
-        theme.switch_thumb = accent;
+        theme.switch_thumb = primary_fg;
         theme.scrollbar = background_dark;
         theme.scrollbar_thumb = to_hsla_alpha(palette.accent_alpha(if dark { 150 } else { 128 }));
         theme.scrollbar_thumb_hover = accent;

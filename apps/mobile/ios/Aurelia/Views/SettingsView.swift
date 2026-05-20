@@ -200,7 +200,7 @@ struct SettingsView: View {
                 }
             }
 
-            Text("\(providerLabel(profile.provider)) • \(profile.serverUrl)")
+            Text(profile.serverUrl)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -248,12 +248,5 @@ struct SettingsView: View {
         }
     }
 
-    private func providerLabel(_ provider: BackendProvider) -> String {
-        switch provider {
-        case .jellyfin:
-            return "jellyfin"
-        case .navidrome:
-            return "navidrome"
-        }
-    }
+
 }

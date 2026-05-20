@@ -5,7 +5,6 @@ import uniffi.aurelia_core.BackendProvider
 enum class LoginProviderSelection {
   AUTO,
   JELLYFIN,
-  NAVIDROME,
 }
 
 data class LoginState(

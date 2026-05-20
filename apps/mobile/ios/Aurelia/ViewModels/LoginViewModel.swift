@@ -6,7 +6,6 @@ import UIKit
 enum LoginProviderSelection: String, CaseIterable, Identifiable {
     case auto
     case jellyfin
-    case navidrome
 
     var id: String { rawValue }
 
@@ -16,8 +15,6 @@ enum LoginProviderSelection: String, CaseIterable, Identifiable {
             return "Auto"
         case .jellyfin:
             return "Jellyfin"
-        case .navidrome:
-            return "Navidrome"
         }
     }
 }
@@ -94,18 +91,7 @@ final class LoginViewModel: @unchecked Sendable {
         Task.detached {
             [serverUrl = normalizedServerUrl, username = self.username, password = self.password, deviceId, providerSelection, detectedProvider] in
             do {
-                let resolvedProvider: BackendProvider = switch providerSelection {
-                case .jellyfin:
-                    .jellyfin
-                case .navidrome:
-                    .navidrome
-                case .auto:
-                    if let detectedProvider {
-                        detectedProvider
-                    } else {
-                        try await detectProvider(serverUrl: serverUrl)
-                    }
-                }
+                let resolvedProvider: BackendProvider = .jellyfin
 
                 let response = try await authenticate(
                     request: AuthRequest(

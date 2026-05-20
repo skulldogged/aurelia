@@ -3,14 +3,8 @@
 # in /usr/local/Cellar/android-sdk/24.3.3/tools/proguard/proguard-android.txt
 # (or the directory containing the SDK)
 
-# Don't obfuscate in debug to allow stack traces to be readable
--dontobfuscate
-
-# Keep line numbers, source file names, and Annotations (crucial for JNA)
+# Keep line numbers, source file names, and Annotations (crucial for JNA and stack traces)
 -keepattributes SourceFile,LineNumberTable,*Annotation*,Signature,EnclosingMethod
-
-# Jetpack Compose specific rules
--keep class androidx.compose.** { *; }
 
 # JNA (Java Native Access) Rules
 # Prevent R8 from stripping JNA classes and native methods
@@ -25,3 +19,25 @@
 
 # Uniffi generated code (which uses JNA)
 -keep class uniffi.** { *; }
+
+# Kotlinx Serialization Rules
+-keepclassmembers class * {
+    *** Companion;
+}
+-keepclassmembers class * {
+    *** $serializer;
+}
+
+# Ignore missing AWT classes referenced by JNA on Android
+-dontwarn java.awt.**
+
+# Room Database keep rules (WorkManager database is instantiated via reflection)
+-keep class * extends androidx.room.RoomDatabase {
+    <init>(...);
+}
+
+# WorkManager Worker keep rules
+-keep class * extends androidx.work.ListenableWorker {
+    <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+

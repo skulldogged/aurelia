@@ -16,6 +16,18 @@ pub struct JellyfinLyrics {
     #[serde(rename = "Lyrics")]
     #[specta(rename = "lyrics")]
     pub lyrics: Vec<JellyfinLyricLine>,
+    #[serde(rename = "Songwriters")]
+    #[serde(default)]
+    pub songwriters: Option<Vec<String>>,
+    #[serde(rename = "Language")]
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(rename = "Agents")]
+    #[serde(default)]
+    pub agents: Option<Vec<JellyfinLyricAgent>>,
+    #[serde(rename = "Sections")]
+    #[serde(default)]
+    pub sections: Option<Vec<JellyfinLyricSection>>,
 }
 
 /// Metadata about the lyrics (`LyricMetadata`).
@@ -66,10 +78,26 @@ pub struct JellyfinLyricLine {
     #[serde(rename = "Start")]
     #[specta(rename = "timestamp")]
     pub timestamp: Option<f64>,
+    /// End timestamp in ticks (100ns intervals).
+    #[serde(rename = "End")]
+    #[serde(default)]
+    pub end: Option<f64>,
     /// Word-level timing cues within this line.
     #[serde(rename = "Cues")]
     #[serde(default)]
     pub cues: Option<Vec<JellyfinLyricLineCue>>,
+    /// Singer/agent identifier for multi-vocal TTML.
+    #[serde(rename = "AgentId")]
+    #[serde(default)]
+    pub agent_id: Option<String>,
+    /// Translation text for this line.
+    #[serde(rename = "Translation")]
+    #[serde(default)]
+    pub translation: Option<String>,
+    /// Section name this line belongs to.
+    #[serde(rename = "Section")]
+    #[serde(default)]
+    pub section: Option<String>,
 }
 
 /// Word-level timing cue within a lyric line (`LyricLineCue`).
@@ -92,6 +120,41 @@ pub struct JellyfinLyricLineCue {
     #[serde(rename = "End")]
     #[serde(default)]
     pub end: Option<i64>,
+    /// Word text supplied by Jellyfin TTML parser, if available.
+    #[serde(rename = "Word")]
+    #[serde(default)]
+    pub word: Option<String>,
+}
+
+/// Singer/performer agent metadata from TTML lyrics.
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct JellyfinLyricAgent {
+    #[serde(rename = "Id")]
+    pub id: String,
+    #[serde(rename = "AgentType")]
+    pub agent_type: String,
+    #[serde(rename = "Name")]
+    #[serde(default)]
+    pub name: Option<String>,
+}
+
+/// Section metadata from TTML lyrics.
+#[derive(Serialize, Deserialize, Debug, Type)]
+#[specta(rename_all = "camelCase")]
+pub struct JellyfinLyricSection {
+    #[serde(rename = "Name")]
+    pub name: String,
+    #[serde(rename = "StartTimeMs")]
+    pub start_time_ms: i64,
+    #[serde(rename = "EndTimeMs")]
+    pub end_time_ms: i64,
+    #[serde(rename = "Lines")]
+    #[serde(default)]
+    pub lines: Vec<JellyfinLyricLine>,
+    #[serde(rename = "AgentId")]
+    #[serde(default)]
+    pub agent_id: Option<String>,
 }
 
 /// Device profile for client capabilities

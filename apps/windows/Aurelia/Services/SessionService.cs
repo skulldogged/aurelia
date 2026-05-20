@@ -116,6 +116,18 @@ public class SessionService {
 
   public string? GetLyricsServerUrl() {
     try {
+      var enabled = AureliaCore.AureliaCore.LoadSetting(_appDataDir, "lyrics_sidecar_enabled");
+      if (!string.Equals(enabled, "true", StringComparison.OrdinalIgnoreCase)) {
+        return null;
+      }
+
+      var v = AureliaCore.AureliaCore.LoadSetting(_appDataDir, "lyrics_server_url");
+      return string.IsNullOrWhiteSpace(v) ? null : v;
+    } catch { return null; }
+  }
+
+  public string? GetSavedLyricsServerUrl() {
+    try {
       var v = AureliaCore.AureliaCore.LoadSetting(_appDataDir, "lyrics_server_url");
       return string.IsNullOrWhiteSpace(v) ? null : v;
     } catch { return null; }
@@ -123,6 +135,17 @@ public class SessionService {
 
   public void SaveLyricsServerUrl(string? url) {
     try { AureliaCore.AureliaCore.SaveSetting(_appDataDir, "lyrics_server_url", url ?? ""); } catch { }
+  }
+
+  public bool GetLyricsSidecarEnabled() {
+    try {
+      var v = AureliaCore.AureliaCore.LoadSetting(_appDataDir, "lyrics_sidecar_enabled");
+      return string.Equals(v, "true", StringComparison.OrdinalIgnoreCase);
+    } catch { return false; }
+  }
+
+  public void SaveLyricsSidecarEnabled(bool enabled) {
+    try { AureliaCore.AureliaCore.SaveSetting(_appDataDir, "lyrics_sidecar_enabled", enabled ? "true" : "false"); } catch { }
   }
 
   public async Task<JellyfinCredentials> GetOrCreateDeviceIdAsync() {
@@ -255,14 +278,11 @@ public class SessionService {
     if (Uri.TryCreate(serverUrl, UriKind.Absolute, out Uri? uri) && !string.IsNullOrWhiteSpace(uri.Host)) {
       host = uri.Host;
     }
-    return $"{username} @ {host} ({provider.ToString().ToLowerInvariant()})";
+    return $"{username} @ {host}";
   }
 
   private static AureliaCore.BackendProvider ParseProvider(string value) {
-    return value.ToLowerInvariant() switch {
-      "navidrome" => AureliaCore.BackendProvider.Navidrome,
-      _ => AureliaCore.BackendProvider.Jellyfin,
-    };
+    return AureliaCore.BackendProvider.Jellyfin;
   }
 
   private List<StoredSessionProfile> LoadStoredProfiles() {

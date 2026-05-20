@@ -417,7 +417,6 @@ class SessionStore(
 private fun String.toBackendProvider(): BackendProvider? =
   when (lowercase()) {
     "jellyfin" -> BackendProvider.JELLYFIN
-    "navidrome" -> BackendProvider.NAVIDROME
     else -> null
   }
 

@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import com.aurelia.app.player.PlayerController
 
@@ -207,7 +208,7 @@ fun AlbumDetailScreen(
               val context = LocalContext.current
               // Album art is displayed at 240dp, 300px is plenty
               val artworkSize = with(LocalDensity.current) { 300.dp.toPx().toInt() }
-              SubcomposeAsyncImage(
+              AsyncImage(
                 model = ImageRequest.Builder(context)
                   .data(optimizedArtworkUrl(albumArtUrl, artworkSize))
                   .crossfade(true)

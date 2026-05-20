@@ -19,7 +19,6 @@ pub mod discord_rpc;
 pub mod media_controls;
 
 use std::sync::Once;
-use base64::Engine;
 
 static TRACING_INIT: Once = Once::new();
 static TRACING_GUARD: once_cell::sync::OnceCell<tracing_appender::non_blocking::WorkerGuard> =
@@ -76,67 +75,12 @@ pub fn ping() -> String {
 }
 
 #[must_use]
-pub fn infer_provider_from_token(token: &str) -> models::BackendProvider {
-    if token.starts_with("nd:") {
-        return models::BackendProvider::Navidrome;
-    }
+pub fn infer_provider_from_token(_token: &str) -> models::BackendProvider {
     models::BackendProvider::Jellyfin
-}
-
-fn build_navidrome_secret(username: &str, password: &str) -> String {
-    let combined = format!("{username}:{password}");
-    let encoded = base64::engine::general_purpose::STANDARD.encode(combined.as_bytes());
-    format!("nd:{encoded}")
-}
-
-fn parse_navidrome_secret(
-    token: &str,
-    fallback_username: Option<&str>,
-) -> Result<(String, String), error::AppError> {
-    if let Some(encoded) = token.strip_prefix("nd:") {
-        let decoded = base64::engine::general_purpose::STANDARD
-            .decode(encoded.as_bytes())
-            .map_err(|err| error::AppError::Auth(format!("Invalid Navidrome token: {err}")))?;
-        let decoded_str = String::from_utf8(decoded)
-            .map_err(|err| error::AppError::Auth(format!("Invalid Navidrome token UTF-8: {err}")))?;
-        let mut parts = decoded_str.splitn(2, ':');
-        let username = parts.next().unwrap_or_default().to_string();
-        let password = parts.next().unwrap_or_default().to_string();
-        if username.is_empty() || password.is_empty() {
-            return Err(error::AppError::Auth(
-                "Invalid Navidrome token payload".to_string(),
-            ));
-        }
-        return Ok((username, password));
-    }
-
-    let username = fallback_username.unwrap_or_default().to_string();
-    if username.is_empty() {
-        return Err(error::AppError::Auth(
-            "Missing Navidrome username for request".to_string(),
-        ));
-    }
-
-    Ok((username, token.to_string()))
-}
-
-fn navidrome_client_from_auth(
-    server_url: String,
-    token: String,
-    fallback_username: Option<&str>,
-) -> Result<services::NavidromeClient, error::AppError> {
-    let (username, password) = parse_navidrome_secret(&token, fallback_username)?;
-    Ok(services::NavidromeClient::with_auth(
-        server_url, username, password,
-    ))
 }
 
 #[uniffi::export(async_runtime = "tokio")]
 pub async fn detect_provider(server_url: String) -> Result<models::BackendProvider, error::AppError> {
-    if services::NavidromeClient::detect(&server_url).await? {
-        return Ok(models::BackendProvider::Navidrome);
-    }
-
     let jellyfin_probe =
         utils::build_jellyfin_url(&server_url, "/System/Info/Public");
     let response = reqwest::Client::new().get(jellyfin_probe).send().await?;
@@ -161,13 +105,6 @@ pub fn get_provider_capabilities(
             supports_server_lyrics: true,
             supports_instant_mix: true,
         },
-        models::BackendProvider::Navidrome => models::ProviderCapabilities {
-            supports_client_capabilities_registration: false,
-            supports_playback_progress_reporting: true,
-            supports_sidecar_lyrics_lookup: false,
-            supports_server_lyrics: false,
-            supports_instant_mix: true,
-        },
     }
 }
 
@@ -182,16 +119,6 @@ pub async fn authenticate(
                 .authenticate(&request.username, &request.password, &request.device_id)
                 .await
         }
-        models::BackendProvider::Navidrome => {
-            let client = services::NavidromeClient::new(request.server_url);
-            let _ = client
-                .authenticate(&request.username, &request.password, &request.device_id)
-                .await?;
-            Ok(models::LoginResponse {
-                token: build_navidrome_secret(&request.username, &request.password),
-                user_id: request.username,
-            })
-        }
     }
 }
 
@@ -202,15 +129,9 @@ pub async fn fetch_songs(
     user_id: String,
     app_data_dir: String,
 ) -> Result<Vec<models::Song>, error::AppError> {
-    let songs = match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_music_library(&user_id).await?
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.get_music_library(&user_id).await?
-        }
+    let songs = {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_music_library(&user_id).await?
     };
     if !app_data_dir.is_empty() {
         let app_dir = std::path::PathBuf::from(app_data_dir);
@@ -313,18 +234,9 @@ pub fn build_stream_url(
         container
     );
 
-    let result = match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_audio_stream_url(&item_id, container.as_deref())
-        }
-        models::BackendProvider::Navidrome => match navidrome_client_from_auth(server_url, token, None) {
-            Ok(client) => client.get_audio_stream_url(&item_id, container.as_deref()),
-            Err(err) => {
-                tracing::error!("Failed to build Navidrome stream URL: {}", err);
-                String::new()
-            }
-        },
+    let result = {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_audio_stream_url(&item_id, container.as_deref())
     };
 
     tracing::info!("[build_stream_url] result: {}", &result[..result.len().min(100)]);
@@ -341,18 +253,9 @@ pub fn build_mobile_stream_url(
     container: Option<String>,
 ) -> String {
     ensure_tracing_initialized();
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_mobile_audio_stream_url(&item_id, container.as_deref())
-        }
-        models::BackendProvider::Navidrome => match navidrome_client_from_auth(server_url, token, None) {
-            Ok(client) => client.get_mobile_audio_stream_url(&item_id, container.as_deref()),
-            Err(err) => {
-                tracing::error!("Failed to build Navidrome mobile stream URL: {}", err);
-                String::new()
-            }
-        },
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_mobile_audio_stream_url(&item_id, container.as_deref())
     }
 }
 
@@ -365,41 +268,26 @@ pub fn build_image_url(
     width: Option<u32>,
     quality: Option<u32>,
 ) -> Result<Option<String>, error::AppError> {
-    let result = match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let mut url = format!(
-                "{}/Items/{}/Images/{}",
-                server_url.trim_end_matches('/'),
-                item_id,
-                image_type
-            );
-            let mut query = Vec::new();
-            if let Some(w) = width {
-                query.push(format!("width={w}"));
-            }
-            if let Some(q) = quality {
-                query.push(format!("quality={q}"));
-            }
-            query.push(format!("api_key={token}"));
-            if !query.is_empty() {
-                url.push('?');
-                url.push_str(&query.join("&"));
-            }
-            Some(url)
+    let result = {
+        let mut url = format!(
+            "{}/Items/{}/Images/{}",
+            server_url.trim_end_matches('/'),
+            item_id,
+            image_type
+        );
+        let mut query = Vec::new();
+        if let Some(w) = width {
+            query.push(format!("width={w}"));
         }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, None)?;
-            let mut url = client.get_cover_art_url(&item_id);
-            if let Some(w) = width {
-                if url.contains('?') {
-                    url.push('&');
-                } else {
-                    url.push('?');
-                }
-                url.push_str(&format!("size={w}"));
-            }
-            Some(url)
+        if let Some(q) = quality {
+            query.push(format!("quality={q}"));
         }
+        query.push(format!("api_key={token}"));
+        if !query.is_empty() {
+            url.push('?');
+            url.push_str(&query.join("&"));
+        }
+        Some(url)
     };
     Ok(result)
 }
@@ -596,6 +484,49 @@ pub async fn audio_get_volume_player() -> Result<f64, error::AppError> {
     }
 }
 
+#[uniffi::export(async_runtime = "tokio")]
+pub async fn audio_set_analyzer_enabled_player(enabled: bool) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        audio::audio_set_analyzer_enabled(&AUDIO_STATE, enabled)
+            .await
+            .map_err(|err| error::AppError::General(err.to_string()))?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = enabled;
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
+#[cfg(feature = "desktop")]
+pub use audio::SpectrumSnapshot;
+
+#[cfg(not(feature = "desktop"))]
+#[derive(Clone, Debug, uniffi::Record)]
+pub struct SpectrumSnapshot {
+    pub frequency_data: Vec<u8>,
+    pub time_domain_data: Vec<u8>,
+}
+
+#[uniffi::export]
+pub fn audio_get_spectrum_snapshot_player() -> Result<SpectrumSnapshot, error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        return audio::audio_get_spectrum_snapshot(&AUDIO_STATE)
+            .map_err(|err| error::AppError::General(err.to_string()));
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop audio backend is not enabled".to_string(),
+        ))
+    }
+}
+
 #[uniffi::export]
 pub fn media_controls_init(hwnd: Option<u64>) -> Result<(), error::AppError> {
     #[cfg(feature = "desktop")]
@@ -709,11 +640,7 @@ pub fn media_controls_pop_event() -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        build_mobile_stream_url, build_navidrome_secret, build_stream_url, infer_provider_from_token,
-        parse_navidrome_secret,
-    };
-    use crate::models::BackendProvider;
+    use super::{build_mobile_stream_url, build_stream_url};
 
     #[test]
     fn build_stream_url_uses_static_for_seekable() {
@@ -749,40 +676,6 @@ mod tests {
         );
         assert!(url.contains("/Audio/song123/universal"));
         assert!(url.contains("transcodingProtocol=http"));
-    }
-
-    #[test]
-    fn infer_provider_from_token_handles_navidrome_prefix() {
-        assert_eq!(
-            infer_provider_from_token("nd:abcdef"),
-            BackendProvider::Navidrome
-        );
-        assert_eq!(
-            infer_provider_from_token("plain-jellyfin-token"),
-            BackendProvider::Jellyfin
-        );
-    }
-
-    #[test]
-    fn navidrome_secret_round_trip() {
-        let token = build_navidrome_secret("alice", "secret");
-        let (username, password) =
-            parse_navidrome_secret(&token, None).expect("should decode navidrome token");
-        assert_eq!(username, "alice");
-        assert_eq!(password, "secret");
-    }
-
-    #[test]
-    fn build_mobile_stream_url_uses_subsonic_for_navidrome() {
-        let url = build_mobile_stream_url(
-            "http://localhost:4533".to_string(),
-            "nd:YWxpY2U6c2VjcmV0".to_string(),
-            "song123".to_string(),
-            Some("flac".to_string()),
-        );
-        assert!(url.contains("/rest/stream.view"));
-        assert!(url.contains("id=song123"));
-        assert!(url.contains("u=alice"));
     }
 }
 
@@ -899,9 +792,72 @@ pub async fn get_parsed_lyrics(
     path: Option<String>,
     lyrics_server_url: Option<String>,
 ) -> models::ParsedLyrics {
-    // 1. Try sidecar lyrics first (richest source: TTML with word-sync, sections, agents)
+    // 1. Prefer Jellyfin's native lyrics API. Our TTML Jellyfin fork exposes
+    // word timing, sections, agents, translations, language, and songwriters here.
+    if !server_url.is_empty()
+        && !token.is_empty()
+        && !item_id.is_empty()
+        && infer_provider_from_token(&token) == models::BackendProvider::Jellyfin
+    {
+        tracing::info!(
+            "[Lyrics] Trying Jellyfin: itemId={}, serverUrl={}...",
+            item_id,
+            &server_url[..server_url.len().min(30)]
+        );
+        let client = services::JellyfinClient::with_auth(server_url.clone(), token.clone());
+        match client.get_lyrics(&item_id).await {
+            Ok(Some(jf_lyrics)) => {
+                let line_count = jf_lyrics.lyrics.len();
+                let lines_with_cues = jf_lyrics
+                    .lyrics
+                    .iter()
+                    .filter(|l| l.cues.as_ref().is_some_and(|c| !c.is_empty()))
+                    .count();
+                let section_count = jf_lyrics.sections.as_ref().map_or(0, Vec::len);
+                let agent_count = jf_lyrics.agents.as_ref().map_or(0, Vec::len);
+                tracing::info!(
+                    "[Lyrics] Jellyfin returned {} lines, {} with cues, {} sections, {} agents",
+                    line_count,
+                    lines_with_cues,
+                    section_count,
+                    agent_count,
+                );
 
-    // 1a. Try lyrics server (daemon) if configured
+                let parsed = utils::lyrics::jellyfin_to_parsed_lyrics(&jf_lyrics);
+                tracing::info!(
+                    "[Lyrics] Converted: syncedLines={}, hasWords={}, plainLines={}, hasSections={}",
+                    parsed.synced.len(),
+                    parsed.synced.first().is_some_and(|l| l.words.is_some()),
+                    parsed.plain.len(),
+                    parsed.sections.is_some(),
+                );
+                if parsed.is_valid() {
+                    return parsed;
+                }
+                tracing::warn!("[Lyrics] Jellyfin lyrics parsed but not valid");
+            }
+            Ok(None) => {
+                tracing::info!(
+                    "[Lyrics] Jellyfin returned no lyrics for itemId={}",
+                    item_id
+                );
+            }
+            Err(e) => {
+                tracing::warn!("[Lyrics] Jellyfin lyrics fetch error: {}", e);
+            }
+        }
+    } else {
+        tracing::info!(
+            "[Lyrics] Skipping Jellyfin (serverUrl empty={}, token empty={}, itemId empty={})",
+            server_url.is_empty(),
+            token.is_empty(),
+            item_id.is_empty(),
+        );
+    }
+
+    // 2. Try sidecar sources only after native server lyrics.
+
+    // 2a. Try lyrics server (daemon) if explicitly configured.
     if let Some(ref lyrics_url) = lyrics_server_url
         && !lyrics_url.is_empty()
     {
@@ -916,7 +872,7 @@ pub async fn get_parsed_lyrics(
         }
     }
 
-    // 1b. Try local sidecar files (.ttml, .lrc) next to the audio file
+    // 2b. Try local sidecar files (.ttml, .lrc) next to the audio file
     let resolved_path = match path {
         Some(ref p) if !p.is_empty() => Some(p.clone()),
         _ if !server_url.is_empty()
@@ -959,65 +915,6 @@ pub async fn get_parsed_lyrics(
         } else {
             tracing::info!("[Lyrics] No local sidecar files found");
         }
-    }
-
-    // 2. Try Jellyfin lyrics API
-    if !server_url.is_empty()
-        && !token.is_empty()
-        && !item_id.is_empty()
-        && infer_provider_from_token(&token) == models::BackendProvider::Jellyfin
-    {
-        tracing::info!(
-            "[Lyrics] Trying Jellyfin: itemId={}, serverUrl={}...",
-            item_id,
-            &server_url[..server_url.len().min(30)]
-        );
-        let client = services::JellyfinClient::with_auth(server_url.clone(), token.clone());
-        match client.get_lyrics(&item_id).await {
-            Ok(Some(jf_lyrics)) => {
-                let line_count = jf_lyrics.lyrics.len();
-                let lines_with_cues = jf_lyrics
-                    .lyrics
-                    .iter()
-                    .filter(|l| l.cues.as_ref().is_some_and(|c| !c.is_empty()))
-                    .count();
-                let has_metadata = jf_lyrics.metadata.is_some();
-                tracing::info!(
-                    "[Lyrics] Jellyfin returned {} lines, {} with cues, hasMetadata={}",
-                    line_count,
-                    lines_with_cues,
-                    has_metadata,
-                );
-
-                let parsed = utils::lyrics::jellyfin_to_parsed_lyrics(&jf_lyrics);
-                tracing::info!(
-                    "[Lyrics] Converted: syncedLines={}, hasWords={}, plainLines={}",
-                    parsed.synced.len(),
-                    parsed.synced.first().is_some_and(|l| l.words.is_some()),
-                    parsed.plain.len(),
-                );
-                if parsed.is_valid() {
-                    return parsed;
-                }
-                tracing::warn!("[Lyrics] Jellyfin lyrics parsed but not valid");
-            }
-            Ok(None) => {
-                tracing::info!(
-                    "[Lyrics] Jellyfin returned no lyrics for itemId={}",
-                    item_id
-                );
-            }
-            Err(e) => {
-                tracing::warn!("[Lyrics] Jellyfin lyrics fetch error: {}", e);
-            }
-        }
-    } else {
-        tracing::info!(
-            "[Lyrics] Skipping Jellyfin (serverUrl empty={}, token empty={}, itemId empty={})",
-            server_url.is_empty(),
-            token.is_empty(),
-            item_id.is_empty(),
-        );
     }
 
     // 3. Fall back to LrcLib
@@ -1095,147 +992,120 @@ pub async fn register_client_capabilities(
     token: String,
     device_id: String,
 ) -> Result<(), error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            let capabilities = models::ClientCapabilities {
-                playable_media_types: vec!["Audio".to_string()],
-                supported_commands: vec![
-                    "PlayNow".to_string(),
-                    "PlayNext".to_string(),
-                    "SetVolume".to_string(),
-                    "ToggleMute".to_string(),
-                ],
-                supports_media_control: true,
-                supports_persistent_identifier: true,
-                device_profile: models::DeviceProfile {
-                    name: Some("Aurelia Audio Profile".to_string()),
-                    id: Some(device_id),
-                    max_streaming_bitrate: Some(140000000),
-                    max_static_bitrate: Some(140000000),
-                    music_streaming_transcoding_bitrate: Some(384000),
-                    max_static_music_bitrate: Some(4000000),
-                    direct_play_profiles: vec![
-                        models::DirectPlayProfile {
-                            container: "mp3".to_string(),
-                            audio_codec: Some("mp3".to_string()),
-                            video_codec: None,
-                            profile_type: "Audio".to_string(),
-                        },
-                        models::DirectPlayProfile {
-                            container: "flac".to_string(),
-                            audio_codec: Some("flac".to_string()),
-                            video_codec: None,
-                            profile_type: "Audio".to_string(),
-                        },
-                        models::DirectPlayProfile {
-                            container: "ogg".to_string(),
-                            audio_codec: Some("vorbis".to_string()),
-                            video_codec: None,
-                            profile_type: "Audio".to_string(),
-                        },
-                    ],
-                    transcoding_profiles: vec![models::TranscodingProfile {
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        let capabilities = models::ClientCapabilities {
+            playable_media_types: vec!["Audio".to_string()],
+            supported_commands: vec![
+                "PlayNow".to_string(),
+                "PlayNext".to_string(),
+                "SetVolume".to_string(),
+                "ToggleMute".to_string(),
+            ],
+            supports_media_control: true,
+            supports_persistent_identifier: true,
+            device_profile: models::DeviceProfile {
+                name: Some("Aurelia Audio Profile".to_string()),
+                id: Some(device_id),
+                max_streaming_bitrate: Some(140000000),
+                max_static_bitrate: Some(140000000),
+                music_streaming_transcoding_bitrate: Some(384000),
+                max_static_music_bitrate: Some(4000000),
+                direct_play_profiles: vec![
+                    models::DirectPlayProfile {
                         container: "mp3".to_string(),
-                        profile_type: "Audio".to_string(),
-                        video_codec: None,
                         audio_codec: Some("mp3".to_string()),
-                        protocol: "http".to_string(),
-                        estimate_content_length: None,
-                        enable_mpegts_m2_ts_mode: None,
-                        transcode_seek_info: None,
-                        copy_timestamps: None,
-                        context: Some("Streaming".to_string()),
-                        enable_subtitles_in_manifest: None,
-                        max_audio_channels: None,
-                        min_segments: None,
-                        segment_length: None,
-                        break_on_non_key_frames: None,
-                        conditions: vec![],
-                        enable_audio_vbr_encoding: None,
-                    }],
-                    container_profiles: vec![],
-                    codec_profiles: vec![],
-                    subtitle_profiles: vec![models::SubtitleProfile {
-                        format: "srt".to_string(),
-                        method: "External".to_string(),
-                        didl_mode: None,
-                        language: None,
-                        container: None,
-                    }],
-                },
-                app_store_url: None,
-                icon_url: None,
-            };
-            client.register_capabilities(&capabilities).await
-        }
-        models::BackendProvider::Navidrome => Err(error::AppError::Config(
-            "Client capability registration is unsupported by provider".to_string(),
-        )),
+                        video_codec: None,
+                        profile_type: "Audio".to_string(),
+                    },
+                    models::DirectPlayProfile {
+                        container: "flac".to_string(),
+                        audio_codec: Some("flac".to_string()),
+                        video_codec: None,
+                        profile_type: "Audio".to_string(),
+                    },
+                    models::DirectPlayProfile {
+                        container: "ogg".to_string(),
+                        audio_codec: Some("vorbis".to_string()),
+                        video_codec: None,
+                        profile_type: "Audio".to_string(),
+                    },
+                ],
+                transcoding_profiles: vec![models::TranscodingProfile {
+                    container: "mp3".to_string(),
+                    profile_type: "Audio".to_string(),
+                    video_codec: None,
+                    audio_codec: Some("mp3".to_string()),
+                    protocol: "http".to_string(),
+                    estimate_content_length: None,
+                    enable_mpegts_m2_ts_mode: None,
+                    transcode_seek_info: None,
+                    copy_timestamps: None,
+                    context: Some("Streaming".to_string()),
+                    enable_subtitles_in_manifest: None,
+                    max_audio_channels: None,
+                    min_segments: None,
+                    segment_length: None,
+                    break_on_non_key_frames: None,
+                    conditions: vec![],
+                    enable_audio_vbr_encoding: None,
+                }],
+                container_profiles: vec![],
+                codec_profiles: vec![],
+                subtitle_profiles: vec![models::SubtitleProfile {
+                    format: "srt".to_string(),
+                    method: "External".to_string(),
+                    didl_mode: None,
+                    language: None,
+                    container: None,
+                }],
+            },
+            app_store_url: None,
+            icon_url: None,
+        };
+        client.register_capabilities(&capabilities).await
     }
 }
 
 pub async fn report_playback_start_event(
     server_url: String,
     token: String,
-    user_id: String,
+    _user_id: String,
     item_id: String,
     position_ticks: Option<i64>,
 ) -> Result<(), error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.report_playback_start(&item_id, position_ticks).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.report_playback_start(&item_id, position_ticks).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.report_playback_start(&item_id, position_ticks).await
     }
 }
 
 pub async fn report_playback_progress_event(
     server_url: String,
     token: String,
-    user_id: String,
+    _user_id: String,
     item_id: String,
     position_ticks: i64,
     is_paused: bool,
 ) -> Result<(), error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client
-                .report_playback_progress(&item_id, Some(position_ticks), None, Some(is_paused))
-                .await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client
-                .report_playback_progress(&item_id, Some(position_ticks), None, Some(is_paused))
-                .await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client
+            .report_playback_progress(&item_id, Some(position_ticks), None, Some(is_paused))
+            .await
     }
 }
 
 pub async fn report_playback_stop_event(
     server_url: String,
     token: String,
-    user_id: String,
+    _user_id: String,
     item_id: String,
     position_ticks: i64,
 ) -> Result<(), error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.report_playback_stop(&item_id, Some(position_ticks)).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client
-                .report_playback_stop(&item_id, Some(position_ticks))
-                .await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.report_playback_stop(&item_id, Some(position_ticks)).await
     }
 }
 
@@ -1292,19 +1162,11 @@ pub async fn toggle_favorite(
     item_id: String,
     is_favorite: bool,
 ) -> Result<bool, error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client
-                .toggle_favorite(&user_id, &item_id, is_favorite)
-                .await?;
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client
-                .toggle_favorite(&user_id, &item_id, is_favorite)
-                .await?;
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client
+            .toggle_favorite(&user_id, &item_id, is_favorite)
+            .await?;
     }
     Ok(is_favorite)
 }
@@ -1315,15 +1177,9 @@ pub async fn get_favorite_ids(
     token: String,
     user_id: String,
 ) -> Result<Vec<String>, error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_favorite_ids(&user_id).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.get_favorite_ids(&user_id).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_favorite_ids(&user_id).await
     }
 }
 
@@ -1335,15 +1191,9 @@ pub async fn get_playlists(
     token: String,
     user_id: String,
 ) -> Result<Vec<models::Playlist>, error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_playlists(&user_id).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.get_playlists(&user_id).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_playlists(&user_id).await
     }
 }
 
@@ -1353,20 +1203,9 @@ pub async fn create_playlist(
     token: String,
     data: models::PlaylistCreateData,
 ) -> Result<models::Playlist, error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.create_playlist(&data).await
-        }
-        models::BackendProvider::Navidrome => {
-            let fallback_user = if data.user_id.is_empty() {
-                None
-            } else {
-                Some(data.user_id.as_str())
-            };
-            let client = navidrome_client_from_auth(server_url, token, fallback_user)?;
-            client.create_playlist(&data).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.create_playlist(&data).await
     }
 }
 
@@ -1377,16 +1216,9 @@ pub async fn update_playlist(
     playlist_id: String,
     updates: models::PlaylistUpdateData,
 ) -> Result<models::Playlist, error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.update_playlist(&playlist_id, &updates).await
-        }
-        models::BackendProvider::Navidrome => {
-            let fallback_user = updates.user_id.as_deref();
-            let client = navidrome_client_from_auth(server_url, token, fallback_user)?;
-            client.update_playlist(&playlist_id, &updates).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.update_playlist(&playlist_id, &updates).await
     }
 }
 
@@ -1396,15 +1228,9 @@ pub async fn delete_playlist(
     token: String,
     playlist_id: String,
 ) -> Result<(), error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.delete_playlist(&playlist_id).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, None)?;
-            client.delete_playlist(&playlist_id).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.delete_playlist(&playlist_id).await
     }
 }
 
@@ -1415,15 +1241,9 @@ pub async fn add_playlist_items(
     playlist_id: String,
     item_ids: Vec<String>,
 ) -> Result<(), error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.add_playlist_items(&playlist_id, &item_ids).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, None)?;
-            client.add_playlist_items(&playlist_id, &item_ids).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.add_playlist_items(&playlist_id, &item_ids).await
     }
 }
 
@@ -1434,15 +1254,9 @@ pub async fn remove_playlist_items(
     playlist_id: String,
     item_ids: Vec<String>,
 ) -> Result<(), error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.remove_playlist_items(&playlist_id, &item_ids).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, None)?;
-            client.remove_playlist_items(&playlist_id, &item_ids).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.remove_playlist_items(&playlist_id, &item_ids).await
     }
 }
 
@@ -1452,15 +1266,9 @@ pub async fn get_playlist_items(
     token: String,
     playlist_id: String,
 ) -> Result<Vec<models::Song>, error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_playlist_items(&playlist_id).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, None)?;
-            client.get_playlist_items(&playlist_id).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_playlist_items(&playlist_id).await
     }
 }
 
@@ -1471,15 +1279,9 @@ pub async fn mark_item_played(
     user_id: String,
     item_id: String,
 ) -> Result<(), error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.mark_item_played(&user_id, &item_id).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.mark_item_played(&user_id, &item_id).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.mark_item_played(&user_id, &item_id).await
     }
 }
 
@@ -1498,15 +1300,9 @@ pub async fn sync_songs_only(
     db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
     // Fetch songs only
-    let songs = match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_music_library(&user_id).await?
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.get_music_library(&user_id).await?
-        }
+    let songs = {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_music_library(&user_id).await?
     };
 
     // Use incremental sync
@@ -1537,48 +1333,26 @@ pub async fn sync_library_smart(
     let app_data_path = std::path::PathBuf::from(&app_data_dir);
     db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            // Create client and run smart sync
-            let client = services::JellyfinClient::with_auth(server_url, token);
+    {
+        // Create client and run smart sync
+        let client = services::JellyfinClient::with_auth(server_url, token);
 
-            let db = db::get().map_err(|e| error::AppError::Database(e.to_string()))?;
-            let service = crate::domain::services::LibraryService::new(db);
-            let state = service
-                .get_sync_state()
-                .map_err(|e| error::AppError::Database(e.to_string()))?;
+        let db = db::get().map_err(|e| error::AppError::Database(e.to_string()))?;
+        let service = crate::domain::services::LibraryService::new(db);
+        let state = service
+            .get_sync_state()
+            .map_err(|e| error::AppError::Database(e.to_string()))?;
 
-            tracing::info!(
-                "sync_library_smart: is_first_sync = {}, last_sync_time = {}, full_sync_in_progress = {}",
-                state.last_sync_time == "1970-01-01T00:00:00Z",
-                state.last_sync_time,
-                state.full_sync_in_progress
-            );
+        tracing::info!(
+            "sync_library_smart: is_first_sync = {}, last_sync_time = {}, full_sync_in_progress = {}",
+            state.last_sync_time == "1970-01-01T00:00:00Z",
+            state.last_sync_time,
+            state.full_sync_in_progress
+        );
 
-            db::sync_smart(&client, &user_id)
-                .await
-                .map_err(|e| error::AppError::Database(e.to_string()))
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            let songs = client.get_music_library(&user_id).await?;
-            let artists = client.get_all_artists_for_user(&user_id).await?;
-            let albums = client.get_albums(&user_id).await?;
-
-            let db = db::get().map_err(|e| error::AppError::Database(e.to_string()))?;
-            let service = crate::domain::services::LibraryService::new(db);
-            service
-                .sync_library(&songs, &artists, &albums, true)
-                .map_err(|e| error::AppError::Database(e.to_string()))?;
-
-            Ok(domain::SyncReport {
-                full_sync: true,
-                songs_updated: songs.len() as u32,
-                artists_updated: artists.len() as u32,
-                albums_updated: albums.len() as u32,
-                duration_ms: 0,
-            })
-        }
+        db::sync_smart(&client, &user_id)
+            .await
+            .map_err(|e| error::AppError::Database(e.to_string()))
     }
 }
 
@@ -1594,15 +1368,9 @@ pub async fn sync_favorites(
     let app_data_path = std::path::PathBuf::from(&app_data_dir);
     db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
-    let favorite_ids = match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_favorite_ids(&user_id).await?
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.get_favorite_ids(&user_id).await?
-        }
+    let favorite_ids = {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_favorite_ids(&user_id).await?
     };
     
     let favorite_count = db::update_songs_favorite_status(&app_data_path, &favorite_ids)
@@ -1625,15 +1393,9 @@ pub async fn fetch_artist(
     db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
     // Fetch from server
-    let artist = match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_artist_details(&user_id, &artist_id).await?
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.get_artist_details(&user_id, &artist_id).await?
-        }
+    let artist = {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_artist_details(&user_id, &artist_id).await?
     };
 
     // Cache in database
@@ -1656,15 +1418,9 @@ pub async fn fetch_album(
     db::init(&app_data_path).map_err(|e| error::AppError::Database(e.to_string()))?;
 
     // Fetch from server
-    let album = match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_album_details(&user_id, &album_id).await?
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.get_album_details(&user_id, &album_id).await?
-        }
+    let album = {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_album_details(&user_id, &album_id).await?
     };
 
     // Cache in database
@@ -1715,15 +1471,9 @@ pub async fn get_recently_played(
     token: String,
     user_id: String,
 ) -> Result<Vec<models::Song>, error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_recently_played(&user_id).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, Some(&user_id))?;
-            client.get_recently_played(&user_id).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_recently_played(&user_id).await
     }
 }
 
@@ -1733,15 +1483,9 @@ pub async fn get_instant_mix(
     token: String,
     item_id: String,
 ) -> Result<Vec<models::Song>, error::AppError> {
-    match infer_provider_from_token(&token) {
-        models::BackendProvider::Jellyfin => {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            client.get_instant_mix(&item_id).await
-        }
-        models::BackendProvider::Navidrome => {
-            let client = navidrome_client_from_auth(server_url, token, None)?;
-            client.get_instant_mix(&item_id).await
-        }
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        client.get_instant_mix(&item_id).await
     }
 }
 

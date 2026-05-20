@@ -11,7 +11,8 @@ public sealed partial class SettingsView : Page {
   private readonly SessionService _sessionService;
   private readonly string _appDataDir;
   private bool _suppressLyricsUrlChanged;
-  private AureliaCore.BackendProvider? _detectedSwitchProvider;
+  private bool _suppressLyricsSidecarChanged;
+
 
   public SettingsView() {
     this.InitializeComponent();
@@ -38,8 +39,13 @@ public sealed partial class SettingsView : Page {
     }
     ProviderText.Text = _sessionService.Credentials?.Provider.ToString() ?? "Unknown provider";
 
+    _suppressLyricsSidecarChanged = true;
+    LyricsSidecarEnabledBox.IsChecked = _sessionService.GetLyricsSidecarEnabled();
+    _suppressLyricsSidecarChanged = false;
+
     _suppressLyricsUrlChanged = true;
-    LyricsServerUrlBox.Text = _sessionService.GetLyricsServerUrl() ?? "";
+    LyricsServerUrlBox.Text = _sessionService.GetSavedLyricsServerUrl() ?? "";
+    LyricsServerUrlBox.IsEnabled = _sessionService.GetLyricsSidecarEnabled();
     _suppressLyricsUrlChanged = false;
 
     RenderProfiles();
@@ -67,26 +73,7 @@ public sealed partial class SettingsView : Page {
     }
   }
 
-  private async void DetectSwitchProvider_Click(object sender, RoutedEventArgs e) {
-    string serverUrl = SwitchServerUrlBox.Text.Trim();
-    if (string.IsNullOrWhiteSpace(serverUrl)) {
-      SyncStatus.Text = "Enter a server URL to detect provider";
-      return;
-    }
 
-    DetectSwitchProviderButton.IsEnabled = false;
-    try {
-      _detectedSwitchProvider = await _viewModel.DetectProviderAsync(serverUrl);
-      if (_detectedSwitchProvider == null) {
-        DetectedSwitchProviderText.Text = "Could not detect provider";
-      } else {
-        DetectedSwitchProviderText.Text = $"Detected provider: {_detectedSwitchProvider}";
-      }
-      DetectedSwitchProviderText.Visibility = Visibility.Visible;
-    } finally {
-      DetectSwitchProviderButton.IsEnabled = true;
-    }
-  }
 
   private async void SwitchServer_Click(object sender, RoutedEventArgs e) {
     string serverUrl = SwitchServerUrlBox.Text.Trim();
@@ -100,11 +87,10 @@ public sealed partial class SettingsView : Page {
 
     SyncProgress.Visibility = Visibility.Visible;
     SwitchServerButton.IsEnabled = false;
-    DetectSwitchProviderButton.IsEnabled = false;
     SyncStatus.Text = "Adding profile...";
 
     try {
-      AureliaCore.BackendProvider? provider = GetSwitchProviderSelection();
+      AureliaCore.BackendProvider? provider = AureliaCore.BackendProvider.Jellyfin;
       await _viewModel.AddProfileAsync(serverUrl, username, password, provider);
       SwitchPasswordBox.Password = "";
       LoadSettings();
@@ -114,17 +100,10 @@ public sealed partial class SettingsView : Page {
     } finally {
       SyncProgress.Visibility = Visibility.Collapsed;
       SwitchServerButton.IsEnabled = true;
-      DetectSwitchProviderButton.IsEnabled = true;
     }
   }
 
-  private AureliaCore.BackendProvider? GetSwitchProviderSelection() {
-    return SwitchProviderBox.SelectedIndex switch {
-      1 => AureliaCore.BackendProvider.Jellyfin,
-      2 => AureliaCore.BackendProvider.Navidrome,
-      _ => _detectedSwitchProvider,
-    };
-  }
+
 
   private void RenderProfiles() {
     ProfilesListPanel.Children.Clear();
@@ -233,5 +212,12 @@ public sealed partial class SettingsView : Page {
   private void LyricsServerUrl_TextChanged(object sender, TextChangedEventArgs e) {
     if (_suppressLyricsUrlChanged) return;
     _sessionService.SaveLyricsServerUrl(LyricsServerUrlBox.Text.Trim());
+  }
+
+  private void LyricsSidecarEnabled_Changed(object sender, RoutedEventArgs e) {
+    if (_suppressLyricsSidecarChanged) return;
+    bool enabled = LyricsSidecarEnabledBox.IsChecked == true;
+    LyricsServerUrlBox.IsEnabled = enabled;
+    _sessionService.SaveLyricsSidecarEnabled(enabled);
   }
 }

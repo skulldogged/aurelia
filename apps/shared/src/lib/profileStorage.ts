@@ -25,7 +25,7 @@ const profileLabel = (credentials: Credentials): string => {
   } catch {
     // Keep original value when URL parsing fails.
   }
-  return `${credentials.username} @ ${host} (${credentials.provider ?? 'jellyfin'})`
+  return `${credentials.username} @ ${host}`
 }
 
 export const loadProfiles = (): AuthProfile[] => {

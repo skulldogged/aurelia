@@ -2,24 +2,7 @@ import AureliaCore
 import SwiftUI
 import UIKit
 
-private enum AddProfileProviderSelection: String, CaseIterable, Identifiable {
-    case auto
-    case jellyfin
-    case navidrome
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .auto:
-            return "Auto"
-        case .jellyfin:
-            return "Jellyfin"
-        case .navidrome:
-            return "Navidrome"
-        }
-    }
-}
 
 struct AddProfileSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -27,9 +10,7 @@ struct AddProfileSheet: View {
     @State private var serverUrl = ""
     @State private var username = ""
     @State private var password = ""
-    @State private var providerSelection: AddProfileProviderSelection = .auto
-    @State private var detectedProvider: BackendProvider?
-    @State private var isDetectingProvider = false
+
     @State private var isSubmitting = false
     @State private var error: String?
 
@@ -45,29 +26,7 @@ struct AddProfileSheet: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
 
-                    Picker("Provider", selection: $providerSelection) {
-                        ForEach(AddProfileProviderSelection.allCases) { option in
-                            Text(option.title).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
 
-                    if providerSelection == .auto {
-                        Button {
-                            detectProviderNow()
-                        } label: {
-                            if isDetectingProvider {
-                                ProgressView()
-                            } else {
-                                Text("Detect Provider")
-                            }
-                        }
-                        .disabled(isSubmitting || serverUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                        Text(detectedProviderText)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
                 }
 
                 Section("Credentials") {
@@ -112,44 +71,9 @@ struct AddProfileSheet: View {
         }
     }
 
-    private var detectedProviderText: String {
-        switch detectedProvider {
-        case .some(.jellyfin):
-            return "Detected provider: Jellyfin"
-        case .some(.navidrome):
-            return "Detected provider: Navidrome"
-        case nil:
-            return "Detected provider: not detected"
-        }
-    }
 
-    private func detectProviderNow() {
-        guard let normalizedServerUrl = ServerURLNormalizer.normalizeForServer(raw: serverUrl),
-              ServerURLNormalizer.isValidServerURL(normalizedServerUrl)
-        else {
-            error = "Enter a valid server URL"
-            return
-        }
 
-        isDetectingProvider = true
-        error = nil
-        serverUrl = normalizedServerUrl
 
-        Task.detached { [serverUrl = normalizedServerUrl] in
-            do {
-                let provider = try await detectProvider(serverUrl: serverUrl)
-                await MainActor.run {
-                    isDetectingProvider = false
-                    detectedProvider = provider
-                }
-            } catch {
-                await MainActor.run {
-                    isDetectingProvider = false
-                    self.error = error.localizedDescription
-                }
-            }
-        }
-    }
 
     private func addProfile() {
         guard !serverUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -170,28 +94,15 @@ struct AddProfileSheet: View {
         isSubmitting = true
         error = nil
         serverUrl = normalizedServerUrl
-        let providerSelection = self.providerSelection
-        let detectedProvider = self.detectedProvider
         let username = self.username
         let password = self.password
 
         let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? "aurelia-ios-\(UUID().uuidString)"
 
         Task.detached {
-            [serverUrl = normalizedServerUrl, username, password, deviceId, providerSelection, detectedProvider] in
+            [serverUrl = normalizedServerUrl, username, password, deviceId] in
             do {
-                let resolvedProvider: BackendProvider = switch providerSelection {
-                case .jellyfin:
-                    .jellyfin
-                case .navidrome:
-                    .navidrome
-                case .auto:
-                    if let detectedProvider {
-                        detectedProvider
-                    } else {
-                        try await detectProvider(serverUrl: serverUrl)
-                    }
-                }
+                let resolvedProvider: BackendProvider = .jellyfin
 
                 let response = try await authenticate(
                     request: AuthRequest(

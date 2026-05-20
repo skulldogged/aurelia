@@ -1,5 +1,8 @@
+import java.util.Properties
+
 plugins {
   id("com.android.application")
+  id("org.jetbrains.kotlin.plugin.compose") version "2.3.0"
   id("aurelia.compose")
   id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0"
   id("org.jlleitschuh.gradle.ktlint")
@@ -60,7 +63,7 @@ android {
   }
 
   buildToolsVersion = "36.0.0"
-  ndkVersion = "29.0.14206865"
+  ndkVersion = "29.0.13846066"
 }
 
 android.sourceSets["main"]
@@ -113,14 +116,15 @@ tasks.register<Exec>("generateUniffiBindings") {
 }
 
 tasks.register<Exec>("buildRustAndroid") {
-  val ndkDir =
-    file("$rootDir/local.properties")
-      .takeIf { it.exists() }
-      ?.readLines()
-      ?.find { it.startsWith("cargo.ndk.dir=") }
-      ?.substringAfter("=")
-      ?: System.getenv("ANDROID_NDK_HOME")
-      ?: throw GradleException("NDK not found. Set ndk.dir in local.properties or ANDROID_NDK_HOME env var")
+  val properties = Properties()
+  val localPropertiesFile = file("$rootDir/local.properties")
+  if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { properties.load(it) }
+  }
+  val ndkDir = properties.getProperty("cargo.ndk.dir")
+    ?: properties.getProperty("ndk.dir")
+    ?: System.getenv("ANDROID_NDK_HOME")
+    ?: throw GradleException("NDK not found. Set cargo.ndk.dir or ndk.dir in local.properties or ANDROID_NDK_HOME env var")
 
   environment("ANDROID_NDK_HOME", ndkDir)
   workingDir = file(projectRoot)

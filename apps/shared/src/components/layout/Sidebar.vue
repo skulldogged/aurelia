@@ -108,7 +108,7 @@
     const active = profiles.value.find(profile => profile.id === activeProfileId.value)
     if (active) return active.label
     if (currentCredentials.value?.username)
-      return `${currentCredentials.value.username} (${currentCredentials.value.provider ?? 'jellyfin'})`
+      return currentCredentials.value.username
     return 'Account'
   })
 

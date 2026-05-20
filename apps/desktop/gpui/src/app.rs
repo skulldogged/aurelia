@@ -184,6 +184,7 @@ pub fn run() {
                             appears_transparent: true,
                             traffic_light_position: Some(gpui::point(px(9.0), px(9.0))),
                         }),
+                        window_decorations: Some(gpui::WindowDecorations::Client),
                         ..Default::default()
                     },
                     |window, cx| {
@@ -288,6 +289,31 @@ enum RightPanel {
     Lyrics,
 }
 
+#[derive(Clone, Debug)]
+struct VisualizerState {
+    frequency_data: Vec<u8>,
+    time_domain_data: Vec<u8>,
+    frame_id: u64,
+}
+
+impl Default for VisualizerState {
+    fn default() -> Self {
+        Self {
+            frequency_data: vec![0; aurelia_core::audio::FREQUENCY_BIN_COUNT],
+            time_domain_data: vec![128; aurelia_core::audio::FFT_SIZE],
+            frame_id: 0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ImmersivePanel {
+    #[default]
+    None,
+    Queue,
+    Lyrics,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum RepeatMode {
     #[default]
@@ -305,6 +331,8 @@ struct DesktopAppState {
     library: LibrarySnapshot,
     selected_tab: ViewTab,
     right_panel: RightPanel,
+    immersive_view_open: bool,
+    immersive_panel: ImmersivePanel,
     selected_song_id: Option<String>,
     last_scrolled_song_id: Option<String>,
     selected_album_id: Option<String>,
@@ -323,6 +351,7 @@ struct DesktopAppState {
     lyrics: Option<ParsedLyrics>,
     lyrics_ui: LyricsUiState,
     player: PlayerState,
+    visualizer: VisualizerState,
     favorite_ids: Vec<String>,
     featured_albums: Vec<Album>,
     current_featured_index: usize,
@@ -353,6 +382,8 @@ impl DesktopAppState {
             library: LibrarySnapshot::default(),
             selected_tab: ViewTab::Home,
             right_panel: RightPanel::None,
+            immersive_view_open: false,
+            immersive_panel: ImmersivePanel::None,
             selected_song_id: None,
             last_scrolled_song_id: None,
             selected_album_id: None,
@@ -374,6 +405,7 @@ impl DesktopAppState {
                 volume: 1.0,
                 ..Default::default()
             },
+            visualizer: VisualizerState::default(),
             favorite_ids: Vec::new(),
             featured_albums: Vec::new(),
             current_featured_index: 0,
@@ -829,6 +861,26 @@ impl DesktopApp {
             }
         })
         .detach();
+    }
+
+    fn sync_current_song_background(&mut self, cx: &mut Context<Self>) {
+        let art_url = self
+            .state
+            .player
+            .current_song()
+            .and_then(|song| self.song_image_url(song, 420.0));
+
+        let Some(art_url) = art_url else {
+            return;
+        };
+
+        if self.featured_background_cache.contains_key(art_url.as_str())
+            || self.featured_background_loading.contains(art_url.as_str())
+        {
+            return;
+        }
+
+        self.load_blurred_background(art_url, cx);
     }
 
     fn restore_settings(&mut self) {
@@ -1348,6 +1400,7 @@ impl DesktopApp {
             let play_result = runtime
                 .spawn(async move {
                     aurelia_core::audio_init_player().await?;
+                    let _ = aurelia_core::audio_set_analyzer_enabled_player(true).await;
                     let _ = aurelia_core::audio_set_volume_player(playback_volume).await;
                     let stream_url = aurelia_core::build_stream_url(
                         credentials.server_url.clone(),
@@ -1602,11 +1655,18 @@ impl DesktopApp {
             let _ = view.update(&mut async_cx, |this, cx| {
                 this.state.player.is_playing = false;
                 this.state.player.position_secs = 0.0;
+                this.clear_visualizer_data();
                 this.state.playback_status = "Stopped".to_string();
                 cx.notify();
             });
         }})
         .detach();
+    }
+
+    fn clear_visualizer_data(&mut self) {
+        self.state.visualizer.frequency_data.fill(0);
+        self.state.visualizer.time_domain_data.fill(128);
+        self.state.visualizer.frame_id = self.state.visualizer.frame_id.wrapping_add(1);
     }
 
     fn toggle_queue_panel(&mut self, cx: &mut Context<Self>) {
@@ -1628,6 +1688,47 @@ impl DesktopApp {
             self.state.lyrics_ui.last_auto_scrolled_line = None;
             self.scroll_active_lyrics_line_into_view(false, cx);
         }
+        cx.notify();
+    }
+
+    fn open_immersive_view(&mut self, cx: &mut Context<Self>) {
+        if self.state.player.current_song().is_none() {
+            return;
+        }
+
+        self.state.immersive_view_open = true;
+        self.sync_current_song_background(cx);
+        cx.notify();
+    }
+
+    fn close_immersive_view(&mut self, cx: &mut Context<Self>) {
+        self.state.immersive_view_open = false;
+        self.state.immersive_panel = ImmersivePanel::None;
+        cx.notify();
+    }
+
+    fn toggle_immersive_panel(&mut self, panel: ImmersivePanel, cx: &mut Context<Self>) {
+        self.state.immersive_panel = if self.state.immersive_panel == panel {
+            ImmersivePanel::None
+        } else {
+            panel
+        };
+
+        if self.state.immersive_panel == ImmersivePanel::Lyrics {
+            self.state.lyrics_ui.last_auto_scrolled_line = None;
+            self.scroll_active_lyrics_line_into_view(false, cx);
+            cx.spawn(|view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
+                let mut async_cx = async_cx.clone();
+                async move {
+                    async_cx.background_executor().timer(Duration::from_millis(50)).await;
+                    let _ = view.update(&mut async_cx, |this, cx| {
+                        this.scroll_active_lyrics_line_into_view(false, cx);
+                    });
+                }
+            })
+            .detach();
+        }
+
         cx.notify();
     }
 
@@ -1746,7 +1847,9 @@ impl DesktopApp {
     }
 
     fn scroll_active_lyrics_line_into_view(&mut self, animated: bool, cx: &mut Context<Self>) {
-        if self.state.right_panel != RightPanel::Lyrics {
+        let is_regular_lyrics = self.state.right_panel == RightPanel::Lyrics;
+        let is_immersive_lyrics = self.state.immersive_panel == ImmersivePanel::Lyrics;
+        if !is_regular_lyrics && !is_immersive_lyrics {
             return;
         }
         let Some(active_line) = self.state.lyrics_ui.active_line_index else {
@@ -1818,7 +1921,13 @@ impl DesktopApp {
             if lyrics.synced.is_empty() {
                 None
             } else {
-                self.state.lyrics_ui.active_line_index.map(|index| index + 1)
+                self.state.lyrics_ui.active_line_index.map(|index| {
+                    if self.state.immersive_panel == ImmersivePanel::Lyrics {
+                        index + 1
+                    } else {
+                        index + 1
+                    }
+                })
             }
         })
     }
@@ -2205,11 +2314,16 @@ impl DesktopApp {
                         let is_playing = aurelia_core::audio_is_playing_player().await.unwrap_or(false);
                         let is_finished = aurelia_core::audio_is_finished_player().await.unwrap_or(false);
                         let position = aurelia_core::audio_get_position_secs().await.unwrap_or(0.0);
-                        (is_playing, is_finished, position)
+                        let spectrum = if is_playing {
+                            aurelia_core::audio_get_spectrum_snapshot_player().ok()
+                        } else {
+                            None
+                        };
+                        (is_playing, is_finished, position, spectrum)
                     })
                     .await;
 
-                if let Ok((is_playing, is_finished, position)) = position_result {
+                if let Ok((is_playing, is_finished, position, spectrum)) = position_result {
                     let _ = view.update(&mut async_cx, |this, cx| {
                         let previous_is_playing = this.state.player.is_playing;
                         let previous_display_second = this.state.player.position_secs.floor() as i64;
@@ -2221,6 +2335,18 @@ impl DesktopApp {
 
                         if previous_is_playing != is_playing {
                             this.state.player.is_playing = is_playing;
+                            should_notify = true;
+                        }
+
+                        if let Some(spectrum) = spectrum {
+                            this.state.visualizer.frequency_data = spectrum.frequency_data;
+                            this.state.visualizer.time_domain_data = spectrum.time_domain_data;
+                            this.state.visualizer.frame_id = this.state.visualizer.frame_id.wrapping_add(1);
+                            if this.state.immersive_view_open {
+                                should_notify = true;
+                            }
+                        } else if !is_playing && this.state.visualizer.frequency_data.iter().any(|value| *value != 0) {
+                            this.clear_visualizer_data();
                             should_notify = true;
                         }
 
@@ -2450,6 +2576,9 @@ impl DesktopApp {
             )
             .when(has_player, |this| {
                 this.child(self.render_player_bar(progress, right_panel_open, cx))
+            })
+            .when(self.state.immersive_view_open && has_player, |this| {
+                this.child(self.render_immersive_view(cx))
             })
             // Search popup overlay (rendered last so it's on top)
             .when(search_active, |this| {
@@ -4788,7 +4917,16 @@ impl DesktopApp {
                                     .w(px(252.0))
                                     .min_w(px(0.0))
                                     .flex_shrink_0()
-                                    .child(cover_art(song_art.as_deref(), 52.0, 10.0, false, AppIcon::Music))
+                                    .child(
+                                        div()
+                                            .cursor_pointer()
+                                            .hover(|style| style.opacity(0.84))
+                                            .on_mouse_up(
+                                                MouseButton::Left,
+                                                cx.listener(|this, _, _, cx| this.open_immersive_view(cx)),
+                                            )
+                                            .child(cover_art(song_art.as_deref(), 52.0, 10.0, false, AppIcon::Music)),
+                                    )
                                     .child(
                                         v_flex()
                                             .gap(px(2.0))
@@ -4964,6 +5102,463 @@ impl DesktopApp {
             )
     }
 
+    fn render_immersive_view(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let song = self.state.player.current_song().cloned();
+        let position = self.state.player.position_secs.floor();
+        let duration = self.state.player.duration_secs;
+        let is_playing = self.state.player.is_playing;
+        let seek_slider = self.seek_slider.clone();
+        let volume_slider = self.volume_slider.clone();
+        let is_queue_open = self.state.immersive_panel == ImmersivePanel::Queue;
+        let is_lyrics_open = self.state.immersive_panel == ImmersivePanel::Lyrics;
+        let is_shuffled = self.state.player.is_shuffled;
+        let repeat_mode = self.state.player.repeat_mode;
+        let is_favorite = song
+            .as_ref()
+            .is_some_and(|s| self.state.favorite_ids.iter().any(|id| id == &s.id));
+        let art_url = song.as_ref().and_then(|song| self.song_image_url(song, 420.0));
+        let blurred_background = art_url
+            .as_deref()
+            .and_then(|url| self.featured_background_cache.get(url).cloned());
+        let artist_name = song
+            .as_ref()
+            .and_then(|s| s.artists.as_ref().map(|artists| artists.join(", ")))
+            .unwrap_or_else(|| "Unknown Artist".to_string());
+        let album_name = song
+            .as_ref()
+            .and_then(|s| s.album.clone())
+            .unwrap_or_else(|| "Unknown Album".to_string());
+        let song_name = song
+            .as_ref()
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| "Unknown Song".to_string());
+        let song_file_info = song
+            .as_ref()
+            .map(format_song_file_info)
+            .unwrap_or_else(|| "Unknown format".to_string());
+        let panel_open = self.state.immersive_panel != ImmersivePanel::None;
+
+        div()
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full()
+            .occlude()
+            .bg(rgb(theme::background()))
+            .text_color(rgb(theme::foreground()))
+            .overflow_hidden()
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .when_some(blurred_background, |this, image| {
+                        this.child(
+                            img(image)
+                                .size_full()
+                                .object_fit(ObjectFit::Cover)
+                                .opacity(0.36)
+                                .with_fallback(|| div().size_full().bg(rgb(theme::background_dark())).into_any_element())
+                                .with_loading(|| div().size_full().bg(rgb(theme::background_dark())).into_any_element()),
+                        )
+                    })
+                    .child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .size_full()
+                            .bg(rgba(0x000000bf)),
+                    )
+                    .child(
+                        div()
+                            .absolute()
+                            .bottom_0()
+                            .left_0()
+                            .right_0()
+                            .h(px(220.0))
+                            .bg(linear_gradient(
+                                180.0,
+                                linear_color_stop(rgba(0x00000000), 0.0),
+                                linear_color_stop(rgba(theme::accent_alpha(if is_playing { 82 } else { 34 })), 1.0),
+                            )),
+                    ),
+            )
+            .child(self.render_immersive_visualizer(is_playing))
+            .child(
+                h_flex()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .justify_between()
+                    .items_center()
+                    .px(px(28.0))
+                    .py(px(22.0))
+                    .child(
+                        Button::new("immersive-close")
+                            .icon(Icon::new(IconName::ChevronLeft))
+                            .ghost()
+                            .tooltip("Close immersive player")
+                            .on_click(cx.listener(|this, _, _, cx| this.close_immersive_view(cx))),
+                    )
+                    .child(
+                        h_flex()
+                            .gap(px(8.0))
+                            .child(
+                                Button::new("immersive-lyrics")
+                                    .icon(Icon::new(AppIcon::MicVocal))
+                                    .when(is_lyrics_open, |this| this.primary())
+                                    .when(!is_lyrics_open, |this| this.ghost())
+                                    .tooltip("Lyrics")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.toggle_immersive_panel(ImmersivePanel::Lyrics, cx)
+                                    })),
+                            )
+                            .child(
+                                Button::new("immersive-queue")
+                                    .icon(Icon::new(AppIcon::ListMusic))
+                                    .when(is_queue_open, |this| this.primary())
+                                    .when(!is_queue_open, |this| this.ghost())
+                                    .tooltip("Queue")
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.toggle_immersive_panel(ImmersivePanel::Queue, cx)
+                                    })),
+                            ),
+                    ),
+            )
+            .child(
+                h_flex()
+                    .relative()
+                    .size_full()
+                    .pt(px(70.0))
+                    .px(px(38.0))
+                    .pb(px(34.0))
+                    .gap(px(30.0))
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w(px(0.0))
+                            .h_full()
+                            .items_center()
+                            .justify_center()
+                            .gap(px(20.0))
+                            .child(cover_art(art_url.as_deref(), 320.0, 28.0, false, AppIcon::Music))
+                            .child(
+                                v_flex()
+                                    .items_center()
+                                    .gap(px(6.0))
+                                    .max_w(px(620.0))
+                                    .child(
+                                        div()
+                                            .text_center()
+                                            .text_size(px(34.0))
+                                            .font_weight(gpui::FontWeight::BOLD)
+                                            .child(song_name),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_center()
+                                            .text_size(px(16.0))
+                                            .text_color(rgba(0xffffffbf))
+                                            .child(artist_name),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_center()
+                                            .text_size(px(13.0))
+                                            .text_color(rgba(0xffffff8f))
+                                            .child(album_name),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_center()
+                                            .text_size(px(11.0))
+                                            .text_color(rgba(0xffffff66))
+                                            .child(song_file_info),
+                                    ),
+                            )
+                            .child(
+                                v_flex()
+                                    .gap(px(10.0))
+                                    .w_full()
+                                    .max_w(px(620.0))
+                                    .child(Slider::new(&seek_slider))
+                                    .child(
+                                        h_flex()
+                                            .justify_between()
+                                            .text_size(px(11.0))
+                                            .text_color(rgba(0xffffff99))
+                                            .child(format_duration(position))
+                                            .child(format_duration(duration)),
+                                    ),
+                            )
+                            .child(
+                                h_flex()
+                                    .gap(px(8.0))
+                                    .items_center()
+                                    .child(
+                                        Button::new("immersive-favorite")
+                                            .icon(Icon::new(if is_favorite { IconName::HeartOff } else { IconName::Heart }))
+                                            .ghost()
+                                            .tooltip(if is_favorite { "Unfavorite" } else { "Favorite" })
+                                            .on_click(cx.listener(|this, _, _, cx| this.toggle_favorite_current(cx))),
+                                    )
+                                    .child(
+                                        Button::new("immersive-shuffle")
+                                            .icon(Icon::new(AppIcon::Shuffle))
+                                            .when(is_shuffled, |this| this.primary())
+                                            .when(!is_shuffled, |this| this.ghost())
+                                            .tooltip("Shuffle")
+                                            .on_click(cx.listener(|this, _, _, cx| this.toggle_shuffle(cx))),
+                                    )
+                                    .child(
+                                        Button::new("immersive-prev")
+                                            .icon(Icon::new(AppIcon::SkipBack))
+                                            .ghost()
+                                            .on_click(cx.listener(|this, _, _, cx| this.previous_track_action(cx))),
+                                    )
+                                    .child(
+                                        Button::new("immersive-play-pause")
+                                            .icon(Icon::new(if is_playing { AppIcon::Pause } else { AppIcon::Play }))
+                                            .custom(
+                                                ButtonCustomVariant::new(cx)
+                                                    .color(rgb(theme::accent()).into())
+                                                    .foreground(rgb(theme::accent_foreground()).into())
+                                                    .border(rgb(theme::accent()).into())
+                                                    .hover(rgb(theme::accent_hover()).into())
+                                                    .active(rgb(theme::accent_active()).into()),
+                                            )
+                                            .rounded(px(999.0))
+                                            .w(px(58.0))
+                                            .h(px(58.0))
+                                            .on_click(cx.listener(|this, _, _, cx| this.toggle_play_pause(cx))),
+                                    )
+                                    .child(
+                                        Button::new("immersive-next")
+                                            .icon(Icon::new(AppIcon::SkipForward))
+                                            .ghost()
+                                            .on_click(cx.listener(|this, _, _, cx| this.next_track_action(cx))),
+                                    )
+                                    .child(
+                                        Button::new("immersive-repeat")
+                                            .icon(Icon::new(AppIcon::Repeat))
+                                            .when(repeat_mode != RepeatMode::None, |this| this.primary())
+                                            .when(repeat_mode == RepeatMode::None, |this| this.ghost())
+                                            .tooltip(match repeat_mode {
+                                                RepeatMode::None => "Repeat off",
+                                                RepeatMode::All => "Repeat all",
+                                                RepeatMode::One => "Repeat one",
+                                            })
+                                            .on_click(cx.listener(|this, _, _, cx| this.cycle_repeat_mode(cx))),
+                                    )
+                                    .child(
+                                        h_flex()
+                                            .gap(px(6.0))
+                                            .items_center()
+                                            .ml(px(8.0))
+                                            .child(Icon::new(AppIcon::Volume2).small().text_color(rgba(0xffffff99)))
+                                            .child(div().w(px(104.0)).child(Slider::new(&volume_slider))),
+                                    ),
+                            ),
+                    )
+                    .when(panel_open, |this| {
+                        this.child(
+                            v_flex()
+                                .w(px(480.0))
+                                .h_full()
+                                .flex_shrink_0()
+                                .pl(px(34.0))
+                                .overflow_hidden()
+                                .child(match self.state.immersive_panel {
+                                    ImmersivePanel::Queue => self.render_immersive_queue_panel(cx).into_any_element(),
+                                    ImmersivePanel::Lyrics => self.render_immersive_lyrics_panel(cx).into_any_element(),
+                                    ImmersivePanel::None => div().into_any_element(),
+                                }),
+                        )
+                    }),
+            )
+    }
+
+    fn render_immersive_visualizer(&self, is_playing: bool) -> impl IntoElement {
+        let data = self.state.visualizer.frequency_data.clone();
+        let has_data = data.iter().any(|value| *value > 0);
+        let bar_count = 64usize;
+        let step = (data.len() / bar_count.max(1)).max(1);
+
+        h_flex()
+            .absolute()
+            .bottom_0()
+            .left_0()
+            .right_0()
+            .h(px(132.0))
+            .items_end()
+            .justify_center()
+            .gap(px(5.0))
+            .opacity(if is_playing && has_data { 0.40 } else { 0.0 })
+            .children((0..bar_count).map(move |index| {
+                let data_index = (index * step).min(data.len().saturating_sub(1));
+                let value = data.get(data_index).copied().unwrap_or_default() as f32 / 255.0;
+                let height = 6.0 + value.powf(1.35) * 122.0;
+                div()
+                    .w(px(6.0))
+                    .h(px(height))
+                    .rounded(px(999.0))
+                    .bg(rgba(theme::accent_alpha(168)))
+                    .into_any_element()
+            }))
+    }
+
+    fn render_immersive_queue_panel(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
+        let queue_len = self.state.player.queue.len();
+        let current_index = self.state.player.current_index.unwrap_or_default();
+
+        v_flex()
+            .h_full()
+            .pt(px(48.0))
+            .pb(px(28.0))
+            .child(
+                v_flex()
+                    .id("immersive-queue-scroll")
+                    .flex_1()
+                    .track_scroll(&self.lyrics_scroll_handle)
+                    .overflow_y_scrollbar()
+                    .gap(px(8.0))
+                    .pr(px(8.0))
+                    .when(queue_len == 0, |this| {
+                        this.child(immersive_empty_state(
+                            "No songs in queue",
+                            "Start playback from Songs, Albums, or Playlists.",
+                        ))
+                    })
+                    .children(self.state.player.queue.iter().enumerate().map(|(index, song)| {
+                        immersive_queue_item(song, index + 1, current_index == index)
+                    })),
+            )
+    }
+
+    fn render_immersive_lyrics_panel(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let has_lyrics = self.state.lyrics.as_ref().is_some_and(|lyrics| lyrics.is_valid());
+        let lyrics_content = self
+            .state
+            .lyrics
+            .as_ref()
+            .map(|lyrics| {
+                if !lyrics.synced.is_empty() {
+                    let active = compute_active_state(lyrics, self.current_lyrics_position_secs());
+                    lyrics
+                        .synced
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, _)| render_line(lyrics, index, &active).map(|line| (index, line)))
+                        .map(|(index, line)| self.render_immersive_synced_lyrics_line(index, line, cx))
+                        .collect::<Vec<_>>()
+                } else {
+                    lyrics
+                        .plain
+                        .iter()
+                        .map(|line| immersive_lyrics_plain_line(line).into_any_element())
+                        .collect::<Vec<_>>()
+                }
+            })
+            .unwrap_or_default();
+
+        v_flex()
+            .h_full()
+            .pt(px(48.0))
+            .pb(px(28.0))
+            .child(
+                v_flex()
+                    .id("immersive-lyrics-scroll")
+                    .flex_1()
+                    .track_scroll(&self.lyrics_scroll_handle)
+                    .overflow_y_scrollbar()
+                    .gap(px(18.0))
+                    .pr(px(8.0))
+                    .child(div().h(px(260.0)).flex_shrink_0())
+                    .when(self.state.lyrics_loading, |this| {
+                        this.child(immersive_empty_state(
+                            "Loading lyrics",
+                            "Fetching sidecar, Jellyfin, and fallback lyrics for the current track.",
+                        ))
+                    })
+                    .when(!self.state.lyrics_loading && self.state.lyrics_error.is_some(), |this| {
+                        this.child(immersive_empty_state(
+                            "Unable to load lyrics",
+                            self.state.lyrics_error.as_deref().unwrap_or("Lyrics request failed."),
+                        ))
+                    })
+                    .when(!self.state.lyrics_loading && !has_lyrics && self.state.lyrics_error.is_none(), |this| {
+                        this.child(immersive_empty_state(
+                            "No lyrics to show",
+                            "Lyrics appear here when this track has synced, TTML, or plain text lyrics.",
+                        ))
+                    })
+                    .children(lyrics_content)
+                    .child(div().h(px(260.0)).flex_shrink_0()),
+            )
+    }
+
+    fn render_immersive_synced_lyrics_line(
+        &self,
+        index: usize,
+        line: LyricsLineRender<'_>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let line_time_secs = line.line.time_ms as f64 / 1000.0;
+        let Some(lyrics) = self.state.lyrics.as_ref() else {
+            return div().into_any_element();
+        };
+        let active_state = compute_active_state(lyrics, self.current_lyrics_position_secs());
+        let words = line
+            .line
+            .words
+            .as_ref()
+            .filter(|words| !words.is_empty())
+            .map(|_| render_words(line.line, &active_state, index))
+            .unwrap_or_default();
+
+        v_flex()
+            .gap(px(6.0))
+            .items_center()
+            .py(px(if line.is_active { 10.0 } else { 4.0 }))
+            .opacity(if line.is_active { 1.0 } else { 0.46 })
+            .cursor_pointer()
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| this.seek_to(line_time_secs / this.state.player.duration_secs.max(1.0), cx)),
+            )
+            .child(
+                div()
+                    .when(line.section_label.is_some(), |this| {
+                        this.child(
+                            div()
+                                .text_size(px(10.0))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(rgba(0xffffff75))
+                                .child(line.section_label.unwrap_or_default().to_uppercase()),
+                        )
+                    })
+                    .child(if words.is_empty() {
+                        div()
+                            .text_center()
+                            .text_size(if line.is_active { px(28.0) } else { px(20.0) })
+                            .font_weight(if line.is_active {
+                                gpui::FontWeight::BOLD
+                            } else {
+                                gpui::FontWeight::SEMIBOLD
+                            })
+                            .text_color(if line.is_active { rgb(theme::foreground()) } else { rgba(0xffffffb8) })
+                            .child(line.line.line.clone())
+                            .into_any_element()
+                    } else {
+                        immersive_lyrics_word_line(words, line.is_active).into_any_element()
+                    }),
+            )
+            .into_any_element()
+    }
+
     fn render_synced_lyrics_line(
         &self,
         index: usize,
@@ -5083,10 +5678,14 @@ impl Focusable for DesktopApp {
 impl Render for DesktopApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Request animation frames while featured transition is active
-        let should_animate_lyrics = self.state.right_panel == RightPanel::Lyrics
+        let should_animate_lyrics = (self.state.right_panel == RightPanel::Lyrics
+            || self.state.immersive_panel == ImmersivePanel::Lyrics)
             && self.state.player.is_playing
             && self.state.lyrics.as_ref().is_some_and(|lyrics| !lyrics.synced.is_empty());
-        if self.state.featured_transition_start.is_some() || should_animate_lyrics {
+        if self.state.featured_transition_start.is_some()
+            || should_animate_lyrics
+            || (self.state.immersive_view_open && self.state.player.is_playing)
+        {
             window.request_animation_frame();
         }
         // Flush any pending input clears from async callbacks
@@ -5554,6 +6153,153 @@ fn lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, base_color:
                 )
                 .into_any_element()
         }))
+}
+
+fn immersive_empty_state(title: &str, body: &str) -> impl IntoElement {
+    v_flex()
+        .gap(px(6.0))
+        .py(px(24.0))
+        .child(
+            div()
+                .text_size(px(15.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(rgba(0xffffffdb))
+                .child(title.to_string()),
+        )
+        .child(
+            div()
+                .text_size(px(12.0))
+                .text_color(rgba(0xffffff8f))
+                .child(body.to_string()),
+        )
+}
+
+fn immersive_lyrics_plain_line(line: &str) -> impl IntoElement {
+    div()
+        .w_full()
+        .whitespace_normal()
+        .text_size(px(22.0))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .py(px(6.0))
+        .text_color(rgba(0xffffffd6))
+        .child(line.to_string())
+}
+
+fn immersive_lyrics_word_line(words: Vec<LyricsWordRender>, is_active: bool) -> impl IntoElement {
+    let base_color = if is_active { theme::foreground() } else { 0xffffff };
+    let base_alpha = if is_active { 188 } else { 128 };
+
+    div()
+        .w_full()
+        .text_size(if is_active { px(28.0) } else { px(20.0) })
+        .font_weight(if is_active {
+            gpui::FontWeight::BOLD
+        } else {
+            gpui::FontWeight::SEMIBOLD
+        })
+        .child(immersive_lyrics_words_as_text(&words, is_active, base_color, base_alpha))
+}
+
+fn immersive_lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, base_color: u32, base_alpha: u8) -> impl IntoElement {
+    h_flex()
+        .flex_wrap()
+        .gap(px(0.0))
+        .w_full()
+        .justify_center()
+        .children(words.iter().map(move |word| {
+            let fill_width = match word.state {
+                LyricsWordState::Sung => 1.0,
+                LyricsWordState::Filling => word.progress,
+                LyricsWordState::Upcoming => 0.0,
+            }
+            .clamp(0.0, 1.0);
+            let content = format!("{}{}", word.text, word.trailing_whitespace);
+
+            let foreground = div()
+                .whitespace_nowrap()
+                .overflow_hidden()
+                .child(
+                    div()
+                        .whitespace_nowrap()
+                        .child(content.clone())
+                        .text_color(rgb(theme::accent()))
+                        .opacity(if is_active { 1.0 } else { 0.62 }),
+                )
+                .max_w(px(260.0 * fill_width));
+
+            div()
+                .relative()
+                .whitespace_nowrap()
+                .child(
+                    div()
+                        .whitespace_nowrap()
+                        .text_color(rgba((base_color << 8) | base_alpha as u32))
+                        .child(content),
+                )
+                .child(
+                    div()
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .child(foreground),
+                )
+                .into_any_element()
+        }))
+}
+
+fn immersive_queue_item(song: &Song, number: usize, is_current: bool) -> impl IntoElement {
+    let artist = song
+        .artists
+        .as_ref()
+        .and_then(|artists| artists.first().cloned())
+        .unwrap_or_else(|| "Unknown Artist".to_string());
+
+    h_flex()
+        .gap(px(12.0))
+        .items_center()
+        .px(px(2.0))
+        .py(px(8.0))
+        .opacity(if is_current { 1.0 } else { 0.68 })
+        .child(
+            div()
+                .w(px(24.0))
+                .text_right()
+                .text_size(px(11.0))
+                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .text_color(if is_current { rgb(theme::accent()) } else { rgba(0xffffff73) })
+                .child(number.to_string()),
+        )
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w(px(0.0))
+                .gap(px(2.0))
+                .child(
+                    div()
+                        .truncate()
+                        .text_size(px(14.0))
+                        .font_weight(if is_current {
+                            gpui::FontWeight::SEMIBOLD
+                        } else {
+                            gpui::FontWeight::MEDIUM
+                        })
+                        .text_color(rgba(0xffffffdb))
+                        .child(song.name.clone()),
+                )
+                .child(
+                    div()
+                        .truncate()
+                        .text_size(px(11.0))
+                        .text_color(rgba(0xffffff8f))
+                        .child(artist),
+                ),
+        )
+        .child(
+            div()
+                .text_size(px(11.0))
+                .text_color(rgba(0xffffff85))
+                .child(format_duration(song.duration.unwrap_or_default())),
+        )
 }
 
 fn song_row(song: &Song, image_url: Option<String>, is_playing: bool, is_first: bool) -> impl IntoElement {

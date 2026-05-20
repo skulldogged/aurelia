@@ -858,6 +858,10 @@ static partial class _UniFFILib {
     
     
     
+    
+    
+    
+    
 
     static _UniFFILib() {
         _UniFFILib.uniffiCheckContractApiVersion();
@@ -871,6 +875,10 @@ static partial class _UniFFILib {
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ulong uniffi_aurelia_core_fn_func_audio_get_position_secs(
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern RustBuffer uniffi_aurelia_core_fn_func_audio_get_spectrum_snapshot_player(ref UniffiRustCallStatus _uniffi_out_err
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -903,6 +911,10 @@ static partial class _UniFFILib {
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ulong uniffi_aurelia_core_fn_func_audio_seek_player(double @positionSecs
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ulong uniffi_aurelia_core_fn_func_audio_set_analyzer_enabled_player(sbyte @enabled
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -1330,6 +1342,10 @@ static partial class _UniFFILib {
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ushort uniffi_aurelia_core_checksum_func_audio_get_spectrum_snapshot_player(
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ushort uniffi_aurelia_core_checksum_func_audio_get_volume_player(
     );
 
@@ -1359,6 +1375,10 @@ static partial class _UniFFILib {
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
     public static extern ushort uniffi_aurelia_core_checksum_func_audio_seek_player(
+    );
+
+    [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ushort uniffi_aurelia_core_checksum_func_audio_set_analyzer_enabled_player(
     );
 
     [DllImport("aurelia_core", CallingConvention = CallingConvention.Cdecl)]
@@ -1596,6 +1616,12 @@ static partial class _UniFFILib {
             }
         }
         {
+            var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_audio_get_spectrum_snapshot_player();
+            if (checksum != 1492) {
+                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_audio_get_spectrum_snapshot_player` checksum `1492`, library returned `{checksum}`");
+            }
+        }
+        {
             var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_audio_get_volume_player();
             if (checksum != 37228) {
                 throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_audio_get_volume_player` checksum `37228`, library returned `{checksum}`");
@@ -1641,6 +1667,12 @@ static partial class _UniFFILib {
             var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_audio_seek_player();
             if (checksum != 15002) {
                 throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_audio_seek_player` checksum `15002`, library returned `{checksum}`");
+            }
+        }
+        {
+            var checksum = _UniFFILib.uniffi_aurelia_core_checksum_func_audio_set_analyzer_enabled_player();
+            if (checksum != 3796) {
+                throw new UniffiContractChecksumException($"AureliaCore: uniffi bindings expected function `uniffi_aurelia_core_checksum_func_audio_set_analyzer_enabled_player` checksum `3796`, library returned `{checksum}`");
             }
         }
         {
@@ -2189,6 +2221,27 @@ class FfiConverterString: FfiConverter<string, RustBuffer> {
         var bytes = System.Text.Encoding.UTF8.GetBytes(value);
         stream.WriteInt(bytes.Length);
         stream.WriteBytes(bytes);
+    }
+}
+
+
+
+
+class FfiConverterByteArray: FfiConverterRustBuffer<byte[]> {
+    public static FfiConverterByteArray INSTANCE = new FfiConverterByteArray();
+
+    public override byte[] Read(BigEndianStream stream) {
+        var length = stream.ReadInt();
+        return stream.ReadBytes(length);
+    }
+
+    public override int AllocationSize(byte[] value) {
+        return 4 + value.Length;
+    }
+
+    public override void Write(byte[] value, BigEndianStream stream) {
+        stream.WriteInt(value.Length);
+        stream.WriteBytes(value);
     }
 }
 
@@ -3568,6 +3621,36 @@ class FfiConverterTypeSong: FfiConverterRustBuffer<Song> {
 
 
 
+public record SpectrumSnapshot (
+    byte[] @frequencyData, 
+    byte[] @timeDomainData
+) {
+}
+
+class FfiConverterTypeSpectrumSnapshot: FfiConverterRustBuffer<SpectrumSnapshot> {
+    public static FfiConverterTypeSpectrumSnapshot INSTANCE = new FfiConverterTypeSpectrumSnapshot();
+
+    public override SpectrumSnapshot Read(BigEndianStream stream) {
+        return new SpectrumSnapshot(
+            @frequencyData: FfiConverterByteArray.INSTANCE.Read(stream),
+            @timeDomainData: FfiConverterByteArray.INSTANCE.Read(stream)
+        );
+    }
+
+    public override int AllocationSize(SpectrumSnapshot value) {
+        return 0
+            + FfiConverterByteArray.INSTANCE.AllocationSize(value.@frequencyData)
+            + FfiConverterByteArray.INSTANCE.AllocationSize(value.@timeDomainData);
+    }
+
+    public override void Write(SpectrumSnapshot value, BigEndianStream stream) {
+            FfiConverterByteArray.INSTANCE.Write(value.@frequencyData, stream);
+            FfiConverterByteArray.INSTANCE.Write(value.@timeDomainData, stream);
+    }
+}
+
+
+
 /// <summary>
 /// Progress update during sync (for UI feedback)
 /// </summary>
@@ -4107,8 +4190,7 @@ class FfiConverterTypeAppError : FfiConverterRustBuffer<AppException>, CallStatu
 /// </summary>
 public enum BackendProvider: int {
     
-    Jellyfin,
-    Navidrome
+    Jellyfin
 }
 
 class FfiConverterTypeBackendProvider: FfiConverterRustBuffer<BackendProvider> {
@@ -5231,6 +5313,15 @@ public static class AureliaCore {
     );
    }
     /// <exception cref="AppException"></exception>
+    public static SpectrumSnapshot AudioGetSpectrumSnapshotPlayer() {
+        return FfiConverterTypeSpectrumSnapshot.INSTANCE.Lift(
+    _UniffiHelpers.RustCallWithError(FfiConverterTypeAppError.INSTANCE, (ref UniffiRustCallStatus _status) =>
+    _UniFFILib.uniffi_aurelia_core_fn_func_audio_get_spectrum_snapshot_player( ref _status)
+));
+    }
+
+
+    /// <exception cref="AppException"></exception>
    public static async Task<double> AudioGetVolumePlayer() 
    {
     return await _UniFFIAsync.UniffiRustCallAsync(
@@ -5359,6 +5450,22 @@ public static class AureliaCore {
    {await _UniFFIAsync.UniffiRustCallAsync(
         // Get rust future
         _UniFFILib.uniffi_aurelia_core_fn_func_audio_seek_player(FfiConverterDouble.INSTANCE.Lower(@positionSecs)),
+        // Poll
+        (ulong future, IntPtr continuation, ulong data) => _UniFFILib.ffi_aurelia_core_rust_future_poll_void(future, continuation, data),
+        // Complete
+        (ulong future, ref UniffiRustCallStatus status) => {_UniFFILib.ffi_aurelia_core_rust_future_complete_void(future, ref status);
+        },
+        // Free
+        (ulong future) => _UniFFILib.ffi_aurelia_core_rust_future_free_void(future),
+        // Error
+        FfiConverterTypeAppError.INSTANCE
+    );
+   }
+    /// <exception cref="AppException"></exception>
+   public static async Task AudioSetAnalyzerEnabledPlayer(bool @enabled) 
+   {await _UniFFIAsync.UniffiRustCallAsync(
+        // Get rust future
+        _UniFFILib.uniffi_aurelia_core_fn_func_audio_set_analyzer_enabled_player(FfiConverterBoolean.INSTANCE.Lower(@enabled)),
         // Poll
         (ulong future, IntPtr continuation, ulong data) => _UniFFILib.ffi_aurelia_core_rust_future_poll_void(future, continuation, data),
         // Complete

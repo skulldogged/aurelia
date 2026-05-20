@@ -67,33 +67,7 @@ struct LoginView: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
 
-                Picker("Provider", selection: $viewModel.providerSelection) {
-                    ForEach(LoginProviderSelection.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
 
-                if viewModel.providerSelection == .auto {
-                    Button {
-                        viewModel.detectProviderNow()
-                    } label: {
-                        if viewModel.isDetectingProvider {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text("Detect Provider")
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.isSubmitting || viewModel.serverUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    Text(detectedProviderText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
 
                 TextField("Username", text: $viewModel.username)
                     .textContentType(.username)
@@ -129,14 +103,5 @@ struct LoginView: View {
         }
     }
 
-    private var detectedProviderText: String {
-        switch viewModel.detectedProvider {
-        case .some(.jellyfin):
-            return "Detected provider: Jellyfin"
-        case .some(.navidrome):
-            return "Detected provider: Navidrome"
-        case nil:
-            return "Detected provider: not detected"
-        }
-    }
+
 }

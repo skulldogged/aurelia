@@ -24,6 +24,7 @@
   } from '../../lib/profileStorage'
   import AddProfileDialog from '../auth/AddProfileDialog.vue'
   import Button from '../ui/Button.vue'
+  import Switch from '../ui/Switch.vue'
 
   const props = defineProps<{
     credentials: Credentials | null
@@ -34,6 +35,7 @@
   }>()
 
   const aureliaServerUrl = ref('')
+  const lyricsSidecarEnabled = ref(false)
   const profileActionError = ref('')
   const profiles = ref<AuthProfile[]>([])
   const removingProfileId = ref<null | string>(null)
@@ -56,9 +58,19 @@
     refreshProfiles()
 
     try {
-      const result = await apiClient.getSetting('aurelia_server_url')
+      const sidecarResult = await apiClient.getSetting('lyrics_sidecar_enabled')
+      if (sidecarResult.status === 'ok') {
+        lyricsSidecarEnabled.value = sidecarResult.data === 'true'
+      }
+
+      const result = await apiClient.getSetting('lyrics_server_url')
       if (result.status === 'ok' && result.data) {
         aureliaServerUrl.value = result.data
+      } else {
+        const legacyResult = await apiClient.getSetting('aurelia_server_url')
+        if (legacyResult.status === 'ok' && legacyResult.data) {
+          aureliaServerUrl.value = legacyResult.data
+        }
       }
     } catch {
       // Setting not found, leave empty
@@ -133,13 +145,24 @@
       try {
         if (value.trim()) {
           await apiClient.saveSetting('aurelia_server_url', value.trim())
+          await apiClient.saveSetting('lyrics_server_url', value.trim())
         } else {
           await apiClient.deleteSetting('aurelia_server_url')
+          await apiClient.deleteSetting('lyrics_server_url')
         }
       } catch {
         // Ignore save errors
       }
     }, 500)
+  }
+
+  const onLyricsSidecarEnabledChange = async (checked: boolean): Promise<void> => {
+    lyricsSidecarEnabled.value = checked
+    try {
+      await apiClient.saveSetting('lyrics_sidecar_enabled', checked ? 'true' : 'false')
+    } catch {
+      // Ignore save errors
+    }
   }
 
   const onProfileAdded = (): void => {
@@ -211,25 +234,33 @@
         </div>
       </div>
 
-      <!-- Aurelia Server URL -->
+      <!-- Lyrics Sidecar Service -->
       <div class='space-y-2'>
-        <label class='text-sm font-medium text-muted-foreground flex items-center space-x-2'>
-          <Server class='size-4' />
-          <span>Aurelia Server</span>
-        </label>
+        <div class='flex items-center justify-between gap-4'>
+          <label class='text-sm font-medium text-muted-foreground flex items-center space-x-2' for='lyrics-sidecar-enabled'>
+            <Server class='size-4' />
+            <span>Lyrics sidecar service</span>
+          </label>
+          <Switch
+            @update:checked='onLyricsSidecarEnabledChange'
+            id='lyrics-sidecar-enabled'
+            :checked='lyricsSidecarEnabled'
+          />
+        </div>
         <input
           @input='onAureliaUrlInput'
           :value='aureliaServerUrl'
+          :disabled='!lyricsSidecarEnabled'
           class='
             w-full text-sm font-mono bg-background/40 p-3 rounded-lg
-            border border-border/20 outline-none
+            border border-border/20 outline-none disabled:opacity-50
             focus:border-primary/50 transition-colors
           '
-          placeholder='https://aurelia.example.com'
+          placeholder='http://localhost:3030'
           type='url'
         >
         <p class='text-xs text-muted-foreground'>
-          URL of your Aurelia web server for synced lyrics from sidecar files. Leave empty if not using one.
+          Jellyfin lyrics are used by default. Enable this only to fall back to a local lyrics daemon.
         </p>
       </div>
 
