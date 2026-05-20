@@ -1,0 +1,71 @@
+apps/windows/Aurelia/SettingsView.xaml.cs
+  s_e399ea63af13b4::t_e0bd0f50a72c7e 14-15,42-45,48,93,106,216-221
+  s_e399ea63af13b4::t_9b376f4c21a950 47
+apps/windows/Aurelia/SettingsView.xaml
+  s_e399ea63af13b4::t_95586efd021e58 120,125-130
+crates/aurelia-core/src/utils/lyrics.rs
+  s_e399ea63af13b4::t_d0b4f78d6a0d29 234-237,250-252,267-289,312-342,354-361
+  s_e399ea63af13b4::t_9c6bdcb971f0c4 212,214-227,233,249,266,311,353
+  s_e399ea63af13b4::t_da59c999641572 370-383
+  s_e399ea63af13b4::t_4b3ebdbb47c558 203-206,365-368,384,388-398,400-401,405-416
+  s_e399ea63af13b4::t_ddd253c8d55ff7 369,387,399
+  s_e399ea63af13b4::t_d88f96881af101 3-6,65-71,89-123,137,139-141,147-174,181-184,191-194
+apps/desktop/gpui/src/theme.rs
+  1b300da59267c765 963
+crates/aurelia-core/src/services/jellyfin/playback.rs
+  s_e399ea63af13b4::t_c69d6b21c5d3dc 28-31
+crates/aurelia-core/src/lib.rs
+  s_e399ea63af13b4::t_1d635a8204b117 78,132-134,237-239,256-258,271-280,282-283,285-290,795-858,860,875,995-1015,1017-1018,1020-1023,1025-1066,1073,1077-1079,1086,1091-1095,1102,1106-1108,1165-1169,1180-1182,1194-1196,1206-1208,1219-1221,1231-1233,1244-1246,1257-1259,1269-1271,1282-1284,1303-1305,1336-1338,1340-1344,1346-1351,1353-1355,1371-1373,1396-1398,1421-1423,1474-1476,1486-1488
+  s_e399ea63af13b4::t_acf7f73f050115 643
+crates/aurelia-core/src/models/jellyfin.rs
+  s_e399ea63af13b4::t_88cbce0049154e 19-30,81-84,89-100,123-157
+apps/desktop/gpui/src/app.rs
+  s_77ad7ecacf6559::t_32f5e89208611d 187
+apps/windows/Aurelia/Services/SessionService.cs
+  s_e399ea63af13b4::t_158f38d0520e2f 129
+  s_e399ea63af13b4::t_d580db8f77eca5 119-123,140-150,281,285
+crates/aurelia-api/src/tauri_impl.rs
+  s_e399ea63af13b4::t_2a43e2f0c5a81c 667-681
+apps/shared/src/components/settings/ServerSettings.vue
+  s_e399ea63af13b4::t_074760df686f4a 38,61-66,69-73,148,151,159-165
+  s_e399ea63af13b4::t_0e53eee004297a 27,237,239-249,253,256,259,263
+apps/mobile/android/app/src/main/java/uniffi/aurelia_core/aurelia_core.kt
+  s_e399ea63af13b4::t_63c467da7737c8 652-653,670-671,794-795,812-813,1043-1045,1070-1072,1580-1598,2929-2966,3489,4347-4357,4481-4487
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "5ace1cdb487157f2d72ecec1886b7fb85f1aad3e",
+  "prompts": {
+    "1b300da59267c765": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_23da3e966ffe2ZvZHaFoH1sP2d",
+        "model": "unknown"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>",
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1001,
+      "overriden_lines": 0
+    }
+  },
+  "sessions": {
+    "s_77ad7ecacf6559": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1e15de66bffeFavarv2XJyT9zL",
+        "model": "unknown"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>"
+    },
+    "s_e399ea63af13b4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4331-ee24-7aa1-8e95-a846bb1e466f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Mars <mars@pupbrained.dev>"
+    }
+  }
+}
