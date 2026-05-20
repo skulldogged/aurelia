@@ -58,11 +58,17 @@ fn extract_words_from_cues(
 
     let chars: Vec<char> = text.chars().collect();
     let mut words = Vec::with_capacity(cues.len());
+    let mut previous_word_end: Option<usize> = None;
 
     for cue in cues {
         let start = cue.position.max(0) as usize;
         let end = (cue.end_position.max(0) as usize).min(chars.len());
-        let word = cue.word.clone().unwrap_or_else(|| {
+        let source_segment = if start < end {
+            chars[start..end].iter().collect()
+        } else {
+            String::new()
+        };
+        let raw_word = cue.word.clone().unwrap_or_else(|| {
             if start < end {
                 chars[start..end].iter().collect()
             } else {
@@ -71,9 +77,29 @@ fn extract_words_from_cues(
         });
 
         // Skip empty cues (pure whitespace separators)
-        let trimmed = word.trim().to_string();
+        let mut trimmed = raw_word.trim().to_string();
         if trimmed.is_empty() {
             continue;
+        }
+
+        let has_leading_gap = previous_word_end.is_some_and(|previous_end| {
+            let previous_end = previous_end.min(chars.len());
+            let gap = if start > previous_end {
+                chars[previous_end..start].iter().collect::<String>()
+            } else {
+                String::new()
+            };
+
+            gap.chars().any(char::is_whitespace)
+                || source_segment
+                    .chars()
+                    .next()
+                    .is_some_and(char::is_whitespace)
+                || raw_word.chars().next().is_some_and(char::is_whitespace)
+        });
+
+        if has_leading_gap {
+            trimmed.insert(0, ' ');
         }
 
         words.push(ParsedLyricsWord {
@@ -81,9 +107,14 @@ fn extract_words_from_cues(
             end_time_ms: cue.end.map(ticks_i64_to_ms),
             word: trimmed,
         });
+        previous_word_end = Some(end);
     }
 
-    if words.is_empty() { None } else { Some(words) }
+    if words.is_empty() {
+        None
+    } else {
+        Some(words)
+    }
 }
 
 fn jellyfin_line_to_parsed(
@@ -298,7 +329,7 @@ mod tests {
         assert_eq!(words[0].time_ms, 0);
         assert_eq!(words[0].end_time_ms, Some(500));
 
-        assert_eq!(words[1].word, "world");
+        assert_eq!(words[1].word, " world");
         assert_eq!(words[1].time_ms, 500);
         assert_eq!(words[1].end_time_ms, Some(1000));
 
@@ -345,7 +376,40 @@ mod tests {
         let words = parsed.synced[0].words.as_ref().expect("should have words");
         assert_eq!(words.len(), 2);
         assert_eq!(words[0].word, "Hi");
-        assert_eq!(words[1].word, "there");
+        assert_eq!(words[1].word, " there");
+    }
+
+    #[test]
+    fn preserves_space_when_cue_range_includes_separator() {
+        let lyrics = make_lyrics(vec![JellyfinLyricLine {
+            text: "Hello world".to_string(),
+            timestamp: Some(0.0),
+            end: None,
+            cues: Some(vec![
+                JellyfinLyricLineCue {
+                    position: 0,
+                    end_position: 5,
+                    start: 0,
+                    end: Some(5_000_000),
+                    word: None,
+                },
+                JellyfinLyricLineCue {
+                    position: 5,
+                    end_position: 11,
+                    start: 5_000_000,
+                    end: Some(10_000_000),
+                    word: None,
+                },
+            ]),
+            agent_id: None,
+            translation: None,
+            section: None,
+        }]);
+
+        let parsed = jellyfin_to_parsed_lyrics(&lyrics);
+        let words = parsed.synced[0].words.as_ref().expect("should have words");
+        assert_eq!(words[0].word, "Hello");
+        assert_eq!(words[1].word, " world");
     }
 
     #[test]
@@ -404,7 +468,10 @@ mod tests {
         let parsed = jellyfin_to_parsed_lyrics(&lyrics);
 
         assert_eq!(parsed.language.as_deref(), Some("en"));
-        assert_eq!(parsed.songwriters.as_deref(), Some(&["Songwriter One".to_string()][..]));
+        assert_eq!(
+            parsed.songwriters.as_deref(),
+            Some(&["Songwriter One".to_string()][..])
+        );
         assert_eq!(parsed.agents.as_ref().map(Vec::len), Some(1));
         assert_eq!(parsed.sections.as_ref().map(Vec::len), Some(1));
         assert_eq!(parsed.synced[0].end_time_ms, Some(4000));

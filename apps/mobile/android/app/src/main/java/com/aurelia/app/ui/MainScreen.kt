@@ -340,6 +340,7 @@ fun MainScreen(
         composable<Screen.Artists> {
           ArtistsScreen(
             libraryViewModel = libraryViewModel,
+            sessionStore = sessionStore,
             onNavigateToArtist = { navController.navigate(it) },
             hasPlayerBar = libraryState.nowPlaying != null,
           )
@@ -416,6 +417,7 @@ fun MainScreen(
             viewModel = playlistViewModel,
             onBack = { navController.popBackStack() },
             onOpenPlayer = { openPlayerAnimated() },
+            hasPlayerBar = libraryState.nowPlaying != null,
           )
         }
       }

@@ -49,3 +49,18 @@ fun optimizedArtworkUrl(
     .build()
     .toString()
 }
+
+fun jellyfinPrimaryImageUrl(
+  serverUrl: String?,
+  itemId: String?,
+  token: String?,
+): String? {
+  if (serverUrl.isNullOrBlank() || itemId.isNullOrBlank()) return null
+
+  val base = serverUrl.trimEnd('/')
+  val builder = Uri.parse("$base/Items/$itemId/Images/Primary").buildUpon()
+  if (!token.isNullOrBlank()) {
+    builder.appendQueryParameter("api_key", token)
+  }
+  return builder.build().toString()
+}

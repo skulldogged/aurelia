@@ -53,6 +53,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
+import com.aurelia.app.ui.components.LibraryMessageState
+import com.aurelia.app.ui.components.LibraryScreenHeader
+import com.aurelia.app.ui.components.MediaListItem
 import com.aurelia.app.ui.navigation.Screen
 import uniffi.aurelia_core.Playlist
 
@@ -88,25 +91,6 @@ fun PlaylistsScreen(
         .statusBarsPadding(),
   ) {
     Column(modifier = Modifier.fillMaxSize()) {
-      // Header
-      Column(
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-      ) {
-        Text(
-          text = "Playlists",
-          style = MaterialTheme.typography.displayLarge,
-          color = colors.onBackground,
-        )
-        Text(
-          text = "Your music collections",
-          style = MaterialTheme.typography.bodyMedium,
-          color = colors.onSurfaceVariant,
-        )
-      }
-
       when {
         state.isLoading -> {
           Box(
@@ -141,7 +125,12 @@ fun PlaylistsScreen(
         }
 
         state.playlists.isEmpty() -> {
-          EmptyPlaylistsView()
+          LibraryMessageState(
+            icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+            title = "No playlists yet",
+            subtitle = "Create a playlist to organize your favorite music.",
+            modifier = Modifier.fillMaxSize(),
+          )
         }
 
         else -> {
@@ -159,9 +148,21 @@ fun PlaylistsScreen(
               ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
           ) {
+            item(key = "header") {
+              LibraryScreenHeader(
+                title = "Playlists",
+                subtitle = "Your music collections",
+                modifier = Modifier.padding(horizontal = 8.dp),
+              )
+            }
+
             items(state.playlists, key = { it.id }) { playlist ->
-              PlaylistItem(
-                playlist = playlist,
+              MediaListItem(
+                title = playlist.name,
+                subtitle = "${playlist.childCount ?: 0} songs",
+                imageUrl = null,
+                artworkStyle = AlbumArtStyle.Playlist,
+                showMore = playlist.canDelete == true,
                 onClick = {
                   onNavigateToPlaylist(
                     Screen.PlaylistDetail(
@@ -170,7 +171,7 @@ fun PlaylistsScreen(
                     ),
                   )
                 },
-                onDelete = { playlistToDelete = playlist },
+                onMoreClick = { playlistToDelete = playlist },
               )
             }
           }

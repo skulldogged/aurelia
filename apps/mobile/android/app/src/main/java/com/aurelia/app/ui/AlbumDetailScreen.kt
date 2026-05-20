@@ -60,6 +60,8 @@ import com.aurelia.app.player.PlayerController
 
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.BottomBarDimensions
+import com.aurelia.app.ui.components.ActionButtonRow
+import com.aurelia.app.ui.components.DetailHeroGradient
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.components.rememberContextMenuState
@@ -135,14 +137,7 @@ fun AlbumDetailScreen(
   val artistName = albumSongs.firstOrNull()?.artists?.joinToString(", ") ?: "Unknown Artist"
   val artistId = albumSongs.firstOrNull()?.artistIds?.firstOrNull()
 
-  val gradient =
-    Brush.verticalGradient(
-      colors =
-        listOf(
-          colors.primaryContainer,
-          colors.background,
-        ),
-    )
+  val gradient = DetailHeroGradient()
 
   Column(
     modifier =
@@ -267,73 +262,23 @@ fun AlbumDetailScreen(
 
           Spacer(modifier = Modifier.height(24.dp))
 
-          // Play all and Shuffle buttons (grouped)
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-          ) {
-            Button(
-              onClick = {
-                if (albumSongs.isNotEmpty()) {
-                  val serverUrl = sessionStore.getServerUrl() ?: return@Button
-                  val token = sessionStore.getToken() ?: return@Button
+          ActionButtonRow(
+            enabled = albumSongs.isNotEmpty(),
+            onPlay = {
+              val serverUrl = sessionStore.getServerUrl() ?: return@ActionButtonRow
+              val token = sessionStore.getToken() ?: return@ActionButtonRow
 
-                  playerController.setQueue(albumSongs, serverUrl, token, 0)
-                  onOpenPlayer()
-                }
-              },
-              modifier = Modifier
-                .height(56.dp)
-                .width(160.dp),
-              shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp, topEnd = 4.dp, bottomEnd = 4.dp),
-              colors = ButtonDefaults.buttonColors(
-                containerColor = colors.primary,
-                contentColor = colors.onPrimary,
-              ),
-              contentPadding = PaddingValues(horizontal = 24.dp),
-            ) {
-              Icon(
-                imageVector = Icons.Filled.PlayArrow,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-              )
-              Spacer(modifier = Modifier.width(8.dp))
-              Text(
-                text = "Play",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-              )
-            }
+              playerController.setQueue(albumSongs, serverUrl, token, 0)
+              onOpenPlayer()
+            },
+            onShuffle = {
+              val serverUrl = sessionStore.getServerUrl() ?: return@ActionButtonRow
+              val token = sessionStore.getToken() ?: return@ActionButtonRow
 
-            Spacer(modifier = Modifier.width(6.dp))
-
-            // Shuffle Button (Secondary Action)
-            Button(
-              onClick = {
-                if (albumSongs.isNotEmpty()) {
-                  val serverUrl = sessionStore.getServerUrl() ?: return@Button
-                  val token = sessionStore.getToken() ?: return@Button
-
-                  playerController.setQueue(albumSongs.shuffled(), serverUrl, token, 0)
-                  onOpenPlayer()
-                }
-              },
-              modifier = Modifier
-                .height(56.dp),
-              shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 28.dp, bottomEnd = 28.dp),
-              colors = ButtonDefaults.buttonColors(
-                containerColor = colors.secondaryContainer,
-                contentColor = colors.onSecondaryContainer,
-              ),
-              contentPadding = PaddingValues(horizontal = 20.dp),
-            ) {
-              Icon(
-                imageVector = Icons.Filled.Shuffle,
-                contentDescription = "Shuffle",
-                modifier = Modifier.size(24.dp),
-              )
-            }
-          }
+              playerController.setQueue(albumSongs.shuffled(), serverUrl, token, 0)
+              onOpenPlayer()
+            },
+          )
 
           Spacer(modifier = Modifier.height(32.dp))
         }

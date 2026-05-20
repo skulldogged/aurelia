@@ -45,6 +45,8 @@ import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
 import com.aurelia.app.ui.components.BottomBarDimensions
+import com.aurelia.app.ui.components.LibraryScreenHeader
+import com.aurelia.app.ui.components.MediaListItem
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.components.rememberContextMenuState
@@ -74,26 +76,6 @@ fun LibraryScreen(
         .fillMaxSize()
         .statusBarsPadding(),
   ) {
-    // Header
-    Column(
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 24.dp, vertical = 16.dp),
-    ) {
-      Text(
-        text = "Songs",
-        style = MaterialTheme.typography.displayLarge,
-        color = colors.onBackground,
-      )
-      Spacer(modifier = Modifier.height(4.dp))
-      Text(
-        text = "${state.songs.size} songs",
-        style = MaterialTheme.typography.bodyMedium,
-        color = colors.onSurfaceVariant,
-      )
-    }
-
     // Song list
     when {
       state.isLoading -> {
@@ -143,63 +125,34 @@ fun LibraryScreen(
             ),
           verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+          item(key = "header") {
+            LibraryScreenHeader(
+              title = "Songs",
+              subtitle = "${state.songs.size} songs",
+              modifier = Modifier.padding(horizontal = 8.dp),
+            )
+          }
+
           items(
             items = state.songs,
             key = { song -> song.id },
           ) { song ->
             val isCurrentSong = song.id == currentSongId
 
-            EnhancedSongItem(
-              song = song,
+            MediaListItem(
+              title = song.name,
+              subtitle = song.artists?.joinToString(", ") ?: "Unknown Artist",
+              imageUrl = song.albumArtUrl,
+              artworkStyle = AlbumArtStyle.Song,
               isPlaying = isPlaying && isCurrentSong,
-              isCurrentSong = isCurrentSong,
+              isCurrent = isCurrentSong,
+              showMore = true,
               onClick = {
                 libraryViewModel.playFromList(song.id)
                 onOpenPlayer()
               },
               onLongClick = { contextMenu.openContextMenu(song) },
               onMoreClick = { contextMenu.openContextMenu(song) },
-              onAddToQueue = {
-                val serverUrl = sessionStore.getServerUrl() ?: return@EnhancedSongItem
-                val token = sessionStore.getToken() ?: return@EnhancedSongItem
-                playerController.addToQueue(song, serverUrl, token)
-              },
-              onPlayNext = {
-                val serverUrl = sessionStore.getServerUrl() ?: return@EnhancedSongItem
-                val token = sessionStore.getToken() ?: return@EnhancedSongItem
-                playerController.playNext(song, serverUrl, token)
-              },
-              onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
-              onGoToAlbum =
-                if (onNavigateToAlbum != null) {
-                  song.safeAlbumId()?.let { albumId ->
-                    {
-                      onNavigateToAlbum(
-                        Screen.AlbumDetail(
-                          albumId = albumId,
-                          albumName = song.album ?: "Unknown Album",
-                        ),
-                      )
-                    }
-                  }
-                } else {
-                  null
-                },
-              onGoToArtist =
-                if (onNavigateToArtist != null) {
-                  song.safePrimaryArtistId()?.let { artistId ->
-                    {
-                      onNavigateToArtist(
-                        Screen.ArtistDetail(
-                          artistId = artistId,
-                          artistName = song.artists?.firstOrNull() ?: "Unknown Artist",
-                        ),
-                      )
-                    }
-                  }
-                } else {
-                  null
-                },
             )
           }
         }

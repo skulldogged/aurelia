@@ -1,56 +1,54 @@
 package com.aurelia.app.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.ui.components.ArtistAvatar
 import com.aurelia.app.ui.components.BottomBarDimensions
+import com.aurelia.app.ui.components.LibraryMessageState
+import com.aurelia.app.ui.components.LibraryScreenHeader
+import com.aurelia.app.ui.components.MediaListItem
 import com.aurelia.app.ui.navigation.Screen
+import com.aurelia.app.utils.jellyfinPrimaryImageUrl
 
 data class ArtistItem(
   val id: String,
   val name: String,
   val songCount: Int,
   val albumCount: Int,
+  val imageUrl: String?,
 )
 
 @Composable
 fun ArtistsScreen(
   libraryViewModel: LibraryViewModel,
+  sessionStore: SessionStore,
   onNavigateToArtist: (Screen.ArtistDetail) -> Unit = {},
   hasPlayerBar: Boolean = false,
 ) {
   val state by libraryViewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
+  val serverUrl = remember { sessionStore.getServerUrl() }
+  val token = remember { sessionStore.getToken() }
 
   // Group songs by artist (using artist ID)
   val artists = remember(state.songs) {
@@ -76,6 +74,7 @@ fun ArtistsScreen(
         name = data.first,
         songCount = data.second.size,
         albumCount = data.third.size,
+        imageUrl = jellyfinPrimaryImageUrl(serverUrl, id, token),
       )
     }.sortedBy { it.name.lowercase() }
   }
@@ -85,24 +84,6 @@ fun ArtistsScreen(
       .fillMaxSize()
       .statusBarsPadding(),
   ) {
-    // Header
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 24.dp, vertical = 16.dp),
-    ) {
-      Text(
-        text = "Artists",
-        style = MaterialTheme.typography.displayLarge,
-        color = colors.onBackground,
-      )
-      Text(
-        text = "${artists.size} artists",
-        style = MaterialTheme.typography.bodyMedium,
-        color = colors.onSurfaceVariant,
-      )
-    }
-
     when {
       state.isLoading -> {
         Box(
@@ -111,6 +92,15 @@ fun ArtistsScreen(
         ) {
           CircularProgressIndicator(color = colors.primary)
         }
+      }
+
+      artists.isEmpty() -> {
+        LibraryMessageState(
+          icon = Icons.Filled.Person,
+          title = "No artists yet",
+          subtitle = "Sync your library to browse artists here.",
+          modifier = Modifier.fillMaxSize(),
+        )
       }
 
       else -> {
@@ -124,76 +114,29 @@ fun ArtistsScreen(
           ),
           verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+          item(key = "header") {
+            LibraryScreenHeader(
+              title = "Artists",
+              subtitle = "${artists.size} artists",
+              modifier = Modifier.padding(horizontal = 8.dp),
+            )
+          }
+
           items(
             items = artists,
             key = { it.id },
           ) { artist ->
-            ArtistCard(
-              artist = artist,
+            MediaListItem(
+              title = artist.name,
+              subtitle = "${artist.songCount} songs - ${artist.albumCount} albums",
+              imageUrl = null,
+              leadingContent = { ArtistAvatar(imageUrl = artist.imageUrl) },
               onClick = {
                 onNavigateToArtist(Screen.ArtistDetail(artist.id, artist.name))
               },
             )
           }
         }
-      }
-    }
-  }
-}
-
-@Composable
-private fun ArtistCard(
-  artist: ArtistItem,
-  onClick: () -> Unit,
-) {
-  val colors = MaterialTheme.colorScheme
-
-  Surface(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(RoundedCornerShape(16.dp))
-      .clickable(onClick = onClick),
-    shape = RoundedCornerShape(16.dp),
-    color = colors.surfaceContainerLow,
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(12.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-      // Artist avatar placeholder
-      Surface(
-        modifier = Modifier.size(56.dp),
-        shape = CircleShape,
-        color = colors.surfaceVariant,
-      ) {
-        Box(contentAlignment = Alignment.Center) {
-          Icon(
-            imageVector = Icons.Filled.Person,
-            contentDescription = null,
-            tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.size(28.dp),
-          )
-        }
-      }
-
-      // Artist info
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-          text = artist.name,
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.SemiBold,
-          color = colors.onSurface,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-          text = "${artist.songCount} songs · ${artist.albumCount} albums",
-          style = MaterialTheme.typography.bodySmall,
-          color = colors.onSurfaceVariant,
-        )
       }
     }
   }

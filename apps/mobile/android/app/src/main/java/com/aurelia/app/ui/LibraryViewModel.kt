@@ -8,6 +8,7 @@ import com.aurelia.app.auth.AuthInterceptor
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.utils.buildSongIdCache
+import com.aurelia.app.utils.jellyfinPrimaryImageUrl
 import com.aurelia.app.utils.validateSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -215,10 +216,12 @@ class LibraryViewModel(
         }
         .groupBy { it.second }
         .map { (name, entries) ->
+          val artistId = entries.firstOrNull()?.first
           SearchResult.Artist(
-            id = entries.firstOrNull()?.first,
+            id = artistId,
             name = name,
             songCount = entries.size,
+            imageUrl = jellyfinPrimaryImageUrl(sessionStore.getServerUrl(), artistId, sessionStore.getToken()),
           )
         }
         .take(UiConstants.SEARCH_ARTISTS_LIMIT)

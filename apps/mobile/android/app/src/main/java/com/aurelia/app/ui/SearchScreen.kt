@@ -52,6 +52,10 @@ import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
 import com.aurelia.app.ui.components.BottomBarDimensions
+import com.aurelia.app.ui.components.ArtistAvatar
+import com.aurelia.app.ui.components.LibraryMessageState
+import com.aurelia.app.ui.components.LibraryScreenHeader
+import com.aurelia.app.ui.components.MediaListItem
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.components.rememberContextMenuState
@@ -73,6 +77,7 @@ sealed class SearchResult {
     val id: String?,
     val name: String,
     val songCount: Int,
+    val imageUrl: String?,
   ) : SearchResult()
 }
 
@@ -116,10 +121,10 @@ fun SearchScreen(
           .padding(horizontal = 16.dp, vertical = 16.dp),
       verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-      Text(
-        text = "Search",
-        style = MaterialTheme.typography.displayLarge,
-        color = colors.onBackground,
+      LibraryScreenHeader(
+        title = "Search",
+        subtitle = "Find songs, albums, and artists",
+        modifier = Modifier.padding(horizontal = 0.dp, vertical = 0.dp),
       )
 
       OutlinedTextField(
@@ -165,62 +170,21 @@ fun SearchScreen(
     // Results
     when {
       searchQuery.isEmpty() -> {
-        Box(
-          modifier =
-            Modifier
-              .fillMaxSize()
-              .padding(32.dp),
-          contentAlignment = Alignment.Center,
-        ) {
-          Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-          ) {
-            Surface(
-              modifier = Modifier.size(80.dp),
-              shape = RoundedCornerShape(24.dp),
-              color = colors.surfaceVariant,
-            ) {
-              Box(contentAlignment = Alignment.Center) {
-                Icon(
-                  imageVector = Icons.Filled.Search,
-                  contentDescription = null,
-                  tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
-                  modifier = Modifier.size(40.dp),
-                )
-              }
-            }
-            Text(
-              text = "Search your library",
-              style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.SemiBold,
-              color = colors.onSurface,
-            )
-            Text(
-              text = "Find songs, albums, and artists",
-              style = MaterialTheme.typography.bodyMedium,
-              color = colors.onSurfaceVariant,
-              textAlign = TextAlign.Center,
-            )
-          }
-        }
+        LibraryMessageState(
+          icon = Icons.Filled.Search,
+          title = "Search your library",
+          subtitle = "Type at least ${UiConstants.MIN_SEARCH_LENGTH} characters to start.",
+          modifier = Modifier.fillMaxSize(),
+        )
       }
 
       results.isEmpty() && searchQuery.length >= UiConstants.MIN_SEARCH_LENGTH -> {
-        Box(
-          modifier =
-            Modifier
-              .fillMaxSize()
-              .padding(32.dp),
-          contentAlignment = Alignment.Center,
-        ) {
-          Text(
-            text = "No results found for \"$searchQuery\"",
-            style = MaterialTheme.typography.bodyLarge,
-            color = colors.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-          )
-        }
+        LibraryMessageState(
+          icon = Icons.Filled.Search,
+          title = "No results",
+          subtitle = "Nothing matched \"$searchQuery\".",
+          modifier = Modifier.fillMaxSize(),
+        )
       }
 
       else -> {
@@ -299,9 +263,12 @@ fun SearchScreen(
               }
 
               is SearchResult.Album -> {
-                AlbumSearchResult(
-                  name = result.name,
-                  albumArtUrl = result.albumArtUrl,
+                MediaListItem(
+                  title = result.name,
+                  subtitle = result.artist,
+                  metadata = "Album",
+                  imageUrl = result.albumArtUrl,
+                  artworkStyle = AlbumArtStyle.Album,
                   onClick = {
                     onNavigateToAlbum?.invoke(
                       Screen.AlbumDetail(
@@ -314,9 +281,12 @@ fun SearchScreen(
               }
 
               is SearchResult.Artist -> {
-                ArtistSearchResult(
-                  name = result.name,
-                  songCount = result.songCount,
+                MediaListItem(
+                  title = result.name,
+                  subtitle = "${result.songCount} songs",
+                  metadata = "Artist",
+                  imageUrl = null,
+                  leadingContent = { ArtistAvatar(size = 44.dp, imageUrl = result.imageUrl) },
                   onClick = {
                     result.id?.let { artistId ->
                       onNavigateToArtist?.invoke(

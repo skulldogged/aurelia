@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,15 +53,36 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.ui.components.ActionButtonRow
 import com.aurelia.app.ui.components.AlbumArt
+import com.aurelia.app.ui.components.AlbumArtStyle
+import com.aurelia.app.ui.components.ArtistAvatar
 import com.aurelia.app.ui.components.BottomBarDimensions
+import com.aurelia.app.ui.components.DetailHeroGradient
+import com.aurelia.app.ui.components.LibrarySectionHeader
+import com.aurelia.app.ui.components.MediaListItem
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.components.rememberContextMenuState
 import com.aurelia.app.ui.navigation.Screen
 import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
 import com.aurelia.app.utils.formatDuration
+import com.aurelia.app.utils.jellyfinPrimaryImageUrl
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import uniffi.aurelia_core.Artist
 import uniffi.aurelia_core.Song
+import uniffi.aurelia_core.fetchArtist
+import uniffi.aurelia_core.getCachedArtist
+
+private data class ArtistAlbumSummary(
+  val id: String,
+  val name: String,
+  val artUrl: String?,
+  val songCount: Int,
+  val duration: String,
+  val songs: List<Song>,
+)
 
 @Composable
 fun ArtistDetailScreen(
@@ -78,6 +101,7 @@ fun ArtistDetailScreen(
   val playlistState by playlistViewModel.state.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val wideFont = rememberGoogleSansFlexWideFont()
+  var artistDetails by remember(artistId) { mutableStateOf<Artist?>(null) }
 
   val contextMenu = rememberContextMenuState()
 
@@ -92,13 +116,55 @@ fun ArtistDetailScreen(
 
   val songCount = artistSongs.size
   val albumCount = artistSongs.mapNotNull { it.albumId }.distinct().size
+  val totalDuration = remember(artistSongs) { calculateArtistDuration(artistSongs) }
+  val artistImageUrl =
+    artistDetails?.imageUrl
+      ?: jellyfinPrimaryImageUrl(sessionStore.getServerUrl(), artistId, sessionStore.getToken())
+  val artistOverview = artistDetails?.overview?.takeIf { it.isNotBlank() }
+  val albumSummaries =
+    remember(artistSongs) {
+      artistSongs
+        .filter { !it.albumId.isNullOrBlank() }
+        .groupBy { it.albumId.orEmpty() }
+        .map { (albumId, songs) ->
+          val sortedSongs = songs.sortedBy { it.trackNumber ?: Int.MAX_VALUE }
+          val firstSong = sortedSongs.first()
+          ArtistAlbumSummary(
+            id = albumId,
+            name = firstSong.album ?: "Unknown Album",
+            artUrl = firstSong.albumArtUrl,
+            songCount = sortedSongs.size,
+            duration = calculateArtistDuration(sortedSongs),
+            songs = sortedSongs,
+          )
+        }
+        .sortedBy { it.name.lowercase() }
+    }
+  val featuredSongs = remember(artistSongs) { artistSongs.take(8) }
 
-  val gradient = Brush.verticalGradient(
-    colors = listOf(
-      colors.primaryContainer,
-      colors.background,
-    ),
-  )
+  val gradient = DetailHeroGradient()
+
+  LaunchedEffect(artistId) {
+    val appDataDir = sessionStore.getAppDataDir()
+    val serverUrl = sessionStore.getServerUrl()
+    val token = sessionStore.getToken()
+    val userId = sessionStore.getUserId()
+
+    if (!appDataDir.isNullOrBlank()) {
+      artistDetails = withContext(Dispatchers.IO) {
+        runCatching { getCachedArtist(appDataDir, artistId) }.getOrNull()
+      }
+    }
+
+    if (!serverUrl.isNullOrBlank() && !token.isNullOrBlank() && !userId.isNullOrBlank() && !appDataDir.isNullOrBlank()) {
+      val fetched = withContext(Dispatchers.IO) {
+        runCatching { fetchArtist(serverUrl, token, userId, artistId, appDataDir) }.getOrNull()
+      }
+      if (fetched != null) {
+        artistDetails = fetched
+      }
+    }
+  }
 
   Column(
     modifier = Modifier
@@ -134,28 +200,11 @@ fun ArtistDetailScreen(
             .padding(horizontal = 24.dp),
           horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-          // Artist avatar
-          Surface(
-            modifier = Modifier
-              .size(180.dp)
-              .clip(CircleShape),
-            shape = CircleShape,
-            color = colors.surfaceVariant,
-            tonalElevation = 8.dp,
-            shadowElevation = 12.dp,
-          ) {
-            Box(
-              modifier = Modifier.fillMaxSize(),
-              contentAlignment = Alignment.Center,
-            ) {
-              Icon(
-                imageVector = Icons.Filled.Person,
-                contentDescription = null,
-                modifier = Modifier.size(72.dp),
-                tint = colors.onSurfaceVariant.copy(alpha = 0.3f),
-              )
-            }
-          }
+          ArtistAvatar(
+            size = 180.dp,
+            imageUrl = artistImageUrl,
+            containerColor = colors.surfaceContainerHigh,
+          )
 
           Spacer(modifier = Modifier.height(24.dp))
 
@@ -176,93 +225,95 @@ fun ArtistDetailScreen(
 
           Spacer(modifier = Modifier.height(8.dp))
 
-          // Stats
-          Text(
-            text = "$albumCount albums - $songCount songs",
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.onPrimaryContainer.copy(alpha = 0.6f),
-          )
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            ArtistStatPill(label = "$albumCount albums")
+            ArtistStatPill(label = "$songCount songs")
+            ArtistStatPill(label = totalDuration)
+          }
 
           Spacer(modifier = Modifier.height(24.dp))
 
-          // Play all and Shuffle buttons (grouped)
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-          ) {
-            Button(
-              onClick = {
-                if (artistSongs.isNotEmpty()) {
-                  val serverUrl = sessionStore.getServerUrl() ?: return@Button
-                  val token = sessionStore.getToken() ?: return@Button
+          ActionButtonRow(
+            enabled = artistSongs.isNotEmpty(),
+            onPlay = {
+              val serverUrl = sessionStore.getServerUrl() ?: return@ActionButtonRow
+              val token = sessionStore.getToken() ?: return@ActionButtonRow
 
-                  playerController.setQueue(artistSongs, serverUrl, token, 0)
-                  onOpenPlayer()
-                }
-              },
-              modifier = Modifier
-                .height(56.dp)
-                .width(160.dp),
-              shape = RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp, topEnd = 4.dp, bottomEnd = 4.dp),
-              colors = ButtonDefaults.buttonColors(
-                containerColor = colors.primary,
-                contentColor = colors.onPrimary,
-              ),
-              contentPadding = PaddingValues(horizontal = 24.dp),
-            ) {
-              Icon(
-                imageVector = Icons.Filled.PlayArrow,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-              )
-              Spacer(modifier = Modifier.width(8.dp))
-              Text(
-                text = "Play",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-              )
-            }
+              playerController.setQueue(artistSongs, serverUrl, token, 0)
+              onOpenPlayer()
+            },
+            onShuffle = {
+              val serverUrl = sessionStore.getServerUrl() ?: return@ActionButtonRow
+              val token = sessionStore.getToken() ?: return@ActionButtonRow
 
-            Spacer(modifier = Modifier.width(6.dp))
+              playerController.setQueue(artistSongs.shuffled(), serverUrl, token, 0)
+              onOpenPlayer()
+            },
+          )
 
-            // Shuffle Button
-            Button(
-              onClick = {
-                if (artistSongs.isNotEmpty()) {
-                  val serverUrl = sessionStore.getServerUrl() ?: return@Button
-                  val token = sessionStore.getToken() ?: return@Button
-
-                  playerController.setQueue(artistSongs.shuffled(), serverUrl, token, 0)
-                  onOpenPlayer()
-                }
-              },
-              modifier = Modifier.height(56.dp),
-              shape = RoundedCornerShape(topStart = 4.dp, bottomStart = 4.dp, topEnd = 28.dp, bottomEnd = 28.dp),
-              colors = ButtonDefaults.buttonColors(
-                containerColor = colors.secondaryContainer,
-                contentColor = colors.onSecondaryContainer,
-              ),
-              contentPadding = PaddingValues(horizontal = 20.dp),
-            ) {
-              Icon(
-                imageVector = Icons.Filled.Shuffle,
-                contentDescription = "Shuffle",
-                modifier = Modifier.size(24.dp),
-              )
-            }
+          if (!artistOverview.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(22.dp))
+            Text(
+              text = artistOverview,
+              style = MaterialTheme.typography.bodyMedium,
+              color = colors.onPrimaryContainer.copy(alpha = 0.78f),
+              maxLines = 4,
+              overflow = TextOverflow.Ellipsis,
+              textAlign = TextAlign.Center,
+              modifier = Modifier.padding(horizontal = 8.dp),
+            )
           }
 
           Spacer(modifier = Modifier.height(32.dp))
         }
       }
 
-      // Song list
+      if (albumSummaries.isNotEmpty()) {
+        item(key = "albums-header") {
+          LibrarySectionHeader(
+            title = "Albums",
+            subtitle = "Grouped from this artist's tracks",
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+          )
+        }
+
+        items(
+          items = albumSummaries,
+          key = { album -> album.id },
+        ) { album ->
+          MediaListItem(
+            title = album.name,
+            subtitle = "${album.songCount} songs - ${album.duration}",
+            imageUrl = album.artUrl,
+            artworkStyle = AlbumArtStyle.Album,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            onClick = {
+              onNavigateToAlbum?.invoke(Screen.AlbumDetail(album.id, album.name))
+            },
+          )
+        }
+      }
+
+      if (featuredSongs.isNotEmpty()) {
+        item(key = "featured-header") {
+          LibrarySectionHeader(
+            title = "Songs to Start With",
+            subtitle = "A quick entry point into this artist",
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 8.dp),
+          )
+        }
+      }
+
       itemsIndexed(
-        items = artistSongs,
-        key = { _, song -> song.id },
+        items = featuredSongs,
+        key = { _, song -> "featured-${song.id}" },
       ) { index, song ->
         val isCurrentSong = song.id == state.currentSongId
         val isPlaying = state.nowPlaying?.isPlaying == true && isCurrentSong
+        val queueIndex = artistSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
         ArtistSongItem(
           song = song,
@@ -275,7 +326,7 @@ fun ArtistDetailScreen(
             val serverUrl = sessionStore.getServerUrl() ?: return@ArtistSongItem
             val token = sessionStore.getToken() ?: return@ArtistSongItem
 
-            playerController.setQueue(artistSongs, serverUrl, token, index)
+            playerController.setQueue(artistSongs, serverUrl, token, queueIndex)
             onOpenPlayer()
           },
           onLongClick = { contextMenu.openContextMenu(song) },
@@ -310,6 +361,82 @@ fun ArtistDetailScreen(
             },
         )
       }
+
+      if (albumSummaries.isNotEmpty()) {
+        item(key = "catalog-header") {
+          LibrarySectionHeader(
+            title = "Full Catalog",
+            subtitle = "All songs by album",
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 8.dp),
+          )
+        }
+
+        albumSummaries.forEach { album ->
+          item(key = "album-${album.id}-header") {
+            Text(
+              text = album.name,
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              color = colors.onSurface,
+              modifier =
+                Modifier
+                  .fillMaxWidth()
+                  .clickable(enabled = onNavigateToAlbum != null) {
+                    onNavigateToAlbum?.invoke(Screen.AlbumDetail(album.id, album.name))
+                  }
+                  .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 6.dp),
+            )
+          }
+
+          itemsIndexed(
+            items = album.songs,
+            key = { _, song -> "catalog-${album.id}-${song.id}" },
+          ) { _, song ->
+            val isCurrentSong = song.id == state.currentSongId
+            val isPlaying = state.nowPlaying?.isPlaying == true && isCurrentSong
+            val queueIndex = artistSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+
+            ArtistSongItem(
+              song = song,
+              albumName = song.album ?: "Unknown Album",
+              albumArtUrl = song.albumArtUrl,
+              duration = song.duration?.let { formatDuration((it * 1000).toLong()) },
+              isPlaying = isPlaying,
+              isCurrentSong = isCurrentSong,
+              onClick = {
+                val serverUrl = sessionStore.getServerUrl() ?: return@ArtistSongItem
+                val token = sessionStore.getToken() ?: return@ArtistSongItem
+
+                playerController.setQueue(artistSongs, serverUrl, token, queueIndex)
+                onOpenPlayer()
+              },
+              onLongClick = { contextMenu.openContextMenu(song) },
+              onMoreClick = { contextMenu.openContextMenu(song) },
+              showContextMenu = contextMenu.showContextMenu && contextMenu.selectedSong?.id == song.id,
+              onDismissMenu = { contextMenu.dismissContextMenu() },
+              onAddToQueue = {
+                val serverUrl = sessionStore.getServerUrl() ?: return@ArtistSongItem
+                val token = sessionStore.getToken() ?: return@ArtistSongItem
+                playerController.addToQueue(song, serverUrl, token)
+              },
+              onPlayNext = {
+                val serverUrl = sessionStore.getServerUrl() ?: return@ArtistSongItem
+                val token = sessionStore.getToken() ?: return@ArtistSongItem
+                playerController.playNext(song, serverUrl, token)
+              },
+              onAddToPlaylist = { contextMenu.openPlaylistPicker(song) },
+              onGoToAlbum =
+                if (onNavigateToAlbum != null) {
+                  {
+                    onNavigateToAlbum(Screen.AlbumDetail(album.id, album.name))
+                  }
+                } else {
+                  null
+                },
+            )
+          }
+        }
+      }
     }
   }
 
@@ -331,6 +458,24 @@ fun ArtistDetailScreen(
         }
         contextMenu.dismissPlaylistPicker()
       },
+    )
+  }
+}
+
+@Composable
+private fun ArtistStatPill(label: String) {
+  val colors = MaterialTheme.colorScheme
+
+  Surface(
+    shape = RoundedCornerShape(50),
+    color = colors.surfaceContainerHigh.copy(alpha = 0.78f),
+  ) {
+    Text(
+      text = label,
+      style = MaterialTheme.typography.labelMedium,
+      fontWeight = FontWeight.SemiBold,
+      color = colors.onSurface,
+      modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
     )
   }
 }
@@ -455,5 +600,17 @@ private fun ArtistSongItem(
         }
       }
     }
+  }
+}
+
+private fun calculateArtistDuration(songs: List<Song>): String {
+  val totalSeconds = songs.sumOf { (it.duration ?: 0.0) }.toLong()
+  val hours = totalSeconds / 3600
+  val minutes = (totalSeconds % 3600) / 60
+
+  return if (hours > 0) {
+    "${hours}h ${minutes}m"
+  } else {
+    "${minutes} min"
   }
 }

@@ -46,6 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aurelia.app.ui.components.AlbumArt
 import com.aurelia.app.ui.components.AlbumArtStyle
+import com.aurelia.app.ui.components.ActionButtonRow
+import com.aurelia.app.ui.components.BottomBarDimensions
+import com.aurelia.app.ui.components.DetailHeroGradient
 import com.aurelia.app.ui.theme.SquircleShape
 import com.aurelia.app.ui.theme.rememberGoogleSansFlexWideFont
 import com.aurelia.app.utils.formatDuration
@@ -59,23 +62,18 @@ fun PlaylistDetailScreen(
   viewModel: PlaylistViewModel,
   onBack: () -> Unit,
   onOpenPlayer: () -> Unit,
+  hasPlayerBar: Boolean = false,
 ) {
   val state by viewModel.detailState.collectAsStateWithLifecycle()
   val colors = MaterialTheme.colorScheme
   val wideFont = rememberGoogleSansFlexWideFont()
+  val bottomPadding = BottomBarDimensions.calculateBottomPadding(hasPlayerBar)
 
   LaunchedEffect(playlistId) {
     viewModel.loadPlaylistDetail(playlistId, playlistName)
   }
 
-  val gradient =
-    Brush.verticalGradient(
-      colors =
-        listOf(
-          colors.primaryContainer,
-          colors.background,
-        ),
-    )
+  val gradient = DetailHeroGradient()
 
   Column(
     modifier =
@@ -131,7 +129,7 @@ fun PlaylistDetailScreen(
       else -> {
         LazyColumn(
           modifier = Modifier.fillMaxSize(),
-          contentPadding = PaddingValues(bottom = 16.dp),
+          contentPadding = PaddingValues(bottom = bottomPadding),
         ) {
           // Playlist header
           item {
@@ -194,66 +192,17 @@ fun PlaylistDetailScreen(
 
               Spacer(modifier = Modifier.height(24.dp))
 
-              // Play and shuffle buttons
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-              ) {
-                // Play all button
-                Button(
-                  onClick = {
-                    if (state.songs.isNotEmpty()) {
-                      viewModel.playPlaylist(0)
-                      onOpenPlayer()
-                    }
-                  },
-                  modifier = Modifier
-                    .height(56.dp)
-                    .width(160.dp),
-                  colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.primary,
-                    contentColor = colors.onPrimary,
-                  ),
-                  contentPadding = PaddingValues(horizontal = 24.dp),
-                ) {
-                  Icon(
-                    imageVector = Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                  )
-                  Spacer(modifier = Modifier.width(8.dp))
-                  Text(
-                    text = "Play",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                  )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Shuffle button
-                Button(
-                  onClick = {
-                    if (state.songs.isNotEmpty()) {
-                      viewModel.shufflePlaylist()
-                      onOpenPlayer()
-                    }
-                  },
-                  modifier = Modifier
-                    .height(56.dp),
-                  colors = ButtonDefaults.buttonColors(
-                    containerColor = colors.secondaryContainer,
-                    contentColor = colors.onSecondaryContainer,
-                  ),
-                  contentPadding = PaddingValues(horizontal = 20.dp),
-                ) {
-                  Icon(
-                    imageVector = Icons.Filled.Shuffle,
-                    contentDescription = "Shuffle",
-                    modifier = Modifier.size(24.dp),
-                  )
-                }
-              }
+              ActionButtonRow(
+                enabled = state.songs.isNotEmpty(),
+                onPlay = {
+                  viewModel.playPlaylist(0)
+                  onOpenPlayer()
+                },
+                onShuffle = {
+                  viewModel.shufflePlaylist()
+                  onOpenPlayer()
+                },
+              )
 
               Spacer(modifier = Modifier.height(32.dp))
             }
@@ -360,4 +309,3 @@ private fun PlaylistSongItem(
     }
   }
 }
-

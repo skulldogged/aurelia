@@ -67,6 +67,8 @@ import coil.request.ImageRequest
 import com.aurelia.app.player.PlayerController
 import com.aurelia.app.storage.SessionStore
 import com.aurelia.app.ui.components.BottomBarDimensions
+import com.aurelia.app.ui.components.LibraryScreenHeader
+import com.aurelia.app.ui.components.LibrarySectionHeader
 import com.aurelia.app.ui.components.PlaylistPickerDialog
 import com.aurelia.app.ui.components.SongContextMenu
 import com.aurelia.app.ui.components.rememberContextMenuState
@@ -137,29 +139,12 @@ fun HomeScreen(
         state.recentlyPlayed.firstOrNull()
       }
 
-      // Wide font for section headers
-      val wideFont = rememberGoogleSansFlexWideFont()
-
       Column(
         modifier =
           Modifier
             .fillMaxSize()
             .statusBarsPadding(),
       ) {
-        // Header
-        Column(
-          modifier =
-            Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 24.dp, vertical = 16.dp),
-        ) {
-          Text(
-            text = "Home",
-            style = MaterialTheme.typography.displayLarge,
-            color = colors.onBackground,
-          )
-        }
-
         LazyVerticalGrid(
           columns = GridCells.Fixed(2),
           modifier = Modifier.fillMaxSize(),
@@ -173,6 +158,14 @@ fun HomeScreen(
           horizontalArrangement = Arrangement.spacedBy(12.dp),
           verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+          item(span = { GridItemSpan(2) }) {
+            LibraryScreenHeader(
+              title = "Home",
+              subtitle = "Continue listening and rediscover your library",
+              modifier = Modifier.padding(horizontal = 4.dp),
+            )
+          }
+
           // Continue Listening Hero Section
           if (continueListeningSong != null) {
             item(span = { GridItemSpan(2) }) {
@@ -202,13 +195,9 @@ fun HomeScreen(
           // Quick Picks section header - spans full width with scanning context
           if (state.mostPlayed.isNotEmpty() || state.recentlyPlayed.isNotEmpty()) {
             item(span = { GridItemSpan(2) }) {
-              Text(
-                text = "Quick Picks",
-                style = MaterialTheme.typography.headlineSmall.copy(
-                  fontFamily = wideFont,
-                ),
-                fontWeight = FontWeight.Black,
-                color = colors.onBackground,
+              LibrarySectionHeader(
+                title = "Quick Picks",
+                subtitle = "Fast starts from recent and frequent plays",
                 modifier = Modifier.padding(top = 16.dp),
               )
             }
@@ -269,13 +258,8 @@ fun HomeScreen(
           // Recently Added Albums section header - spans full width
           if (state.recentlyAddedAlbums.isNotEmpty()) {
             item(span = { GridItemSpan(2) }) {
-              Text(
-                text = "Recently Added",
-                style = MaterialTheme.typography.headlineSmall.copy(
-                  fontFamily = wideFont,
-                ),
-                fontWeight = FontWeight.Black,
-                color = colors.onBackground,
+              LibrarySectionHeader(
+                title = "Recently Added",
                 modifier = Modifier.padding(top = 20.dp),
               )
             }
@@ -307,13 +291,8 @@ fun HomeScreen(
           // From Your Library section header - spans full width
           if (state.randomAlbums.isNotEmpty()) {
             item(span = { GridItemSpan(2) }) {
-              Text(
-                text = "From Your Library",
-                style = MaterialTheme.typography.headlineSmall.copy(
-                  fontFamily = wideFont,
-                ),
-                fontWeight = FontWeight.Black,
-                color = colors.onBackground,
+              LibrarySectionHeader(
+                title = "From Your Library",
                 modifier = Modifier.padding(top = 20.dp),
               )
             }

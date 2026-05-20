@@ -4,7 +4,12 @@ import android.Manifest
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,11 +26,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
@@ -62,6 +70,7 @@ import com.aurelia.app.audio.EQPresets
 import com.aurelia.app.audio.VisualizerStyle
 import com.aurelia.app.storage.SessionProfile
 import com.aurelia.app.storage.SessionStore
+import com.aurelia.app.ui.components.LibraryScreenHeader
 import com.aurelia.app.ui.components.EqualizerSection
 import com.aurelia.app.ui.components.VisualizerSection
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +84,18 @@ import uniffi.aurelia_core.detectProvider
 // Heights matching MainScreen
 private val MiniPlayerHeight = 64.dp
 private val NavBarContentHeight = 90.dp
+
+private enum class SettingsPage(
+  val title: String,
+  val subtitle: String,
+  val icon: ImageVector,
+) {
+  Appearance("Appearance", "Theme and visual preferences", Icons.Filled.Palette),
+  Audio("Audio", "Equalizer and visualizer controls", Icons.Filled.Equalizer),
+  Library("Library", "Sync and local cache controls", Icons.Filled.Sync),
+  Connections("Connections", "Servers, lyrics, and profiles", Icons.Filled.Storage),
+  Account("Account", "Sign out and app information", Icons.Filled.ManageAccounts),
+}
 
 @Composable
 fun SettingsScreen(
@@ -109,6 +130,7 @@ fun SettingsScreen(
   var addProfileError by remember { mutableStateOf<String?>(null) }
   var addProfileIsDetectingProvider by remember { mutableStateOf(false) }
   var addProfileIsSubmitting by remember { mutableStateOf(false) }
+  var selectedSettingsPage by remember { mutableStateOf<SettingsPage?>(null) }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
 
@@ -344,115 +366,154 @@ fun SettingsScreen(
     )
   }
 
+  BackHandler(enabled = selectedSettingsPage != null) {
+    selectedSettingsPage = null
+  }
+
   androidx.compose.foundation.layout.Box(
     modifier =
       Modifier
         .fillMaxSize()
         .statusBarsPadding(),
   ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-      // Header (matching other screens like LibraryScreen)
-      Column(
-        modifier =
-          Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-      ) {
-        Text(
-          text = "Settings",
-          style = MaterialTheme.typography.displayLarge,
-          color = colors.onBackground,
-        )
-        Text(
-          text = "App preferences",
-          style = MaterialTheme.typography.bodyMedium,
-          color = colors.onSurfaceVariant,
-        )
-      }
-
+    AnimatedContent(
+      targetState = selectedSettingsPage,
+      transitionSpec = {
+        if (targetState != null) {
+          slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(260))
+            .togetherWith(slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(260)))
+        } else {
+          slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(260))
+            .togetherWith(slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(260)))
+        }
+      },
+      label = "settingsPage",
+    ) { page ->
+    if (page == null) {
       Column(
         modifier =
           Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = bottomPadding),
+            .padding(bottom = bottomPadding),
         verticalArrangement = Arrangement.spacedBy(16.dp),
       ) {
-        // Appearance section
-        SettingsSection(title = "Appearance") {
-          SettingsToggleItem(
-            icon = Icons.Filled.Palette,
-            title = "Material You",
-            subtitle = "Use system color palette",
-            checked = useDynamicColor,
-            onCheckedChange = {
-              useDynamicColor = it
-              sessionStore.setUseDynamicColor(it)
-            },
-          )
-        }
+        LibraryScreenHeader(
+          title = "Settings",
+          subtitle = "App preferences",
+        )
 
-        if (isDebuggable) {
-          SettingsSection(title = "Performance Debug") {
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+          SettingsSection(title = "Categories") {
+            SettingsPage.entries.forEachIndexed { index, page ->
+              SettingsNavItem(
+                icon = page.icon,
+                title = page.title,
+                subtitle = page.subtitle,
+                onClick = { selectedSettingsPage = page },
+              )
+              if (index < SettingsPage.entries.lastIndex) {
+                HorizontalDivider(
+                  modifier = Modifier.padding(start = 56.dp),
+                  color = colors.outline.copy(alpha = 0.2f),
+                )
+              }
+            }
+          }
+        }
+      }
+    } else {
+      Column(modifier = Modifier.fillMaxSize()) {
+        SettingsSubpageHeader(
+          title = page.title,
+          subtitle = page.subtitle,
+          onBack = { selectedSettingsPage = null },
+        )
+
+        Column(
+          modifier =
+            Modifier
+              .fillMaxSize()
+              .verticalScroll(rememberScrollState())
+              .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = bottomPadding),
+          verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+        if (page == SettingsPage.Appearance) {
+          SettingsSection(title = "Appearance") {
             SettingsToggleItem(
-              icon = Icons.Filled.Info,
-              title = "Disable backdrop blur",
-              subtitle = "Player screen: remove album art blur layer",
-              checked = disableBackdropBlur,
+              icon = Icons.Filled.Palette,
+              title = "Material You",
+              subtitle = "Use system color palette",
+              checked = useDynamicColor,
               onCheckedChange = {
-                disableBackdropBlur = it
-                sessionStore.setDebugDisablePlayerBackdropBlur(it)
-              },
-            )
-            HorizontalDivider(
-              modifier = Modifier.padding(start = 56.dp),
-              color = colors.outline.copy(alpha = 0.2f),
-            )
-            SettingsToggleItem(
-              icon = Icons.Filled.Info,
-              title = "Disable backdrop image",
-              subtitle = "Player screen: hide album art background image layer",
-              checked = disableBackdropImageLayer,
-              onCheckedChange = {
-                disableBackdropImageLayer = it
-                sessionStore.setDebugDisablePlayerBackdropImageLayer(it)
-              },
-            )
-            HorizontalDivider(
-              modifier = Modifier.padding(start = 56.dp),
-              color = colors.outline.copy(alpha = 0.2f),
-            )
-            SettingsToggleItem(
-              icon = Icons.Filled.Info,
-              title = "Disable player transitions",
-              subtitle = "Player screen: turn off fades/color tween animations",
-              checked = disablePlayerTransitions,
-              onCheckedChange = {
-                disablePlayerTransitions = it
-                sessionStore.setDebugDisablePlayerTransitions(it)
+                useDynamicColor = it
+                sessionStore.setUseDynamicColor(it)
               },
             )
           }
+
+          if (isDebuggable) {
+            SettingsSection(title = "Performance Debug") {
+              SettingsToggleItem(
+                icon = Icons.Filled.Info,
+                title = "Disable backdrop blur",
+                subtitle = "Player screen: remove album art blur layer",
+                checked = disableBackdropBlur,
+                onCheckedChange = {
+                  disableBackdropBlur = it
+                  sessionStore.setDebugDisablePlayerBackdropBlur(it)
+                },
+              )
+              HorizontalDivider(
+                modifier = Modifier.padding(start = 56.dp),
+                color = colors.outline.copy(alpha = 0.2f),
+              )
+              SettingsToggleItem(
+                icon = Icons.Filled.Info,
+                title = "Disable backdrop image",
+                subtitle = "Player screen: hide album art background image layer",
+                checked = disableBackdropImageLayer,
+                onCheckedChange = {
+                  disableBackdropImageLayer = it
+                  sessionStore.setDebugDisablePlayerBackdropImageLayer(it)
+                },
+              )
+              HorizontalDivider(
+                modifier = Modifier.padding(start = 56.dp),
+                color = colors.outline.copy(alpha = 0.2f),
+              )
+              SettingsToggleItem(
+                icon = Icons.Filled.Info,
+                title = "Disable player transitions",
+                subtitle = "Player screen: turn off fades/color tween animations",
+                checked = disablePlayerTransitions,
+                onCheckedChange = {
+                  disablePlayerTransitions = it
+                  sessionStore.setDebugDisablePlayerTransitions(it)
+                },
+              )
+            }
+          }
         }
 
-        // Equalizer section
-        EqualizerSection(
-          state = com.aurelia.app.audio.EqualizerState(
-            enabled = settingsState.eqEnabled,
-            bands = settingsState.eqBands.mapIndexed { index, gain ->
-              com.aurelia.app.audio.EQBand(
-                frequency = listOf(60, 250, 1000, 4000, 16000)[index],
-                gain = gain,
-              )
-            },
-            currentPreset = settingsState.eqPreset,
-            available = true,
-          ),
-          onEnabledChange = { settingsViewModel.setEQEnabled(it) },
-          onBandGainChange = { index, gain -> settingsViewModel.setEQBandGain(index, gain) },
-          onPresetSelected = { preset -> settingsViewModel.applyEQPreset(preset.name) },
-          onReset = { settingsViewModel.resetEQ() },
-        )
+        if (page == SettingsPage.Audio) {
+          EqualizerSection(
+            state = com.aurelia.app.audio.EqualizerState(
+              enabled = settingsState.eqEnabled,
+              bands = settingsState.eqBands.mapIndexed { index, gain ->
+                com.aurelia.app.audio.EQBand(
+                  frequency = listOf(60, 250, 1000, 4000, 16000)[index],
+                  gain = gain,
+                )
+              },
+              currentPreset = settingsState.eqPreset,
+              available = true,
+            ),
+            onEnabledChange = { settingsViewModel.setEQEnabled(it) },
+            onBandGainChange = { index, gain -> settingsViewModel.setEQBandGain(index, gain) },
+            onPresetSelected = { preset -> settingsViewModel.applyEQPreset(preset.name) },
+            onReset = { settingsViewModel.resetEQ() },
+          )
 
         // Visualizer section
         val hasVisualizerPermission = ContextCompat.checkSelfPermission(
@@ -499,26 +560,27 @@ fun SettingsScreen(
           )
         }
 
-        VisualizerSection(
-          enabled = settingsState.visualizerEnabled,
-          style = settingsState.visualizerStyle,
-          onEnabledChange = { enabled ->
-            if (enabled) {
-              if (hasVisualizerPermission) {
-                settingsViewModel.onVisualizerPermissionChanged(true)
-                settingsViewModel.setVisualizerEnabled(true)
+          VisualizerSection(
+            enabled = settingsState.visualizerEnabled,
+            style = settingsState.visualizerStyle,
+            onEnabledChange = { enabled ->
+              if (enabled) {
+                if (hasVisualizerPermission) {
+                  settingsViewModel.onVisualizerPermissionChanged(true)
+                  settingsViewModel.setVisualizerEnabled(true)
+                } else {
+                  showPermissionRationale = true
+                }
               } else {
-                showPermissionRationale = true
+                settingsViewModel.setVisualizerEnabled(false)
               }
-            } else {
-              settingsViewModel.setVisualizerEnabled(false)
-            }
-          },
-          onStyleChange = { settingsViewModel.setVisualizerStyle(it) },
-        )
+            },
+            onStyleChange = { settingsViewModel.setVisualizerStyle(it) },
+          )
+        }
 
-        // Library section
-        SettingsSection(title = "Library") {
+        if (page == SettingsPage.Library) {
+          SettingsSection(title = "Library") {
           val lastSyncedText = when {
             settingsState.isSyncing -> "Syncing..."
             settingsState.lastSyncTime != null -> "Last synced ${SettingsViewModel.formatRelativeTime(settingsState.lastSyncTime)}"
@@ -542,72 +604,72 @@ fun SettingsScreen(
             isLoading = settingsState.isClearing,
             onClick = { if (!settingsState.isClearing) showClearCacheDialog = true },
           )
-        }
+          }
 
-        // Auto-sync section
-        SettingsSection(title = "Background Sync") {
-          val syncContext = LocalContext.current
-          SettingsToggleItem(
-            icon = Icons.Filled.Sync,
-            title = "Auto-sync",
-            subtitle = "Sync library automatically on WiFi",
-            checked = settingsState.autoSyncEnabled,
-            onCheckedChange = { settingsViewModel.setAutoSyncEnabled(syncContext, it) },
-          )
-          if (settingsState.autoSyncEnabled) {
-            HorizontalDivider(
-              modifier = Modifier.padding(start = 56.dp),
-              color = colors.outline.copy(alpha = 0.2f),
+          SettingsSection(title = "Background Sync") {
+            val syncContext = LocalContext.current
+            SettingsToggleItem(
+              icon = Icons.Filled.Sync,
+              title = "Auto-sync",
+              subtitle = "Sync library automatically on WiFi",
+              checked = settingsState.autoSyncEnabled,
+              onCheckedChange = { settingsViewModel.setAutoSyncEnabled(syncContext, it) },
             )
-            val intervalText = when (settingsState.syncIntervalHours) {
-              6L -> "Every 6 hours"
-              12L -> "Every 12 hours"
-              24L -> "Daily"
-              168L -> "Weekly"
-              else -> "Every ${settingsState.syncIntervalHours}h"
-            }
-            var showIntervalPicker by remember { mutableStateOf(false) }
-            SettingsActionItem(
-              icon = Icons.Filled.Storage,
-              title = "Sync frequency",
-              subtitle = intervalText,
-              onClick = { showIntervalPicker = true },
-            )
-            if (showIntervalPicker) {
-              AlertDialog(
-                onDismissRequest = { showIntervalPicker = false },
-                title = { Text("Sync frequency") },
-                text = {
-                  Column {
-                    listOf(6L to "Every 6 hours", 12L to "Every 12 hours", 24L to "Daily", 168L to "Weekly").forEach { (hours, label) ->
-                      TextButton(
-                        onClick = {
-                          settingsViewModel.setSyncInterval(syncContext, hours)
-                          showIntervalPicker = false
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                      ) {
-                        Text(
-                          text = label,
-                          style = MaterialTheme.typography.bodyLarge,
-                          color = if (settingsState.syncIntervalHours == hours) colors.primary else colors.onSurface,
-                        )
+            if (settingsState.autoSyncEnabled) {
+              HorizontalDivider(
+                modifier = Modifier.padding(start = 56.dp),
+                color = colors.outline.copy(alpha = 0.2f),
+              )
+              val intervalText = when (settingsState.syncIntervalHours) {
+                6L -> "Every 6 hours"
+                12L -> "Every 12 hours"
+                24L -> "Daily"
+                168L -> "Weekly"
+                else -> "Every ${settingsState.syncIntervalHours}h"
+              }
+              var showIntervalPicker by remember { mutableStateOf(false) }
+              SettingsActionItem(
+                icon = Icons.Filled.Storage,
+                title = "Sync frequency",
+                subtitle = intervalText,
+                onClick = { showIntervalPicker = true },
+              )
+              if (showIntervalPicker) {
+                AlertDialog(
+                  onDismissRequest = { showIntervalPicker = false },
+                  title = { Text("Sync frequency") },
+                  text = {
+                    Column {
+                      listOf(6L to "Every 6 hours", 12L to "Every 12 hours", 24L to "Daily", 168L to "Weekly").forEach { (hours, label) ->
+                        TextButton(
+                          onClick = {
+                            settingsViewModel.setSyncInterval(syncContext, hours)
+                            showIntervalPicker = false
+                          },
+                          modifier = Modifier.fillMaxWidth(),
+                        ) {
+                          Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (settingsState.syncIntervalHours == hours) colors.primary else colors.onSurface,
+                          )
+                        }
                       }
                     }
-                  }
-                },
-                confirmButton = {
-                  TextButton(onClick = { showIntervalPicker = false }) {
-                    Text("Cancel")
-                  }
-                },
-              )
+                  },
+                  confirmButton = {
+                    TextButton(onClick = { showIntervalPicker = false }) {
+                      Text("Cancel")
+                    }
+                  },
+                )
+              }
             }
           }
         }
 
-        // Server section
-        SettingsSection(title = "Server") {
+        if (page == SettingsPage.Connections) {
+          SettingsSection(title = "Server") {
           val serverUrl = sessionStore.getServerUrl() ?: "Not connected"
           val username = sessionStore.getUserId() ?: "Unknown"
           val provider = sessionStore.getProvider()?.name?.lowercase() ?: "unknown"
@@ -681,103 +743,106 @@ fun SettingsScreen(
               )
             }
           }
-        }
-
-        SettingsSection(title = "Profiles") {
-          SettingsActionItem(
-            icon = Icons.Filled.Add,
-            title = "Add profile",
-            subtitle = "Sign in to another provider account",
-            onClick = {
-              resetAddProfileState()
-              showAddProfileDialog = true
-            },
-          )
-
-          if (profiles.isNotEmpty()) {
-            HorizontalDivider(
-              modifier = Modifier.padding(start = 56.dp),
-              color = colors.outline.copy(alpha = 0.2f),
-            )
           }
 
-          if (profiles.isEmpty()) {
-            SettingsInfoItem(
-              icon = Icons.Filled.Info,
-              title = "No saved profiles",
-              subtitle = "Sign in to add a provider profile",
+          SettingsSection(title = "Profiles") {
+            SettingsActionItem(
+              icon = Icons.Filled.Add,
+              title = "Add profile",
+              subtitle = "Sign in to another provider account",
+              onClick = {
+                resetAddProfileState()
+                showAddProfileDialog = true
+              },
             )
-          } else {
-            profiles.forEachIndexed { index, profile ->
-              ProfileActionItem(
-                profile = profile,
-                isActive = profile.id == activeProfileId,
-                isRemoving = removingProfileId == profile.id,
-                isSwitching = switchingProfileId == profile.id,
-                onRemove = {
-                  val wasActive = profile.id == activeProfileId
-                  removingProfileId = profile.id
-                  val removed = sessionStore.removeProfile(profile.id)
-                  profiles = sessionStore.getProfiles()
-                  activeProfileId = sessionStore.getActiveProfileId()
-                  removingProfileId = null
 
-                  if (!removed) {
-                    android.util.Log.w("SettingsScreen", "Failed to remove profile ${profile.id}")
-                    return@ProfileActionItem
-                  }
-
-                  if (profiles.isEmpty()) {
-                    onLogout()
-                  } else if (wasActive) {
-                    onSessionSwitched()
-                  }
-                },
-                onSwitch = {
-                  if (profile.id == activeProfileId) {
-                    return@ProfileActionItem
-                  }
-                  switchingProfileId = profile.id
-                  val switched = sessionStore.switchProfile(profile.id)
-                  profiles = sessionStore.getProfiles()
-                  activeProfileId = sessionStore.getActiveProfileId()
-                  switchingProfileId = null
-
-                  if (switched) {
-                    onSessionSwitched()
-                  }
-                },
+            if (profiles.isNotEmpty()) {
+              HorizontalDivider(
+                modifier = Modifier.padding(start = 56.dp),
+                color = colors.outline.copy(alpha = 0.2f),
               )
-              if (index < profiles.lastIndex) {
-                HorizontalDivider(
-                  modifier = Modifier.padding(start = 56.dp),
-                  color = colors.outline.copy(alpha = 0.2f),
+            }
+
+            if (profiles.isEmpty()) {
+              SettingsInfoItem(
+                icon = Icons.Filled.Info,
+                title = "No saved profiles",
+                subtitle = "Sign in to add a provider profile",
+              )
+            } else {
+              profiles.forEachIndexed { index, profile ->
+                ProfileActionItem(
+                  profile = profile,
+                  isActive = profile.id == activeProfileId,
+                  isRemoving = removingProfileId == profile.id,
+                  isSwitching = switchingProfileId == profile.id,
+                  onRemove = {
+                    val wasActive = profile.id == activeProfileId
+                    removingProfileId = profile.id
+                    val removed = sessionStore.removeProfile(profile.id)
+                    profiles = sessionStore.getProfiles()
+                    activeProfileId = sessionStore.getActiveProfileId()
+                    removingProfileId = null
+
+                    if (!removed) {
+                      android.util.Log.w("SettingsScreen", "Failed to remove profile ${profile.id}")
+                      return@ProfileActionItem
+                    }
+
+                    if (profiles.isEmpty()) {
+                      onLogout()
+                    } else if (wasActive) {
+                      onSessionSwitched()
+                    }
+                  },
+                  onSwitch = {
+                    if (profile.id == activeProfileId) {
+                      return@ProfileActionItem
+                    }
+                    switchingProfileId = profile.id
+                    val switched = sessionStore.switchProfile(profile.id)
+                    profiles = sessionStore.getProfiles()
+                    activeProfileId = sessionStore.getActiveProfileId()
+                    switchingProfileId = null
+
+                    if (switched) {
+                      onSessionSwitched()
+                    }
+                  },
                 )
+                if (index < profiles.lastIndex) {
+                  HorizontalDivider(
+                    modifier = Modifier.padding(start = 56.dp),
+                    color = colors.outline.copy(alpha = 0.2f),
+                  )
+                }
               }
             }
           }
         }
 
-        // Account section
-        SettingsSection(title = "Account") {
-          SettingsActionItem(
-            icon = Icons.AutoMirrored.Filled.ExitToApp,
-            title = "Log out",
-            subtitle = "Sign out from this device",
-            isDestructive = true,
-            onClick = { showLogoutDialog = true },
-          )
-        }
+        if (page == SettingsPage.Account) {
+          SettingsSection(title = "Account") {
+            SettingsActionItem(
+              icon = Icons.AutoMirrored.Filled.ExitToApp,
+              title = "Log out",
+              subtitle = "Sign out from this device",
+              isDestructive = true,
+              onClick = { showLogoutDialog = true },
+            )
+          }
 
-        // About section
-        SettingsSection(title = "About") {
-          SettingsInfoItem(
-            icon = Icons.Filled.Info,
-            title = "Version",
-            subtitle = "1.0.0",
-          )
+          SettingsSection(title = "About") {
+            SettingsInfoItem(
+              icon = Icons.Filled.Info,
+              title = "Version",
+              subtitle = "1.0.0",
+            )
+          }
         }
       }
+    }
+    }
     }
 
     SnackbarHost(
@@ -805,15 +870,69 @@ private fun SettingsSection(
       modifier = Modifier.padding(horizontal = 8.dp),
     )
     Surface(
-      shape = RoundedCornerShape(16.dp),
-      color = colors.surfaceVariant.copy(alpha = 0.5f),
-      tonalElevation = 1.dp,
+      shape = RoundedCornerShape(24.dp),
+      color = colors.surfaceContainerLow,
+      tonalElevation = 2.dp,
     ) {
       Column(modifier = Modifier.fillMaxWidth()) {
         content()
       }
     }
   }
+}
+
+@Composable
+private fun SettingsSubpageHeader(
+  title: String,
+  subtitle: String,
+  onBack: () -> Unit,
+) {
+  val colors = MaterialTheme.colorScheme
+
+  Row(
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .padding(start = 8.dp, end = 24.dp, top = 12.dp, bottom = 10.dp),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    androidx.compose.material3.IconButton(onClick = onBack) {
+      Icon(
+        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+        contentDescription = "Back",
+        tint = colors.onSurface,
+      )
+    }
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = title,
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Black,
+        color = colors.onBackground,
+      )
+      Text(
+        text = subtitle,
+        style = MaterialTheme.typography.bodyMedium,
+        color = colors.onSurfaceVariant,
+      )
+    }
+  }
+}
+
+@Composable
+private fun SettingsNavItem(
+  icon: ImageVector,
+  title: String,
+  subtitle: String,
+  onClick: () -> Unit,
+) {
+  SettingsActionItem(
+    icon = icon,
+    title = title,
+    subtitle = subtitle,
+    onClick = onClick,
+  )
 }
 
 @Composable
