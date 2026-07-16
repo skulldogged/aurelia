@@ -20,6 +20,7 @@ Common dev commands:
 ```bash
 bun run dev:web
 bun run dev:desktop
+bun run dev:gpui
 ```
 
 ## Repository structure
@@ -31,6 +32,7 @@ bun run dev:desktop
 - Desktop app:
   - Tauri frontend: `apps/desktop/tauri`
   - Tauri Rust backend: `apps/desktop/tauri/src-tauri`
+  - GPUI app: `apps/desktop/gpui`
 - Mobile:
   - Android: `apps/mobile/android`
   - iOS: `apps/mobile/ios`
@@ -64,6 +66,7 @@ Run relevant suites before opening a PR:
 bun run test:js
 bun run test:rust
 bun run test:desktop
+bun run test:gpui
 bun run test:web
 bun run test:android
 bun run test:ios

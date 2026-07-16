@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -13,7 +14,7 @@ use aurelia_core::models::{
 use gpui::{
     actions, bounce, div, ease_in_out, img, linear_color_stop, linear_gradient, point, prelude::*, px,
     relative, rgb, rgba, size, uniform_list, Animation, AnimationExt as _, AnyElement, App,
-    AsyncApp, Application, Bounds, Context, Entity,
+    Anchor, AsyncApp, Bounds, ClickEvent, Context, ElementId, Entity,
     Focusable, FocusHandle, Image as GpuiImage, ImageFormat as GpuiImageFormat, MouseButton,
     ObjectFit, Point, ScrollHandle, ScrollStrategy, SharedString, StatefulInteractiveElement,
     Transformation, UniformListScrollHandle, WeakEntity, Window, WindowBackgroundAppearance,
@@ -24,11 +25,13 @@ use gpui::http_client::{AsyncBody, HttpClient, Request, Response, Url};
 use gpui_component::avatar::Avatar;
 use gpui_component::button::{Button, ButtonCustomVariant, ButtonVariants};
 use gpui_component::input::{Input, InputEvent, InputState};
+use gpui_component::menu::{DropdownMenu, PopupMenuItem};
 use gpui_component::scroll::ScrollableElement;
+use gpui_component::sidebar::{Sidebar, SidebarItem};
 use gpui_component::slider::{Slider, SliderEvent, SliderState};
 use gpui_component::switch::Switch;
 use gpui_component::{
-    TitleBar, h_flex, v_flex, Icon, IconName, IconNamed, Root, Sizable,
+    Collapsible, Selectable, TitleBar, h_flex, v_flex, Icon, IconName, IconNamed, Root, Sizable,
 };
 use raw_window_handle::RawWindowHandle;
 use tokio::runtime::Runtime;
@@ -102,6 +105,13 @@ actions!(aurelia, [Quit]);
 const APP_NAME: &str = "Aurelia GPUI";
 
 const APP_DIR_NAME: &str = "aurelia-gpui";
+const SIDEBAR_COLLAPSED_WIDTH: f32 = 69.0;
+const SIDEBAR_EXPANDED_WIDTH: f32 = 200.0;
+const SIDEBAR_TRANSITION_MS: u64 = 190;
+const PLAYER_BAR_DOCKED_HEIGHT: f32 = 110.0;
+const PLAYER_BAR_FLOATING_BREAKPOINT: f32 = 1500.0;
+const RIGHT_PANEL_WIDTH: f32 = 360.0;
+const PAGE_BOTTOM_PADDING: f32 = 24.0;
 
 fn format_duration(secs: f64) -> String {
     let total = secs.max(0.0) as u64;
@@ -151,7 +161,7 @@ fn format_song_file_info(song: &Song) -> String {
 }
 
 pub fn run() {
-    Application::new()
+    gpui_platform::application()
         .with_assets(Assets)
         .run(|cx: &mut App| {
             if let Ok(http_client) = ReqwestHttpClient::new("aurelia-gpui") {
@@ -174,16 +184,14 @@ pub fn run() {
             cx.bind_keys([gpui::KeyBinding::new("cmd-q", Quit, None)]);
 
             let bounds = Bounds::centered(None, size(px(1400.0), px(900.0)), cx);
+            let mut titlebar = TitleBar::title_bar_options();
+            titlebar.title = Some(APP_NAME.into());
             let window = cx
                 .open_window(
                     WindowOptions {
                         window_bounds: Some(WindowBounds::Windowed(bounds)),
                         window_background: WindowBackgroundAppearance::Opaque,
-                        titlebar: Some(gpui::TitlebarOptions {
-                            title: Some(APP_NAME.into()),
-                            appears_transparent: true,
-                            traffic_light_position: Some(gpui::point(px(9.0), px(9.0))),
-                        }),
+                        titlebar: Some(titlebar),
                         window_decorations: Some(gpui::WindowDecorations::Client),
                         ..Default::default()
                     },
@@ -245,6 +253,119 @@ impl ViewTab {
             Self::Playlists => Icon::new(AppIcon::ListMusic),
             Self::Settings => Icon::new(IconName::Settings),
         }
+    }
+}
+
+#[derive(Clone)]
+struct SidebarNavigation {
+    items: Vec<SidebarNavigationItem>,
+    collapsed: bool,
+    transition_nonce: u64,
+}
+
+#[derive(Clone)]
+struct SidebarNavigationItem {
+    tab: ViewTab,
+    active: bool,
+    on_click: Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>,
+}
+
+impl Collapsible for SidebarNavigation {
+    fn collapsed(self, _collapsed: bool) -> Self {
+        self
+    }
+
+    fn is_collapsed(&self) -> bool {
+        self.collapsed
+    }
+}
+
+impl SidebarItem for SidebarNavigation {
+    fn render(
+        self,
+        id: impl Into<ElementId>,
+        _window: &mut Window,
+        cx: &mut App,
+    ) -> impl IntoElement {
+        let id = id.into();
+        let collapsed = self.collapsed;
+        let transition_nonce = self.transition_nonce;
+        let button_variant = ButtonCustomVariant::new(cx)
+            .color(rgba(0x00000000).into())
+            .foreground(rgb(theme::foreground()).into())
+            .active(
+                rgba(theme::accent_alpha(if theme::is_dark() { 42 } else { 30 })).into(),
+            );
+
+        v_flex().gap(px(8.0)).children(
+            self.items
+                .into_iter()
+                .enumerate()
+                .map(move |(index, item)| {
+                    let on_click = item.on_click.clone();
+                    let row_id = SharedString::from(format!("{id}-{index}"));
+                    let item_foreground = if item.active {
+                        rgb(theme::accent())
+                    } else {
+                        rgb(theme::muted_foreground())
+                    };
+                    let label = div()
+                        .whitespace_nowrap()
+                        .text_color(item_foreground)
+                        .opacity(if collapsed { 0.0 } else { 1.0 })
+                        .child(item.tab.label());
+                    let label = if transition_nonce == 0 {
+                        label.into_any_element()
+                    } else {
+                        label
+                            .with_animation(
+                                SharedString::from(format!(
+                                    "{row_id}-label-{transition_nonce}"
+                                )),
+                                Animation::new(Duration::from_millis(SIDEBAR_TRANSITION_MS))
+                                    .with_easing(ease_in_out),
+                                move |label, delta| {
+                                    label.opacity(if collapsed { 1.0 - delta } else { delta })
+                                },
+                            )
+                            .into_any_element()
+                    };
+                    let button = Button::new(row_id.clone())
+                        .custom(button_variant)
+                        .selected(item.active)
+                        .w_full()
+                        .h(px(40.0))
+                        .px(px(12.0))
+                        .py(px(10.0))
+                        .text_color(item_foreground)
+                        .when(collapsed, |this| this.tooltip(item.tab.label()))
+                        .child(
+                            h_flex()
+                                .w_full()
+                                .items_center()
+                                .gap(px(10.0))
+                                .overflow_hidden()
+                                .child(
+                                    item.tab
+                                        .icon()
+                                        .with_size(px(20.0))
+                                        .flex_shrink_0()
+                                        .text_color(item_foreground),
+                                )
+                                .child(label),
+                        )
+                        .on_click(move |event, window, cx| on_click(event, window, cx));
+
+                    div()
+                        .id(SharedString::from(format!("{row_id}-hover")))
+                        .w_full()
+                        .rounded(px(6.0))
+                        .when(!item.active, |this| {
+                            this.hover(|style| style.bg(rgb(theme::sidebar_item_hover())))
+                        })
+                        .child(button)
+                }),
+        )
     }
 }
 
@@ -330,6 +451,8 @@ struct DesktopAppState {
     session: Option<SessionData>,
     library: LibrarySnapshot,
     selected_tab: ViewTab,
+    sidebar_collapsed: bool,
+    sidebar_transition_nonce: u64,
     right_panel: RightPanel,
     immersive_view_open: bool,
     immersive_panel: ImmersivePanel,
@@ -381,6 +504,8 @@ impl DesktopAppState {
             session: None,
             library: LibrarySnapshot::default(),
             selected_tab: ViewTab::Home,
+            sidebar_collapsed: false,
+            sidebar_transition_nonce: 0,
             right_panel: RightPanel::None,
             immersive_view_open: false,
             immersive_panel: ImmersivePanel::None,
@@ -596,6 +721,21 @@ impl DesktopAppState {
     }
 }
 
+struct LyricsScrollAnimation {
+    handle: ScrollHandle,
+    started_at: Instant,
+    start_y: f32,
+    target_y: f32,
+    max_scroll: f32,
+    active_line: usize,
+}
+
+struct LyricsLineTransition {
+    previous_line: usize,
+    current_line: usize,
+    started_at: Instant,
+}
+
 struct DesktopApp {
     login_server: Entity<InputState>,
     login_username: Entity<InputState>,
@@ -610,7 +750,12 @@ struct DesktopApp {
     artists_scroll_handle: UniformListScrollHandle,
     recent_songs_scroll_handle: ScrollHandle,
     recent_albums_scroll_handle: ScrollHandle,
+    queue_scroll_handle: ScrollHandle,
     lyrics_scroll_handle: ScrollHandle,
+    immersive_lyrics_scroll_handle: ScrollHandle,
+    immersive_queue_scroll_handle: ScrollHandle,
+    lyrics_scroll_animation: Option<LyricsScrollAnimation>,
+    lyrics_line_transition: Option<LyricsLineTransition>,
     focus_handle: FocusHandle,
     state: DesktopAppState,
     featured_background_cache: HashMap<String, Arc<GpuiImage>>,
@@ -690,7 +835,9 @@ impl DesktopApp {
         let seek_slider = cx.new(|_| SliderState::new().min(0.0).max(1000.0).step(1.0).default_value(0.0));
 
         cx.subscribe(&seek_slider, |this: &mut Self, _entity, event: &SliderEvent, cx| {
-            let SliderEvent::Change(value) = event;
+            let SliderEvent::Change(value) = event else {
+                return;
+            };
             let progress = value.end() / 1000.0;
             this.seek_to(progress as f64, cx);
         })
@@ -709,10 +856,15 @@ impl DesktopApp {
         let artists_scroll_handle = UniformListScrollHandle::new();
         let recent_songs_scroll_handle = ScrollHandle::new();
         let recent_albums_scroll_handle = ScrollHandle::new();
+        let queue_scroll_handle = ScrollHandle::new();
         let lyrics_scroll_handle = ScrollHandle::new();
+        let immersive_lyrics_scroll_handle = ScrollHandle::new();
+        let immersive_queue_scroll_handle = ScrollHandle::new();
 
         cx.subscribe(&volume_slider, |this: &mut Self, _entity, event: &SliderEvent, cx| {
-            let SliderEvent::Change(value) = event;
+            let SliderEvent::Change(value) = event else {
+                return;
+            };
             let vol = value.end() / 100.0;
             this.set_volume(vol as f64, cx);
         })
@@ -732,7 +884,12 @@ impl DesktopApp {
             artists_scroll_handle,
             recent_songs_scroll_handle,
             recent_albums_scroll_handle,
+            queue_scroll_handle,
             lyrics_scroll_handle,
+            immersive_lyrics_scroll_handle,
+            immersive_queue_scroll_handle,
+            lyrics_scroll_animation: None,
+            lyrics_line_transition: None,
             focus_handle: cx.focus_handle(),
             state: DesktopAppState::new(app_data_dir),
             featured_background_cache: HashMap::new(),
@@ -951,6 +1108,17 @@ impl DesktopApp {
         )
         .ok()
         .flatten()
+    }
+
+    fn user_image_url(&self, size_px: f32) -> Option<String> {
+        let credentials = self.credentials()?;
+        Some(format!(
+            "{}/Users/{}/Images/Primary?maxWidth={}&api_key={}",
+            credentials.server_url.trim_end_matches('/'),
+            credentials.user_id,
+            image_request_size(size_px),
+            credentials.token,
+        ))
     }
 
     fn album_image_url(&self, album: &Album, size_px: f32) -> Option<String> {
@@ -1386,6 +1554,8 @@ impl DesktopApp {
         let media_controls = Arc::clone(&self.media_controls);
 
         reset_for_song(&mut self.state.lyrics_ui, Some(song.id.clone()));
+        self.lyrics_line_transition = None;
+        self.lyrics_scroll_animation = None;
         self.state.lyrics = None;
         self.state.lyrics_error = None;
         self.state.lyrics_loading = false;
@@ -1535,6 +1705,19 @@ impl DesktopApp {
                         this.sync_active_lyrics_state();
                         this.state.lyrics_ui.last_auto_scrolled_line = None;
                         this.scroll_active_lyrics_line_into_view(false, cx);
+                        cx.spawn(|view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
+                            let mut async_cx = async_cx.clone();
+                            async move {
+                                async_cx
+                                    .background_executor()
+                                    .timer(Duration::from_millis(50))
+                                    .await;
+                                let _ = view.update(&mut async_cx, |this, cx| {
+                                    this.scroll_active_lyrics_line_into_view(false, cx);
+                                });
+                            }
+                        })
+                        .detach();
                         cx.notify();
                     });
                 }
@@ -1687,6 +1870,19 @@ impl DesktopApp {
         if self.state.right_panel == RightPanel::Lyrics {
             self.state.lyrics_ui.last_auto_scrolled_line = None;
             self.scroll_active_lyrics_line_into_view(false, cx);
+            cx.spawn(|view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
+                let mut async_cx = async_cx.clone();
+                async move {
+                    async_cx
+                        .background_executor()
+                        .timer(Duration::from_millis(50))
+                        .await;
+                    let _ = view.update(&mut async_cx, |this, cx| {
+                        this.scroll_active_lyrics_line_into_view(false, cx);
+                    });
+                }
+            })
+            .detach();
         }
         cx.notify();
     }
@@ -1811,7 +2007,12 @@ impl DesktopApp {
         self.state.player.position_secs = position;
         self.state.lyrics_ui.sampled_position_secs = position;
         self.state.lyrics_ui.sampled_at = Some(Instant::now());
+        let previous_active_line = self.state.lyrics_ui.active_line_index;
         self.sync_active_lyrics_state();
+        if previous_active_line != self.state.lyrics_ui.active_line_index {
+            self.state.lyrics_ui.last_auto_scrolled_line = None;
+            self.scroll_active_lyrics_line_into_view(true, cx);
+        }
         cx.notify();
 
         drop(runtime.spawn(async move {
@@ -1835,10 +2036,41 @@ impl DesktopApp {
             return;
         };
 
+        let previous_line = self.state.lyrics_ui.active_line_index;
         let active = compute_active_state(lyrics, self.current_lyrics_position_secs());
+        if let (Some(previous_line), Some(current_line)) = (previous_line, active.line_index)
+            && previous_line != current_line
+        {
+            self.lyrics_line_transition = Some(LyricsLineTransition {
+                previous_line,
+                current_line,
+                started_at: Instant::now(),
+            });
+        } else if active.line_index.is_none() {
+            self.lyrics_line_transition = None;
+        }
         self.state.lyrics_ui.active_line_index = active.line_index;
         self.state.lyrics_ui.active_word_index = active.word_index;
         self.state.lyrics_ui.active_word_progress = active.word_progress;
+    }
+
+    fn lyrics_line_emphasis(&self, index: usize) -> f32 {
+        if let Some(transition) = self.lyrics_line_transition.as_ref() {
+            let progress = (transition.started_at.elapsed().as_secs_f32() / 0.28).clamp(0.0, 1.0);
+            let eased = progress * progress * (3.0 - (2.0 * progress));
+            if index == transition.previous_line {
+                return 1.0 - eased;
+            }
+            if index == transition.current_line {
+                return eased;
+            }
+        }
+
+        if self.state.lyrics_ui.active_line_index == Some(index) {
+            1.0
+        } else {
+            0.0
+        }
     }
 
     fn current_lyrics_position_secs(&self) -> f64 {
@@ -1848,7 +2080,8 @@ impl DesktopApp {
 
     fn scroll_active_lyrics_line_into_view(&mut self, animated: bool, cx: &mut Context<Self>) {
         let is_regular_lyrics = self.state.right_panel == RightPanel::Lyrics;
-        let is_immersive_lyrics = self.state.immersive_panel == ImmersivePanel::Lyrics;
+        let is_immersive_lyrics = self.state.immersive_view_open
+            && self.state.immersive_panel == ImmersivePanel::Lyrics;
         if !is_regular_lyrics && !is_immersive_lyrics {
             return;
         }
@@ -1861,17 +2094,22 @@ impl DesktopApp {
         let Some(scroll_item_index) = self.active_lyrics_scroll_item_index() else {
             return;
         };
-        let handle = self.lyrics_scroll_handle.clone();
+        let handle = if is_immersive_lyrics {
+            self.immersive_lyrics_scroll_handle.clone()
+        } else {
+            self.lyrics_scroll_handle.clone()
+        };
         let Some(item_bounds) = handle.bounds_for_item(scroll_item_index) else {
             return;
         };
         let viewport_bounds = handle.bounds();
         let viewport_center = viewport_bounds.center().y.to_f64() as f32;
         let item_center = item_bounds.center().y.to_f64() as f32;
-        let max_scroll = handle.max_offset().height.to_f64() as f32;
+        let max_scroll = handle.max_offset().y.to_f64() as f32;
         let target_y = (viewport_center - item_center).clamp(-max_scroll, 0.0);
 
         if !animated {
+            self.lyrics_scroll_animation = None;
             let offset = handle.offset();
             handle.set_offset(Point {
                 x: offset.x,
@@ -1882,38 +2120,15 @@ impl DesktopApp {
             return;
         }
 
-        cx.spawn(move |view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
-            let mut async_cx = async_cx.clone();
-            async move {
-                let start = handle.offset().y.to_f64() as f32;
-                let delta = target_y - start;
-                let steps = 14u64;
-
-                for step in 1..=steps {
-                    async_cx
-                        .background_executor()
-                        .timer(Duration::from_millis(12))
-                        .await;
-                    let t = step as f32 / steps as f32;
-                    let eased = 1.0 - (1.0 - t) * (1.0 - t);
-                    let next_y = start + (delta * eased);
-
-                    let _ = view.update(&mut async_cx, |_, cx| {
-                        let offset = handle.offset();
-                        handle.set_offset(Point {
-                            x: offset.x,
-                            y: px(next_y.clamp(-max_scroll, 0.0)),
-                        });
-                        cx.notify();
-                    });
-                }
-
-                let _ = view.update(&mut async_cx, |this, _| {
-                    this.state.lyrics_ui.last_auto_scrolled_line = Some(active_line);
-                });
-            }
-        })
-        .detach();
+        self.lyrics_scroll_animation = Some(LyricsScrollAnimation {
+            start_y: handle.offset().y.to_f64() as f32,
+            handle,
+            started_at: Instant::now(),
+            target_y,
+            max_scroll,
+            active_line,
+        });
+        cx.notify();
     }
 
     fn active_lyrics_scroll_item_index(&self) -> Option<usize> {
@@ -1922,11 +2137,7 @@ impl DesktopApp {
                 None
             } else {
                 self.state.lyrics_ui.active_line_index.map(|index| {
-                    if self.state.immersive_panel == ImmersivePanel::Lyrics {
-                        index + 1
-                    } else {
-                        index + 1
-                    }
+                    index + 1
                 })
             }
         })
@@ -1945,7 +2156,7 @@ impl DesktopApp {
 
     fn animate_carousel_to(&mut self, handle: ScrollHandle, target_x: f32, cx: &mut Context<Self>) {
         let start = handle.offset().x.to_f64() as f32;
-        let clamped_target = target_x.clamp(-(handle.max_offset().width.to_f64() as f32), 0.0);
+        let clamped_target = target_x.clamp(-(handle.max_offset().x.to_f64() as f32), 0.0);
         if (start - clamped_target).abs() < 0.5 {
             return;
         }
@@ -1982,11 +2193,11 @@ impl DesktopApp {
     fn animate_carousel_by(&mut self, handle: ScrollHandle, delta_px: f32, cx: &mut Context<Self>) {
         let offset = handle.offset();
         let max_offset = handle.max_offset();
-        if max_offset.width <= px(0.0) {
+        if max_offset.x <= px(0.0) {
             return;
         }
         let target_x = (offset.x.to_f64() as f32 + delta_px)
-            .clamp(-(max_offset.width.to_f64() as f32), 0.0);
+            .clamp(-(max_offset.x.to_f64() as f32), 0.0);
         self.animate_carousel_to(handle, target_x, cx);
     }
 
@@ -2556,6 +2767,16 @@ impl DesktopApp {
         let right_panel_open = self.state.right_panel != RightPanel::None;
         let has_player = self.state.player.current_song().is_some();
         let search_active = self.state.search_active;
+        let player_bar_docked =
+            window.viewport_size().width.as_f32() < PLAYER_BAR_FLOATING_BREAKPOINT;
+        let sidebar_width = if self.state.sidebar_collapsed {
+            SIDEBAR_COLLAPSED_WIDTH
+        } else {
+            SIDEBAR_EXPANDED_WIDTH
+        };
+        let player_bar_width = window.viewport_size().width.as_f32()
+            - sidebar_width
+            - if right_panel_open { RIGHT_PANEL_WIDTH } else { 0.0 };
 
         v_flex()
             .relative()
@@ -2571,12 +2792,28 @@ impl DesktopApp {
                     .overflow_hidden()
                     .items_start()
                     .child(self.render_sidebar(cx))
-                    .child(self.render_content(right_panel_open, cx))
+                    .child(
+                        v_flex()
+                            .relative()
+                            .flex_1()
+                            .min_w(px(0.0))
+                            .h_full()
+                            .child(self.render_content(
+                                right_panel_open,
+                                player_bar_docked,
+                                cx,
+                            ))
+                            .when(has_player, |this| {
+                                this.child(self.render_player_bar(
+                                    progress,
+                                    player_bar_docked,
+                                    player_bar_width,
+                                    cx,
+                                ))
+                            }),
+                    )
                     .when(right_panel_open, |this| this.child(self.render_right_panel(cx))),
             )
-            .when(has_player, |this| {
-                this.child(self.render_player_bar(progress, right_panel_open, cx))
-            })
             .when(self.state.immersive_view_open && has_player, |this| {
                 this.child(self.render_immersive_view(cx))
             })
@@ -2627,6 +2864,8 @@ impl DesktopApp {
 
     fn render_sidebar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let search_input = self.search_input.clone();
+        let collapsed = self.state.sidebar_collapsed;
+        let transition_nonce = self.state.sidebar_transition_nonce;
         let username = self
             .credentials()
             .map(|c| c.username.clone())
@@ -2640,153 +2879,170 @@ impl DesktopApp {
                     .to_string()
             })
             .unwrap_or_default();
+        let user_image_url = self.user_image_url(256.0);
+        let menu_username = username.clone();
+        let menu_server = server.clone();
+        let view = cx.entity();
+        let avatar_size = 36.0;
+        let profile_button_size = 44.0;
+        let profile_button_padding = 4.0;
+        let gap_from = if collapsed { 8.0 } else { 0.0 };
+        let gap_to = if collapsed { 0.0 } else { 8.0 };
+        let header_gap = div().flex_shrink_0().w(px(gap_to));
+        let header_gap = if transition_nonce == 0 {
+            header_gap.into_any_element()
+        } else {
+            header_gap
+                .with_animation(
+                    SharedString::from(format!("sidebar-header-gap-{transition_nonce}")),
+                    Animation::new(Duration::from_millis(SIDEBAR_TRANSITION_MS))
+                        .with_easing(ease_in_out),
+                    move |gap, delta| gap.w(px(gap_from + ((gap_to - gap_from) * delta))),
+                )
+                .into_any_element()
+        };
 
-        v_flex()
-            .w(px(200.0))
-            .flex_shrink_0()
-            .h_full()
-            .border_r_1()
-            .border_color(rgb(theme::border()))
-            .bg(rgb(theme::sidebar()))
-            .justify_between()
+        let header = h_flex()
+            .w_full()
+            .items_center()
+            .px(px(2.0))
             .child(
-                v_flex()
-                    .p(px(12.0))
-                    .gap(px(10.0))
+                div()
+                    .flex_1()
+                    .min_w(px(0.0))
+                    .overflow_hidden()
                     .child(
-                        div().child(
-                            Input::new(&search_input)
-                                .prefix(Icon::new(IconName::Search).small())
-                                .cleanable(true),
-                        ),
-                    )
-                    // Nav items
-                    .children(ViewTab::ALL.into_iter().map(|tab| {
-                        let selected = self.state.selected_tab == tab;
-                        let badge_count = match tab {
-                            ViewTab::Songs => Some(self.state.library.songs.len()),
-                            ViewTab::Albums => Some(self.state.library.albums.len()),
-                            ViewTab::Artists => Some(self.state.library.artists.len()),
-                            ViewTab::Playlists => Some(self.state.library.playlists.len()),
-                            _ => None,
-                        };
-                        div()
-                            .id(SharedString::from(format!("nav-{}", tab.label())))
-                            .px(px(12.0))
-                            .py(px(8.0))
-                            .rounded(px(6.0))
-                            .cursor_pointer()
-                            .text_size(px(13.0))
-                            .bg(if selected {
-                                rgb(theme::accent())
-                            } else {
-                                rgba(0x00000000)
-                            })
-                            .text_color(if selected {
-                                rgb(theme::accent_foreground())
-                            } else {
-                                rgb(theme::muted_foreground())
-                            })
-                            .hover(|style| {
-                                if selected {
-                                    style
-                                } else {
-                                    style.bg(rgb(theme::sidebar_item_hover()))
-                                }
-                            })
-                            .on_mouse_up(
-                                MouseButton::Left,
-                                cx.listener(move |this, _, _, cx| this.select_tab(tab, cx)),
-                            )
-                            .child(
-                                h_flex()
-                                    .w_full()
-                                    .justify_between()
-                                    .items_center()
-                                    .gap(px(10.0))
-                                    .child(
-                                        h_flex()
-                                            .items_center()
-                                            .gap(px(10.0))
-                                            .child(
-                                                tab.icon()
-                                                    .small()
-                                                    .text_color(if selected {
-                                                        rgb(theme::accent_foreground())
-                                                    } else {
-                                                        rgb(theme::muted_foreground())
-                                                    }),
-                                            )
-                                            .child(tab.label().to_string()),
-                                    )
-                                    .when_some(badge_count, |this, count| {
-                                        this.child(
-                                            div()
-                                                .px(px(8.0))
-                                                .py(px(2.0))
-                                                .rounded(px(999.0))
-                                                .border_1()
-                                                .border_color(if selected {
-                                                    rgba(0xffffff29)
-                                                } else {
-                                                    rgb(theme::border())
-                                                })
-                                                .bg(if selected {
-                                                    rgba(0xffffff14)
-                                                } else {
-                                                    rgb(theme::sidebar_item_hover())
-                                                })
-                                                .text_size(px(11.0))
-                                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                                .text_color(if selected {
-                                                    rgb(theme::foreground())
-                                                } else {
-                                                    rgb(theme::muted_foreground())
-                                                })
-                                                .child(count.to_string()),
-                                        )
-                                    }),
-                            )
-                    })),
-            )
-            // Bottom profile section
-            .child(
-                v_flex()
-                    .p(px(12.0))
-                    .border_t_1()
-                    .border_color(rgb(theme::border()))
-                    .gap(px(8.0))
-                    .child(
-                        v_flex()
-                            .gap(px(2.0))
-                            .child(
-                                div()
-                                    .text_size(px(12.0))
-                                    .font_weight(gpui::FontWeight::MEDIUM)
-                                    .text_color(rgb(theme::foreground()))
-                                    .truncate()
-                                    .child(username),
-                            )
-                            .child(
-                                div()
-                                    .text_size(px(11.0))
-                                    .text_color(rgb(theme::muted_foreground()))
-                                    .truncate()
-                                    .child(server),
-                            ),
-                    )
-                    .child(
-                        Button::new("logout-btn")
-                            .label("Sign out")
-                            .icon(Icon::new(AppIcon::LogOut))
-                            .ghost()
-                            .small()
-                            .on_click(cx.listener(|this, _, window, cx| this.logout(window, cx))),
+                        Input::new(&search_input)
+                            .prefix(Icon::new(IconName::Search).small())
+                            .cleanable(true),
                     ),
             )
+            .child(header_gap)
+            .child(
+                Button::new("sidebar-collapse")
+                    .icon(Icon::new(if collapsed {
+                        IconName::PanelLeftOpen
+                    } else {
+                        IconName::PanelLeftClose
+                    }))
+                    .ghost()
+                    .size(px(40.0))
+                    .tooltip(if collapsed {
+                        "Expand sidebar"
+                    } else {
+                        "Collapse sidebar"
+                    })
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.state.sidebar_collapsed = !this.state.sidebar_collapsed;
+                        this.state.sidebar_transition_nonce =
+                            this.state.sidebar_transition_nonce.wrapping_add(1);
+                        cx.notify();
+                    })),
+            );
+
+        let navigation = SidebarNavigation {
+            items: ViewTab::ALL
+                .into_iter()
+                .map(|tab| SidebarNavigationItem {
+                    tab,
+                    active: self.state.selected_tab == tab,
+                    on_click: Rc::new(
+                        cx.listener(move |this, _, _, cx| this.select_tab(tab, cx)),
+                    ),
+                })
+                .collect(),
+            collapsed,
+            transition_nonce,
+        };
+
+        let avatar = cover_art(
+            user_image_url.as_deref(),
+            avatar_size,
+            7.0,
+            false,
+            AppIcon::Users,
+        );
+
+        let profile_menu = Button::new("profile-menu")
+            .ghost()
+            .rounded(px(9.0))
+            .tooltip(format!("{username} account"))
+            .w(px(profile_button_size))
+            .h(px(profile_button_size))
+            .p(px(profile_button_padding))
+            .child(avatar)
+            .dropdown_menu_with_anchor(Anchor::BottomLeft, move |menu, window, _| {
+                menu.min_w(px(190.0))
+                    .label(menu_username.clone())
+                    .when(!menu_server.is_empty(), |menu| menu.label(menu_server.clone()))
+                    .separator()
+                    .item(
+                        PopupMenuItem::new("Sign out")
+                            .on_click(window.listener_for(&view, |this, _, window, cx| {
+                                this.logout(window, cx);
+                            })),
+                    )
+            });
+
+        let sidebar_to = if collapsed {
+            SIDEBAR_COLLAPSED_WIDTH
+        } else {
+            SIDEBAR_EXPANDED_WIDTH
+        };
+        let sidebar_from = if collapsed {
+            SIDEBAR_EXPANDED_WIDTH
+        } else {
+            SIDEBAR_COLLAPSED_WIDTH
+        };
+        let sidebar = Sidebar::new("main-sidebar")
+            .w(px(sidebar_to))
+            .bg(rgb(theme::sidebar()))
+            .collapsible(false)
+            .header(header)
+            .child(navigation)
+            .footer(profile_menu);
+
+        if transition_nonce == 0 {
+            sidebar.into_any_element()
+        } else {
+            sidebar
+                .with_animation(
+                    SharedString::from(format!("sidebar-width-{transition_nonce}")),
+                    Animation::new(Duration::from_millis(SIDEBAR_TRANSITION_MS))
+                        .with_easing(ease_in_out),
+                    move |sidebar, delta| {
+                        sidebar.w(px(
+                            sidebar_from + ((sidebar_to - sidebar_from) * delta),
+                        ))
+                    },
+                )
+                .into_any_element()
+        }
     }
 
-    fn render_content(&mut self, right_panel_open: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_content(
+        &mut self,
+        right_panel_open: bool,
+        player_bar_docked: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let has_player = self.state.player.current_song().is_some();
+        let content_viewport_inset = if has_player && player_bar_docked {
+            PLAYER_BAR_DOCKED_HEIGHT
+        } else {
+            0.0
+        };
+        let page_end_spacing = if has_player && !player_bar_docked {
+            PLAYER_BAR_DOCKED_HEIGHT + 16.0 + PAGE_BOTTOM_PADDING
+        } else {
+            PAGE_BOTTOM_PADDING
+        };
+        let list_bottom_inset = if has_player {
+            content_viewport_inset
+        } else {
+            PAGE_BOTTOM_PADDING
+        };
+
         match self.state.selected_tab {
             ViewTab::Home => div()
                 .id("content-scroll")
@@ -2795,8 +3051,13 @@ impl DesktopApp {
                 .h_full()
                 .overflow_y_scroll()
                 .overflow_x_hidden()
-                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
-                .child(self.render_home(cx))
+                .pb(px(content_viewport_inset))
+                .child(
+                    v_flex()
+                        .w_full()
+                        .child(self.render_home(cx))
+                        .child(div().h(px(page_end_spacing)).flex_shrink_0()),
+                )
                 .into_any_element(),
             ViewTab::Songs => div()
                 .id("content-scroll")
@@ -2805,7 +3066,7 @@ impl DesktopApp {
                 .h_full()
                 .overflow_hidden()
                 .p(px(0.0))
-                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
+                .pb(px(list_bottom_inset))
                 .child(self.render_songs(cx))
                 .into_any_element(),
             ViewTab::Albums if self.state.selected_album_id.is_none() => div()
@@ -2815,7 +3076,7 @@ impl DesktopApp {
                 .h_full()
                 .overflow_hidden()
                 .p(px(0.0))
-                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
+                .pb(px(list_bottom_inset))
                 .child(self.render_albums(cx))
                 .into_any_element(),
             ViewTab::Artists if self.state.selected_artist_id.is_none() => div()
@@ -2825,7 +3086,7 @@ impl DesktopApp {
                 .h_full()
                 .overflow_hidden()
                 .p(px(0.0))
-                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
+                .pb(px(list_bottom_inset))
                 .child(self.render_artists(cx))
                 .into_any_element(),
             ViewTab::Playlists => div()
@@ -2835,7 +3096,7 @@ impl DesktopApp {
                 .h_full()
                 .overflow_hidden()
                 .p(px(0.0))
-                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
+                .pb(px(list_bottom_inset))
                 .child(self.render_playlists(cx))
                 .into_any_element(),
             _ => div()
@@ -2847,13 +3108,18 @@ impl DesktopApp {
                 .overflow_x_hidden()
                 .p(px(24.0))
                 .pr(if right_panel_open { px(20.0) } else { px(24.0) })
-                .pb(if self.state.player.current_song().is_some() { px(112.0) } else { px(24.0) })
-                .child(match self.state.selected_tab {
-                    ViewTab::Albums => self.render_albums(cx).into_any_element(),
-                    ViewTab::Artists => self.render_artists(cx).into_any_element(),
-                    ViewTab::Settings => self.render_settings(cx).into_any_element(),
-                    ViewTab::Home | ViewTab::Songs | ViewTab::Playlists => unreachable!(),
-                })
+                .pb(px(content_viewport_inset))
+                .child(
+                    v_flex()
+                        .w_full()
+                        .child(match self.state.selected_tab {
+                            ViewTab::Albums => self.render_albums(cx).into_any_element(),
+                            ViewTab::Artists => self.render_artists(cx).into_any_element(),
+                            ViewTab::Settings => self.render_settings(cx).into_any_element(),
+                            ViewTab::Home | ViewTab::Songs | ViewTab::Playlists => unreachable!(),
+                        })
+                        .child(div().h(px(page_end_spacing)).flex_shrink_0()),
+                )
                 .into_any_element(),
         }
     }
@@ -2997,8 +3263,12 @@ impl DesktopApp {
                                                 v_flex()
                                                     .gap(px(10.0))
                                                     .flex_1()
+                                                    .min_w(px(0.0))
+                                                    .overflow_hidden()
                                                     .child(
                                                         div()
+                                                            .w_full()
+                                                            .truncate()
                                                             .text_size(px(34.0))
                                                             .font_weight(gpui::FontWeight::BOLD)
                                                             .text_color(rgb(theme::foreground()))
@@ -3062,8 +3332,12 @@ impl DesktopApp {
                                             v_flex()
                                                 .gap(px(10.0))
                                                 .flex_1()
+                                                .min_w(px(0.0))
+                                                .overflow_hidden()
                                                 .child(
                                                     div()
+                                                        .w_full()
+                                                        .truncate()
                                                         .text_size(px(34.0))
                                                         .font_weight(gpui::FontWeight::BOLD)
                                                         .text_color(rgb(theme::foreground()))
@@ -3165,7 +3439,6 @@ impl DesktopApp {
                                                             ButtonCustomVariant::new(cx)
                                                                 .color(rgb(theme::accent()).into())
                                                                 .foreground(rgb(theme::accent_foreground()).into())
-                                                                .border(rgb(theme::accent()).into())
                                                                 .hover(rgb(theme::accent_hover()).into())
                                                                 .active(rgb(theme::accent_active()).into()),
                                                         )
@@ -3253,16 +3526,9 @@ impl DesktopApp {
                                                     .gap(px(6.0))
                                                     .child(
                                                         Button::new("featured-prev")
-                                                            .custom(
-                                                                ButtonCustomVariant::new(cx)
-                                                                    .color(rgba(theme::accent_alpha(if theme::is_dark() { 26 } else { 18 })).into())
-                                                                    .foreground(rgb(theme::accent()).into())
-                                                                    .border(rgba(theme::accent_alpha(if theme::is_dark() { 38 } else { 28 })).into())
-                                                                    .hover(rgba(theme::accent_alpha(if theme::is_dark() { 51 } else { 40 })).into())
-                                                                    .active(rgba(theme::accent_alpha(if theme::is_dark() { 36 } else { 50 })).into()),
-                                                            )
-                                                            .size(px(32.0))
+                                                            .size(px(36.0))
                                                             .rounded(px(999.0))
+                                                            .tooltip("Previous featured album")
                                                             .child(
                                                                 Icon::new(IconName::ChevronLeft)
                                                                     .with_animation(
@@ -3287,16 +3553,9 @@ impl DesktopApp {
                                                     )
                                                     .child(
                                                         Button::new("featured-next")
-                                                            .custom(
-                                                                ButtonCustomVariant::new(cx)
-                                                                    .color(rgba(theme::accent_alpha(if theme::is_dark() { 26 } else { 18 })).into())
-                                                                    .foreground(rgb(theme::accent()).into())
-                                                                    .border(rgba(theme::accent_alpha(if theme::is_dark() { 38 } else { 28 })).into())
-                                                                    .hover(rgba(theme::accent_alpha(if theme::is_dark() { 51 } else { 40 })).into())
-                                                                    .active(rgba(theme::accent_alpha(if theme::is_dark() { 36 } else { 50 })).into()),
-                                                            )
-                                                            .size(px(32.0))
+                                                            .size(px(36.0))
                                                             .rounded(px(999.0))
+                                                            .tooltip("Next featured album")
                                                             .child(
                                                                 Icon::new(IconName::ChevronRight)
                                                                     .with_animation(
@@ -3559,7 +3818,7 @@ impl DesktopApp {
                             .collect::<Vec<_>>()
                     }),
                 )
-                .track_scroll(self.songs_scroll_handle.clone())
+                .track_scroll(&self.songs_scroll_handle)
                 .size_full(),
             )
     }
@@ -3634,7 +3893,7 @@ impl DesktopApp {
                             .collect::<Vec<_>>()
                     }),
                 )
-                .track_scroll(self.albums_scroll_handle.clone())
+                .track_scroll(&self.albums_scroll_handle)
                 .size_full(),
             )
             .into_any_element()
@@ -3700,7 +3959,7 @@ impl DesktopApp {
                             .collect::<Vec<_>>()
                     }),
                 )
-                .track_scroll(self.artists_scroll_handle.clone())
+                .track_scroll(&self.artists_scroll_handle)
                 .size_full(),
             )
             .into_any_element()
@@ -4629,7 +4888,7 @@ impl DesktopApp {
 
         v_flex()
             .id("right-panel-scroll")
-            .w(px(360.0))
+            .w(px(RIGHT_PANEL_WIDTH))
             .flex_shrink_0()
             .h_full()
             .border_l_1()
@@ -4674,9 +4933,9 @@ impl DesktopApp {
         let hidden_after = queue_len.saturating_sub(start + 18);
 
         v_flex()
-            .id("lyrics-panel-scroll")
+            .id("queue-panel-scroll")
             .flex_1()
-            .track_scroll(&self.lyrics_scroll_handle)
+            .track_scroll(&self.queue_scroll_handle)
             .overflow_y_scrollbar()
             .child(
                 v_flex()
@@ -4738,10 +4997,7 @@ impl DesktopApp {
     }
 
     fn render_lyrics_panel(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        let song = self.state.player.current_song().cloned();
         let has_lyrics = self.state.lyrics.as_ref().is_some_and(|lyrics| lyrics.is_valid());
-        let is_synced = self.state.lyrics.as_ref().is_some_and(|lyrics| !lyrics.synced.is_empty());
-        let active_line_index = self.state.lyrics_ui.active_line_index;
         let lyrics_content = self
             .state
             .lyrics
@@ -4770,45 +5026,14 @@ impl DesktopApp {
             .id("lyrics-panel-scroll")
             .flex_1()
             .track_scroll(&self.lyrics_scroll_handle)
-            .overflow_y_scrollbar()
-            .p(px(16.0))
-            .gap(px(12.0))
-            .child(
-                h_flex()
-                    .justify_between()
-                    .items_center()
-                    .child(
-                        v_flex()
-                            .gap(px(4.0))
-                            .child(
-                                div()
-                                    .text_size(px(11.0))
-                                    .text_color(rgb(theme::muted_foreground()))
-                                    .child(self.state.lyrics_status.clone()),
-                            )
-                            .when(song.is_some(), |this| {
-                                let song = song.clone().unwrap();
-                                this.child(
-                                    div()
-                                        .text_size(px(13.0))
-                                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                                        .child(song.name),
-                                )
-                            }),
-                    )
-                    .when(has_lyrics, |this| {
-                        this.child(
-                            div()
-                                .text_size(px(10.0))
-                                .text_color(rgb(theme::muted_foreground()))
-                                .child(if is_synced { "Synced" } else { "Plain" }),
-                        )
-                    }),
-            )
+            .overflow_y_scroll()
+            .px(px(18.0))
+            .gap(px(10.0))
+            .when(has_lyrics, |this| this.child(div().h(px(240.0)).flex_shrink_0()))
             .when(self.state.lyrics_loading, |this| {
                 this.child(panel_empty_state(
                     "Loading lyrics",
-                    "Fetching sidecar, Jellyfin, and fallback lyrics for the current track.",
+                    "Finding the best available lyrics for this track.",
                 ))
             })
             .when(!self.state.lyrics_loading && self.state.lyrics_error.is_some(), |this| {
@@ -4824,38 +5049,16 @@ impl DesktopApp {
                 ))
             })
             .children(lyrics_content)
-            .when(has_lyrics, |this| {
-                let lyrics = self.state.lyrics.as_ref().unwrap();
-                let language = lyrics.language.as_deref().unwrap_or("Unknown language");
-                let source = if lyrics.are_from_remote { "Remote" } else { "Sidecar" };
-                let section_count = lyrics.sections.as_ref().map(|sections| sections.len()).unwrap_or_default();
-                let songwriter_count = lyrics.songwriters.as_ref().map(|names| names.len()).unwrap_or_default();
-
-                this.child(
-                    v_flex()
-                        .gap(px(4.0))
-                        .pt(px(8.0))
-                        .border_t_1()
-                        .border_color(rgb(theme::border()))
-                        .child(lyrics_meta_row("Source", source))
-                        .child(lyrics_meta_row("Language", language))
-                        .when(section_count > 0, |this| {
-                            this.child(lyrics_meta_row("Sections", &section_count.to_string()))
-                        })
-                        .when(songwriter_count > 0, |this| {
-                            this.child(lyrics_meta_row("Writers", &songwriter_count.to_string()))
-                        })
-                        .when(active_line_index.is_some(), |this| {
-                            this.child(lyrics_meta_row(
-                                "Active line",
-                                &format!("{}", active_line_index.unwrap_or_default() + 1),
-                            ))
-                        }),
-                )
-            })
+            .when(has_lyrics, |this| this.child(div().h(px(240.0)).flex_shrink_0()))
     }
 
-    fn render_player_bar(&mut self, _progress: f64, _right_panel_open: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_player_bar(
+        &mut self,
+        _progress: f64,
+        is_docked: bool,
+        available_width: f32,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let song = self.state.player.current_song().cloned();
         let position = self.state.player.position_secs.floor();
         let duration = self.state.player.duration_secs;
@@ -4864,6 +5067,24 @@ impl DesktopApp {
         let volume_slider = self.volume_slider.clone();
         let is_queue_open = self.state.right_panel == RightPanel::Queue;
         let is_lyrics_open = self.state.right_panel == RightPanel::Lyrics;
+        let compact_controls = available_width < 900.0;
+        let very_compact_controls = available_width < 700.0;
+        let show_volume = available_width >= 760.0;
+        let info_width = if very_compact_controls {
+            200.0
+        } else if compact_controls {
+            240.0
+        } else {
+            294.0
+        };
+        let utility_width = if !show_volume {
+            126.0
+        } else if compact_controls {
+            260.0
+        } else {
+            294.0
+        };
+        let group_gap = if compact_controls { 8.0 } else { 16.0 };
         let is_shuffled = self.state.player.is_shuffled;
         let repeat_mode = self.state.player.repeat_mode;
         let is_favorite = song
@@ -4882,111 +5103,158 @@ impl DesktopApp {
             .as_ref()
             .map(format_song_file_info)
             .unwrap_or_else(|| "Unknown format".to_string());
+        let song_name = song
+            .as_ref()
+            .map(|song| song.name.clone())
+            .unwrap_or_else(|| "Nothing playing".to_string());
 
         div()
             .absolute()
             .bottom_0()
             .left_0()
             .right_0()
-            .px(px(24.0))
-            .pb(px(18.0))
+            .px(if is_docked { px(0.0) } else { px(24.0) })
+            .pb(if is_docked { px(0.0) } else { px(16.0) })
             .occlude()
             .child(
                 h_flex()
                     .justify_center()
                     .w_full()
                     .child(
-                        h_flex()
-                            .justify_between()
-                            .items_center()
-                            .gap(px(16.0))
+                        v_flex()
+                            .gap(px(7.0))
                             .w_full()
-                            .max_w(px(980.0))
-                            .pl(px(16.0))
-                            .pr(px(24.0))
-                            .py(px(10.0))
-                            .rounded(px(18.0))
-                            .border_1()
-                            .border_color(rgb(theme::border()))
+                            .px(px(14.0))
+                            .pt(px(12.0))
+                            .pb(px(10.0))
                             .bg(rgb(theme::player_bg()))
+                            .when(is_docked, |this| {
+                                this.h(px(PLAYER_BAR_DOCKED_HEIGHT))
+                                    .rounded_none()
+                                    .border_t_1()
+                                    .border_color(rgb(theme::border()))
+                                    .shadow(vec![gpui::BoxShadow {
+                                        color: rgba(0x00000059).into(),
+                                        offset: point(px(0.0), px(-7.0)),
+                                        blur_radius: px(20.0),
+                                        spread_radius: px(-6.0),
+                                        inset: false,
+                                    }])
+                            })
+                            .when(!is_docked, |this| {
+                                this.max_w(px(1080.0))
+                                    .rounded(px(20.0))
+                                    .border_1()
+                                    .border_color(rgb(theme::border()))
+                                    .shadow(vec![
+                                        gpui::BoxShadow {
+                                            color: rgba(0x00000073).into(),
+                                            offset: point(px(0.0), px(12.0)),
+                                            blur_radius: px(30.0),
+                                            spread_radius: px(-7.0),
+                                            inset: false,
+                                        },
+                                        gpui::BoxShadow {
+                                            color: rgba(0x00000047).into(),
+                                            offset: point(px(0.0), px(4.0)),
+                                            blur_radius: px(10.0),
+                                            spread_radius: px(-3.0),
+                                            inset: false,
+                                        },
+                                    ])
+                            })
                             .child(
                                 h_flex()
-                                    .gap(px(12.0))
+                                    .justify_between()
                                     .items_center()
-                                    .h(px(52.0))
-                                    .w(px(252.0))
-                                    .min_w(px(0.0))
-                                    .flex_shrink_0()
+                                    .gap(px(group_gap))
                                     .child(
-                                        div()
-                                            .cursor_pointer()
-                                            .hover(|style| style.opacity(0.84))
-                                            .on_mouse_up(
-                                                MouseButton::Left,
-                                                cx.listener(|this, _, _, cx| this.open_immersive_view(cx)),
-                                            )
-                                            .child(cover_art(song_art.as_deref(), 52.0, 10.0, false, AppIcon::Music)),
-                                    )
-                                    .child(
-                                        v_flex()
-                                            .gap(px(2.0))
+                                        h_flex()
+                                            .gap(px(12.0))
+                                            .items_center()
+                                            .h(px(56.0))
+                                            .w(px(info_width))
                                             .min_w(px(0.0))
-                                            .overflow_hidden()
-                                            .flex_1()
+                                            .flex_shrink_0()
                                             .child(
                                                 div()
-                                                    .w_full()
-                                                    .text_size(px(12.0))
-                                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                                    .truncate()
+                                                    .cursor_pointer()
+                                                    .hover(|style| style.opacity(0.84))
+                                                    .on_mouse_up(
+                                                        MouseButton::Left,
+                                                        cx.listener(|this, _, _, cx| this.open_immersive_view(cx)),
+                                                    )
+                                                    .child(cover_art(
+                                                        song_art.as_deref(),
+                                                        56.0,
+                                                        12.0,
+                                                        false,
+                                                        AppIcon::Music,
+                                                    )),
+                                            )
+                                            .child(
+                                                v_flex()
+                                                    .gap(px(3.0))
+                                                    .min_w(px(0.0))
+                                                    .overflow_hidden()
+                                                    .flex_1()
                                                     .child(
-                                                        song.as_ref()
-                                                            .map(|s| s.name.clone())
-                                                            .unwrap_or_else(|| "Nothing playing".to_string()),
+                                                        div()
+                                                            .w_full()
+                                                            .text_size(px(13.0))
+                                                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                                                            .truncate()
+                                                            .child(song_name),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .w_full()
+                                                            .text_size(px(10.0))
+                                                            .text_color(rgb(theme::muted_foreground()))
+                                                            .truncate()
+                                                            .child(format!("{artist_name}  ·  {album_name}")),
+                                                    )
+                                                    .child(
+                                                        h_flex().child(
+                                                            div()
+                                                                .max_w_full()
+                                                                .px(px(6.0))
+                                                                .py(px(1.0))
+                                                                .rounded(px(999.0))
+                                                                .bg(rgba(theme::background_alpha(144)))
+                                                                .text_size(px(9.0))
+                                                                .text_color(rgb(theme::muted_foreground()))
+                                                                .truncate()
+                                                                .child(song_file_info),
+                                                        ),
                                                     ),
                                             )
-                                            .child(
-                                                div()
-                                                    .w_full()
-                                                    .text_size(px(10.0))
-                                                    .text_color(rgb(theme::muted_foreground()))
-                                                    .truncate()
-                                                    .child(format!("{artist_name}  ·  {album_name}")),
-                                            )
-                                            .child(
-                                                div()
-                                                    .w_full()
-                                                    .text_size(px(10.0))
-                                                    .text_color(rgb(theme::muted_foreground()))
-                                                    .truncate()
-                                                    .child(song_file_info),
-                                            ),
                                     )
-                            )
-                            .child(
-                                v_flex()
-                                    .gap(px(6.0))
-                                    .flex_1()
-                                    .max_w(px(360.0))
                                     .child(
                                         h_flex()
                                             .items_center()
                                             .justify_center()
-                                            .gap(px(4.0))
-                                            .child(
+                                            .gap(px(6.0))
+                                            .flex_1()
+                                            .when(!very_compact_controls, |this| this.child(
                                                 Button::new("shuffle-btn")
                                                     .icon(Icon::new(AppIcon::Shuffle))
                                                     .small()
+                                                    .w(px(36.0))
+                                                    .h(px(36.0))
                                                     .tooltip("Shuffle")
                                                     .when(is_shuffled, |this| this.primary())
                                                     .when(!is_shuffled, |this| this.ghost())
                                                     .on_click(cx.listener(|this, _, _, cx| this.toggle_shuffle(cx))),
-                                            )
+                                            ))
                                             .child(
                                                 Button::new("prev-btn")
                                                     .icon(Icon::new(AppIcon::SkipBack))
                                                     .ghost()
                                                     .small()
+                                                    .w(px(36.0))
+                                                    .h(px(36.0))
+                                                    .tooltip("Previous")
                                                     .on_click(cx.listener(|this, _, _, cx| this.previous_track_action(cx))),
                                             )
                                             .child(
@@ -4996,13 +5264,13 @@ impl DesktopApp {
                                                         ButtonCustomVariant::new(cx)
                                                             .color(rgb(theme::accent()).into())
                                                             .foreground(rgb(theme::accent_foreground()).into())
-                                                            .border(rgb(theme::accent()).into())
                                                             .hover(rgb(theme::accent_hover()).into())
                                                             .active(rgb(theme::accent_active()).into()),
                                                     )
                                                     .rounded(px(999.0))
-                                                    .w(px(42.0))
-                                                    .h(px(42.0))
+                                                    .w(px(48.0))
+                                                    .h(px(48.0))
+                                                    .tooltip(if is_playing { "Pause" } else { "Play" })
                                                     .on_click(cx.listener(|this, _, _, cx| this.toggle_play_pause(cx))),
                                             )
                                             .child(
@@ -5010,12 +5278,17 @@ impl DesktopApp {
                                                     .icon(Icon::new(AppIcon::SkipForward))
                                                     .ghost()
                                                     .small()
+                                                    .w(px(36.0))
+                                                    .h(px(36.0))
+                                                    .tooltip("Next")
                                                     .on_click(cx.listener(|this, _, _, cx| this.next_track_action(cx))),
                                             )
-                                            .child(
+                                            .when(!very_compact_controls, |this| this.child(
                                                 Button::new("repeat-btn")
                                                     .icon(Icon::new(AppIcon::Repeat))
                                                     .small()
+                                                    .w(px(36.0))
+                                                    .h(px(36.0))
                                                     .tooltip(match repeat_mode {
                                                         RepeatMode::None => "Repeat off",
                                                         RepeatMode::All => "Repeat all",
@@ -5024,78 +5297,114 @@ impl DesktopApp {
                                                     .when(repeat_mode != RepeatMode::None, |this| this.primary())
                                                     .when(repeat_mode == RepeatMode::None, |this| this.ghost())
                                                     .on_click(cx.listener(|this, _, _, cx| this.cycle_repeat_mode(cx))),
-                                            ),
+                                            )),
                                     )
                                     .child(
                                         h_flex()
+                                            .justify_end()
                                             .items_center()
-                                            .gap(px(8.0))
+                                            .w(px(utility_width))
+                                            .flex_shrink_0()
                                             .child(
-                                                div()
-                                                    .text_size(px(10.0))
-                                                    .text_color(rgb(theme::muted_foreground()))
-                                                    .w(px(34.0))
-                                                    .text_right()
-                                                    .child(format_duration(position)),
-                                            )
-                                            .child(
-                                                div()
-                                                    .flex_1()
-                                                    .child(Slider::new(&seek_slider))
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_size(px(11.0))
-                                                    .text_color(rgb(theme::muted_foreground()))
-                                                    .w(px(34.0))
-                                                    .child(format_duration(duration)),
+                                                h_flex()
+                                                    .gap(px(4.0))
+                                                    .items_center()
+                                                    .px(px(6.0))
+                                                    .py(px(4.0))
+                                                    .rounded(px(14.0))
+                                                    .border_1()
+                                                    .border_color(rgb(theme::border()))
+                                                    .bg(rgba(theme::background_alpha(144)))
+                                                    .child(
+                                                        Button::new("favorite-current")
+                                                            .icon(Icon::new(if is_favorite {
+                                                                IconName::HeartOff
+                                                            } else {
+                                                                IconName::Heart
+                                                            }))
+                                                            .ghost()
+                                                            .small()
+                                                            .w(px(34.0))
+                                                            .h(px(34.0))
+                                                            .tooltip(if is_favorite {
+                                                                "Unfavorite"
+                                                            } else {
+                                                                "Favorite"
+                                                            })
+                                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                                this.toggle_favorite_current(cx)
+                                                            })),
+                                                    )
+                                                    .child(
+                                                        Button::new("toggle-queue-panel")
+                                                            .icon(Icon::new(AppIcon::ListMusic))
+                                                            .small()
+                                                            .w(px(34.0))
+                                                            .h(px(34.0))
+                                                            .tooltip("Queue")
+                                                            .when(is_queue_open, |this| this.primary())
+                                                            .when(!is_queue_open, |this| this.ghost())
+                                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                                this.toggle_queue_panel(cx)
+                                                            })),
+                                                    )
+                                                    .child(
+                                                        Button::new("toggle-lyrics-panel")
+                                                            .icon(Icon::new(AppIcon::MicVocal))
+                                                            .small()
+                                                            .w(px(34.0))
+                                                            .h(px(34.0))
+                                                            .tooltip("Lyrics")
+                                                            .when(is_lyrics_open, |this| this.primary())
+                                                            .when(!is_lyrics_open, |this| this.ghost())
+                                                            .on_click(cx.listener(|this, _, _, cx| {
+                                                                this.toggle_lyrics_panel(cx)
+                                                            })),
+                                                    )
+                                                    .when(show_volume, |this| {
+                                                        this.child(
+                                                            div()
+                                                                .w(px(1.0))
+                                                                .h(px(22.0))
+                                                                .mx(px(3.0))
+                                                                .bg(rgb(theme::border())),
+                                                        )
+                                                        .child(
+                                                            Icon::new(AppIcon::Volume2)
+                                                                .small()
+                                                                .text_color(rgb(theme::muted_foreground())),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .w(px(86.0))
+                                                                .pr(px(6.0))
+                                                                .child(Slider::new(&volume_slider)),
+                                                        )
+                                                    }),
                                             ),
                                     ),
                             )
                             .child(
                                 h_flex()
-                                    .gap(px(6.0))
                                     .items_center()
-                                    .justify_end()
-                                    .w(px(228.0))
-                                    .flex_shrink_0()
+                                    .gap(px(10.0))
                                     .child(
-                                        Button::new("favorite-current")
-                                            .icon(Icon::new(if is_favorite { IconName::HeartOff } else { IconName::Heart }))
-                                            .ghost()
-                                            .small()
-                                            .tooltip(if is_favorite { "Unfavorite" } else { "Favorite" })
-                                            .on_click(cx.listener(|this, _, _, cx| this.toggle_favorite_current(cx))),
+                                        div()
+                                            .w(px(38.0))
+                                            .text_right()
+                                            .text_size(px(10.0))
+                                            .font_weight(gpui::FontWeight::MEDIUM)
+                                            .text_color(rgb(theme::muted_foreground()))
+                                            .child(format_duration(position)),
                                     )
+                                    .child(div().flex_1().child(Slider::new(&seek_slider)))
                                     .child(
-                                        Button::new("toggle-queue-panel")
-                                            .icon(Icon::new(AppIcon::ListMusic))
-                                            .small()
-                                            .tooltip("Queue")
-                                            .when(is_queue_open, |this| this.primary())
-                                            .when(!is_queue_open, |this| this.ghost())
-                                            .on_click(cx.listener(|this, _, _, cx| this.toggle_queue_panel(cx))),
-                                    )
-                                    .child(
-                                        Button::new("toggle-lyrics-panel")
-                                            .icon(Icon::new(AppIcon::MicVocal))
-                                            .small()
-                                            .tooltip("Lyrics")
-                                            .when(is_lyrics_open, |this| this.primary())
-                                            .when(!is_lyrics_open, |this| this.ghost())
-                                            .on_click(cx.listener(|this, _, _, cx| this.toggle_lyrics_panel(cx))),
-                                    )
-                                    .child(
-                                        h_flex()
-                                            .gap(px(6.0))
-                                            .items_center()
-                                            .child(Icon::new(AppIcon::Volume2).small().text_color(rgb(theme::muted_foreground())))
-                                            .child(
-                                                div()
-                                                    .w(px(80.0))
-                                                    .px(px(8.0))
-                                                    .child(Slider::new(&volume_slider)),
-                                            ),
+                                        div()
+                                            .w(px(38.0))
+                                            .text_size(px(10.0))
+                                            .font_weight(gpui::FontWeight::MEDIUM)
+                                            .text_color(rgb(theme::muted_foreground()))
+                                            .child(format_duration(duration)),
                                     ),
                             ),
                     ),
@@ -5326,7 +5635,6 @@ impl DesktopApp {
                                                 ButtonCustomVariant::new(cx)
                                                     .color(rgb(theme::accent()).into())
                                                     .foreground(rgb(theme::accent_foreground()).into())
-                                                    .border(rgb(theme::accent()).into())
                                                     .hover(rgb(theme::accent_hover()).into())
                                                     .active(rgb(theme::accent_active()).into()),
                                             )
@@ -5422,7 +5730,7 @@ impl DesktopApp {
                 v_flex()
                     .id("immersive-queue-scroll")
                     .flex_1()
-                    .track_scroll(&self.lyrics_scroll_handle)
+                    .track_scroll(&self.immersive_queue_scroll_handle)
                     .overflow_y_scrollbar()
                     .gap(px(8.0))
                     .pr(px(8.0))
@@ -5472,10 +5780,10 @@ impl DesktopApp {
                 v_flex()
                     .id("immersive-lyrics-scroll")
                     .flex_1()
-                    .track_scroll(&self.lyrics_scroll_handle)
-                    .overflow_y_scrollbar()
-                    .gap(px(18.0))
-                    .pr(px(8.0))
+                    .track_scroll(&self.immersive_lyrics_scroll_handle)
+                    .overflow_y_scroll()
+                    .gap(px(12.0))
+                    .px(px(8.0))
                     .child(div().h(px(260.0)).flex_shrink_0())
                     .when(self.state.lyrics_loading, |this| {
                         this.child(immersive_empty_state(
@@ -5511,51 +5819,87 @@ impl DesktopApp {
             return div().into_any_element();
         };
         let active_state = compute_active_state(lyrics, self.current_lyrics_position_secs());
-        let words = line
+        let mut words = line
             .line
             .words
             .as_ref()
             .filter(|words| !words.is_empty())
             .map(|_| render_words(line.line, &active_state, index))
             .unwrap_or_default();
+        if self
+            .lyrics_line_transition
+            .as_ref()
+            .is_some_and(|transition| transition.previous_line == index)
+        {
+            for word in &mut words {
+                word.state = LyricsWordState::Sung;
+                word.progress = 1.0;
+            }
+        }
+        let active_index = self.state.lyrics_ui.active_line_index.unwrap_or(usize::MAX);
+        let distance = active_index.abs_diff(index);
+        let inactive_opacity = if line.is_background_vocal {
+            0.25
+        } else if distance == 1 {
+            0.58
+        } else if distance == 2 {
+            0.44
+        } else {
+            0.32
+        };
+        let emphasis = self.lyrics_line_emphasis(index);
+        let opacity = inactive_opacity + ((1.0 - inactive_opacity) * emphasis);
 
         v_flex()
             .gap(px(6.0))
-            .items_center()
-            .py(px(if line.is_active { 10.0 } else { 4.0 }))
-            .opacity(if line.is_active { 1.0 } else { 0.46 })
+            .w_full()
+            .py(px(7.0))
+            .when(line.is_background_vocal, |this| this.pl(px(44.0)))
             .cursor_pointer()
             .on_mouse_up(
                 MouseButton::Left,
                 cx.listener(move |this, _, _, cx| this.seek_to(line_time_secs / this.state.player.duration_secs.max(1.0), cx)),
             )
             .child(
-                div()
+                v_flex()
+                    .w_full()
+                    .gap(px(6.0))
                     .when(line.section_label.is_some(), |this| {
                         this.child(
                             div()
                                 .text_size(px(10.0))
                                 .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .text_color(rgba(0xffffff75))
+                                .text_color(rgba(theme::accent_alpha(180)))
                                 .child(line.section_label.unwrap_or_default().to_uppercase()),
                         )
                     })
                     .child(if words.is_empty() {
                         div()
-                            .text_center()
-                            .text_size(if line.is_active { px(28.0) } else { px(20.0) })
-                            .font_weight(if line.is_active {
-                                gpui::FontWeight::BOLD
-                            } else {
-                                gpui::FontWeight::SEMIBOLD
-                            })
+                            .w_full()
+                            .whitespace_normal()
+                            .text_size(px(24.0))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .when(line.is_background_vocal, |this| this.italic())
                             .text_color(if line.is_active { rgb(theme::foreground()) } else { rgba(0xffffffb8) })
                             .child(line.line.line.clone())
                             .into_any_element()
                     } else {
-                        immersive_lyrics_word_line(words, line.is_active).into_any_element()
+                        immersive_lyrics_word_line(words, line.is_active, line.is_background_vocal)
+                            .into_any_element()
+                    })
+                    .when(line.translation.is_some(), |this| {
+                        this.child(
+                            div()
+                                .w_full()
+                                .whitespace_normal()
+                                .text_size(px(14.0))
+                                .text_color(rgba(0xffffff9a))
+                                .opacity(if line.is_active { 0.86 } else { 0.54 })
+                                .child(line.translation.unwrap_or_default().to_string()),
+                        )
                     }),
             )
+            .opacity(opacity)
             .into_any_element()
     }
 
@@ -5570,101 +5914,88 @@ impl DesktopApp {
         let Some(lyrics) = self.state.lyrics.as_ref() else {
             return div().into_any_element();
         };
-        let active_state = compute_active_state(lyrics, self.state.player.position_secs);
-        let words = if has_word_sync {
+        let active_state = compute_active_state(lyrics, self.current_lyrics_position_secs());
+        let mut words = if has_word_sync {
             render_words(line.line, &active_state, index)
         } else {
             Vec::new()
         };
+        if self
+            .lyrics_line_transition
+            .as_ref()
+            .is_some_and(|transition| transition.previous_line == index)
+        {
+            for word in &mut words {
+                word.state = LyricsWordState::Sung;
+                word.progress = 1.0;
+            }
+        }
+
+        let active_index = self.state.lyrics_ui.active_line_index.unwrap_or(usize::MAX);
+        let distance = active_index.abs_diff(index);
+        let inactive_opacity = if line.is_background_vocal {
+            0.28
+        } else if distance == 1 {
+            0.62
+        } else if distance == 2 {
+            0.48
+        } else {
+            0.36
+        };
+        let emphasis = self.lyrics_line_emphasis(index);
+        let opacity = inactive_opacity + ((1.0 - inactive_opacity) * emphasis);
 
         v_flex()
-            .gap(px(4.0))
+            .w_full()
+            .gap(px(5.0))
+            .py(px(6.0))
+            .when(line.is_background_vocal, |this| this.pl(px(28.0)))
+            .when(line.section_label.is_some(), |this| {
+                this.child(
+                    div()
+                        .text_size(px(10.0))
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_color(rgba(theme::accent_alpha(178)))
+                        .child(line.section_label.unwrap_or_default().to_uppercase()),
+                )
+            })
             .child(
                 div()
-                    .when(line.section_label.is_some(), |this| {
-                        this.child(
-                            div()
-                                .text_size(px(10.0))
-                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .text_color(rgb(theme::muted_foreground()))
-                                .child(line.section_label.unwrap_or_default().to_uppercase()),
-                        )
-                    })
-                    .child(
+                    .w_full()
+                    .cursor_pointer()
+                    .on_mouse_up(MouseButton::Left, cx.listener(move |this, _, _, cx| {
+                        this.seek_to_lyrics_time(line_time_secs, cx);
+                    }))
+                    .child(if has_word_sync {
+                        lyrics_word_line(words, line.is_active, line.is_background_vocal).into_any_element()
+                    } else {
                         div()
-                            .py(px(6.0))
                             .w_full()
-                            .cursor_pointer()
-                            .when(line.is_active, |this| {
-                                this.rounded(px(10.0)).bg(rgb(theme::card())).px(px(10.0)).py(px(10.0))
-                            })
-                            .when(!line.is_active, |this| this.px(px(10.0)))
-                            .on_mouse_up(MouseButton::Left, cx.listener(move |this, _, _, cx| {
-                                this.seek_to_lyrics_time(line_time_secs, cx);
-                            }))
-                            .child(if has_word_sync {
-                                lyrics_word_line(words, line.is_active).into_any_element()
-                            } else {
-                                let line_color = if line.is_active {
-                                    theme::accent()
-                                } else if line.is_background_vocal {
-                                    theme::muted_foreground()
-                                } else {
-                                    theme::foreground()
-                                };
-                                let target_opacity = if line.is_active {
-                                    1.0
-                                } else if line.is_background_vocal {
-                                    0.5
-                                } else {
-                                    0.72
-                                };
-
-                                div()
-                                    .w_full()
-                                    .whitespace_normal()
-                                    .text_center()
-                                    .text_size(px(if line.is_active { 21.0 } else { 18.0 }))
-                                    .font_weight(if line.is_active {
-                                        gpui::FontWeight::BOLD
-                                    } else {
-                                        gpui::FontWeight::MEDIUM
-                                    })
-                                    .text_color(rgb(line_color))
-                                    .opacity(target_opacity)
-                                    .child(line.line.line.clone())
-                                    .with_animation(
-                                        SharedString::from(format!(
-                                            "lyrics-line-{}-{}",
-                                            index,
-                                            self.state.lyrics_ui.active_line_index.unwrap_or(usize::MAX)
-                                        )),
-                                        Animation::new(Duration::from_millis(220)).with_easing(ease_in_out),
-                                        move |element, delta| {
-                                            let opacity = if line.is_active {
-                                                0.78 + (0.22 * delta)
-                                            } else {
-                                                target_opacity + ((0.72 - target_opacity) * (1.0 - delta))
-                                            };
-                                            element.opacity(opacity)
-                                        },
-                                    )
-                                    .into_any_element()
-                            }),
-                    )
-                    .when(line.translation.is_some(), |this| {
-                        this.child(
-                            div()
-                                .w_full()
-                                .whitespace_normal()
-                                .text_center()
-                                .text_size(px(13.0))
-                                .text_color(rgb(theme::muted_foreground()))
-                                .opacity(if line.is_active { 0.95 } else { 0.72 })
-                                .child(line.translation.unwrap_or_default().to_string()),
-                        )
+                            .whitespace_normal()
+                            .text_size(px(19.0))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .when(line.is_background_vocal, |this| this.italic())
+                            .text_color(rgb(mix_rgb(
+                                theme::foreground(),
+                                theme::accent(),
+                                emphasis,
+                            )))
+                            .child(line.line.line.clone())
+                            .into_any_element()
                     }),
             )
+            .when(line.translation.is_some(), |this| {
+                this.child(
+                    div()
+                        .w_full()
+                        .whitespace_normal()
+                        .text_size(px(13.0))
+                        .text_color(rgb(theme::muted_foreground()))
+                        .opacity(if line.is_active { 0.88 } else { 0.55 })
+                        .child(line.translation.unwrap_or_default().to_string()),
+                )
+            })
+            .opacity(opacity)
             .into_any_element()
     }
 }
@@ -5677,6 +6008,29 @@ impl Focusable for DesktopApp {
 
 impl Render for DesktopApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let completed_scroll = self.lyrics_scroll_animation.as_ref().and_then(|animation| {
+            let progress = (animation.started_at.elapsed().as_secs_f32() / 0.32).clamp(0.0, 1.0);
+            let eased = progress * progress * (3.0 - (2.0 * progress));
+            let next_y = animation.start_y + ((animation.target_y - animation.start_y) * eased);
+            let offset = animation.handle.offset();
+            animation.handle.set_offset(Point {
+                x: offset.x,
+                y: px(next_y.clamp(-animation.max_scroll, 0.0)),
+            });
+            (progress >= 1.0).then_some(animation.active_line)
+        });
+        if let Some(active_line) = completed_scroll {
+            self.lyrics_scroll_animation = None;
+            self.state.lyrics_ui.last_auto_scrolled_line = Some(active_line);
+        }
+        if self
+            .lyrics_line_transition
+            .as_ref()
+            .is_some_and(|transition| transition.started_at.elapsed().as_secs_f32() >= 0.28)
+        {
+            self.lyrics_line_transition = None;
+        }
+
         // Request animation frames while featured transition is active
         let should_animate_lyrics = (self.state.right_panel == RightPanel::Lyrics
             || self.state.immersive_panel == ImmersivePanel::Lyrics)
@@ -5684,6 +6038,8 @@ impl Render for DesktopApp {
             && self.state.lyrics.as_ref().is_some_and(|lyrics| !lyrics.synced.is_empty());
         if self.state.featured_transition_start.is_some()
             || should_animate_lyrics
+            || self.lyrics_scroll_animation.is_some()
+            || self.lyrics_line_transition.is_some()
             || (self.state.immersive_view_open && self.state.player.is_playing)
         {
             window.request_animation_frame();
@@ -5927,13 +6283,6 @@ fn carousel_header(
     on_prev: impl Fn(&mut DesktopApp, &mut Context<DesktopApp>) + 'static,
     on_next: impl Fn(&mut DesktopApp, &mut Context<DesktopApp>) + 'static,
 ) -> impl IntoElement {
-    let button_variant = ButtonCustomVariant::new(cx)
-        .color(rgba(theme::accent_alpha(if theme::is_dark() { 26 } else { 18 })).into())
-        .foreground(rgb(theme::accent()).into())
-        .border(rgba(theme::accent_alpha(if theme::is_dark() { 38 } else { 28 })).into())
-        .hover(rgba(theme::accent_alpha(if theme::is_dark() { 51 } else { 40 })).into())
-        .active(rgba(theme::accent_alpha(if theme::is_dark() { 36 } else { 50 })).into());
-
     h_flex()
         .justify_between()
         .items_center()
@@ -5949,9 +6298,11 @@ fn carousel_header(
                 .gap(px(8.0))
                 .child(
                     Button::new(prev_id)
-                        .custom(button_variant)
+                        .secondary()
+                        .outline()
                         .size(px(36.0))
                         .rounded(px(999.0))
+                        .tooltip("Previous")
                         .child(
                             Icon::new(IconName::ChevronLeft)
                                 .with_animation(
@@ -5968,9 +6319,11 @@ fn carousel_header(
                 )
                 .child(
                     Button::new(next_id)
-                        .custom(button_variant)
+                        .secondary()
+                        .outline()
                         .size(px(36.0))
                         .rounded(px(999.0))
+                        .tooltip("Next")
                         .child(
                             Icon::new(IconName::ChevronRight)
                                 .with_animation(
@@ -6035,6 +6388,17 @@ fn separator() -> impl IntoElement {
         .bg(rgb(theme::border()))
 }
 
+fn mix_rgb(from: u32, to: u32, progress: f32) -> u32 {
+    let progress = progress.clamp(0.0, 1.0);
+    let mix_channel = |shift: u32| {
+        let from = ((from >> shift) & 0xffu32) as f32;
+        let to = ((to >> shift) & 0xffu32) as f32;
+        (from + ((to - from) * progress)).round() as u32
+    };
+
+    (mix_channel(16) << 16) | (mix_channel(8) << 8) | mix_channel(0)
+}
+
 fn panel_empty_state(title: &str, body: &str) -> impl IntoElement {
     v_flex()
         .gap(px(6.0))
@@ -6057,37 +6421,23 @@ fn panel_empty_state(title: &str, body: &str) -> impl IntoElement {
         )
 }
 
-fn lyrics_meta_row(label: &str, value: &str) -> impl IntoElement {
-    h_flex()
-        .justify_between()
-        .gap(px(12.0))
-        .child(
-            div()
-                .text_size(px(10.0))
-                .text_color(rgb(theme::muted_foreground()))
-                .child(label.to_string()),
-        )
-        .child(
-            div()
-                .text_size(px(10.0))
-                .text_color(rgb(theme::foreground()))
-                .child(value.to_string()),
-        )
-}
-
 fn lyrics_plain_line(line: &str) -> impl IntoElement {
     div()
         .w_full()
         .whitespace_normal()
-        .text_center()
-        .text_size(px(16.0))
-        .py(px(4.0))
+        .text_size(px(18.0))
+        .font_weight(gpui::FontWeight::MEDIUM)
+        .py(px(7.0))
         .text_color(rgb(theme::foreground()))
-        .opacity(0.85)
+        .opacity(0.78)
         .child(line.to_string())
 }
 
-fn lyrics_word_line(words: Vec<LyricsWordRender>, is_active: bool) -> impl IntoElement {
+fn lyrics_word_line(
+    words: Vec<LyricsWordRender>,
+    is_active: bool,
+    is_background_vocal: bool,
+) -> impl IntoElement {
     let base_color = if is_active {
         theme::foreground()
     } else {
@@ -6097,6 +6447,9 @@ fn lyrics_word_line(words: Vec<LyricsWordRender>, is_active: bool) -> impl IntoE
 
     div()
         .w_full()
+        .text_size(px(19.0))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .when(is_background_vocal, |this| this.italic())
         .child(lyrics_words_as_text(&words, is_active, base_color, base_alpha))
 }
 
@@ -6105,8 +6458,8 @@ fn lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, base_color:
         .flex_wrap()
         .gap(px(0.0))
         .w_full()
-        .justify_center()
-        .children(words.iter().enumerate().map(move |(index, word)| {
+        .justify_start()
+        .children(words.iter().map(move |word| {
             let fill_width = match word.state {
                 LyricsWordState::Sung => 1.0,
                 LyricsWordState::Filling => word.progress,
@@ -6114,26 +6467,7 @@ fn lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, base_color:
             };
             let content = format!("{}{}", word.text, word.trailing_whitespace);
 
-            let animated_fill = fill_width.clamp(0.0, 1.0);
-            let foreground = div()
-                .whitespace_nowrap()
-                .overflow_hidden()
-                .child(
-                    div()
-                        .whitespace_nowrap()
-                        .child(content.clone())
-                        .text_color(rgb(theme::accent()))
-                        .opacity(if is_active { 1.0 } else { 0.72 }),
-                )
-                .max_w(px(220.0 * animated_fill))
-                .with_animation(
-                    SharedString::from(format!("lyrics-word-fill-{index}")),
-                    Animation::new(Duration::from_millis(70)).with_easing(ease_in_out),
-                    move |element, delta| {
-                        let width = 220.0 * (animated_fill * delta.max(0.22));
-                        element.max_w(px(width.max(0.0)))
-                    },
-                );
+            let fill_width = fill_width.clamp(0.0, 1.0);
 
             div()
                 .relative()
@@ -6142,14 +6476,22 @@ fn lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, base_color:
                     div()
                         .whitespace_nowrap()
                         .text_color(rgba((base_color << 8) | base_alpha as u32))
-                        .child(content),
+                        .child(content.clone()),
                 )
                 .child(
                     div()
                         .absolute()
                         .top_0()
                         .left_0()
-                        .child(foreground),
+                        .w(relative(fill_width))
+                        .overflow_hidden()
+                        .child(
+                            div()
+                                .whitespace_nowrap()
+                                .child(content)
+                                .text_color(rgb(theme::accent()))
+                                .opacity(if is_active { 1.0 } else { 0.72 }),
+                        ),
                 )
                 .into_any_element()
         }))
@@ -6178,25 +6520,26 @@ fn immersive_lyrics_plain_line(line: &str) -> impl IntoElement {
     div()
         .w_full()
         .whitespace_normal()
-        .text_size(px(22.0))
+        .text_size(px(23.0))
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .py(px(6.0))
         .text_color(rgba(0xffffffd6))
         .child(line.to_string())
 }
 
-fn immersive_lyrics_word_line(words: Vec<LyricsWordRender>, is_active: bool) -> impl IntoElement {
+fn immersive_lyrics_word_line(
+    words: Vec<LyricsWordRender>,
+    is_active: bool,
+    is_background_vocal: bool,
+) -> impl IntoElement {
     let base_color = if is_active { theme::foreground() } else { 0xffffff };
     let base_alpha = if is_active { 188 } else { 128 };
 
     div()
         .w_full()
-        .text_size(if is_active { px(28.0) } else { px(20.0) })
-        .font_weight(if is_active {
-            gpui::FontWeight::BOLD
-        } else {
-            gpui::FontWeight::SEMIBOLD
-        })
+        .text_size(px(24.0))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .when(is_background_vocal, |this| this.italic())
         .child(immersive_lyrics_words_as_text(&words, is_active, base_color, base_alpha))
 }
 
@@ -6205,7 +6548,7 @@ fn immersive_lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, b
         .flex_wrap()
         .gap(px(0.0))
         .w_full()
-        .justify_center()
+        .justify_start()
         .children(words.iter().map(move |word| {
             let fill_width = match word.state {
                 LyricsWordState::Sung => 1.0,
@@ -6215,18 +6558,6 @@ fn immersive_lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, b
             .clamp(0.0, 1.0);
             let content = format!("{}{}", word.text, word.trailing_whitespace);
 
-            let foreground = div()
-                .whitespace_nowrap()
-                .overflow_hidden()
-                .child(
-                    div()
-                        .whitespace_nowrap()
-                        .child(content.clone())
-                        .text_color(rgb(theme::accent()))
-                        .opacity(if is_active { 1.0 } else { 0.62 }),
-                )
-                .max_w(px(260.0 * fill_width));
-
             div()
                 .relative()
                 .whitespace_nowrap()
@@ -6234,14 +6565,22 @@ fn immersive_lyrics_words_as_text(words: &[LyricsWordRender], is_active: bool, b
                     div()
                         .whitespace_nowrap()
                         .text_color(rgba((base_color << 8) | base_alpha as u32))
-                        .child(content),
+                        .child(content.clone()),
                 )
                 .child(
                     div()
                         .absolute()
                         .top_0()
                         .left_0()
-                        .child(foreground),
+                        .w(relative(fill_width))
+                        .overflow_hidden()
+                        .child(
+                            div()
+                                .whitespace_nowrap()
+                                .child(content)
+                                .text_color(rgb(theme::accent()))
+                                .opacity(if is_active { 1.0 } else { 0.62 }),
+                        ),
                 )
                 .into_any_element()
         }))
@@ -6590,10 +6929,6 @@ impl ReqwestHttpClient {
 }
 
 impl HttpClient for ReqwestHttpClient {
-    fn type_name(&self) -> &'static str {
-        "reqwest"
-    }
-
     fn user_agent(&self) -> Option<&http::HeaderValue> {
         Some(&self.user_agent)
     }

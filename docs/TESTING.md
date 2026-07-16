@@ -7,6 +7,7 @@ This repository has tests across Rust, shared Vue/TS, web + desktop apps, and mo
 - `bun run test:js` — run all JS/TS tests (shared + web + desktop)
 - `bun run test:rust` — run all Rust tests
 - `bun run test` — JS + Rust
+- `bun run test:gpui` — run the GPUI desktop crate tests
 - `bun run test:android` — Android JVM unit tests
 - `bun run test:android:ui` — Android instrumentation tests (requires device/emulator)
 - `bun run test:ios` — iOS Swift package tests (builds XCFramework)
@@ -38,6 +39,12 @@ cargo test --workspace
 
 Core crates contain unit tests inside modules, plus backend integration tests in `apps/web/backend/tests`.
 
+Run only the GPUI desktop crate:
+
+```bash
+bun run test:gpui
+```
+
 ## Web Backend (Axum)
 
 Backend API route tests live in:
@@ -48,6 +55,16 @@ These are included in `cargo test --workspace`.
 ## Desktop (Tauri)
 
 Desktop UI tests are Vitest-based and run with the JS test suite.
+
+## Desktop (GPUI)
+
+The GPUI desktop app is a Rust crate at `apps/desktop/gpui`:
+
+```bash
+bun run test:gpui
+```
+
+Use `bun run check:gpui` for a faster compile-only check.
 
 ## Android
 

@@ -148,7 +148,7 @@ pub fn render_words(line: &ParsedLyricsLine, active: &ActiveLyricsState, line_in
             };
 
             LyricsWordRender {
-                text: word.word.clone(),
+                text: word.word.trim().to_string(),
                 trailing_whitespace: trailing_whitespace(words, word_index),
                 state,
                 progress,
@@ -158,8 +158,8 @@ pub fn render_words(line: &ParsedLyricsLine, active: &ActiveLyricsState, line_in
 }
 
 fn trailing_whitespace(words: &[ParsedLyricsWord], index: usize) -> String {
-    let current = words[index].word.as_str();
-    let next = words.get(index + 1).map(|word| word.word.as_str());
+    let current = words[index].word.trim();
+    let next = words.get(index + 1).map(|word| word.word.trim());
 
     let keep_attached = matches!(current, "(" | "[" | "{" | "\u{201c}" | "\u{2018}" | "/")
         || next.is_some_and(|next| matches!(next, ")" | "]" | "}" | "," | "." | "!" | "?" | ":" | ";" | "\u{201d}" | "\u{2019}"));
@@ -296,8 +296,8 @@ mod tests {
     fn preserves_spacing_between_rendered_words() {
         let mut active_line = line(1_000, Some(3_000), "hello world!");
         active_line.words = Some(vec![
-            word(1_000, Some(1_500), "hello"),
-            word(1_500, Some(2_000), "world"),
+            word(1_000, Some(1_500), "hello "),
+            word(1_500, Some(2_000), " world"),
             word(2_000, Some(2_300), "!"),
         ]);
 
@@ -309,6 +309,8 @@ mod tests {
 
         let rendered = render_words(&active_line, &active, 0);
 
+        assert_eq!(rendered[0].text, "hello");
+        assert_eq!(rendered[1].text, "world");
         assert_eq!(rendered[0].trailing_whitespace, " ");
         assert_eq!(rendered[1].trailing_whitespace, "");
         assert_eq!(rendered[2].trailing_whitespace, "");

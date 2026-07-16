@@ -80,6 +80,7 @@ bun run test
 |---------|-------------|
 | `bun run dev:web` | Web frontend + backend |
 | `bun run dev:desktop` | Desktop (Tauri) |
+| `bun run dev:gpui` | Desktop (GPUI) |
 | `bun run dev:android` | Android app |
 | `bun run dev:ios` | iOS app (macOS only) |
 | `bun run dev:all` | All platforms |
@@ -90,6 +91,7 @@ bun run test
 |---------|-------------|
 | `bun run build:web` | Web (frontend + Rust backend) |
 | `bun run build:desktop` | Desktop (Tauri) |
+| `bun run build:gpui` | Desktop (GPUI) |
 | `bun run build:android` | Android APK |
 | `bun run build:ios` | iOS app |
 | `bun run build` | All platforms |
@@ -102,16 +104,19 @@ bun run test
 | `bun run build:web:strict` | Typecheck + build |
 | `bun run build:desktop:release` | Full release build |
 | `bun run build:desktop:strict` | Typecheck + build |
+| `bun run build:gpui:release` | Full GPUI release build |
 | `bun run build:android:release` | Release APK |
 | `bun run build:ios:ipa` | iOS IPA (requires macOS) |
 
 ### Build options
 
-All build commands support these flags:
+Build commands powered by `scripts/aurelia.ts` support these flags:
 
 - `--fast` - Use faster local-release profile (default for dev builds)
 - `--skip-bindings` - Skip bindings generation
 - `--force-bindings` - Force regenerate bindings
+
+GPUI commands use `CARGO_TARGET_DIR` when it is set. On Windows with a `D:` drive, they default to `D:\aurelia-cargo-target` to avoid filling the repo drive with GPUI build artifacts.
 
 ## Testing
 
@@ -120,6 +125,7 @@ All build commands support these flags:
 | `bun run test` | All tests (JS + Rust + Android) |
 | `bun run test:web` | Web frontend tests |
 | `bun run test:desktop` | Desktop frontend tests |
+| `bun run test:gpui` | GPUI desktop Rust tests |
 | `bun run test:android` | Android unit tests |
 | `bun run test:ios` | iOS tests (macOS only) |
 | `bun run test:js` | All JavaScript tests |

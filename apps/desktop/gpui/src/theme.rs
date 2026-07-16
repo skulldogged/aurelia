@@ -935,7 +935,7 @@ pub fn apply_theme(cx: &mut impl BorrowAppContext, palette: AppPalette) {
         theme.ring = ring;
         theme.caret = accent;
         theme.selection = to_hsla_alpha(palette.accent_alpha(if dark { 110 } else { 90 }));
-        theme.list = card;
+        theme.colors.list = card;
         theme.list_hover = secondary;
         theme.list_active = to_hsla_alpha(palette.accent_alpha(if dark { 46 } else { 32 }));
         theme.list_active_border = accent;
@@ -997,5 +997,6 @@ pub fn apply_theme(cx: &mut impl BorrowAppContext, palette: AppPalette) {
         theme.link = accent;
         theme.link_hover = hover_color(accent, dark);
         theme.link_active = active_color(accent, dark);
+        theme.tokens = (&theme.colors).into();
     });
 }

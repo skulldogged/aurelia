@@ -15,6 +15,8 @@
     "build:desktop": "bun run scripts/aurelia.ts build --platform=desktop --fast",
     "build:desktop:release": "bun run scripts/aurelia.ts build --platform=desktop",
     "build:desktop:strict": "bun run scripts/aurelia.ts typecheck --platform=desktop && bun run scripts/aurelia.ts build --platform=desktop",
+    "build:gpui": "bun run scripts/gpui.ts build",
+    "build:gpui:release": "bun run scripts/gpui.ts build --release",
     "build:android": "bun run scripts/aurelia.ts build --platform=android",
     "build:android:release": "cd apps/mobile/android && ./gradlew assembleRelease",
     "build:ios": "bun run scripts/aurelia.ts build --platform=ios",
@@ -27,6 +29,7 @@
     "dev": "bun run scripts/aurelia.ts dev --platform=web",
     "dev:web": "bun run scripts/aurelia.ts dev --platform=web",
     "dev:desktop": "bun run scripts/aurelia.ts dev --platform=desktop",
+    "dev:gpui": "bun run scripts/gpui.ts run",
     "dev:android": "bun run scripts/aurelia.ts dev --platform=android",
     "dev:ios": "bun run scripts/aurelia.ts dev --platform=ios",
     "dev:all": "bun run scripts/aurelia.ts dev --platform=all",
@@ -43,6 +46,7 @@
     "test": "bun run scripts/aurelia.ts test --platform=all",
     "test:web": "bun run scripts/aurelia.ts test --platform=web",
     "test:desktop": "bun run scripts/aurelia.ts test --platform=desktop",
+    "test:gpui": "bun run scripts/gpui.ts test",
     "test:android": "bun run scripts/aurelia.ts test --platform=android",
     "test:ios": "bun run scripts/aurelia.ts test --platform=ios",
     "test:js": "bun vitest run",
@@ -50,7 +54,8 @@
 
     "typecheck": "bun run scripts/aurelia.ts typecheck --platform=all",
     "typecheck:web": "bun run scripts/aurelia.ts typecheck --platform=web",
-    "typecheck:desktop": "bun run scripts/aurelia.ts typecheck --platform=desktop"
+    "typecheck:desktop": "bun run scripts/aurelia.ts typecheck --platform=desktop",
+    "check:gpui": "bun run scripts/gpui.ts check"
   },
   "workspaces": [
     "apps/*",
