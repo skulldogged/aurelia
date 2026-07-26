@@ -12,11 +12,13 @@ use aurelia_core::models::{
     PlaylistCreateData, PlaylistUpdateData, Song,
 };
 use gpui::{
-    actions, bounce, div, ease_in_out, img, linear_color_stop, linear_gradient, point, prelude::*, px,
-    relative, rgb, rgba, size, uniform_list, Animation, AnimationExt as _, AnyElement, App,
+    actions, bounce, canvas, div, ease_in_out, img, linear_color_stop, linear_gradient, point,
+    prelude::*, px, quad, list, relative, rgb, rgba, size, uniform_list, Animation,
+    AnimationExt as _, AnyElement, App,
     Anchor, AsyncApp, Bounds, ClickEvent, Context, ElementId, Entity,
     Focusable, FocusHandle, Image as GpuiImage, ImageFormat as GpuiImageFormat, MouseButton,
-    ObjectFit, Point, ScrollHandle, ScrollStrategy, SharedString, StatefulInteractiveElement,
+    ListAlignment, ListOffset, ListState, ObjectFit, Point, ScrollHandle, ScrollStrategy,
+    SharedString, StatefulInteractiveElement,
     Transformation, UniformListScrollHandle, WeakEntity, Window, WindowBackgroundAppearance,
     WindowBounds,
     WindowOptions,
@@ -39,8 +41,9 @@ use zed_reqwest as reqwest;
 
 use crate::assets::Assets;
 use crate::lyrics::{
-    LyricsLineRender, LyricsUiState, LyricsWordRender, LyricsWordState, compute_active_state,
-    effective_position_secs, next_request_nonce, render_line, render_words, reset_for_song,
+    ActiveLyricsState, LyricsLineRender, LyricsUiState, LyricsWordRender, LyricsWordState,
+    compute_active_state, effective_position_secs, next_request_nonce, render_line, render_words,
+    reset_for_song,
 };
 use crate::theme;
 use crate::theme::{AccentColorName, ColorSchemeName};
@@ -410,23 +413,6 @@ enum RightPanel {
     Lyrics,
 }
 
-#[derive(Clone, Debug)]
-struct VisualizerState {
-    frequency_data: Vec<u8>,
-    time_domain_data: Vec<u8>,
-    frame_id: u64,
-}
-
-impl Default for VisualizerState {
-    fn default() -> Self {
-        Self {
-            frequency_data: vec![0; aurelia_core::audio::FREQUENCY_BIN_COUNT],
-            time_domain_data: vec![128; aurelia_core::audio::FFT_SIZE],
-            frame_id: 0,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum ImmersivePanel {
     #[default]
@@ -474,7 +460,6 @@ struct DesktopAppState {
     lyrics: Option<ParsedLyrics>,
     lyrics_ui: LyricsUiState,
     player: PlayerState,
-    visualizer: VisualizerState,
     favorite_ids: Vec<String>,
     featured_albums: Vec<Album>,
     current_featured_index: usize,
@@ -530,7 +515,6 @@ impl DesktopAppState {
                 volume: 1.0,
                 ..Default::default()
             },
-            visualizer: VisualizerState::default(),
             favorite_ids: Vec::new(),
             featured_albums: Vec::new(),
             current_featured_index: 0,
@@ -736,6 +720,474 @@ struct LyricsLineTransition {
     started_at: Instant,
 }
 
+struct ImmersiveVisualizer {
+    displayed: [f32; 64],
+    target: [f32; 64],
+    last_frame_at: Instant,
+    is_playing: bool,
+    is_visible: bool,
+}
+
+impl ImmersiveVisualizer {
+    fn new() -> Self {
+        Self {
+            displayed: [0.0; 64],
+            target: [0.0; 64],
+            last_frame_at: Instant::now(),
+            is_playing: false,
+            is_visible: false,
+        }
+    }
+
+    fn set_visible(&mut self, is_visible: bool, cx: &mut Context<Self>) {
+        if self.is_visible == is_visible {
+            return;
+        }
+        self.is_visible = is_visible;
+        self.last_frame_at = Instant::now();
+        cx.notify();
+    }
+
+    fn set_playing(&mut self, is_playing: bool, cx: &mut Context<Self>) {
+        if self.is_playing == is_playing {
+            return;
+        }
+        self.is_playing = is_playing;
+        if !is_playing {
+            self.target.fill(0.0);
+        }
+        self.last_frame_at = Instant::now();
+        cx.notify();
+    }
+
+    fn push_spectrum(&mut self, frequency_data: &[u8], cx: &mut Context<Self>) {
+        if frequency_data.is_empty() {
+            self.target.fill(0.0);
+        } else {
+            let step = (frequency_data.len() / self.target.len().max(1)).max(1);
+            for (index, target) in self.target.iter_mut().enumerate() {
+                let data_index = (index * step).min(frequency_data.len() - 1);
+                *target = frequency_data[data_index] as f32 / 255.0;
+            }
+        }
+        cx.notify();
+    }
+}
+
+impl Render for ImmersiveVisualizer {
+    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let now = Instant::now();
+        let delta_secs = now
+            .saturating_duration_since(self.last_frame_at)
+            .as_secs_f32()
+            .min(0.1);
+        self.last_frame_at = now;
+
+        // Time-based smoothing keeps motion consistent at 60, 120, 144 Hz, and beyond.
+        let smoothing = 1.0 - (-delta_secs / 0.055).exp();
+        let mut is_settled = true;
+        for (displayed, target) in self.displayed.iter_mut().zip(&self.target) {
+            *displayed += (*target - *displayed) * smoothing;
+            if (*displayed - *target).abs() > 0.002 {
+                is_settled = false;
+            }
+        }
+
+        if self.is_visible && (self.is_playing || !is_settled) {
+            window.request_animation_frame();
+        }
+
+        let has_data = self.displayed.iter().any(|value| *value > 0.002);
+        let bars = self.displayed;
+        canvas(
+            |_, _, _| {},
+            move |bounds, _, window, _| {
+                let gap = 5.0;
+                let available_width = bounds.size.width.to_f64() as f32;
+                let bar_width = ((available_width - gap * 63.0) / 64.0).clamp(2.0, 6.0);
+                let content_width = bar_width * 64.0 + gap * 63.0;
+                let start_x = bounds.origin.x + px((available_width - content_width) * 0.5);
+                for (index, value) in bars.into_iter().enumerate() {
+                    let height = 6.0 + value.powf(1.35) * 122.0;
+                    let bar_bounds = Bounds {
+                        origin: point(
+                            start_x + px(index as f32 * (bar_width + gap)),
+                            bounds.bottom() - px(height),
+                        ),
+                        size: size(px(bar_width), px(height)),
+                    };
+                    window.paint_quad(quad(
+                        bar_bounds,
+                        px(bar_width * 0.5),
+                        rgba(theme::accent_alpha(168)),
+                        px(0.0),
+                        gpui::transparent_black(),
+                        Default::default(),
+                    ));
+                }
+            },
+        )
+            .absolute()
+            .bottom_0()
+            .left_0()
+            .right_0()
+            .h(px(132.0))
+            .opacity(if self.is_visible && has_data { 0.40 } else { 0.0 })
+    }
+}
+
+struct ImmersiveLyricsView {
+    parent: WeakEntity<DesktopApp>,
+    lyrics: Option<Arc<ParsedLyrics>>,
+    loading: bool,
+    error: Option<String>,
+    sampled_position_secs: f64,
+    sampled_at: Instant,
+    duration_secs: f64,
+    is_playing: bool,
+    is_visible: bool,
+    active_line: Option<usize>,
+    transition: Option<LyricsLineTransition>,
+    scroll_target: Option<usize>,
+    list_state: ListState,
+    last_frame_at: Instant,
+}
+
+impl ImmersiveLyricsView {
+    fn new(parent: WeakEntity<DesktopApp>) -> Self {
+        Self {
+            parent,
+            lyrics: None,
+            loading: false,
+            error: None,
+            sampled_position_secs: 0.0,
+            sampled_at: Instant::now(),
+            duration_secs: 0.0,
+            is_playing: false,
+            is_visible: false,
+            active_line: None,
+            transition: None,
+            scroll_target: None,
+            list_state: ListState::new(0, ListAlignment::Top, px(320.0)),
+            last_frame_at: Instant::now(),
+        }
+    }
+
+    fn set_content(
+        &mut self,
+        lyrics: Option<ParsedLyrics>,
+        loading: bool,
+        error: Option<String>,
+        cx: &mut Context<Self>,
+    ) {
+        self.lyrics = lyrics.map(Arc::new);
+        self.loading = loading;
+        self.error = error;
+        self.active_line = None;
+        self.transition = None;
+        self.scroll_target = None;
+        let item_count = self.lyrics.as_ref().map_or(0, |lyrics| {
+            if lyrics.synced.is_empty() {
+                lyrics.plain.len() + 2
+            } else {
+                lyrics.synced.len() + 2
+            }
+        });
+        self.list_state.reset_with_uniform_height(item_count, px(62.0));
+        cx.notify();
+    }
+
+    fn set_playback_sample(
+        &mut self,
+        position_secs: f64,
+        duration_secs: f64,
+        is_playing: bool,
+        is_visible: bool,
+        cx: &mut Context<Self>,
+    ) {
+        self.sampled_position_secs = position_secs;
+        self.sampled_at = Instant::now();
+        self.duration_secs = duration_secs;
+        self.is_playing = is_playing;
+        self.is_visible = is_visible;
+        if is_visible {
+            cx.notify();
+        }
+    }
+
+    fn current_position_secs(&self) -> f64 {
+        let elapsed = if self.is_playing {
+            self.sampled_at.elapsed().as_secs_f64()
+        } else {
+            0.0
+        };
+        (self.sampled_position_secs + elapsed)
+            .max(0.0)
+            .min(self.duration_secs.max(0.0))
+    }
+
+    fn update_active_line(&mut self, next_line: Option<usize>) {
+        if self.active_line == next_line {
+            return;
+        }
+        if let (Some(previous_line), Some(current_line)) = (self.active_line, next_line) {
+            self.transition = Some(LyricsLineTransition {
+                previous_line,
+                current_line,
+                started_at: Instant::now(),
+            });
+        } else {
+            self.transition = None;
+        }
+        self.active_line = next_line;
+        self.scroll_target = next_line.map(|line| line + 1);
+    }
+
+    fn advance_scroll(&mut self, delta_secs: f32) -> bool {
+        let Some(target) = self.scroll_target else {
+            return false;
+        };
+        let viewport = self.list_state.viewport_bounds();
+        if viewport.size.height <= px(0.0) {
+            return true;
+        }
+        let Some(item) = self.list_state.bounds_for_item(target) else {
+            self.list_state.scroll_to(ListOffset {
+                item_ix: target.saturating_sub(3),
+                offset_in_item: px(0.0),
+            });
+            return true;
+        };
+        let delta = item.center().y - viewport.center().y;
+        if delta.abs() <= px(0.75) {
+            self.scroll_target = None;
+            return false;
+        }
+        let smoothing = 1.0 - (-delta_secs / 0.065).exp();
+        self.list_state.scroll_by(delta * smoothing);
+        true
+    }
+
+    fn render_synced_line(
+        parent: WeakEntity<DesktopApp>,
+        lyrics: &ParsedLyrics,
+        index: usize,
+        active: &ActiveLyricsState,
+        emphasis: f32,
+        previous_line: Option<usize>,
+    ) -> AnyElement {
+        let Some(line) = render_line(lyrics, index, active) else {
+            return div().into_any_element();
+        };
+        let line_time_secs = line.line.time_ms as f64 / 1000.0;
+        let mut words = line
+            .line
+            .words
+            .as_ref()
+            .filter(|words| !words.is_empty())
+            .map(|_| render_words(line.line, active, index))
+            .unwrap_or_default();
+        if previous_line == Some(index) {
+            for word in &mut words {
+                word.state = LyricsWordState::Sung;
+                word.progress = 1.0;
+            }
+        }
+        let active_index = active.line_index.unwrap_or(usize::MAX);
+        let distance = active_index.abs_diff(index);
+        let inactive_opacity = if line.is_background_vocal {
+            0.25
+        } else if distance == 1 {
+            0.58
+        } else if distance == 2 {
+            0.44
+        } else {
+            0.32
+        };
+        let opacity = inactive_opacity + (1.0 - inactive_opacity) * emphasis;
+
+        v_flex()
+            .gap(px(6.0))
+            .w_full()
+            .py(px(7.0))
+            .when(line.is_background_vocal, |this| this.pl(px(44.0)))
+            .cursor_pointer()
+            .on_mouse_up(MouseButton::Left, move |_, _, cx| {
+                parent
+                    .update(cx, |this, cx| this.seek_to_lyrics_time(line_time_secs, cx))
+                    .ok();
+            })
+            .child(
+                v_flex()
+                    .w_full()
+                    .gap(px(6.0))
+                    .when(line.section_label.is_some(), |this| {
+                        this.child(
+                            div()
+                                .text_size(px(10.0))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .text_color(rgba(theme::accent_alpha(180)))
+                                .child(line.section_label.unwrap_or_default().to_uppercase()),
+                        )
+                    })
+                    .child(if words.is_empty() {
+                        div()
+                            .w_full()
+                            .whitespace_normal()
+                            .text_size(px(24.0))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .when(line.is_background_vocal, |this| this.italic())
+                            .text_color(if line.is_active {
+                                rgb(theme::foreground())
+                            } else {
+                                rgba(0xffffffb8)
+                            })
+                            .child(line.line.line.clone())
+                            .into_any_element()
+                    } else {
+                        immersive_lyrics_word_line(words, line.is_active, line.is_background_vocal)
+                            .into_any_element()
+                    })
+                    .when(line.translation.is_some(), |this| {
+                        this.child(
+                            div()
+                                .w_full()
+                                .whitespace_normal()
+                                .text_size(px(14.0))
+                                .text_color(rgba(0xffffff9a))
+                                .opacity(if line.is_active { 0.86 } else { 0.54 })
+                                .child(line.translation.unwrap_or_default().to_string()),
+                        )
+                    }),
+            )
+            .opacity(opacity)
+            .into_any_element()
+    }
+}
+
+impl Render for ImmersiveLyricsView {
+    fn render(&mut self, window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        let now = Instant::now();
+        let delta_secs = now
+            .saturating_duration_since(self.last_frame_at)
+            .as_secs_f32()
+            .min(0.1);
+        self.last_frame_at = now;
+        let position = self.current_position_secs();
+        let active = self
+            .lyrics
+            .as_ref()
+            .filter(|lyrics| !lyrics.synced.is_empty())
+            .map(|lyrics| compute_active_state(lyrics, position))
+            .unwrap_or(ActiveLyricsState {
+                line_index: None,
+                word_index: None,
+                word_progress: 0.0,
+            });
+        self.update_active_line(active.line_index);
+        if self
+            .transition
+            .as_ref()
+            .is_some_and(|transition| transition.started_at.elapsed().as_secs_f32() >= 0.28)
+        {
+            self.transition = None;
+        }
+        let is_scrolling = self.advance_scroll(delta_secs);
+        let is_transitioning = self.transition.is_some();
+        if self.is_visible
+            && ((self.is_playing
+                && self.lyrics.as_ref().is_some_and(|lyrics| !lyrics.synced.is_empty()))
+                || is_scrolling
+                || is_transitioning)
+        {
+            window.request_animation_frame();
+        }
+
+        let has_lyrics = self.lyrics.as_ref().is_some_and(|lyrics| lyrics.is_valid());
+        let lyrics = self.lyrics.clone();
+        let item_count = self.list_state.item_count();
+        let parent = self.parent.clone();
+        let transition_previous = self.transition.as_ref().map(|transition| transition.previous_line);
+        let transition_emphasis = self.transition.as_ref().map(|transition| {
+            let progress =
+                (transition.started_at.elapsed().as_secs_f32() / 0.28).clamp(0.0, 1.0);
+            (
+                transition.previous_line,
+                transition.current_line,
+                progress * progress * (3.0 - 2.0 * progress),
+            )
+        });
+        let active_line = self.active_line;
+
+        v_flex()
+            .size_full()
+            .pt(px(48.0))
+            .pb(px(28.0))
+            .when(self.loading, |this| {
+                this.child(immersive_empty_state(
+                    "Loading lyrics",
+                    "Fetching sidecar, Jellyfin, and fallback lyrics for the current track.",
+                ))
+            })
+            .when(!self.loading && self.error.is_some(), |this| {
+                this.child(immersive_empty_state(
+                    "Unable to load lyrics",
+                    self.error.as_deref().unwrap_or("Lyrics request failed."),
+                ))
+            })
+            .when(!self.loading && !has_lyrics && self.error.is_none(), |this| {
+                this.child(immersive_empty_state(
+                    "No lyrics to show",
+                    "Lyrics appear here when this track has synced, TTML, or plain text lyrics.",
+                ))
+            })
+            .when(!self.loading && has_lyrics, |this| {
+                this.child(
+                    list(self.list_state.clone(), move |item_index, _, _| {
+                        if item_index == 0 || item_index + 1 == item_count {
+                            return div().h(px(260.0)).into_any_element();
+                        }
+                        let Some(lyrics) = lyrics.as_ref() else {
+                            return div().into_any_element();
+                        };
+                        let line_index = item_index - 1;
+                        if lyrics.synced.is_empty() {
+                            return lyrics
+                                .plain
+                                .get(line_index)
+                                .map(|line| immersive_lyrics_plain_line(line).into_any_element())
+                                .unwrap_or_else(|| div().into_any_element());
+                        }
+                        let emphasis = transition_emphasis.map_or_else(
+                            || if active_line == Some(line_index) { 1.0 } else { 0.0 },
+                            |(previous, current, eased)| {
+                                if previous == line_index {
+                                    1.0 - eased
+                                } else if current == line_index {
+                                    eased
+                                } else {
+                                    0.0
+                                }
+                            },
+                        );
+                        ImmersiveLyricsView::render_synced_line(
+                            parent.clone(),
+                            lyrics,
+                            line_index,
+                            &active,
+                            emphasis,
+                            transition_previous,
+                        )
+                    })
+                    .flex_1()
+                    .min_h(px(0.0))
+                    .w_full()
+                    .px(px(8.0)),
+                )
+            })
+    }
+}
+
 struct DesktopApp {
     login_server: Entity<InputState>,
     login_username: Entity<InputState>,
@@ -752,8 +1204,9 @@ struct DesktopApp {
     recent_albums_scroll_handle: ScrollHandle,
     queue_scroll_handle: ScrollHandle,
     lyrics_scroll_handle: ScrollHandle,
-    immersive_lyrics_scroll_handle: ScrollHandle,
     immersive_queue_scroll_handle: ScrollHandle,
+    immersive_visualizer: Entity<ImmersiveVisualizer>,
+    immersive_lyrics: Entity<ImmersiveLyricsView>,
     lyrics_scroll_animation: Option<LyricsScrollAnimation>,
     lyrics_line_transition: Option<LyricsLineTransition>,
     focus_handle: FocusHandle,
@@ -858,8 +1311,10 @@ impl DesktopApp {
         let recent_albums_scroll_handle = ScrollHandle::new();
         let queue_scroll_handle = ScrollHandle::new();
         let lyrics_scroll_handle = ScrollHandle::new();
-        let immersive_lyrics_scroll_handle = ScrollHandle::new();
         let immersive_queue_scroll_handle = ScrollHandle::new();
+        let immersive_visualizer = cx.new(|_| ImmersiveVisualizer::new());
+        let parent = cx.weak_entity();
+        let immersive_lyrics = cx.new(|_| ImmersiveLyricsView::new(parent));
 
         cx.subscribe(&volume_slider, |this: &mut Self, _entity, event: &SliderEvent, cx| {
             let SliderEvent::Change(value) = event else {
@@ -886,8 +1341,9 @@ impl DesktopApp {
             recent_albums_scroll_handle,
             queue_scroll_handle,
             lyrics_scroll_handle,
-            immersive_lyrics_scroll_handle,
             immersive_queue_scroll_handle,
+            immersive_visualizer,
+            immersive_lyrics,
             lyrics_scroll_animation: None,
             lyrics_line_transition: None,
             focus_handle: cx.focus_handle(),
@@ -1560,6 +2016,7 @@ impl DesktopApp {
         self.state.lyrics_error = None;
         self.state.lyrics_loading = false;
         self.state.lyrics_status = format!("Preparing lyrics for {}", song.name);
+        self.sync_immersive_lyrics_content(cx);
 
         self.state.playback_status = format!("Starting {}", song.name);
         cx.notify();
@@ -1624,6 +2081,7 @@ impl DesktopApp {
                     let _ = view.update(&mut async_cx, |this, cx| {
                         this.state.player.is_playing = true;
                         this.state.playback_status = format!("Playing {}", song_for_ui.name);
+                        this.sync_immersive_playback(cx);
                         this.fetch_lyrics_for(song_for_ui.clone(), cx);
                         cx.notify();
                     });
@@ -1632,6 +2090,7 @@ impl DesktopApp {
                     let _ = view.update(&mut async_cx, |this, cx| {
                         this.state.player.is_playing = false;
                         this.state.playback_status = format!("Playback failed: {error}");
+                        this.sync_immersive_playback(cx);
                         cx.notify();
                     });
                 }
@@ -1639,6 +2098,7 @@ impl DesktopApp {
                     let _ = view.update(&mut async_cx, |this, cx| {
                         this.state.player.is_playing = false;
                         this.state.playback_status = format!("Playback task failed: {error}");
+                        this.sync_immersive_playback(cx);
                         cx.notify();
                     });
                 }
@@ -1665,6 +2125,7 @@ impl DesktopApp {
         self.state.lyrics_error = None;
         self.state.lyrics_loading = true;
         self.state.lyrics = None;
+        self.sync_immersive_lyrics_content(cx);
         cx.notify();
 
         cx.spawn(move |view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
@@ -1705,6 +2166,7 @@ impl DesktopApp {
                         this.sync_active_lyrics_state();
                         this.state.lyrics_ui.last_auto_scrolled_line = None;
                         this.scroll_active_lyrics_line_into_view(false, cx);
+                        this.sync_immersive_lyrics_content(cx);
                         cx.spawn(|view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
                             let mut async_cx = async_cx.clone();
                             async move {
@@ -1731,6 +2193,7 @@ impl DesktopApp {
                         this.state.lyrics_loading = false;
                         this.state.lyrics_error = None;
                         this.state.lyrics_status = "No lyrics available".to_string();
+                        this.sync_immersive_lyrics_content(cx);
                         cx.notify();
                     });
                 }
@@ -1744,12 +2207,21 @@ impl DesktopApp {
                         this.state.lyrics_loading = false;
                         this.state.lyrics_error = Some(error.to_string());
                         this.state.lyrics_status = format!("Lyrics failed: {error}");
+                        this.sync_immersive_lyrics_content(cx);
                         cx.notify();
                     });
                 }
             }
         }})
         .detach();
+    }
+
+    fn sync_immersive_lyrics_content(&mut self, cx: &mut Context<Self>) {
+        let lyrics = self.state.lyrics.clone();
+        let loading = self.state.lyrics_loading;
+        let error = self.state.lyrics_error.clone();
+        self.immersive_lyrics
+            .update(cx, |view, cx| view.set_content(lyrics, loading, error, cx));
     }
 
     fn toggle_play_pause(&mut self, cx: &mut Context<Self>) {
@@ -1783,6 +2255,7 @@ impl DesktopApp {
                     let _ = view.update(&mut async_cx, |this, cx| {
                         this.state.player.is_playing = next_state;
                         this.state.playback_status = if next_state { "Playing" } else { "Paused" }.to_string();
+                        this.sync_immersive_playback(cx);
                         cx.notify();
                     });
                 }
@@ -1838,7 +2311,7 @@ impl DesktopApp {
             let _ = view.update(&mut async_cx, |this, cx| {
                 this.state.player.is_playing = false;
                 this.state.player.position_secs = 0.0;
-                this.clear_visualizer_data();
+                this.sync_immersive_playback(cx);
                 this.state.playback_status = "Stopped".to_string();
                 cx.notify();
             });
@@ -1846,10 +2319,23 @@ impl DesktopApp {
         .detach();
     }
 
-    fn clear_visualizer_data(&mut self) {
-        self.state.visualizer.frequency_data.fill(0);
-        self.state.visualizer.time_domain_data.fill(128);
-        self.state.visualizer.frame_id = self.state.visualizer.frame_id.wrapping_add(1);
+    fn sync_immersive_playback(&mut self, cx: &mut Context<Self>) {
+        let position = self.state.player.position_secs;
+        let duration = self.state.player.duration_secs;
+        let is_playing = self.state.player.is_playing;
+        let lyrics_visible = self.state.immersive_view_open
+            && self.state.immersive_panel == ImmersivePanel::Lyrics;
+        self.immersive_visualizer
+            .update(cx, |visualizer, cx| visualizer.set_playing(is_playing, cx));
+        self.immersive_lyrics.update(cx, |lyrics, cx| {
+            lyrics.set_playback_sample(
+                position,
+                duration,
+                is_playing,
+                lyrics_visible,
+                cx,
+            );
+        });
     }
 
     fn toggle_queue_panel(&mut self, cx: &mut Context<Self>) {
@@ -1893,6 +2379,11 @@ impl DesktopApp {
         }
 
         self.state.immersive_view_open = true;
+        self.immersive_visualizer
+            .update(cx, |visualizer, cx| {
+                visualizer.set_visible(true, cx);
+                visualizer.set_playing(self.state.player.is_playing, cx);
+            });
         self.sync_current_song_background(cx);
         cx.notify();
     }
@@ -1900,6 +2391,17 @@ impl DesktopApp {
     fn close_immersive_view(&mut self, cx: &mut Context<Self>) {
         self.state.immersive_view_open = false;
         self.state.immersive_panel = ImmersivePanel::None;
+        self.immersive_visualizer
+            .update(cx, |visualizer, cx| visualizer.set_visible(false, cx));
+        self.immersive_lyrics.update(cx, |lyrics, cx| {
+            lyrics.set_playback_sample(
+                self.state.player.position_secs,
+                self.state.player.duration_secs,
+                self.state.player.is_playing,
+                false,
+                cx,
+            );
+        });
         cx.notify();
     }
 
@@ -1910,20 +2412,16 @@ impl DesktopApp {
             panel
         };
 
-        if self.state.immersive_panel == ImmersivePanel::Lyrics {
-            self.state.lyrics_ui.last_auto_scrolled_line = None;
-            self.scroll_active_lyrics_line_into_view(false, cx);
-            cx.spawn(|view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
-                let mut async_cx = async_cx.clone();
-                async move {
-                    async_cx.background_executor().timer(Duration::from_millis(50)).await;
-                    let _ = view.update(&mut async_cx, |this, cx| {
-                        this.scroll_active_lyrics_line_into_view(false, cx);
-                    });
-                }
-            })
-            .detach();
-        }
+        let lyrics_visible = self.state.immersive_panel == ImmersivePanel::Lyrics;
+        self.immersive_lyrics.update(cx, |lyrics, cx| {
+            lyrics.set_playback_sample(
+                self.state.player.position_secs,
+                self.state.player.duration_secs,
+                self.state.player.is_playing,
+                lyrics_visible,
+                cx,
+            );
+        });
 
         cx.notify();
     }
@@ -2007,6 +2505,18 @@ impl DesktopApp {
         self.state.player.position_secs = position;
         self.state.lyrics_ui.sampled_position_secs = position;
         self.state.lyrics_ui.sampled_at = Some(Instant::now());
+        let immersive_lyrics_visible = self.state.immersive_view_open
+            && self.state.immersive_panel == ImmersivePanel::Lyrics;
+        let is_playing = self.state.player.is_playing;
+        self.immersive_lyrics.update(cx, |lyrics, cx| {
+            lyrics.set_playback_sample(
+                position,
+                duration,
+                is_playing,
+                immersive_lyrics_visible,
+                cx,
+            );
+        });
         let previous_active_line = self.state.lyrics_ui.active_line_index;
         self.sync_active_lyrics_state();
         if previous_active_line != self.state.lyrics_ui.active_line_index {
@@ -2038,7 +2548,8 @@ impl DesktopApp {
 
         let previous_line = self.state.lyrics_ui.active_line_index;
         let active = compute_active_state(lyrics, self.current_lyrics_position_secs());
-        if let (Some(previous_line), Some(current_line)) = (previous_line, active.line_index)
+        if self.state.right_panel == RightPanel::Lyrics
+            && let (Some(previous_line), Some(current_line)) = (previous_line, active.line_index)
             && previous_line != current_line
         {
             self.lyrics_line_transition = Some(LyricsLineTransition {
@@ -2046,7 +2557,7 @@ impl DesktopApp {
                 current_line,
                 started_at: Instant::now(),
             });
-        } else if active.line_index.is_none() {
+        } else if self.state.right_panel != RightPanel::Lyrics || active.line_index.is_none() {
             self.lyrics_line_transition = None;
         }
         self.state.lyrics_ui.active_line_index = active.line_index;
@@ -2079,10 +2590,7 @@ impl DesktopApp {
     }
 
     fn scroll_active_lyrics_line_into_view(&mut self, animated: bool, cx: &mut Context<Self>) {
-        let is_regular_lyrics = self.state.right_panel == RightPanel::Lyrics;
-        let is_immersive_lyrics = self.state.immersive_view_open
-            && self.state.immersive_panel == ImmersivePanel::Lyrics;
-        if !is_regular_lyrics && !is_immersive_lyrics {
+        if self.state.right_panel != RightPanel::Lyrics {
             return;
         }
         let Some(active_line) = self.state.lyrics_ui.active_line_index else {
@@ -2094,11 +2602,7 @@ impl DesktopApp {
         let Some(scroll_item_index) = self.active_lyrics_scroll_item_index() else {
             return;
         };
-        let handle = if is_immersive_lyrics {
-            self.immersive_lyrics_scroll_handle.clone()
-        } else {
-            self.lyrics_scroll_handle.clone()
-        };
+        let handle = self.lyrics_scroll_handle.clone();
         let Some(item_bounds) = handle.bounds_for_item(scroll_item_index) else {
             return;
         };
@@ -2525,16 +3029,11 @@ impl DesktopApp {
                         let is_playing = aurelia_core::audio_is_playing_player().await.unwrap_or(false);
                         let is_finished = aurelia_core::audio_is_finished_player().await.unwrap_or(false);
                         let position = aurelia_core::audio_get_position_secs().await.unwrap_or(0.0);
-                        let spectrum = if is_playing {
-                            aurelia_core::audio_get_spectrum_snapshot_player().ok()
-                        } else {
-                            None
-                        };
-                        (is_playing, is_finished, position, spectrum)
+                        (is_playing, is_finished, position)
                     })
                     .await;
 
-                if let Ok((is_playing, is_finished, position, spectrum)) = position_result {
+                if let Ok((is_playing, is_finished, position)) = position_result {
                     let _ = view.update(&mut async_cx, |this, cx| {
                         let previous_is_playing = this.state.player.is_playing;
                         let previous_display_second = this.state.player.position_secs.floor() as i64;
@@ -2546,18 +3045,9 @@ impl DesktopApp {
 
                         if previous_is_playing != is_playing {
                             this.state.player.is_playing = is_playing;
-                            should_notify = true;
-                        }
-
-                        if let Some(spectrum) = spectrum {
-                            this.state.visualizer.frequency_data = spectrum.frequency_data;
-                            this.state.visualizer.time_domain_data = spectrum.time_domain_data;
-                            this.state.visualizer.frame_id = this.state.visualizer.frame_id.wrapping_add(1);
-                            if this.state.immersive_view_open {
-                                should_notify = true;
-                            }
-                        } else if !is_playing && this.state.visualizer.frequency_data.iter().any(|value| *value != 0) {
-                            this.clear_visualizer_data();
+                            this.immersive_visualizer.update(cx, |visualizer, cx| {
+                                visualizer.set_playing(is_playing, cx)
+                            });
                             should_notify = true;
                         }
 
@@ -2569,16 +3059,34 @@ impl DesktopApp {
                         }
                         this.state.lyrics_ui.sampled_position_secs = position;
                         this.state.lyrics_ui.sampled_at = Some(Instant::now());
+                        let immersive_lyrics_visible = this.state.immersive_view_open
+                            && this.state.immersive_panel == ImmersivePanel::Lyrics;
+                        this.immersive_lyrics.update(cx, |lyrics, cx| {
+                            lyrics.set_playback_sample(
+                                position,
+                                this.state.player.duration_secs,
+                                is_playing,
+                                immersive_lyrics_visible,
+                                cx,
+                            );
+                        });
 
                         this.sync_active_lyrics_state();
+                        let regular_lyrics_visible = this.state.right_panel == RightPanel::Lyrics;
                         if previous_active_line != this.state.lyrics_ui.active_line_index {
-                            should_notify = true;
-                            this.scroll_active_lyrics_line_into_view(true, cx);
+                            if regular_lyrics_visible {
+                                should_notify = true;
+                                this.scroll_active_lyrics_line_into_view(true, cx);
+                            }
                         }
-                        if previous_active_word != this.state.lyrics_ui.active_word_index {
+                        if regular_lyrics_visible
+                            && previous_active_word != this.state.lyrics_ui.active_word_index
+                        {
                             should_notify = true;
                         }
-                        if (previous_word_progress - this.state.lyrics_ui.active_word_progress).abs() > 0.015 {
+                        if regular_lyrics_visible
+                            && (previous_word_progress - this.state.lyrics_ui.active_word_progress).abs() > 0.015
+                        {
                             should_notify = true;
                         }
 
@@ -2655,8 +3163,50 @@ impl DesktopApp {
         .detach();
     }
 
+    fn poll_immersive_visualizer(&mut self, cx: &mut Context<Self>) {
+        let runtime = Arc::clone(&self.runtime);
+
+        cx.spawn(move |view: WeakEntity<DesktopApp>, async_cx: &mut AsyncApp| {
+            let mut async_cx = async_cx.clone();
+            async move {
+                loop {
+                    async_cx
+                        .background_executor()
+                        .timer(Duration::from_millis(16))
+                        .await;
+
+                    let should_sample = view
+                        .update(&mut async_cx, |this, _| {
+                            this.state.immersive_view_open && this.state.player.is_playing
+                        })
+                        .unwrap_or(false);
+                    if !should_sample {
+                        continue;
+                    }
+
+                    let spectrum = runtime
+                        .spawn(async { aurelia_core::audio_get_spectrum_snapshot_player().ok() })
+                        .await
+                        .ok()
+                        .flatten();
+                    let Some(spectrum) = spectrum else {
+                        continue;
+                    };
+
+                    let _ = view.update(&mut async_cx, |this, cx| {
+                        this.immersive_visualizer.update(cx, |visualizer, cx| {
+                            visualizer.push_spectrum(&spectrum.frequency_data, cx)
+                        });
+                    });
+                }
+            }
+        })
+        .detach();
+    }
+
     fn start_pollers(&mut self, cx: &mut Context<Self>) {
         self.poll_audio_and_media(cx);
+        self.poll_immersive_visualizer(cx);
     }
 
     // ---------------------------------------------------------------
@@ -5494,7 +6044,7 @@ impl DesktopApp {
                             )),
                     ),
             )
-            .child(self.render_immersive_visualizer(is_playing))
+            .child(self.immersive_visualizer.clone())
             .child(
                 h_flex()
                     .absolute()
@@ -5681,41 +6231,12 @@ impl DesktopApp {
                                 .overflow_hidden()
                                 .child(match self.state.immersive_panel {
                                     ImmersivePanel::Queue => self.render_immersive_queue_panel(cx).into_any_element(),
-                                    ImmersivePanel::Lyrics => self.render_immersive_lyrics_panel(cx).into_any_element(),
+                                    ImmersivePanel::Lyrics => self.immersive_lyrics.clone().into_any_element(),
                                     ImmersivePanel::None => div().into_any_element(),
                                 }),
                         )
                     }),
             )
-    }
-
-    fn render_immersive_visualizer(&self, is_playing: bool) -> impl IntoElement {
-        let data = self.state.visualizer.frequency_data.clone();
-        let has_data = data.iter().any(|value| *value > 0);
-        let bar_count = 64usize;
-        let step = (data.len() / bar_count.max(1)).max(1);
-
-        h_flex()
-            .absolute()
-            .bottom_0()
-            .left_0()
-            .right_0()
-            .h(px(132.0))
-            .items_end()
-            .justify_center()
-            .gap(px(5.0))
-            .opacity(if is_playing && has_data { 0.40 } else { 0.0 })
-            .children((0..bar_count).map(move |index| {
-                let data_index = (index * step).min(data.len().saturating_sub(1));
-                let value = data.get(data_index).copied().unwrap_or_default() as f32 / 255.0;
-                let height = 6.0 + value.powf(1.35) * 122.0;
-                div()
-                    .w(px(6.0))
-                    .h(px(height))
-                    .rounded(px(999.0))
-                    .bg(rgba(theme::accent_alpha(168)))
-                    .into_any_element()
-            }))
     }
 
     fn render_immersive_queue_panel(&mut self, _cx: &mut Context<Self>) -> impl IntoElement {
@@ -5744,163 +6265,6 @@ impl DesktopApp {
                         immersive_queue_item(song, index + 1, current_index == index)
                     })),
             )
-    }
-
-    fn render_immersive_lyrics_panel(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        let has_lyrics = self.state.lyrics.as_ref().is_some_and(|lyrics| lyrics.is_valid());
-        let lyrics_content = self
-            .state
-            .lyrics
-            .as_ref()
-            .map(|lyrics| {
-                if !lyrics.synced.is_empty() {
-                    let active = compute_active_state(lyrics, self.current_lyrics_position_secs());
-                    lyrics
-                        .synced
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(index, _)| render_line(lyrics, index, &active).map(|line| (index, line)))
-                        .map(|(index, line)| self.render_immersive_synced_lyrics_line(index, line, cx))
-                        .collect::<Vec<_>>()
-                } else {
-                    lyrics
-                        .plain
-                        .iter()
-                        .map(|line| immersive_lyrics_plain_line(line).into_any_element())
-                        .collect::<Vec<_>>()
-                }
-            })
-            .unwrap_or_default();
-
-        v_flex()
-            .h_full()
-            .pt(px(48.0))
-            .pb(px(28.0))
-            .child(
-                v_flex()
-                    .id("immersive-lyrics-scroll")
-                    .flex_1()
-                    .track_scroll(&self.immersive_lyrics_scroll_handle)
-                    .overflow_y_scroll()
-                    .gap(px(12.0))
-                    .px(px(8.0))
-                    .child(div().h(px(260.0)).flex_shrink_0())
-                    .when(self.state.lyrics_loading, |this| {
-                        this.child(immersive_empty_state(
-                            "Loading lyrics",
-                            "Fetching sidecar, Jellyfin, and fallback lyrics for the current track.",
-                        ))
-                    })
-                    .when(!self.state.lyrics_loading && self.state.lyrics_error.is_some(), |this| {
-                        this.child(immersive_empty_state(
-                            "Unable to load lyrics",
-                            self.state.lyrics_error.as_deref().unwrap_or("Lyrics request failed."),
-                        ))
-                    })
-                    .when(!self.state.lyrics_loading && !has_lyrics && self.state.lyrics_error.is_none(), |this| {
-                        this.child(immersive_empty_state(
-                            "No lyrics to show",
-                            "Lyrics appear here when this track has synced, TTML, or plain text lyrics.",
-                        ))
-                    })
-                    .children(lyrics_content)
-                    .child(div().h(px(260.0)).flex_shrink_0()),
-            )
-    }
-
-    fn render_immersive_synced_lyrics_line(
-        &self,
-        index: usize,
-        line: LyricsLineRender<'_>,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let line_time_secs = line.line.time_ms as f64 / 1000.0;
-        let Some(lyrics) = self.state.lyrics.as_ref() else {
-            return div().into_any_element();
-        };
-        let active_state = compute_active_state(lyrics, self.current_lyrics_position_secs());
-        let mut words = line
-            .line
-            .words
-            .as_ref()
-            .filter(|words| !words.is_empty())
-            .map(|_| render_words(line.line, &active_state, index))
-            .unwrap_or_default();
-        if self
-            .lyrics_line_transition
-            .as_ref()
-            .is_some_and(|transition| transition.previous_line == index)
-        {
-            for word in &mut words {
-                word.state = LyricsWordState::Sung;
-                word.progress = 1.0;
-            }
-        }
-        let active_index = self.state.lyrics_ui.active_line_index.unwrap_or(usize::MAX);
-        let distance = active_index.abs_diff(index);
-        let inactive_opacity = if line.is_background_vocal {
-            0.25
-        } else if distance == 1 {
-            0.58
-        } else if distance == 2 {
-            0.44
-        } else {
-            0.32
-        };
-        let emphasis = self.lyrics_line_emphasis(index);
-        let opacity = inactive_opacity + ((1.0 - inactive_opacity) * emphasis);
-
-        v_flex()
-            .gap(px(6.0))
-            .w_full()
-            .py(px(7.0))
-            .when(line.is_background_vocal, |this| this.pl(px(44.0)))
-            .cursor_pointer()
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(move |this, _, _, cx| this.seek_to(line_time_secs / this.state.player.duration_secs.max(1.0), cx)),
-            )
-            .child(
-                v_flex()
-                    .w_full()
-                    .gap(px(6.0))
-                    .when(line.section_label.is_some(), |this| {
-                        this.child(
-                            div()
-                                .text_size(px(10.0))
-                                .font_weight(gpui::FontWeight::SEMIBOLD)
-                                .text_color(rgba(theme::accent_alpha(180)))
-                                .child(line.section_label.unwrap_or_default().to_uppercase()),
-                        )
-                    })
-                    .child(if words.is_empty() {
-                        div()
-                            .w_full()
-                            .whitespace_normal()
-                            .text_size(px(24.0))
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .when(line.is_background_vocal, |this| this.italic())
-                            .text_color(if line.is_active { rgb(theme::foreground()) } else { rgba(0xffffffb8) })
-                            .child(line.line.line.clone())
-                            .into_any_element()
-                    } else {
-                        immersive_lyrics_word_line(words, line.is_active, line.is_background_vocal)
-                            .into_any_element()
-                    })
-                    .when(line.translation.is_some(), |this| {
-                        this.child(
-                            div()
-                                .w_full()
-                                .whitespace_normal()
-                                .text_size(px(14.0))
-                                .text_color(rgba(0xffffff9a))
-                                .opacity(if line.is_active { 0.86 } else { 0.54 })
-                                .child(line.translation.unwrap_or_default().to_string()),
-                        )
-                    }),
-            )
-            .opacity(opacity)
-            .into_any_element()
     }
 
     fn render_synced_lyrics_line(
@@ -6032,15 +6396,13 @@ impl Render for DesktopApp {
         }
 
         // Request animation frames while featured transition is active
-        let should_animate_lyrics = (self.state.right_panel == RightPanel::Lyrics
-            || self.state.immersive_panel == ImmersivePanel::Lyrics)
+        let should_animate_lyrics = self.state.right_panel == RightPanel::Lyrics
             && self.state.player.is_playing
             && self.state.lyrics.as_ref().is_some_and(|lyrics| !lyrics.synced.is_empty());
         if self.state.featured_transition_start.is_some()
             || should_animate_lyrics
             || self.lyrics_scroll_animation.is_some()
             || self.lyrics_line_transition.is_some()
-            || (self.state.immersive_view_open && self.state.player.is_playing)
         {
             window.request_animation_frame();
         }
