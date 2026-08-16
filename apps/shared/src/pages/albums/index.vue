@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { breakpointsTailwind, refDebounced, useBreakpoints, useWindowSize } from '@vueuse/core'
+  import { breakpointsTailwind, refDebounced, useBreakpoints, useElementSize, useWindowSize } from '@vueuse/core'
   import Fuse from 'fuse.js'
   import { computed, inject, onMounted, onUnmounted, ref, Ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
@@ -69,6 +69,8 @@
 
   const breakpoints = useBreakpoints(breakpointsTailwind)
   const { width: windowWidth } = useWindowSize()
+  const scrollElement = inject(scrollElementKey) as Ref<HTMLElement | null>
+  const { width: scrollElementWidth } = useElementSize(scrollElement)
 
   const cols = computed(() => {
     const isCompact = viewLayout.value === 'compact'
@@ -80,16 +82,18 @@
   })
 
   const itemWidth = computed(() => {
-    // Calculate approximate item width for optimal image loading
     const padding = breakpoints.lg.value ? 64 : breakpoints.md.value ? 48 : 32
-    const gap = viewLayout.value === 'compact' ? 16 : 24
-    const availableWidth = windowWidth.value - padding
+    const gap = viewLayout.value === 'compact' ? 16 : 20
+    const viewportWidth = windowWidth.value
+    const layoutWidth = scrollElementWidth.value || viewportWidth
+    const availableWidth = Math.min(layoutWidth, viewportWidth, 1280) - padding
     const totalGapWidth = (cols.value - 1) * gap
     return Math.round((availableWidth - totalGapWidth) / cols.value)
   })
 
   // Letter filter
   const letterFilter = ref<null | string>(null)
+  const contextMenuAlbum = ref<Album | null>(null)
 
   // Available letters for alphabet nav (based on all albums, not filtered)
   const availableLetters = computed(() => {
@@ -130,11 +134,12 @@
     return rows
   })
 
-  const scrollElement = inject(scrollElementKey) as Ref<HTMLElement | null>
-
-  const estimateSize = computed(() => viewLayout.value === 'compact' ? 250 : 300)
+  const estimateSize = computed(() =>
+    itemWidth.value + (viewLayout.value === 'compact' ? 55 : 74),
+  )
 
   const {
+    isScrolling,
     remeasure,
     rowVirtualizer,
     virtualItems,
@@ -145,7 +150,7 @@
     viewLayout,
   })
 
-  watch([albumRows, viewLayout, cols, scrollElement, letterFilter], () => {
+  watch([albumRows, viewLayout, cols, scrollElement, estimateSize, letterFilter], () => {
     remeasure()
   })
 
@@ -240,8 +245,10 @@
     </div>
 
     <!-- Virtual scrolling grid -->
-    <div
-      v-else
+    <ContextMenu>
+      <ContextMenuTrigger as-child>
+        <div
+      v-if='!libraryLoading'
       :style="{
         height: `${rowVirtualizer.getTotalSize()}px`,
         width: '100%',
@@ -251,15 +258,15 @@
       <div
         v-for='{ albums, virtualRow } in virtualRows'
         :key='String(virtualRow.key)'
-        :ref='el => rowVirtualizer.measureElement(el as Element)'
         :data-index='virtualRow.index'
         :style='{
           position: "absolute",
           top: 0,
           left: 0,
           width: "100%",
+          height: `${estimateSize}px`,
           transform: `translateY(${virtualRow.start}px)`,
-          willChange: "transform"
+          contain: "strict"
         }'
       >
         <div
@@ -269,31 +276,39 @@
           ]'
           :style='{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }'
         >
-          <ContextMenu v-for='album in albums' :key='album.name'>
-            <ContextMenuTrigger as-child>
-              <AlbumCard
+          <div
+            v-for='album in albums'
+            @contextmenu='contextMenuAlbum = album'
+            :key='album.name'
+          >
+            <AlbumCard
                 @click='selectAlbum(album)'
                 @play='playAlbum'
                 :album='album'
                 :compact='viewLayout === "compact"'
+                :is-scrolling='isScrolling'
                 :server-url='serverUrl'
                 :token='token'
                 :width='itemWidth'
               />
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem @click='playAlbum(album)'>
-                Play Album
-              </ContextMenuItem>
-              <AddToPlaylistMenu
-                :songs='album.songs ? [...album.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
-                type='context'
-              />
-            </ContextMenuContent>
-          </ContextMenu>
+          </div>
         </div>
       </div>
-    </div>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          @click='contextMenuAlbum && playAlbum(contextMenuAlbum)'
+          :disabled='!contextMenuAlbum'
+        >
+          Play Album
+        </ContextMenuItem>
+        <AddToPlaylistMenu
+          :songs='contextMenuAlbum?.songs ? [...contextMenuAlbum.songs].sort((a, b) => (a.trackNumber ?? 0) - (b.trackNumber ?? 0)) : []'
+          type='context'
+        />
+      </ContextMenuContent>
+    </ContextMenu>
 
     <p v-if='!libraryLoading && displayedAlbums.length === 0' class='text-center py-12 text-muted-foreground'>
       No albums found{{ letterFilter ? ` starting with "${letterFilter}"` : '' }}

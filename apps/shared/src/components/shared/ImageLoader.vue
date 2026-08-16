@@ -1,76 +1,14 @@
 <script setup lang="ts">
-  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+  import { onMounted, onUnmounted, ref, watch } from 'vue'
 
   import { useImageLoader } from '../../composables/useImageLoader'
   import { useSharedIntersectionObserver } from '../../composables/useSharedIntersectionObserver'
   import { logger } from '../../lib/logger'
   import { LRUCache } from '../../lib/lru-cache'
 
-  // Bounded caches to prevent memory leaks
+  // Bounded cache to avoid replaying completed image transitions.
   const MAX_LOADED_CACHE_SIZE = 1000
-  const MAX_PRELOAD_CACHE_SIZE = 500
-
   const loadedImageCache = new LRUCache<string, boolean>(MAX_LOADED_CACHE_SIZE)
-  const imagePreloadCache = new LRUCache<string, boolean>(MAX_PRELOAD_CACHE_SIZE)
-  const prefetchQueue = new Set<string>()
-  let prefetchTimeout: null | ReturnType<typeof setTimeout> = null
-
-  // Enhanced prefetching for viewport-based loading
-  const handlePrefetchEvent = (event: Event): void => {
-    const customEvent = event as CustomEvent
-    const { itemId } = customEvent.detail
-    if (itemId && props.itemId === itemId && !prefetchQueue.has(itemId)) {
-      prefetchQueue.add(itemId)
-      // Debounced prefetch to avoid overwhelming the network
-      if (prefetchTimeout) clearTimeout(prefetchTimeout)
-      prefetchTimeout = setTimeout(() => {
-        prefetchImage(itemId)
-      }, 100)
-    }
-  }
-
-  const prefetchImage = async (itemId: string): Promise<void> => {
-    if (props.itemId === itemId && props.serverUrl && props.token && !imagePreloadCache.has(itemId)) {
-      imagePreloadCache.set(itemId, true)
-
-      // Schedule prefetch on idle to avoid blocking the main thread during scroll
-      const schedule = (cb: () => void): void => {
-        type RIC = {
-          requestIdleCallback?: (
-            cb: (...args: unknown[]) => void,
-            opts?: { timeout?: number },
-          ) => void
-        }
-
-        const win = window as unknown as RIC
-        const ric = win.requestIdleCallback
-        if (typeof ric === 'function')
-          ric(cb, { timeout: 500 })
-        else
-          setTimeout(cb, 500)
-      }
-
-      schedule(async () => {
-        try {
-          const url = await getImageUrl(
-            itemId,
-            props.serverUrl!,
-            props.token!,
-            props.imageType,
-            props.width,
-            props.quality,
-          )
-          if (url) {
-            // Preload the image in the background
-            const img = new Image()
-            img.src = url
-          }
-        } catch (error) {
-          logger.warn('Failed to prefetch image:', error)
-        }
-      })
-    }
-  }
 
   // Set up viewport-based prefetching and per-item visibility observer
   // Uses shared IntersectionObserver to avoid creating thousands of observers
@@ -78,8 +16,6 @@
   let cleanupObserver: (() => void) | null = null
 
   onMounted(() => {
-    window.addEventListener('prefetch-item', handlePrefetchEvent)
-
     // Use shared observer instead of creating a new one per component
     if (rootEl.value) {
       cleanupObserver = observeElement(rootEl.value, isIntersecting => {
@@ -89,10 +25,6 @@
   })
 
   onUnmounted(() => {
-    window.removeEventListener('prefetch-item', handlePrefetchEvent)
-    if (prefetchTimeout)
-      clearTimeout(prefetchTimeout)
-
     // Cleanup shared observer registration
     if (cleanupObserver) {
       cleanupObserver()
@@ -145,20 +77,6 @@
     lowQualityUrl.value = null
   }
 
-  const shouldPreloadAdjacent = computed(() =>
-    !!imageUrl.value && props.imageType === 'Primary',
-  )
-
-  const preloadUrl = computed(() => imageUrl.value)
-
-  const preloadImage = (url: string): void => {
-    if (!imagePreloadCache.has(url)) {
-      imagePreloadCache.set(url, true)
-      const img = new Image()
-      img.src = url
-    }
-  }
-
   const updateImageUrl = async (): Promise<void> => {
     if (props.isScrolling || !inView.value) return
 
@@ -201,10 +119,8 @@
           props.width,
           props.quality,
         )
-        if (hqUrl) {
+        if (hqUrl)
           imageUrl.value = hqUrl
-          preloadImage(hqUrl)
-        }
       } catch (error) {
         logger.error('Failed to get image URL:', error)
         hasError.value = true
@@ -251,7 +167,7 @@
   <div ref='rootEl' :class='[className, "overflow-hidden"]'>
     <div
       v-if='isLoading'
-      class='size-full bg-muted flex items-center justify-center animate-pulse'
+      class='size-full bg-muted flex items-center justify-center'
     >
       <div class='size-8 bg-muted-foreground/20 rounded-full' />
     </div>
@@ -280,15 +196,6 @@
         class='absolute inset-0 size-full object-cover'
         decoding='async'
         loading='eager'
-      >
-
-      <!-- Preload adjacent images for smoother scrolling -->
-      <img
-        v-if='shouldPreloadAdjacent && preloadUrl'
-        :src='preloadUrl'
-        decoding='async'
-        loading='eager'
-        style='display: none'
       >
     </div>
 

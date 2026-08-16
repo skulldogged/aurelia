@@ -33,7 +33,7 @@ describe('home carousel cards', () => {
     cleanup()
   })
 
-  it('uses the same glass play button on albums and songs', () => {
+  it('uses the same non-blurred play button on albums and songs', () => {
     const albumView = render(AlbumCard, {
       global: { stubs },
       props:  { album, serverUrl: 'http://x', token: 't' },
@@ -48,8 +48,8 @@ describe('home carousel cards', () => {
     const songButton = songView.getByRole('button')
 
     expect(albumButton.className).toBe(songButton.className)
-    expect(albumButton.className).toContain('bg-white/30')
-    expect(albumButton.className).toContain('backdrop-blur-sm')
+    expect(albumButton.className).toContain('bg-white/40')
+    expect(albumButton.className).not.toContain('backdrop-blur')
   })
 
   it('shows a song-count disc on albums only', () => {

@@ -1,8 +1,6 @@
 <script setup lang="ts">
   import { Play } from 'lucide-vue-next'
 
-  import Button from '../ui/Button.vue'
-
   defineEmits<{
     play: []
   }>()
@@ -15,18 +13,18 @@
       flex items-center justify-center
       opacity-0 pointer-events-none
       group-hover:opacity-100 group-hover:pointer-events-auto
-      transition-opacity duration-200
     '
   >
-    <Button
+    <button
       @click.stop='$emit("play")'
+      aria-label='Play'
       class='
-        bg-white/30 hover:bg-white/40 backdrop-blur-sm
-        text-white border border-white/40 shadow-lg
+        inline-flex size-9 items-center justify-center rounded-button
+        bg-white/40 hover:bg-white/50 text-white border border-white/40 shadow-lg
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70
       '
-      size='icon'
     >
       <Play class='size-5 fill-current' />
-    </Button>
+    </button>
   </div>
 </template>

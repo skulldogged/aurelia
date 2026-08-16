@@ -206,8 +206,7 @@
                     @click='playFeaturedAlbum'
                     class='
                       px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg
-                      border border-white/20 transition-all duration-200 flex items-center gap-2
-                      backdrop-blur-sm hover:backdrop-blur-md
+                      border border-white/20 transition-colors duration-200 flex items-center gap-2
                     '
                   >
                     <Shuffle class='h-5 w-5' />
@@ -279,7 +278,7 @@
               @click='prevFeaturedAlbum'
               :disabled='isLoading'
               class='
-                flex items-center justify-center bg-white/10 p-2 text-white backdrop-blur-sm transition-all
+                flex items-center justify-center bg-white/15 p-2 text-white transition-colors
                 hover:bg-white/20 border border-white/20 rounded-full
                 disabled:opacity-50 disabled:cursor-not-allowed group
               '
@@ -290,7 +289,7 @@
               @click='nextFeaturedAlbum'
               :disabled='isLoading'
               class='
-                flex items-center justify-center bg-white/10 p-2 text-white backdrop-blur-sm transition-all
+                flex items-center justify-center bg-white/15 p-2 text-white transition-colors
                 hover:bg-white/20 border border-white/20 rounded-full
                 disabled:opacity-50 disabled:cursor-not-allowed group
               '
@@ -497,11 +496,11 @@
 @reference "tailwindcss";
 
 :deep(.album-art-image) {
-  @apply w-full h-auto rounded-lg shadow-lg aspect-square object-cover transition-all;
+  @apply w-full h-auto rounded-lg shadow-lg aspect-square object-cover;
 }
 
 :deep(.album-cover-image) {
-  @apply w-full h-auto rounded-xl shadow-lg aspect-square object-cover transition-all;
+  @apply w-full h-auto rounded-xl shadow-lg aspect-square object-cover;
 }
 
 :deep(.album-cover-wrapper) {

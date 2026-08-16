@@ -3,7 +3,6 @@
 
   import type { Artist } from '../../lib/api/types'
 
-  import Button from '../ui/Button.vue'
   import ImageLoader from './ImageLoader.vue'
   import ImagePlaceholder from './ImagePlaceholder.vue'
 
@@ -58,7 +57,7 @@
           class='
             absolute inset-0 rounded-full
             ring-2 ring-accent/0 group-hover:ring-accent/50
-            transition-all duration-300
+            transition-colors duration-200
           '
         />
       </div>
@@ -67,20 +66,22 @@
       <div
         class='
           absolute inset-0 rounded-full bg-black/40 flex items-center justify-center
-          opacity-0 group-hover:opacity-100 transition-all duration-200
+          opacity-0 group-hover:opacity-100
         '
       >
-        <Button
+        <button
           @click.stop='$emit("shuffle", artist)'
-          :size='compact ? "sm" : "icon"'
+          :aria-label='`Shuffle ${artist.name}`'
+          :class='compact ? "size-8" : "size-9"'
           class='
+            inline-flex items-center justify-center
             bg-accent/90 hover:bg-accent text-accent-foreground
-            shadow-lg hover:shadow-xl hover:scale-105
-            transition-all duration-200 rounded-full
+            shadow-lg rounded-full
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent
           '
         >
           <Shuffle :class='compact ? "size-3.5" : "size-4"' />
-        </Button>
+        </button>
       </div>
     </div>
 

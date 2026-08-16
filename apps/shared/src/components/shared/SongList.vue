@@ -1,7 +1,6 @@
 <script setup lang="ts">
-  import { useVirtualizer } from '@tanstack/vue-virtual'
   import { Heart, Pause, Play, Share2, Shuffle } from 'lucide-vue-next'
-  import { computed, inject, ref, watch } from 'vue'
+  import { computed, inject, nextTick, ref, watch } from 'vue'
 
   import { scrollElementKey } from '../../composables/useMainLayout'
   import { Song } from '../../lib/api/types'
@@ -57,6 +56,7 @@
   // Playlist functionality
   const showShareDialog = ref(false)
   const shareDialogItem = ref<null | { id: string; name: string; type: 'album' | 'artist' | 'song' }>(null)
+  const contextMenuSong = ref<null | Song>(null)
 
   const removeSongFromPlaylist = (song: Song): void => {
     emit('remove-song', song)
@@ -80,47 +80,74 @@
     return internalScrollContainer.value
   })
 
-  // Estimate row height based on layout
-  const estimateSize = computed(() => layoutMode.value === 'comfy' ? 72 : 48)
+  const virtualList = ref<HTMLElement | null>(null)
+  const rowSize = computed(() => layoutMode.value === 'comfy' ? 72 : 48)
+  const overscan = computed(() => layoutMode.value === 'compact' ? 8 : 6)
+  const visibleStart = ref(0)
+  const visibleEnd = ref(-1)
+  let listOffset = 0
 
-  // Get optimal overscan based on device performance
-  // Higher overscan needed to prevent items disappearing at scroll edges
-  const getOptimalOverscan = (): number => {
-    const isCompact = layoutMode.value === 'compact'
-    const isLowEndDevice = navigator.hardwareConcurrency <= 4
-    if (isLowEndDevice) {
-      return isCompact ? 6 : 5
+  const updateVisibleRange = (): void => {
+    const element = scrollElement.value
+    if (!element || props.songs.length === 0) {
+      visibleStart.value = 0
+      visibleEnd.value = -1
+      return
     }
-    return isCompact ? 8 : 8
+
+    const relativeScrollTop = Math.max(0, element.scrollTop - listOffset)
+    const nextStart = Math.max(0, Math.floor(relativeScrollTop / rowSize.value) - overscan.value)
+    const nextEnd = Math.min(
+      props.songs.length - 1,
+      Math.ceil((relativeScrollTop + element.clientHeight) / rowSize.value) + overscan.value,
+    )
+
+    if (nextStart !== visibleStart.value)
+      visibleStart.value = nextStart
+    if (nextEnd !== visibleEnd.value)
+      visibleEnd.value = nextEnd
   }
 
-  // Create virtualizer with reactive options
-  const rowVirtualizer = useVirtualizer(
-    computed(() => ({
-      count:            props.songs.length,
-      enabled:          true,
-      estimateSize:     () => estimateSize.value,
-      getScrollElement: () => scrollElement.value,
-      overscan:         getOptimalOverscan(),
-    })),
-  )
+  const refreshVirtualWindow = async (): Promise<void> => {
+    await nextTick()
+    const element = scrollElement.value
+    if (element && virtualList.value) {
+      const scrollerRect = element.getBoundingClientRect()
+      const listRect = virtualList.value.getBoundingClientRect()
+      listOffset = listRect.top - scrollerRect.top + element.scrollTop
+    }
+    updateVisibleRange()
+  }
 
-  // Remeasure when songs or layout changes
+  watch(scrollElement, (element, _, onCleanup) => {
+    if (!element)
+      return
+
+    const resizeObserver = new ResizeObserver(updateVisibleRange)
+    element.addEventListener('scroll', updateVisibleRange, { passive: true })
+    resizeObserver.observe(element)
+    void refreshVirtualWindow()
+
+    onCleanup(() => {
+      element.removeEventListener('scroll', updateVisibleRange)
+      resizeObserver.disconnect()
+    })
+  }, { flush: 'post', immediate: true })
+
   watch([() => props.songs.length, layoutMode], () => {
-    rowVirtualizer.value.measure()
+    void refreshVirtualWindow()
   })
 
-  // Computed virtual items
-  const virtualItems = computed(() => rowVirtualizer.value.getVirtualItems())
-  const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
-
-  // Map virtual items to songs
-  const virtualSongs = computed(() =>
-    virtualItems.value.map(item => ({
-      song:       props.songs[item.index],
-      virtualRow: item,
-    })),
-  )
+  const totalSize = computed(() => props.songs.length * rowSize.value)
+  const virtualSongs = computed(() => {
+    const songs: { song: Song; virtualRow: { index: number; start: number } }[] = []
+    for (let index = visibleStart.value; index <= visibleEnd.value; index++) {
+      const song = props.songs[index]
+      if (song)
+        songs.push({ song, virtualRow: { index, start: index * rowSize.value } })
+    }
+    return songs
+  })
 
   // Check if we're using internal scroll container (no injected element)
   const useInternalScroll = computed(() => !injectedScrollElement.value)
@@ -249,8 +276,11 @@
       </div>
 
       <!-- Virtualized song list -->
-      <div
-        v-else
+      <ContextMenu>
+        <ContextMenuTrigger as-child>
+          <div
+        v-if='!loading'
+        ref='virtualList'
         :style="{
           height: `${totalSize}px`,
           width: '100%',
@@ -260,6 +290,7 @@
       >
         <div
           v-for='{ song, virtualRow } in virtualSongs'
+          @contextmenu='contextMenuSong = song'
           :key='song.id'
           :style='{
             position: "absolute",
@@ -269,12 +300,10 @@
             transform: `translateY(${virtualRow.start}px)`
           }'
         >
-          <ContextMenu>
-            <ContextMenuTrigger>
               <div
                 @click="$emit('play-song', song)"
                 :class="[
-                  'group cursor-pointer transition-all duration-200 w-full min-w-0 max-w-full',
+                  'group cursor-pointer transition-colors duration-150 w-full min-w-0 max-w-full',
                   layoutMode === 'comfy'
                     ? 'hover:bg-muted/50 p-3 bg-card'
                     : 'hover:bg-muted/50 border-b last:border-b-0'
@@ -330,7 +359,7 @@
                       <Button
                         @click.stop="$emit('play-song', song)"
                         :class="[
-                          'bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white border border-white/20',
+                          'bg-white/40 hover:bg-white/50 text-white border border-white/30',
                           layoutMode === 'compact' ? 'size-6' : 'size-8'
                         ]"
                         size='icon'
@@ -463,29 +492,46 @@
                   </div>
                 </div>
               </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem @click="$emit('play-song', song)">
-                <Play class='size-4 mr-2' />
-                Play
-              </ContextMenuItem>
-              <ContextMenuItem @click="$emit('play-instant-mix', song)">
-                <Shuffle class='size-4 mr-2' />
-                Instant Mix
-              </ContextMenuItem>
-              <AddToPlaylistMenu v-if='shouldShowAddButton' :songs='[song]' type='context' />
-              <ContextMenuItem @click='openShareDialog(song)'>
-                <Share2 class='size-4 mr-2' />
-                Share
-              </ContextMenuItem>
-              <ContextMenuItem @click='removeSongFromPlaylist(song)' v-if='showRemoveButton'>
-                <Heart class='size-4 mr-2' />
-                Remove
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
         </div>
       </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            @click='contextMenuSong && $emit("play-song", contextMenuSong)'
+            :disabled='!contextMenuSong'
+          >
+            <Play class='size-4 mr-2' />
+            Play
+          </ContextMenuItem>
+          <ContextMenuItem
+            @click='contextMenuSong && $emit("play-instant-mix", contextMenuSong)'
+            :disabled='!contextMenuSong'
+          >
+            <Shuffle class='size-4 mr-2' />
+            Instant Mix
+          </ContextMenuItem>
+          <AddToPlaylistMenu
+            v-if='shouldShowAddButton'
+            :songs='contextMenuSong ? [contextMenuSong] : []'
+            type='context'
+          />
+          <ContextMenuItem
+            @click='contextMenuSong && openShareDialog(contextMenuSong)'
+            :disabled='!contextMenuSong'
+          >
+            <Share2 class='size-4 mr-2' />
+            Share
+          </ContextMenuItem>
+          <ContextMenuItem
+            @click='contextMenuSong && removeSongFromPlaylist(contextMenuSong)'
+            v-if='showRemoveButton'
+            :disabled='!contextMenuSong'
+          >
+            <Heart class='size-4 mr-2' />
+            Remove
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     </div>
   </div>
 

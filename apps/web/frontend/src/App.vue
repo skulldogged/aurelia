@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import type { Credentials } from '@shared'
   import type { Song } from '@shared/lib/api/types'
+  import type { PlayerState } from '@shared/stores'
 
   import {
     Equalizer,
@@ -213,6 +214,34 @@
     startY:    number
   }>(null)
 
+  const emptyVisualizerData = new Uint8Array(0)
+  const inactiveFullscreenPlayerState: PlayerState = {
+    currentSong: null,
+    currentTime: 0,
+    duration:    0,
+    hasNext:     false,
+    hasPrevious: false,
+    isMuted:     false,
+    isPlaying:   false,
+    isShuffled:  false,
+    playlist:    [],
+    progress:    0,
+    repeatMode:  'none',
+    volume:      0,
+  }
+  const isFullscreenPlayerActive = computed(() =>
+    isFullScreenPlayerOpen.value || swipeProgress.value?.direction === 'up',
+  )
+  const fullscreenPlayerState = computed<PlayerState>(() =>
+    isFullscreenPlayerActive.value ? playerState.value : inactiveFullscreenPlayerState,
+  )
+  const fullscreenFrequencyData = computed(() =>
+    isFullscreenPlayerActive.value ? frequencyData.value : emptyVisualizerData,
+  )
+  const fullscreenTimeDomainData = computed(() =>
+    isFullscreenPlayerActive.value ? timeDomainData.value : emptyVisualizerData,
+  )
+
   usePlayerSession()
 
   onMounted(async () => {
@@ -388,17 +417,17 @@
         <div class='sidebar-panels h-full relative'>
           <Queue
             @remove-song='removeSongFromPlaylist'
-            v-show='isQueueOpen'
+            v-if='isQueueOpen'
             class='absolute inset-0'
           />
           <Equalizer
-            v-show='isEqualizerOpen'
+            v-if='isEqualizerOpen'
             class='absolute inset-0'
           />
           <LyricsSidebar
             @lyrics-loaded='handleLyricsLoaded'
             @seek='handleSeek'
-            v-show='isLyricsOpen'
+            v-if='isLyricsOpen'
             :current-song='currentSong as any'
             :current-time='currentTime'
             :duration='duration'
@@ -453,15 +482,15 @@
       @toggle-shuffle='handleToggleShuffle'
       @update:playlist='updatePlaylist'
       @volume-change='handleVolumeChange'
-      :frequency-data='frequencyData'
+      :frequency-data='fullscreenFrequencyData'
       :is-equalizer-open='isFsEqualizerOpen'
       :is-lyrics-open='isFsLyricsOpen'
       :is-queue-open='isFsQueueOpen'
-      :player-state='playerState'
+      :player-state='fullscreenPlayerState'
       :preview-progress='swipeProgress'
       :server-url='credentials?.serverUrl'
       :show='isFullScreenPlayerOpen'
-      :time-domain-data='timeDomainData'
+      :time-domain-data='fullscreenTimeDomainData'
       :token='credentials?.token'
     />
 

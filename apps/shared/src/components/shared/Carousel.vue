@@ -130,7 +130,6 @@
   height: 2.25rem;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.9);
   transition: all 0.2s ease;

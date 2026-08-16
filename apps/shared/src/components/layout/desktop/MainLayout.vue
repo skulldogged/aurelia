@@ -1,6 +1,5 @@
 <script setup lang='ts'>
   import { ArrowLeft, ArrowRight, PanelLeft } from 'lucide-vue-next'
-  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import { computed, ref, watch } from 'vue'
 
   import { useMainLayout } from '../../../composables/useMainLayout'
@@ -31,7 +30,7 @@
     'navigate-forward': []
   }>()
 
-  const { mainContentBgClass, rightPanelBgClass, scrollbarsRef, topBarBgClass } = useMainLayout()
+  const { mainContentBgClass, rightPanelBgClass, scrollElement, topBarBgClass } = useMainLayout()
 
   const storedState = localStorage.getItem('sidebarCollapsed')
   const isSidebarCollapsed = ref(storedState ? JSON.parse(storedState) : false)
@@ -143,16 +142,14 @@
           :style='{
             marginTop: `calc(3rem + env(safe-area-inset-top))`
           }'
-          class='flex-1 min-w-0 bg-background'
+          class='flex-1 min-w-0 min-h-0 overflow-hidden bg-background'
         >
-          <OverlayScrollbarsComponent
-            ref='scrollbarsRef'
-            :options='{ scrollbars: { autoHide: "scroll" } }'
-            class='h-full'
-            defer
+          <div
+            ref='scrollElement'
+            class='h-full overflow-y-auto overflow-x-hidden'
           >
             <slot />
-          </OverlayScrollbarsComponent>
+          </div>
         </main>
       </div>
     </div>

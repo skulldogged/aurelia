@@ -1,4 +1,3 @@
-import type { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
 import type { ComputedRef, Ref } from 'vue'
 
 import { computed, nextTick, provide, ref, watch } from 'vue'
@@ -9,13 +8,12 @@ export const scrollElementKey = Symbol('scrollElement')
 export interface MainLayoutComposableReturn {
   mainContentBgClass: ComputedRef<string>
   rightPanelBgClass:  ComputedRef<string>
-  scrollbarsRef:      Ref<InstanceType<typeof OverlayScrollbarsComponent> | null>
+  scrollElement:      Ref<HTMLElement | null>
   topBarBgClass:      ComputedRef<string>
 }
 
 export const useMainLayout = (): MainLayoutComposableReturn => {
   const route = useRoute()
-  const scrollbarsRef = ref<InstanceType<typeof OverlayScrollbarsComponent> | null>(null)
   const scrollElement = ref<HTMLElement | null>(null)
   provide(scrollElementKey, scrollElement)
 
@@ -26,22 +24,14 @@ export const useMainLayout = (): MainLayoutComposableReturn => {
 
   watch(() => route.path, async () => {
     await nextTick()
-    setTimeout(() => {
-      const osInstance = scrollbarsRef.value?.osInstance?.()
-      if (osInstance) {
-        const elements = osInstance.elements()
-        if (elements.scrollOffsetElement) {
-          scrollElement.value = elements.scrollOffsetElement as HTMLElement
-          elements.scrollOffsetElement.scrollTop = 0
-        }
-      }
-    }, 100)
+    if (scrollElement.value)
+      scrollElement.value.scrollTop = 0
   }, { immediate: true })
 
   return {
     mainContentBgClass,
     rightPanelBgClass,
-    scrollbarsRef,
+    scrollElement,
     topBarBgClass,
   }
 }

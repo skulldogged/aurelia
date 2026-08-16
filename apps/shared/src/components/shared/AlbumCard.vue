@@ -16,6 +16,7 @@
     album:          Album
     collaborators?: NameIdPair[]
     compact?:       boolean
+    isScrolling?:   boolean
     serverUrl:      string
     showSongCount?: boolean
     token:          string
@@ -25,6 +26,7 @@
   withDefaults(defineProps<Props>(), {
     collaborators: () => [],
     compact:       false,
+    isScrolling:   false,
     showSongCount: true,
     width:         400,
   })
@@ -43,6 +45,7 @@
     <div :class='compact ? "mb-2" : "mb-3"' class='relative'>
       <ImageLoader
         :alt='`${album.name} album art`'
+        :is-scrolling='isScrolling'
         :item-id='album.id || album.name'
         :server-url='serverUrl'
         :token='token'

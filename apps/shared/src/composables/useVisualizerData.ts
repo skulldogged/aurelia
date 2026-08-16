@@ -30,6 +30,9 @@ const FFT_SIZE = 256
 /** Number of frequency bins (FFT_SIZE / 2) */
 const FREQUENCY_BIN_COUNT = 128
 
+/** Rendering analyzer data above 30 FPS adds churn without a visible benefit. */
+const FRAME_INTERVAL_MS = 1000 / 30
+
 /**
  * Smoothing parameters for visualizer animation.
  * Creates responsive but fluid motion: fast attack, slow decay.
@@ -42,14 +45,18 @@ const SMOOTHING = {
 }
 
 export const useVisualizerData = (): UseVisualizerDataReturn => {
-  // Reactive data buffers - pre-allocate for performance
-  const frequencyData = ref<Uint8Array>(new Uint8Array(FREQUENCY_BIN_COUNT))
-  const timeDomainData = ref<Uint8Array>(new Uint8Array(FFT_SIZE))
+  // Reusable conversion buffers keep smoothing work allocation-free. Publishing is
+  // capped below so Vue receives a new identity only for frames it will render.
+  const frequencyOutput = new Uint8Array(FREQUENCY_BIN_COUNT)
+  const timeDomainOutput = new Uint8Array(FFT_SIZE)
+  const frequencyData = ref<Uint8Array>(frequencyOutput)
+  const timeDomainData = ref<Uint8Array>(timeDomainOutput)
   const isEnabled = ref(false)
 
   // Smoothing buffers (Float32 for precision during interpolation)
   let smoothedFrequency = new Float32Array(FREQUENCY_BIN_COUNT)
   let smoothedTimeDomain = new Float32Array(FFT_SIZE)
+  let lastFrameTime = -FRAME_INTERVAL_MS
 
   // Event listener cleanup (desktop)
   let eventUnlisten: (() => void) | null = null
@@ -63,39 +70,37 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
    * Fast attack (responds to beats), slow decay (smooth falloff).
    */
   const applySmoothingAndUpdate = (
-    rawFreq: Uint8Array,
-    rawTime: Uint8Array,
+    rawFreq: ArrayLike<number>,
+    rawTime: ArrayLike<number>,
   ): void => {
-    // Smooth frequency data
-    for (let i = 0; i < rawFreq.length; i++) {
+    const now = performance.now()
+    if (now - lastFrameTime < FRAME_INTERVAL_MS) return
+    lastFrameTime = now
+
+    const frequencyLength = Math.min(rawFreq.length, smoothedFrequency.length)
+    for (let i = 0; i < frequencyLength; i++) {
       const raw = rawFreq[i]
       const current = smoothedFrequency[i]
-      // Use attack rate when rising, decay rate when falling
       const rate = raw > current ? SMOOTHING.attack : SMOOTHING.decay
       smoothedFrequency[i] = current + (raw - current) * rate
     }
 
-    // Smooth time domain data
-    for (let i = 0; i < rawTime.length; i++) {
+    const timeDomainLength = Math.min(rawTime.length, smoothedTimeDomain.length)
+    for (let i = 0; i < timeDomainLength; i++) {
       const raw = rawTime[i]
       const current = smoothedTimeDomain[i]
       const rate = raw > current ? SMOOTHING.attack : SMOOTHING.decay
       smoothedTimeDomain[i] = current + (raw - current) * rate
     }
 
-    // Convert to Uint8Array for output
-    const freqOut = new Uint8Array(smoothedFrequency.length)
-    for (let i = 0; i < smoothedFrequency.length; i++) {
-      freqOut[i] = Math.round(smoothedFrequency[i])
-    }
+    for (let i = 0; i < smoothedFrequency.length; i++)
+      frequencyOutput[i] = Math.round(smoothedFrequency[i])
 
-    const timeOut = new Uint8Array(smoothedTimeDomain.length)
-    for (let i = 0; i < smoothedTimeDomain.length; i++) {
-      timeOut[i] = Math.round(smoothedTimeDomain[i])
-    }
+    for (let i = 0; i < smoothedTimeDomain.length; i++)
+      timeDomainOutput[i] = Math.round(smoothedTimeDomain[i])
 
-    frequencyData.value = freqOut
-    timeDomainData.value = timeOut
+    frequencyData.value = frequencyOutput.slice()
+    timeDomainData.value = timeDomainOutput.slice()
   }
 
   /**
@@ -110,8 +115,8 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
     eventUnlisten = subscribeBackendEvents(event => {
       if (event.type !== 'AudioSpectrum') return
       applySmoothingAndUpdate(
-        new Uint8Array(event.data.frequencyData),
-        new Uint8Array(event.data.timeDomainData),
+        event.data.frequencyData,
+        event.data.timeDomainData,
       )
     })
 
@@ -200,10 +205,13 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
     }
 
     // Clear data and reset smoothing buffers
+    frequencyOutput.fill(0)
+    timeDomainOutput.fill(0)
     frequencyData.value = new Uint8Array(FREQUENCY_BIN_COUNT)
     timeDomainData.value = new Uint8Array(FFT_SIZE)
     smoothedFrequency = new Float32Array(FREQUENCY_BIN_COUNT)
     smoothedTimeDomain = new Float32Array(FFT_SIZE)
+    lastFrameTime = -FRAME_INTERVAL_MS
   }
 
   // Set analyzer enabled state

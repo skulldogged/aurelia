@@ -3,7 +3,6 @@
   import type { Credentials } from '../generated'
 
   import { BookOpen, Info, Palette, Plug, Server } from 'lucide-vue-next'
-  import { OverlayScrollbarsComponent } from 'overlayscrollbars-vue'
   import { onMounted, onUnmounted, ref } from 'vue'
 
   import SettingsPageTopBar from '../components/desktop/SettingsPageTopBar.vue'
@@ -63,28 +62,34 @@
     }
   }
 
-  const handleScroll = (event: Event): void => {
-    const target = event.target as HTMLElement
-    if (!target)
+  let sectionObserver: IntersectionObserver | null = null
+
+  const observeSections = (): void => {
+    if (!mainContentRef.value)
       return
 
-    // Find which section is currently in view
-    const scrollTop = target.scrollTop
-    const threshold = 100
+    sectionObserver = new IntersectionObserver(entries => {
+      const visibleSection = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
+
+      if (visibleSection)
+        activeTab.value = (visibleSection.target as HTMLElement).dataset.settingsSection ?? activeTab.value
+    }, {
+      root:       mainContentRef.value,
+      rootMargin: '-96px 0px -70% 0px',
+      threshold:  0,
+    })
 
     for (const tab of settingsTabs) {
       const element = sectionRefs.value[tab.id]
-      if (element) {
-        const rect = element.getBoundingClientRect()
-        const elementTop = rect.top + scrollTop
-
-        if (scrollTop >= elementTop - threshold)
-          activeTab.value = tab.id
-      }
+      if (element)
+        sectionObserver.observe(element)
     }
   }
 
   onMounted(() => {
+    observeSections()
     setTopBarContent({
       component: SettingsPageTopBar,
       id:        'settings-page',
@@ -95,6 +100,7 @@
   })
 
   onUnmounted(() => {
+    sectionObserver?.disconnect()
     clearTopBarContent()
   })
 </script>
@@ -130,18 +136,16 @@
       </button>
     </nav>
 
-    <OverlayScrollbarsComponent
-      @scroll='handleScroll'
+    <div
       ref='mainContentRef'
-      :options='{ scrollbars: { autoHide: "scroll" } }'
-      class='flex-1 py-8'
-      defer
+      class='flex-1 min-w-0 py-8 overflow-y-auto overflow-x-hidden'
     >
       <div class='flex justify-center px-8'>
         <div class='w-full max-w-4xl space-y-16'>
           <!-- Appearance Section -->
           <section
             :ref="el => sectionRefs['appearance'] = el as HTMLElement"
+            data-settings-section='appearance'
             class='space-y-8'
           >
             <div class='py-4'>
@@ -169,6 +173,7 @@
           <!-- Integrations Section -->
           <section
             :ref="el => sectionRefs['integrations'] = el as HTMLElement"
+            data-settings-section='integrations'
             class='space-y-8'
           >
             <div class='py-4'>
@@ -196,6 +201,7 @@
           <!-- Server Section -->
           <section
             :ref="el => sectionRefs['server'] = el as HTMLElement"
+            data-settings-section='server'
             class='space-y-8'
           >
             <div class='py-4'>
@@ -223,6 +229,7 @@
           <!-- Library Section -->
           <section
             :ref="el => sectionRefs['library'] = el as HTMLElement"
+            data-settings-section='library'
             class='space-y-8'
           >
             <div class='py-4'>
@@ -249,6 +256,7 @@
           <!-- About Section -->
           <section
             :ref="el => sectionRefs['about'] = el as HTMLElement"
+            data-settings-section='about'
             class='space-y-8 pb-8'
           >
             <div class='py-4'>
@@ -274,6 +282,13 @@
           </section>
         </div>
       </div>
-    </OverlayScrollbarsComponent>
+    </div>
   </div>
 </template>
+
+<style scoped>
+[data-settings-section] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 48rem;
+}
+</style>

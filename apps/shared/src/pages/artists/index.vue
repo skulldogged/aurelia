@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { breakpointsTailwind, refDebounced, useBreakpoints, useWindowSize } from '@vueuse/core'
+  import { breakpointsTailwind, refDebounced, useBreakpoints, useElementSize, useWindowSize } from '@vueuse/core'
   import Fuse from 'fuse.js'
   import { computed, inject, onMounted, onUnmounted, ref, Ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
@@ -83,6 +83,8 @@
 
   const breakpoints = useBreakpoints(breakpointsTailwind)
   const { width: windowWidth } = useWindowSize()
+  const scrollElement = inject(scrollElementKey) as Ref<HTMLElement | null>
+  const { width: scrollElementWidth } = useElementSize(scrollElement)
 
   const cols = computed(() => {
     const isCompact = viewLayout.value === 'compact'
@@ -94,10 +96,11 @@
   })
 
   const itemWidth = computed(() => {
-    // Calculate approximate item width for optimal image loading
     const padding = breakpoints.lg.value ? 64 : breakpoints.md.value ? 48 : 32
-    const gap = viewLayout.value === 'compact' ? 16 : 24
-    const availableWidth = windowWidth.value - padding
+    const gap = viewLayout.value === 'compact' ? 16 : 20
+    const viewportWidth = windowWidth.value
+    const layoutWidth = scrollElementWidth.value || viewportWidth
+    const availableWidth = Math.min(layoutWidth, viewportWidth, 1280) - padding
     const totalGapWidth = (cols.value - 1) * gap
     return Math.round((availableWidth - totalGapWidth) / cols.value)
   })
@@ -141,9 +144,9 @@
     return rows
   })
 
-  const scrollElement = inject(scrollElementKey) as Ref<HTMLElement | null>
-
-  const estimateSize = computed(() => viewLayout.value === 'compact' ? 250 : 300)
+  const estimateSize = computed(() =>
+    itemWidth.value + (viewLayout.value === 'compact' ? 55 : 74),
+  )
 
   const {
     isScrolling,
@@ -157,7 +160,7 @@
     viewLayout,
   })
 
-  watch([artistRows, viewLayout, cols, scrollElement, letterFilter], () => {
+  watch([artistRows, viewLayout, cols, scrollElement, estimateSize, letterFilter], () => {
     remeasure()
   })
 
@@ -256,15 +259,13 @@
       <div
         v-for='{ artists, virtualRow } in virtualRows'
         :key='String(virtualRow.key)'
-        :ref='el => rowVirtualizer.measureElement(el as Element)'
         :data-index='virtualRow.index'
         :style='{
           position: "absolute",
           top: 0,
           left: 0,
           width: "100%",
-          transform: `translateY(${virtualRow.start}px)`,
-          willChange: "transform"
+          transform: `translateY(${virtualRow.start}px)`
         }'
       >
         <div

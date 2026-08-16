@@ -20,10 +20,13 @@
   })
 
   const canvasRef = ref<HTMLCanvasElement | null>(null)
-  const animationFrameId = ref<null | number>(null)
+  let drawFrameId: null | number = null
+  let resizeObserver: null | ResizeObserver = null
+  let themeObserver: null | MutationObserver = null
+  let canvasWidth = 0
+  let canvasHeight = 0
 
   // Performance: Cache accent color and gradients
-  const accentColor = ref<string>('#3b82f6')
   const accentRgb = ref<{ b: number; g: number; r: number; }>({ b: 246, g: 130, r: 59 })
   const gradientBars = ref<CanvasGradient | null>(null)
   const gradientMirrorTop = ref<CanvasGradient | null>(null)
@@ -41,8 +44,6 @@
     const g = parseInt(hex.substr(2, 2), 16)
     const b = parseInt(hex.substr(4, 2), 16)
 
-    accentColor.value = `rgb(${r}, ${g}, ${b})`
-
     // Store RGB values for reuse
     accentRgb.value = { b, g, r }
 
@@ -50,7 +51,7 @@
     if (canvasRef.value) {
       const ctx = canvasRef.value.getContext('2d')
       if (ctx) {
-        const height = canvasRef.value.height
+        const height = canvasHeight || canvasRef.value.clientHeight
         const centerY = height / 2
 
         // For drawBars
@@ -190,101 +191,95 @@
     ctx.stroke()
   }
 
-  const animate = (): void => {
-    if (!canvasRef.value) return
-
+  const draw = (): void => {
+    drawFrameId = null
     const canvas = canvasRef.value
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx || canvasWidth === 0 || canvasHeight === 0) return
 
+    if (!props.isPlaying) {
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+      return
+    }
+
+    switch (props.style) {
+      case 'bars':
+        drawBars(ctx, canvasWidth, canvasHeight)
+        break
+      case 'curve':
+        drawCircular(ctx, canvasWidth, canvasHeight)
+        break
+      case 'wave':
+        drawWave(ctx, canvasWidth, canvasHeight)
+        break
+    }
+  }
+
+  const scheduleDraw = (): void => {
+    if (drawFrameId === null)
+      drawFrameId = requestAnimationFrame(draw)
+  }
+
+  const resizeCanvas = (width: number, height: number): void => {
+    const canvas = canvasRef.value
+    const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx || width <= 0 || height <= 0) return
+
+    canvasWidth = width
+    canvasHeight = height
     const dpr = window.devicePixelRatio || 1
-    const rect = canvas.getBoundingClientRect()
-    if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
-      canvas.width = rect.width * dpr
-      canvas.height = rect.height * dpr
-      ctx.scale(dpr, dpr)
-      updateAccentColor() // Re-create gradients for new canvas size
+    const pixelWidth = Math.round(width * dpr)
+    const pixelHeight = Math.round(height * dpr)
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth
+      canvas.height = pixelHeight
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      updateAccentColor()
     }
-
-    const width = rect.width
-    const height = rect.height
-
-    if (props.isPlaying && props.frequencyData.length > 0) {
-      switch (props.style) {
-        case 'bars':
-          drawBars(ctx, width, height)
-          break
-        case 'curve':
-          drawCircular(ctx, width, height)
-          break
-        case 'wave':
-          drawWave(ctx, width, height)
-          break
-      }
-    } else {
-      ctx.clearRect(0, 0, width, height)
-    }
-
-    animationFrameId.value = requestAnimationFrame(animate)
-  }
-
-  const startAnimation = (): void => {
-    if (animationFrameId.value !== null) return
-    updateAccentColor()
-    animate()
-  }
-
-  const stopAnimation = (): void => {
-    if (animationFrameId.value !== null) {
-      cancelAnimationFrame(animationFrameId.value)
-      animationFrameId.value = null
-    }
-    if (canvasRef.value) {
-      const ctx = canvasRef.value.getContext('2d')
-      if (ctx)
-        ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height)
-    }
-  }
-
-  const handleResize = (): void => {
-    if (canvasRef.value && props.isPlaying) {
-      const canvas = canvasRef.value
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        const dpr = window.devicePixelRatio || 1
-        const rect = canvas.getBoundingClientRect()
-        canvas.width = rect.width * dpr
-        canvas.height = rect.height * dpr
-        ctx.scale(dpr, dpr)
-        updateAccentColor()
-      }
-    }
+    scheduleDraw()
   }
 
   onMounted(() => {
-    startAnimation()
-    window.addEventListener('resize', handleResize)
-    // Watch for theme changes to update accent color
-    const observer = new MutationObserver(updateAccentColor)
-    observer.observe(document.documentElement, {
+    const canvas = canvasRef.value
+    if (!canvas) return
+
+    updateAccentColor()
+    resizeObserver = new ResizeObserver(entries => {
+      const size = entries[0]?.contentRect
+      if (size) resizeCanvas(size.width, size.height)
+    })
+    resizeObserver.observe(canvas)
+
+    themeObserver = new MutationObserver(() => {
+      updateAccentColor()
+      scheduleDraw()
+    })
+    themeObserver.observe(document.documentElement, {
       attributeFilter: ['style', 'class'],
       attributes:      true,
     })
-    onBeforeUnmount(() => observer.disconnect())
+
+    resizeCanvas(canvas.clientWidth, canvas.clientHeight)
   })
 
   onBeforeUnmount(() => {
-    stopAnimation()
-    window.removeEventListener('resize', handleResize)
+    if (drawFrameId !== null)
+      cancelAnimationFrame(drawFrameId)
+    resizeObserver?.disconnect()
+    themeObserver?.disconnect()
   })
 
-  watch(() => props.isPlaying, isPlaying => {
-    if (!isPlaying && canvasRef.value) {
-      const ctx = canvasRef.value.getContext('2d')
-      if (ctx)
-        ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height)
-    }
-  })
+  watch(
+    [
+      () => props.frequencyData,
+      () => props.timeDomainData,
+      () => props.isPlaying,
+      () => props.style,
+      () => props.boost,
+    ],
+    scheduleDraw,
+    { flush: 'post' },
+  )
 </script>
 
 <template>
@@ -292,6 +287,5 @@
     ref='canvasRef'
     aria-hidden='true'
     class='absolute inset-0 w-full h-full pointer-events-none'
-    style='will-change: transform;'
   />
 </template>
