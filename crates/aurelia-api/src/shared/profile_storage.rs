@@ -45,22 +45,6 @@ pub fn profile_storage_key(credentials: &Credentials) -> String {
     format!("{slug}-{checksum:016x}")
 }
 
-fn migrate_legacy_database(base_dir: &Path, profile_dir: &Path) -> Result<(), AppError> {
-    let legacy_db = base_dir.join("aurelia.redb");
-    let profile_db = profile_dir.join("aurelia.redb");
-    if legacy_db.exists() && !profile_db.exists() {
-        std::fs::copy(&legacy_db, &profile_db).map_err(|error| {
-            AppError::FileSystem(format!(
-                "Failed to migrate legacy database from {} to {}: {}",
-                legacy_db.display(),
-                profile_db.display(),
-                error
-            ))
-        })?;
-    }
-    Ok(())
-}
-
 pub fn profile_data_dir(base_dir: &Path, credentials: &Credentials) -> Result<PathBuf, AppError> {
     let profile_dir = base_dir
         .join("profiles")
@@ -72,7 +56,6 @@ pub fn profile_data_dir(base_dir: &Path, credentials: &Credentials) -> Result<Pa
             error
         ))
     })?;
-    migrate_legacy_database(base_dir, &profile_dir)?;
     Ok(profile_dir)
 }
 

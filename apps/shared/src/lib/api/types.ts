@@ -89,7 +89,11 @@ export interface ApiClient {
   audioIsFinished(): Promise<Result<any>>
   audioSetAnalyzerEnabled(enabled: boolean): Promise<Result<any>>
   audioIsAnalyzerEnabled(): Promise<Result<any>>
-  audioReinit(): Promise<Result<any>>}
+  audioReinit(): Promise<Result<any>>
+  mediaUpdateNowPlaying(payload: NowPlayingPayload): Promise<Result<any>>
+  mediaClearNowPlaying(): Promise<Result<any>>
+  mediaSetPlaybackStatus(isPlaying: boolean, positionSecs?: number): Promise<Result<any>>
+  mediaSetButtonEnabled(button: string, enabled: boolean): Promise<Result<any>>}
 
 // Re-export model types from generated
 export * from '../../generated'

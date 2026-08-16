@@ -7,11 +7,18 @@
 
 import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
-import type { Song } from '../lib/api/types'
+import type { NowPlayingPayload, Song } from '../lib/api/types'
 
 import { type AudioPlayer, type AudioPosition, getAudioPlayer } from '../audio'
 import { runAureliaEffect } from '../effect'
-import { getAudioStreamUrlEffect } from '../effect/services/api'
+import {
+  getAudioStreamUrlEffect,
+  mediaClearNowPlayingEffect,
+  mediaSetButtonEnabledEffect,
+  mediaSetPlaybackStatusEffect,
+  mediaUpdateNowPlayingEffect,
+} from '../effect/services/api'
+import { subscribeBackendEvents } from '../lib/backend-events'
 import { logger } from '../lib/logger'
 import { isElectron } from '../lib/platform'
 import { usePlayerStore } from '../stores'
@@ -41,9 +48,14 @@ export const useAudioEngine = (
   // State
   const isGaplessTransition = ref(false)
   const lastTrackEndedId = ref<null | string>(null)
+  let unlistenMediaEvents: (() => void) | undefined
 
   const hasNext = computed(() =>
     playerStore.canGoNext(),
+  )
+
+  const hasPrevious = computed(() =>
+    playerStore.canGoPrevious(),
   )
 
   const nextSongInQueue = computed(() => {
@@ -52,7 +64,14 @@ export const useAudioEngine = (
     return playerStore.playlist[nextIndex] ?? null
   })
 
-  const setupMediaSession = (): void => {
+  const setupMediaSession = (): (() => void) | void => {
+    if (isElectron()) {
+      return subscribeBackendEvents(event => {
+        if (event.type !== 'MediaControl') return
+        handleMediaControl(event.data)
+      })
+    }
+
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
 
     const session = navigator.mediaSession
@@ -75,7 +94,64 @@ export const useAudioEngine = (
     })
   }
 
-  const updateMediaSession = (song: null | Song): void => {
+  const handleMediaControl = (event: string): void => {
+    if (event === 'play') {
+      playerStore.play()
+      return
+    }
+    if (event === 'pause' || event === 'stop') {
+      playerStore.pause()
+      return
+    }
+    if (event === 'toggle') {
+      if (playerStore.isPlaying) playerStore.pause()
+      else playerStore.play()
+      return
+    }
+    if (event === 'next') {
+      nextSong()
+      return
+    }
+    if (event === 'previous') {
+      if (playerStore.canGoPrevious()) playerStore.previousSong()
+      return
+    }
+    if (event.startsWith('seek_delta:')) {
+      const delta = Number(event.slice('seek_delta:'.length))
+      if (Number.isFinite(delta)) {
+        void audioPlayer.seek(Math.max(0, playerStore.currentTime + delta))
+      }
+      return
+    }
+    if (event.startsWith('set_position:')) {
+      const position = Number(event.slice('set_position:'.length))
+      if (Number.isFinite(position)) {
+        void audioPlayer.seek(Math.max(0, position))
+      }
+    }
+  }
+
+  const updateNowPlaying = async (song: null | Song): Promise<void> => {
+    if (isElectron()) {
+      if (!song) {
+        await runAureliaEffect(mediaClearNowPlayingEffect()).catch(() => {})
+        return
+      }
+      const payload: NowPlayingPayload = {
+        album:    song.album ?? null,
+        artist:   song.artists?.join(', ') ?? null,
+        coverUrl: song.albumArtUrl ?? null,
+        duration: song.duration ?? null,
+        title:    song.name,
+      }
+      try {
+        await runAureliaEffect(mediaUpdateNowPlayingEffect(payload))
+      } catch (error) {
+        logger.error('Failed to update Now Playing:', error)
+      }
+      return
+    }
+
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
 
     if (!song) {
@@ -93,8 +169,18 @@ export const useAudioEngine = (
     navigator.mediaSession.playbackState = playerStore.isPlaying ? 'playing' : 'paused'
   }
 
+  const updateMediaButtonStates = async (): Promise<void> => {
+    if (!isElectron()) return
+    const canGoNext = hasNext.value || playerStore.repeatMode === 'all'
+    await Promise.all([
+      runAureliaEffect(mediaSetButtonEnabledEffect('next', canGoNext)),
+      runAureliaEffect(mediaSetButtonEnabledEffect('previous', hasPrevious.value)),
+    ]).catch(() => {})
+  }
+
   // Cleanup on unmount
   onUnmounted(() => {
+    unlistenMediaEvents?.()
     audioPlayer.destroy()
   })
 
@@ -129,6 +215,8 @@ export const useAudioEngine = (
             playerStore.setDuration(upcomingSong.duration || 0)
             playerStore.play()
 
+            await updateNowPlaying(upcomingSong)
+            await updateMediaButtonStates()
             await prepareNextTrack()
           } else {
             logger.debug('[Gapless] advanceGapless failed, falling back to nextSong')
@@ -210,7 +298,7 @@ export const useAudioEngine = (
     if (!song) {
       await audioPlayer.stop()
       playerStore.setAudioReady(false)
-      updateMediaSession(null)
+      await updateNowPlaying(null)
       return
     }
 
@@ -238,8 +326,9 @@ export const useAudioEngine = (
         playerStore.setCurrentTime(0)
         logger.info(`Now playing: ${song.name}`)
 
-        updateMediaSession(song)
+        await updateNowPlaying(song)
         if (isElectron()) {
+          await updateMediaButtonStates()
           await prepareNextTrack()
         } else if (playerStore.isPlaying) {
           await audioPlayer.play()
@@ -348,7 +437,8 @@ export const useAudioEngine = (
       // This callback is intentionally empty - the handler is registered for API completeness
     })
 
-    setupMediaSession()
+    unlistenMediaEvents?.()
+    unlistenMediaEvents = setupMediaSession() || undefined
 
     if (!isElectron() && playerStore.currentSong) {
       playerStore.setAudioReady(true)
@@ -384,8 +474,17 @@ export const useAudioEngine = (
       await audioPlayer.pause()
     }
 
-    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+    if (isElectron()) {
+      void runAureliaEffect(mediaSetPlaybackStatusEffect(isPlaying, playerStore.currentTime))
+        .catch(() => {})
+    } else if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused'
+    }
+  })
+
+  watch([hasNext, hasPrevious, () => playerStore.repeatMode], () => {
+    if (playerStore.currentSong) {
+      void updateMediaButtonStates()
     }
   })
 

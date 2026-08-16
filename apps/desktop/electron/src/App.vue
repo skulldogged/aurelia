@@ -11,7 +11,6 @@
   import LyricsSidebar from '@shared/components/player/LyricsSidebar.vue'
   import MusicPlayer from '@shared/components/player/MusicPlayer.vue'
   import Queue from '@shared/components/player/Queue.vue'
-  import FpsOverlay from '@shared/components/shared/FpsOverlay.vue'
   import GlobalSearch from '@shared/components/shared/GlobalSearch.vue'
   import Button from '@shared/components/ui/Button.vue'
   import {
@@ -468,8 +467,6 @@
     />
 
     <GlobalSearch v-model:open='isSearchOpen' />
-
-    <FpsOverlay />
 
     <!-- Exit Confirmation Dialog -->
     <Dialog v-model:open='showExitDialog'>

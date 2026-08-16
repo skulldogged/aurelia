@@ -1,11 +1,11 @@
-import { type ChildProcess, spawn } from 'child_process'
+import { type ChildProcess, execFileSync, spawn } from 'child_process'
 import { createConnection } from 'net'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
 import { bundleElectron } from './bundle'
 import { resolveBackendCommand } from './resolve-backend'
-import { electronDistDir, resolveElectronBinary } from './resolve-electron'
+import { resolveElectronBinary } from './resolve-electron'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '..')
@@ -48,10 +48,25 @@ const spawnChild = (
     cwd,
     env,
     shell: false,
-    stdio: 'inherit',
+    // Keep stdin on this process so Vite/Electron cannot put the TTY in raw
+    // mode, and leftover children cannot eat keystrokes after Ctrl+C.
+    stdio: ['ignore', 'inherit', 'inherit'],
   })
   children.push(child)
   return child
+}
+
+const killProcessTree = (child: ChildProcess): void => {
+  if (!child.pid) return
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' })
+    } catch {
+      // Process already exited.
+    }
+    return
+  }
+  child.kill('SIGTERM')
 }
 
 const isPortOpen = (port: number): Promise<boolean> => new Promise(resolvePort => {
@@ -65,10 +80,23 @@ const isPortOpen = (port: number): Promise<boolean> => new Promise(resolvePort =
   })
 })
 
-const shutdown = (): void => {
-  for (const child of children) {
-    if (!child.killed) child.kill('SIGTERM')
+let shuttingDown = false
+
+const restoreTty = (): void => {
+  try {
+    if (process.stdin.isTTY) process.stdin.setRawMode(false)
+  } catch {
+    // Console already closed or not a TTY.
   }
+}
+
+const shutdown = (): void => {
+  if (shuttingDown) return
+  shuttingDown = true
+  for (const child of children) {
+    killProcessTree(child)
+  }
+  restoreTty()
 }
 
 process.on('SIGINT', () => {
@@ -117,10 +145,9 @@ await Promise.all([
   waitForPort(BACKEND_PORT, 180000),
 ])
 
-const electronBin = resolveElectronBinary(root)
+const electronBin = resolveElectronBinary()
 const electron = spawnChild(electronBin, ['.'], {
-  ELECTRON_OVERRIDE_DIST_PATH: process.env.ELECTRON_OVERRIDE_DIST_PATH || electronDistDir(electronBin),
-  ELECTRON_RENDERER_URL:       RENDERER_URL,
+  ELECTRON_RENDERER_URL: RENDERER_URL,
 })
 
 electron.on('exit', code => {

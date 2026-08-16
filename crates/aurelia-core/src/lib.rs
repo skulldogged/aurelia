@@ -12,6 +12,8 @@ pub mod utils;
 // Desktop-only modules
 #[cfg(feature = "desktop")]
 pub mod audio;
+#[cfg(feature = "desktop")]
+pub mod media_controls;
 #[cfg(feature = "discord")]
 pub mod discord_rpc;
 
@@ -23,6 +25,9 @@ static TRACING_GUARD: once_cell::sync::OnceCell<tracing_appender::non_blocking::
 #[cfg(feature = "desktop")]
 static AUDIO_STATE: once_cell::sync::Lazy<audio::AudioState> =
     once_cell::sync::Lazy::new(audio::AudioState::new);
+#[cfg(feature = "desktop")]
+static MEDIA_CONTROLS_STATE: once_cell::sync::Lazy<media_controls::MediaControlsState> =
+    once_cell::sync::Lazy::new(media_controls::MediaControlsState::new);
 
 fn ensure_tracing_initialized() {
     TRACING_INIT.call_once(|| {
@@ -685,6 +690,113 @@ pub async fn audio_is_analyzer_enabled_player() -> Result<bool, error::AppError>
 #[cfg(feature = "desktop")]
 pub async fn audio_poll_position_player() -> Option<audio::AudioPositionTick> {
     audio::audio_poll_position(&AUDIO_STATE).await
+}
+
+pub fn media_controls_init(hwnd: Option<u64>) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        let hwnd_ptr = hwnd.map(|raw| raw as usize as *mut std::ffi::c_void);
+        MEDIA_CONTROLS_STATE
+            .init(hwnd_ptr)
+            .map_err(error::AppError::General)?;
+        return Ok(());
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = hwnd;
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+pub fn media_controls_update_now_playing(
+    payload: models::NowPlayingPayload,
+) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        MEDIA_CONTROLS_STATE
+            .update_now_playing(payload)
+            .map_err(error::AppError::General)
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = payload;
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+pub fn media_controls_set_playback_status(
+    is_playing: bool,
+    position_secs: Option<f64>,
+) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        MEDIA_CONTROLS_STATE
+            .set_playback_status(is_playing, position_secs)
+            .map_err(error::AppError::General)
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (is_playing, position_secs);
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+pub fn media_controls_clear_now_playing() -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        MEDIA_CONTROLS_STATE
+            .clear_now_playing()
+            .map_err(error::AppError::General)
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+pub fn media_controls_set_button_enabled(button: String, enabled: bool) -> Result<(), error::AppError> {
+    #[cfg(feature = "desktop")]
+    {
+        MEDIA_CONTROLS_STATE
+            .set_button_enabled(&button, enabled)
+            .map_err(error::AppError::General)
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        let _ = (button, enabled);
+        Err(error::AppError::Config(
+            "Desktop media controls are not enabled".to_string(),
+        ))
+    }
+}
+
+pub fn media_controls_pop_event() -> Option<String> {
+    #[cfg(feature = "desktop")]
+    {
+        let event = MEDIA_CONTROLS_STATE.pop_event()?;
+        Some(match event {
+            media_controls::MediaEvent::Play => "play".to_string(),
+            media_controls::MediaEvent::Pause => "pause".to_string(),
+            media_controls::MediaEvent::Toggle => "toggle".to_string(),
+            media_controls::MediaEvent::Next => "next".to_string(),
+            media_controls::MediaEvent::Previous => "previous".to_string(),
+            media_controls::MediaEvent::Stop => "stop".to_string(),
+            media_controls::MediaEvent::SeekDelta(value) => format!("seek_delta:{value}"),
+            media_controls::MediaEvent::SetPosition(value) => format!("set_position:{value}"),
+        })
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        None
+    }
 }
 
 #[uniffi::export]

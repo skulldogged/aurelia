@@ -37,6 +37,7 @@ enum WsMessage {
     AudioPosition(AudioPositionPayload),
     AudioSpectrum(AudioSpectrumPayload),
     SyncState(aurelia_core::models::SyncStateInfo),
+    MediaControl(String),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -99,6 +100,10 @@ async fn main() -> anyhow::Result<()> {
         ws_tx: ws_tx.clone(),
     });
 
+    if let Err(error) = aurelia_core::media_controls_init(None) {
+        warn!("Failed to initialize OS media controls: {error}");
+    }
+
     spawn_audio_event_loop(ws_tx.clone());
 
     // CORS for development
@@ -152,6 +157,10 @@ fn spawn_audio_event_loop(ws_tx: broadcast::Sender<WsMessage>) {
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(50));
         loop {
             interval.tick().await;
+
+            if let Some(event) = aurelia_core::media_controls_pop_event() {
+                let _ = ws_tx.send(WsMessage::MediaControl(event));
+            }
 
             if let Some(tick) = aurelia_core::audio_poll_position_player().await {
                 let _ = ws_tx.send(WsMessage::AudioPosition(AudioPositionPayload {

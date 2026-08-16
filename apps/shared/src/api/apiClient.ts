@@ -488,4 +488,24 @@ export const apiClient = {
     return webRequest('POST', `/audio/reinit`, undefined, undefined);
   },
 
+  // mediaUpdateNowPlaying
+  mediaUpdateNowPlaying: async (payload: NowPlayingPayload): Promise<Result<any>> => {
+    return webRequest('POST', `/media/update-now-playing`, { payload: payload }, undefined);
+  },
+
+  // mediaClearNowPlaying
+  mediaClearNowPlaying: async (): Promise<Result<any>> => {
+    return webRequest('POST', `/media/clear-now-playing`, undefined, undefined);
+  },
+
+  // mediaSetPlaybackStatus
+  mediaSetPlaybackStatus: async (isPlaying: boolean, positionSecs?: number): Promise<Result<any>> => {
+    return webRequest('POST', `/media/playback-status`, { isPlaying: isPlaying, positionSecs: positionSecs }, undefined);
+  },
+
+  // mediaSetButtonEnabled
+  mediaSetButtonEnabled: async (button: string, enabled: boolean): Promise<Result<any>> => {
+    return webRequest('POST', `/media/button-enabled`, { button: button, enabled: enabled }, undefined);
+  },
+
 };

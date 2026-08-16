@@ -11,6 +11,7 @@ import type {
   LibraryData,
   ListenBrainzCredentials,
   ListenBrainzListen,
+  NowPlayingPayload,
   ParsedLyrics,
   Playlist,
   PlaylistCreateData,
@@ -253,6 +254,26 @@ export const audioPrepareNextEffect = (url: string, token: string): Effect.Effec
 
 export const audioReinitializeEffect = (): Effect.Effect<void, ApiError> =>
   runApiRequest<void>('audioReinit', () => getApiClient().audioReinit())
+
+export const mediaUpdateNowPlayingEffect = (payload: NowPlayingPayload): Effect.Effect<void, ApiError> =>
+  runApiRequest<void>('mediaUpdateNowPlaying', () => getApiClient().mediaUpdateNowPlaying(payload))
+
+export const mediaSetPlaybackStatusEffect = (
+  isPlaying: boolean,
+  positionSecs?: number,
+): Effect.Effect<void, ApiError> =>
+  runApiRequest<void>('mediaSetPlaybackStatus', () =>
+    getApiClient().mediaSetPlaybackStatus(isPlaying, positionSecs),
+  )
+
+export const mediaSetButtonEnabledEffect = (
+  button: string,
+  enabled: boolean,
+): Effect.Effect<void, ApiError> =>
+  runApiRequest<void>('mediaSetButtonEnabled', () => getApiClient().mediaSetButtonEnabled(button, enabled))
+
+export const mediaClearNowPlayingEffect = (): Effect.Effect<void, ApiError> =>
+  runApiRequest<void>('mediaClearNowPlaying', () => getApiClient().mediaClearNowPlaying())
 
 export const audioResetEqEffect = (): Effect.Effect<void, ApiError> =>
   runApiRequest<void>('audioResetEq', () => getApiClient().audioResetEq())

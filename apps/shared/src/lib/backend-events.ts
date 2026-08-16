@@ -13,6 +13,7 @@ export type BackendEvent =
   | { data: AudioPositionEvent; type: 'AudioPosition' }
   | { data: AudioSpectrumEvent; type: 'AudioSpectrum' }
   | { data: unknown; type: 'SyncState' }
+  | { data: string; type: 'MediaControl' }
 
 type BackendEventHandler = (event: BackendEvent) => void
 

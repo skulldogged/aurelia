@@ -376,4 +376,20 @@ pub trait Api {
 
     #[api(POST "/audio/reinit")]
     async fn audio_reinit(&self) -> ApiResult<()>;
+
+    #[api(POST "/media/update-now-playing")]
+    async fn media_update_now_playing(&self, payload: NowPlayingPayload) -> ApiResult<()>;
+
+    #[api(POST "/media/clear-now-playing")]
+    async fn media_clear_now_playing(&self) -> ApiResult<()>;
+
+    #[api(POST "/media/playback-status")]
+    async fn media_set_playback_status(
+        &self,
+        is_playing: bool,
+        position_secs: Option<f64>,
+    ) -> ApiResult<()>;
+
+    #[api(POST "/media/button-enabled")]
+    async fn media_set_button_enabled(&self, button: String, enabled: bool) -> ApiResult<()>;
 }

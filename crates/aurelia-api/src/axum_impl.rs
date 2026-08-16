@@ -6,7 +6,7 @@
 use crate::shared::{lastfm_secret, profile_storage, session_reporting};
 use crate::{
     Album, Api, ApiResult, AppError, Artist, AuthRequest, BackendProvider, Credentials,
-    HomeViewData, LastFmCredentials, LibraryData, Playlist, PlaylistCreateData,
+    HomeViewData, LastFmCredentials, LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData,
     PlaylistUpdateData, ProviderCapabilities, RpcActivity, Song, SyncStateInfo,
 };
 use aurelia_core::discord_rpc::DiscordRpcState;
@@ -783,5 +783,25 @@ impl Api for AxumApiImpl {
 
     async fn audio_reinit(&self) -> ApiResult<()> {
         aurelia_core::audio_reinit_player().await
+    }
+
+    async fn media_update_now_playing(&self, payload: NowPlayingPayload) -> ApiResult<()> {
+        aurelia_core::media_controls_update_now_playing(payload)
+    }
+
+    async fn media_clear_now_playing(&self) -> ApiResult<()> {
+        aurelia_core::media_controls_clear_now_playing()
+    }
+
+    async fn media_set_playback_status(
+        &self,
+        is_playing: bool,
+        position_secs: Option<f64>,
+    ) -> ApiResult<()> {
+        aurelia_core::media_controls_set_playback_status(is_playing, position_secs)
+    }
+
+    async fn media_set_button_enabled(&self, button: String, enabled: bool) -> ApiResult<()> {
+        aurelia_core::media_controls_set_button_enabled(button, enabled)
     }
 }
