@@ -4,7 +4,7 @@ import { ApiError, runAureliaEffect } from '../effect'
 import { clearImageFromCacheEffect, getImageCacheStatsEffect, getImageEffect } from '../effect/services/api'
 import { logger } from '../lib/logger'
 import { LRUCache } from '../lib/lru-cache'
-import { isTauri } from '../lib/platform'
+
 
 // LRU cache for asset URLs with bounded size to prevent memory leaks
 // 2000 entries covers typical browsing patterns while limiting memory usage
@@ -48,14 +48,7 @@ const getImageUrl = async (
     if (!imagePath)
       return null
 
-    // On web, data is already a URL. On desktop, it's a file path that needs conversion.
-    let assetUrl: string
-    if (isTauri()) {
-      const { convertFileSrc } = await import('@tauri-apps/api/core')
-      assetUrl = convertFileSrc(imagePath)
-    } else {
-      assetUrl = imagePath
-    }
+    const assetUrl = imagePath
 
     assetUrlCache.set(cacheKey, assetUrl)
     return assetUrl

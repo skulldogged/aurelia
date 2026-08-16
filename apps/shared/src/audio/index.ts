@@ -1,25 +1,23 @@
 /**
  * Audio Player Factory
  *
- * Creates the appropriate AudioPlayer implementation based on platform.
- * - Desktop (Tauri): RustAudioPlayerImpl
- * - Web/Mobile: WebAudioPlayerImpl
+ * Electron talks to the local Rust audio backend.
+ * The web client uses the browser Web Audio implementation.
  */
 
 import type { AudioPlayer } from './audio-player'
 
-import { isDesktop } from '../lib/platform'
+import { isElectron } from '../lib/platform'
 import { RustAudioPlayerImpl } from './rust-audio-player'
 import { WebAudioPlayerImpl } from './web-audio-player'
 
 let audioPlayerInstance: AudioPlayer | null = null
 
 export const createAudioPlayer = (): AudioPlayer => {
-  if (isDesktop()) {
+  if (isElectron()) {
     return new RustAudioPlayerImpl()
-  } else {
-    return new WebAudioPlayerImpl()
   }
+  return new WebAudioPlayerImpl()
 }
 
 export const getAudioPlayer = (): AudioPlayer => {
@@ -36,7 +34,6 @@ export const resetAudioPlayer = (): void => {
   }
 }
 
-// Re-export types
 export * from './audio-player'
 export { RustAudioPlayerImpl } from './rust-audio-player'
 export { WebAudioPlayerImpl } from './web-audio-player'

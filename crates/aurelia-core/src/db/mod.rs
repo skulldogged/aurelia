@@ -9,90 +9,106 @@ use anyhow::{Result, anyhow};
 use once_cell::sync::Lazy;
 use redb::{Database, ReadOnlyTable, ReadableTable, TableDefinition};
 use serde::de::DeserializeOwned;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info};
 
-#[derive(Clone)]
-struct DatabaseHandle {
-    app_data_dir: PathBuf,
-    db: Arc<Database>,
+struct DatabaseRegistry {
+    current: Option<PathBuf>,
+    dbs: HashMap<PathBuf, Arc<Database>>,
 }
 
-static DB: Lazy<Mutex<Option<DatabaseHandle>>> = Lazy::new(|| Mutex::new(None));
+static DB: Lazy<Mutex<DatabaseRegistry>> = Lazy::new(|| {
+    Mutex::new(DatabaseRegistry {
+        current: None,
+        dbs: HashMap::new(),
+    })
+});
 
 // Table definitions
 const SONGS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("songs");
 const ARTISTS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("artists");
 const ALBUMS_TABLE: TableDefinition<&str, &[u8]> = TableDefinition::new("albums");
 
-pub fn init(app_data_dir: &PathBuf) -> Result<()> {
-    {
-        let guard = DB
-            .lock()
-            .map_err(|_| anyhow!("Failed to lock database handle"))?;
-        if let Some(existing) = guard.as_ref()
-            && existing.app_data_dir == *app_data_dir
-        {
-            debug!("Database already initialized for {:?}, skipping", app_data_dir);
-            return Ok(());
-        }
-    }
+fn lock_registry() -> Result<std::sync::MutexGuard<'static, DatabaseRegistry>> {
+    DB.lock()
+        .map_err(|_| anyhow!("Failed to lock database handle"))
+}
 
+fn create_database(app_data_dir: &PathBuf) -> Result<Arc<Database>> {
     info!("Database path: {:?}", app_data_dir);
-
-    let db_path = app_data_dir.join("aurelia.redb");
-    debug!("Full database path: {:?}", db_path);
 
     std::fs::create_dir_all(app_data_dir)
         .map_err(|e| anyhow!("Failed to create app data directory: {}", e))?;
 
-    let db =
-        Arc::new(Database::create(&db_path).map_err(|e| anyhow!("Failed to create database: {}", e))?);
+    let db_path = app_data_dir.join("aurelia.redb");
+    debug!("Full database path: {:?}", db_path);
 
-    // Initialize all tables
+    let db = Arc::new(
+        Database::create(&db_path).map_err(|e| anyhow!("Failed to create database: {}", e))?,
+    );
+
     let write_txn = db
         .begin_write()
         .map_err(|e| anyhow!("Failed to begin write transaction: {}", e))?;
     {
-        // Primary tables
         let _ = write_txn.open_table(schema::SONGS)?;
         let _ = write_txn.open_table(schema::ARTISTS)?;
         let _ = write_txn.open_table(schema::ALBUMS)?;
         let _ = write_txn.open_table(schema::PLAYLISTS)?;
-
-        // Index tables
         let _ = write_txn.open_table(schema::SONGS_BY_ALBUM)?;
         let _ = write_txn.open_table(schema::SONGS_BY_ARTIST)?;
         let _ = write_txn.open_table(schema::ALBUMS_BY_ARTIST)?;
-
-        // Metadata tables
         let _ = write_txn.open_table(schema::FAVORITES)?;
         let _ = write_txn.open_table(schema::SYNC_STATE)?;
         let _ = write_txn.open_table(schema::CREDENTIALS)?;
+        let _ = write_txn.open_table(schema::SETTINGS)?;
+        let _ = write_txn.open_table(schema::DB_VERSION)?;
     }
     write_txn.commit()?;
 
-    let mut guard = DB
-        .lock()
-        .map_err(|_| anyhow!("Failed to lock database handle"))?;
-    *guard = Some(DatabaseHandle {
-        app_data_dir: app_data_dir.clone(),
-        db,
-    });
-
     info!("Database initialized successfully");
+    Ok(db)
+}
+
+/// Open (or reuse) the database for `app_data_dir`.
+///
+/// Credentials live in the backend's base data dir while library/settings live
+/// in a per-profile subdirectory. Those must stay open at the same time —
+/// redb only allows one handle per file, so we cache handles instead of
+/// closing/reopening when the active path changes.
+pub fn open(app_data_dir: &PathBuf) -> Result<Arc<Database>> {
+    let mut registry = lock_registry()?;
+    if let Some(existing) = registry.dbs.get(app_data_dir) {
+        debug!("Reusing open database for {:?}", app_data_dir);
+        return Ok(existing.clone());
+    }
+
+    let db = create_database(app_data_dir)?;
+    registry.dbs.insert(app_data_dir.clone(), db.clone());
+    Ok(db)
+}
+
+pub fn init(app_data_dir: &PathBuf) -> Result<()> {
+    let db = open(app_data_dir)?;
+    let mut registry = lock_registry()?;
+    registry.current = Some(app_data_dir.clone());
+    registry.dbs.entry(app_data_dir.clone()).or_insert(db);
     Ok(())
 }
 
 pub fn get() -> Result<Arc<Database>> {
-    let guard = DB
-        .lock()
-        .map_err(|_| anyhow!("Failed to lock database handle"))?;
-    guard
-        .as_ref()
-        .map(|handle| handle.db.clone())
-        .ok_or_else(|| anyhow!("Database not initialized"))
+    let registry = lock_registry()?;
+    if let Some(path) = &registry.current
+        && let Some(db) = registry.dbs.get(path)
+    {
+        return Ok(db.clone());
+    }
+    if registry.dbs.len() == 1 {
+        return Ok(registry.dbs.values().next().expect("one db").clone());
+    }
+    Err(anyhow!("Database not initialized"))
 }
 
 // ============================================================================
@@ -236,15 +252,18 @@ pub fn sync_songs_only(songs: &[Song]) -> Result<bool> {
 }
 
 /// Update favorite status for all songs based on a list of favorite IDs
-pub fn update_songs_favorite_status(_app_data_dir: &PathBuf, favorite_ids: &[String]) -> Result<u32> {
+pub fn update_songs_favorite_status(
+    _app_data_dir: &PathBuf,
+    favorite_ids: &[String],
+) -> Result<u32> {
     let db = get()?;
     let songs_repo = crate::db::repositories::SongRepository::new(db);
-    
+
     let all_songs = songs_repo.get_all()?;
     let mut updated_count = 0;
-    
+
     let favorite_set: std::collections::HashSet<_> = favorite_ids.iter().collect();
-    
+
     for song in all_songs {
         let is_favorite = favorite_set.contains(&song.id);
         // Only update if the status is different or was None
@@ -253,7 +272,7 @@ pub fn update_songs_favorite_status(_app_data_dir: &PathBuf, favorite_ids: &[Str
             updated_count += 1;
         }
     }
-    
+
     info!("Updated favorite status for {} songs", updated_count);
     Ok(updated_count)
 }
@@ -296,9 +315,14 @@ pub async fn sync_smart(client: &JellyfinClient, user_id: &str) -> Result<SyncRe
     // Determine sync strategy
     let is_first_sync = state.last_sync_time == "1970-01-01T00:00:00Z";
     let library_empty = state.song_count == 0;
-    
-    tracing::info!("sync_smart: is_first_sync={}, library_empty={}, last_sync_time={}, full_sync_in_progress={}", 
-        is_first_sync, library_empty, state.last_sync_time, state.full_sync_in_progress);
+
+    tracing::info!(
+        "sync_smart: is_first_sync={}, library_empty={}, last_sync_time={}, full_sync_in_progress={}",
+        is_first_sync,
+        library_empty,
+        state.last_sync_time,
+        state.full_sync_in_progress
+    );
 
     // Also do full sync if the library is empty (song_count == 0)
     if state.full_sync_in_progress || is_first_sync || library_empty {
@@ -552,7 +576,7 @@ async fn sync_entity_paginated(
         page_num += 1;
         current_start += page_count;
 
-        // Update UI progress (polled by C# via get_sync_progress)
+        // Update UI progress (polled via get_sync_progress)
         if let Ok(mut p) = SYNC_PROGRESS.lock() {
             *p = SyncProgress::new(
                 entity_type,

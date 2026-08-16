@@ -6,25 +6,22 @@
   } from 'lucide-vue-next'
 
   import { APP_VERSION } from '../../generated'
-  import { getPlatform, isTauri } from '../../lib/platform'
+  import { openExternalUrl } from '../../lib/desktop-shell'
+  import { getPlatform, isDesktop, isElectron } from '../../lib/platform'
   import Button from '../ui/Button.vue'
 
   const appVersion = APP_VERSION
-  const platformInfo = isTauri() ? getPlatform() : 'web'
+  const platformInfo = isDesktop() ? getPlatform() : 'web'
+  const desktopShell = isElectron() ? 'Electron' : 'Web'
 
   const openLink = async (url: string): Promise<void> => {
-    if (isTauri()) {
-      const { openUrl } = await import('@tauri-apps/plugin-opener')
-      await openUrl(url)
-    } else {
-      window.open(url, '_blank', 'noopener,noreferrer')
-    }
+    await openExternalUrl(url)
   }
 
   const techStack = [
     { description: 'Progressive JavaScript framework', name: 'Vue 3' },
     { description: 'Typed superset of JavaScript', name: 'TypeScript' },
-    { description: 'Desktop application framework', name: 'Tauri' },
+    { description: 'Application shell', name: desktopShell },
     { description: 'State management', name: 'Pinia' },
     { description: 'Utility-first CSS framework', name: 'Tailwind CSS' },
     { description: 'UI component library', name: 'shadcn-vue' },

@@ -2,8 +2,7 @@
 //!
 //! This crate provides:
 //! - The `Api` trait definition (single source of truth)
-//! - Runtime implementations for Tauri (desktop) and Axum (web)
-//! - Generated code for both platforms
+//! - Runtime implementation for Axum (web + Electron backend)
 
 // Re-export the macro
 pub use aurelia_api_macros::aurelia_api;
@@ -19,10 +18,6 @@ pub use aurelia_core::{
 // The Api trait with macro annotations
 pub mod traits;
 pub use traits::{Api, ApiResult, RpcActivity};
-
-// Platform-specific implementations
-#[cfg(feature = "desktop")]
-pub mod tauri_impl;
 
 #[cfg(feature = "web")]
 pub mod axum_impl;

@@ -24,7 +24,7 @@
   import { useSwipe } from '../../composables/useSwipe'
   import { Song } from '../../lib/api/types'
   import { logger } from '../../lib/logger'
-  import { getPlatform, isDesktop as isTauriDesktop, Platform } from '../../lib/platform'
+  import { isDesktop } from '../../lib/platform'
   import { formatDuration, getSongFormatInfo } from '../../lib/utils'
   import { PlayerState, usePlayerStore } from '../../stores'
   import ImageLoader from '../shared/ImageLoader.vue'
@@ -121,10 +121,7 @@
   const isNarrowScreen = useMediaQuery('(max-width: 480px)')
 
   // Platform detection
-  const isDesktop = computed(() => isTauriDesktop())
-  const showWindowControls = computed(
-    () => isDesktop.value && getPlatform() !== Platform.MacOS,
-  )
+  const isDesktopApp = computed(() => isDesktop())
 
   // Background image
   const backgroundImageData = ref<null | string>(null)
@@ -247,8 +244,40 @@
     }
   })
 
+  const handleFullscreenKeydown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return
+
+    const target = event.target
+    if (target instanceof HTMLElement) {
+      if (
+        target.isContentEditable
+        || target.closest('input, textarea, select, [role="dialog"]')
+      ) {
+        return
+      }
+    }
+
+    event.preventDefault()
+    emit('close')
+  }
+
+  const syncFullscreenWindowChrome = (open: boolean): void => {
+    document.body.classList.toggle('aurelia-fullscreen-open', open)
+    if (open) {
+      window.addEventListener('keydown', handleFullscreenKeydown)
+      return
+    }
+    window.removeEventListener('keydown', handleFullscreenKeydown)
+  }
+
+  watch(() => props.show, (open, wasOpen) => {
+    if (open === wasOpen) return
+    syncFullscreenWindowChrome(open)
+  }, { immediate: true })
+
   onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside)
+    syncFullscreenWindowChrome(false)
   })
 
   // Panel visibility (synced with props, with delayed unmount for animations)
@@ -297,7 +326,7 @@
       v-if='isVisible'
       :class="[
         'fullscreen-player fixed inset-0 z-50 flex flex-col overflow-hidden',
-        { 'is-mobile': !isDesktop }
+        { 'is-mobile': !isDesktopApp }
       ]"
       :style="{
         '--swipe-offset': `${swipeOffset}px`,
@@ -340,9 +369,8 @@
         @close="$emit('close')"
         @toggle-lyrics="$emit('toggle-lyrics')"
         :has-lyrics='hasLyrics'
-        :is-desktop='isDesktop'
+        :is-desktop='isDesktopApp'
         :show-lyrics='showLyrics'
-        :show-window-controls='showWindowControls'
       />
 
       <!-- Main content area -->

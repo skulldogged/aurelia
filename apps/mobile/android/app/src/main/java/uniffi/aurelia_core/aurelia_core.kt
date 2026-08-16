@@ -647,6 +647,12 @@ internal object IntegrityCheckingUniffiLib {
     }
     external fun uniffi_aurelia_core_checksum_func_add_playlist_items(
     ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_advance_gapless_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_get_all_eq_bands_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_get_eq_band_player(
+    ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_get_position_secs(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_get_spectrum_snapshot_player(
@@ -654,6 +660,10 @@ internal object IntegrityCheckingUniffiLib {
     external fun uniffi_aurelia_core_checksum_func_audio_get_volume_player(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_init_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_is_analyzer_enabled_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_is_eq_enabled_player(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_is_finished_player(
     ): Short
@@ -663,11 +673,21 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_play_url(
     ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_prepare_next_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_reinit_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_reset_eq_player(
+    ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_resume_player(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_seek_player(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_set_analyzer_enabled_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_set_eq_band_player(
+    ): Short
+    external fun uniffi_aurelia_core_checksum_func_audio_set_eq_enabled_player(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_audio_set_volume_player(
     ): Short
@@ -743,16 +763,6 @@ internal object IntegrityCheckingUniffiLib {
     ): Short
     external fun uniffi_aurelia_core_checksum_func_mark_item_played(
     ): Short
-    external fun uniffi_aurelia_core_checksum_func_media_controls_clear_now_playing(
-    ): Short
-    external fun uniffi_aurelia_core_checksum_func_media_controls_init(
-    ): Short
-    external fun uniffi_aurelia_core_checksum_func_media_controls_pop_event(
-    ): Short
-    external fun uniffi_aurelia_core_checksum_func_media_controls_set_playback_status(
-    ): Short
-    external fun uniffi_aurelia_core_checksum_func_media_controls_update_now_playing(
-    ): Short
     external fun uniffi_aurelia_core_checksum_func_ping(
     ): Short
     external fun uniffi_aurelia_core_checksum_func_remove_playlist_items(
@@ -789,6 +799,12 @@ internal object UniffiLib {
     }
     external fun uniffi_aurelia_core_fn_func_add_playlist_items(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,`itemIds`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_aurelia_core_fn_func_audio_advance_gapless_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_get_all_eq_bands_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_get_eq_band_player(`band`: Int,
+): Long
 external fun uniffi_aurelia_core_fn_func_audio_get_position_secs(
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_get_spectrum_snapshot_player(uniffi_out_err: UniffiRustCallStatus, 
@@ -796,6 +812,10 @@ external fun uniffi_aurelia_core_fn_func_audio_get_spectrum_snapshot_player(unif
 external fun uniffi_aurelia_core_fn_func_audio_get_volume_player(
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_init_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_is_analyzer_enabled_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_is_eq_enabled_player(
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_is_finished_player(
 ): Long
@@ -805,11 +825,21 @@ external fun uniffi_aurelia_core_fn_func_audio_pause_player(
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_play_url(`url`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`startTimeSecs`: RustBuffer.ByValue,
 ): Long
+external fun uniffi_aurelia_core_fn_func_audio_prepare_next_player(`url`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_reinit_player(
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_reset_eq_player(
+): Long
 external fun uniffi_aurelia_core_fn_func_audio_resume_player(
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_seek_player(`positionSecs`: Double,
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_set_analyzer_enabled_player(`enabled`: Byte,
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_set_eq_band_player(`band`: Int,`gainDb`: Double,
+): Long
+external fun uniffi_aurelia_core_fn_func_audio_set_eq_enabled_player(`enabled`: Byte,
 ): Long
 external fun uniffi_aurelia_core_fn_func_audio_set_volume_player(`volume`: Double,
 ): Long
@@ -885,16 +915,6 @@ external fun uniffi_aurelia_core_fn_func_load_setting(`appDataDir`: RustBuffer.B
 ): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_mark_item_played(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`userId`: RustBuffer.ByValue,`itemId`: RustBuffer.ByValue,
 ): Long
-external fun uniffi_aurelia_core_fn_func_media_controls_clear_now_playing(uniffi_out_err: UniffiRustCallStatus, 
-): Unit
-external fun uniffi_aurelia_core_fn_func_media_controls_init(`hwnd`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-): Unit
-external fun uniffi_aurelia_core_fn_func_media_controls_pop_event(uniffi_out_err: UniffiRustCallStatus, 
-): RustBuffer.ByValue
-external fun uniffi_aurelia_core_fn_func_media_controls_set_playback_status(`isPlaying`: Byte,`positionSecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-): Unit
-external fun uniffi_aurelia_core_fn_func_media_controls_update_now_playing(`title`: RustBuffer.ByValue,`artist`: RustBuffer.ByValue,`album`: RustBuffer.ByValue,`durationSecs`: RustBuffer.ByValue,`coverUrl`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-): Unit
 external fun uniffi_aurelia_core_fn_func_ping(uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 external fun uniffi_aurelia_core_fn_func_remove_playlist_items(`serverUrl`: RustBuffer.ByValue,`token`: RustBuffer.ByValue,`playlistId`: RustBuffer.ByValue,`itemIds`: RustBuffer.ByValue,
@@ -1037,6 +1057,15 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_add_playlist_items() != 46373.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_advance_gapless_player() != 51404.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_get_all_eq_bands_player() != 59378.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_get_eq_band_player() != 7835.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_audio_get_position_secs() != 52501.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1047,6 +1076,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_audio_init_player() != 29341.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_is_analyzer_enabled_player() != 32225.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_is_eq_enabled_player() != 47576.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_audio_is_finished_player() != 33404.toShort()) {
@@ -1061,6 +1096,15 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_aurelia_core_checksum_func_audio_play_url() != 50783.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_prepare_next_player() != 36463.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_reinit_player() != 30605.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_reset_eq_player() != 40910.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aurelia_core_checksum_func_audio_resume_player() != 35269.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1068,6 +1112,12 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_audio_set_analyzer_enabled_player() != 3796.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_set_eq_band_player() != 14180.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aurelia_core_checksum_func_audio_set_eq_enabled_player() != 59455.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_audio_set_volume_player() != 9428.toShort()) {
@@ -1179,21 +1229,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_mark_item_played() != 53251.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_aurelia_core_checksum_func_media_controls_clear_now_playing() != 25211.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_aurelia_core_checksum_func_media_controls_init() != 10081.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_aurelia_core_checksum_func_media_controls_pop_event() != 15134.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_aurelia_core_checksum_func_media_controls_set_playback_status() != 64605.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_aurelia_core_checksum_func_media_controls_update_now_playing() != 39691.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aurelia_core_checksum_func_ping() != 25925.toShort()) {
@@ -3584,38 +3619,6 @@ public object FfiConverterOptionalInt: FfiConverterRustBuffer<kotlin.Int?> {
 /**
  * @suppress
  */
-public object FfiConverterOptionalULong: FfiConverterRustBuffer<kotlin.ULong?> {
-    override fun read(buf: ByteBuffer): kotlin.ULong? {
-        if (buf.get().toInt() == 0) {
-            return null
-        }
-        return FfiConverterULong.read(buf)
-    }
-
-    override fun allocationSize(value: kotlin.ULong?): ULong {
-        if (value == null) {
-            return 1UL
-        } else {
-            return 1UL + FfiConverterULong.allocationSize(value)
-        }
-    }
-
-    override fun write(value: kotlin.ULong?, buf: ByteBuffer) {
-        if (value == null) {
-            buf.put(0)
-        } else {
-            buf.put(1)
-            FfiConverterULong.write(value, buf)
-        }
-    }
-}
-
-
-
-
-/**
- * @suppress
- */
 public object FfiConverterOptionalLong: FfiConverterRustBuffer<kotlin.Long?> {
     override fun read(buf: ByteBuffer): kotlin.Long? {
         if (buf.get().toInt() == 0) {
@@ -4064,6 +4067,34 @@ public object FfiConverterOptionalMapStringMapStringString: FfiConverterRustBuff
 /**
  * @suppress
  */
+public object FfiConverterSequenceDouble: FfiConverterRustBuffer<List<kotlin.Double>> {
+    override fun read(buf: ByteBuffer): List<kotlin.Double> {
+        val len = buf.getInt()
+        return List<kotlin.Double>(len) {
+            FfiConverterDouble.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<kotlin.Double>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterDouble.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<kotlin.Double>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterDouble.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.String>> {
     override fun read(buf: ByteBuffer): List<kotlin.String> {
         val len = buf.getInt()
@@ -4331,6 +4362,52 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
 
     @Throws(AppException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioAdvanceGaplessPlayer`() {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_advance_gapless_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioGetAllEqBandsPlayer`() : List<kotlin.Double> {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_get_all_eq_bands_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_rust_buffer(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_rust_buffer(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_rust_buffer(future) },
+        // lift function
+        { FfiConverterSequenceDouble.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioGetEqBandPlayer`(`band`: kotlin.UInt) : kotlin.Double {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_get_eq_band_player(FfiConverterUInt.lower(`band`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_f64(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_f64(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_f64(future) },
+        // lift function
+        { FfiConverterDouble.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
      suspend fun `audioGetPositionSecs`() : kotlin.Double {
         return uniffiRustCallAsync(
         UniffiLib.uniffi_aurelia_core_fn_func_audio_get_position_secs(),
@@ -4381,6 +4458,36 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
         // lift function
         { Unit },
         
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioIsAnalyzerEnabledPlayer`() : kotlin.Boolean {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_is_analyzer_enabled_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_i8(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_i8(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_i8(future) },
+        // lift function
+        { FfiConverterBoolean.lift(it) },
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioIsEqEnabledPlayer`() : kotlin.Boolean {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_is_eq_enabled_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_i8(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_i8(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_i8(future) },
+        // lift function
+        { FfiConverterBoolean.lift(it) },
         // Error FFI converter
         AppException.ErrorHandler,
     )
@@ -4450,6 +4557,54 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
 
     @Throws(AppException::class)
     @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioPrepareNextPlayer`(`url`: kotlin.String, `token`: kotlin.String) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_prepare_next_player(FfiConverterString.lower(`url`),FfiConverterString.lower(`token`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioReinitPlayer`() {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_reinit_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioResetEqPlayer`() {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_reset_eq_player(),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
      suspend fun `audioResumePlayer`() {
         return uniffiRustCallAsync(
         UniffiLib.uniffi_aurelia_core_fn_func_audio_resume_player(),
@@ -4485,6 +4640,38 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
      suspend fun `audioSetAnalyzerEnabledPlayer`(`enabled`: kotlin.Boolean) {
         return uniffiRustCallAsync(
         UniffiLib.uniffi_aurelia_core_fn_func_audio_set_analyzer_enabled_player(FfiConverterBoolean.lower(`enabled`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioSetEqBandPlayer`(`band`: kotlin.UInt, `gainDb`: kotlin.Double) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_set_eq_band_player(FfiConverterUInt.lower(`band`),FfiConverterDouble.lower(`gainDb`),),
+        { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
+        { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
+        { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
+        // lift function
+        { Unit },
+        
+        // Error FFI converter
+        AppException.ErrorHandler,
+    )
+    }
+
+    @Throws(AppException::class)
+    @Suppress("ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE")
+     suspend fun `audioSetEqEnabledPlayer`(`enabled`: kotlin.Boolean) {
+        return uniffiRustCallAsync(
+        UniffiLib.uniffi_aurelia_core_fn_func_audio_set_eq_enabled_player(FfiConverterBoolean.lower(`enabled`),),
         { future, callback, continuation -> UniffiLib.ffi_aurelia_core_rust_future_poll_void(future, callback, continuation) },
         { future, continuation -> UniffiLib.ffi_aurelia_core_rust_future_complete_void(future, continuation) },
         { future -> UniffiLib.ffi_aurelia_core_rust_future_free_void(future) },
@@ -5000,56 +5187,6 @@ public object FfiConverterMapStringMapStringString: FfiConverterRustBuffer<Map<k
         AppException.ErrorHandler,
     )
     }
-
-    @Throws(AppException::class) fun `mediaControlsClearNowPlaying`()
-        = 
-    uniffiRustCallWithError(AppException) { _status ->
-    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_clear_now_playing(
-    
-        _status)
-}
-    
-    
-
-    @Throws(AppException::class) fun `mediaControlsInit`(`hwnd`: kotlin.ULong?)
-        = 
-    uniffiRustCallWithError(AppException) { _status ->
-    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_init(
-    
-        FfiConverterOptionalULong.lower(`hwnd`),_status)
-}
-    
-    
- fun `mediaControlsPopEvent`(): kotlin.String? {
-            return FfiConverterOptionalString.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_pop_event(
-    
-        _status)
-}
-    )
-    }
-    
-
-    @Throws(AppException::class) fun `mediaControlsSetPlaybackStatus`(`isPlaying`: kotlin.Boolean, `positionSecs`: kotlin.Double?)
-        = 
-    uniffiRustCallWithError(AppException) { _status ->
-    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_set_playback_status(
-    
-        FfiConverterBoolean.lower(`isPlaying`),FfiConverterOptionalDouble.lower(`positionSecs`),_status)
-}
-    
-    
-
-    @Throws(AppException::class) fun `mediaControlsUpdateNowPlaying`(`title`: kotlin.String, `artist`: kotlin.String?, `album`: kotlin.String?, `durationSecs`: kotlin.Double?, `coverUrl`: kotlin.String?)
-        = 
-    uniffiRustCallWithError(AppException) { _status ->
-    UniffiLib.uniffi_aurelia_core_fn_func_media_controls_update_now_playing(
-    
-        FfiConverterString.lower(`title`),FfiConverterOptionalString.lower(`artist`),FfiConverterOptionalString.lower(`album`),FfiConverterOptionalDouble.lower(`durationSecs`),FfiConverterOptionalString.lower(`coverUrl`),_status)
-}
-    
-    
  fun `ping`(): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->

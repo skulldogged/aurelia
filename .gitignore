@@ -3,6 +3,7 @@ node_modules/
 
 # Build outputs
 dist/
+dist-electron/
 dist-ssr/
 build/
 target/
@@ -17,6 +18,7 @@ target/
 .envrc
 .direnv/
 .cache/
+.tmp/
 
 # OS
 .DS_Store
@@ -65,16 +67,8 @@ apps/mobile/ios/AureliaCore/Sources/aurelia_core.swift
 apps/mobile/ios/AureliaCore/Sources/aurelia_coreFFI.h
 apps/mobile/ios/AureliaCore/Sources/aurelia_coreFFI.modulemap
 
-# Tauri generated schemas
-apps/desktop/tauri/src-tauri/gen/schemas/
-
-# Legacy root-level Tauri workspace artifacts (deprecated)
-src-tauri/gen/schemas/
-
-# Windows (WinUI 3) build artifacts
-apps/windows/**/bin/
-apps/windows/**/obj/
-apps/windows/**/.vs/
+# Local redesign mockups
+docs/redesign/
 
 # START Ruler Generated Files
 /.agents/skills

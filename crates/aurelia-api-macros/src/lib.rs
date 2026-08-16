@@ -3,14 +3,12 @@
 //! This crate provides procedural macros for generating API implementations
 //! from a single trait definition. It generates:
 //!
-//! - Tauri command handlers (desktop)
-//! - Axum router (web)
-//! - TypeScript client (both)
+//! - Axum router (web + Electron backend)
+//! - TypeScript client
 
 use proc_macro::TokenStream;
 
 mod gen_axum;
-mod gen_tauri;
 mod gen_typescript;
 mod ir;
 mod parse;
@@ -31,15 +29,12 @@ mod parse;
 ///     #[api(GET "/songs/{song_id}")]
 ///     async fn get_song(&self, song_id: String) -> Result<Song, AppError>;
 ///
-///     #[api(POST "/audio/play", desktop_only)]
-///     async fn audio_play(&self) -> Result<(), AppError>;
 /// }
 /// ```
 ///
 /// This generates:
-/// - `tauri_commands` module with Tauri command handlers
 /// - `axum_routes` module with Axum router
-/// - TypeScript definitions as a const string
+/// - TypeScript client + types files
 #[proc_macro_attribute]
 pub fn aurelia_api(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::ItemTrait);
@@ -64,10 +59,7 @@ fn expand_aurelia_api(mut input: syn::ItemTrait) -> syn::Result<proc_macro2::Tok
     // Generate the original trait (with attributes stripped)
     let original_trait = quote::quote! { #input };
 
-    // Generate Tauri commands (desktop)
-    let tauri_impl = gen_tauri::generate(&api_def)?;
-
-    // Generate Axum routes (web)
+    // Generate Axum routes (web + Electron backend)
     let axum_impl = gen_axum::generate(&api_def)?;
 
     // Generate TypeScript and write to file immediately
@@ -99,8 +91,6 @@ fn expand_aurelia_api(mut input: syn::ItemTrait) -> syn::Result<proc_macro2::Tok
 
     Ok(quote::quote! {
         #original_trait
-
-        #tauri_impl
 
         #axum_impl
     })

@@ -1,8 +1,9 @@
 import { useLocalStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
-import { computed, watch } from 'vue'
+import { computed, nextTick, watch } from 'vue'
 
 import { COLOR_SCHEMES } from '../lib/colorSchemes'
+import { syncDesktopTitleBarOverlay } from '../lib/desktop-shell'
 
 export const useThemeStore = defineStore('theme', () => {
   // Determine default theme based on system preference if no saved preference exists
@@ -65,6 +66,9 @@ export const useThemeStore = defineStore('theme', () => {
         root.style.setProperty('--success', colors.success)
         root.style.setProperty('--sidebar', colors.sidebar)
         root.style.setProperty('--font-family', '"Rubik", sans-serif')
+        void nextTick(() => {
+          syncDesktopTitleBarOverlay()
+        })
       }
     },
     { deep: true, immediate: true },

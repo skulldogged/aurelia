@@ -15,7 +15,7 @@ const FAST_BUILD = args.includes('--fast')
 const IS_MACOS = process.platform === 'darwin'
 
 const ROOT = resolve(import.meta.dirname, '..')
-const TAURI_DESKTOP_DIR = join(ROOT, 'apps/desktop/tauri')
+const ELECTRON_DESKTOP_DIR = join(ROOT, 'apps/desktop/electron')
 const BINDINGS_STATE_FILE = join(ROOT, 'target/.aurelia/bindings-state.json')
 const BINDINGS_INPUT_DIRS = [
   join(ROOT, 'crates/aurelia-api'),
@@ -27,7 +27,6 @@ const BINDINGS_INPUT_FILES = [
   join(ROOT, 'Cargo.toml'),
   join(ROOT, 'Cargo.lock'),
   join(ROOT, 'apps/web/backend/Cargo.toml'),
-  join(ROOT, 'apps/desktop/tauri/src-tauri/Cargo.toml'),
 ]
 const BINDINGS_OUTPUTS = [
   join(ROOT, 'apps/shared/src/generated/index.ts'),
@@ -234,7 +233,7 @@ const devWeb = async (): Promise<void> => {
 
 const devDesktop = async (): Promise<void> => {
   await bindings()
-  await run('bun', ['run', 'tauri', 'dev'], { cwd: TAURI_DESKTOP_DIR })
+  await run('bun', ['run', 'dev'], { cwd: ELECTRON_DESKTOP_DIR })
 }
 
 const devAndroid = async (): Promise<void> => {
@@ -276,12 +275,21 @@ const buildWeb = async (): Promise<void> => {
 
 const buildDesktop = async (): Promise<void> => {
   await bindings()
-  if (FAST_BUILD) {
-    await run('bun', ['run', 'tauri', 'build', '--', '--profile', 'local-release'], { cwd: TAURI_DESKTOP_DIR })
-    return
-  }
-
-  await run('bun', ['run', 'tauri', 'build'], { cwd: TAURI_DESKTOP_DIR })
+  await runConcurrent([
+    {
+      args: ['run', 'build'],
+      cmd:  'bun',
+      cwd:  ELECTRON_DESKTOP_DIR,
+      name: 'electron frontend build',
+    },
+    {
+      args: ['build', '-p', 'aurelia-web-backend', ...rustBuildProfileArgs()],
+      cmd:  'cargo',
+      cwd:  ROOT,
+      name: 'backend build',
+    },
+  ])
+  console.log('Desktop build complete: apps/desktop/electron/dist/ + target/{debug,release}/aurelia-web-backend')
 }
 
 const buildAndroid = async (): Promise<void> => {
@@ -327,7 +335,7 @@ const typecheckWeb = async (): Promise<void> => {
 }
 
 const typecheckDesktop = async (): Promise<void> => {
-  await run('bun', ['run', 'typecheck'], { cwd: join(ROOT, 'apps/desktop/tauri') })
+  await run('bun', ['run', 'typecheck'], { cwd: ELECTRON_DESKTOP_DIR })
 }
 
 const commands: Record<string, Record<string, () => Promise<void>>> = {
@@ -399,7 +407,7 @@ Commands:
 
 Platforms:
   web         Web frontend + backend
-  desktop     Desktop (Tauri)
+  desktop     Desktop (Electron + local Rust backend)
   android     Android app
   ios         iOS app (requires macOS)
   all         All platforms

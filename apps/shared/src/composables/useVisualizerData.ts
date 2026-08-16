@@ -1,22 +1,17 @@
 /**
  * Composable for audio visualizer data
  *
- * Provides real-time spectrum and waveform data.
- * - Desktop: Uses Tauri events from Rust FFT analysis
- * - Web: Uses Web Audio API AnalyserNode
+ * Electron uses FFT snapshots from the Rust backend over WebSocket.
+ * The web client uses the browser AnalyserNode.
  */
-import { onUnmounted, ref, type Ref, watch } from 'vue'
+import { onUnmounted, ref, type Ref } from 'vue'
 
 import { getAudioPlayer } from '../audio'
 import { runAureliaEffect } from '../effect'
 import { audioSetAnalyzerEnabledEffect } from '../effect/services/api'
+import { subscribeBackendEvents } from '../lib/backend-events'
 import { logger } from '../lib/logger'
-import { isDesktop } from '../lib/platform'
-
-interface SpectrumEvent {
-  frequencyData:  number[]
-  timeDomainData: number[]
-}
+import { isElectron } from '../lib/platform'
 
 interface UseVisualizerDataReturn {
   /** Raw frequency data from FFT (0-255 per bin, 128 bins) */
@@ -61,6 +56,7 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
 
   // Animation frame ID (web)
   let animationFrameId: null | number = null
+  let analyserRetryId: null | ReturnType<typeof setInterval> = null
 
   /**
    * Apply temporal smoothing to spectrum data.
@@ -103,67 +99,83 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
   }
 
   /**
-   * Desktop: Setup event listener for spectrum data from Rust.
+   * Electron: listen for FFT snapshots from the local Rust backend.
    */
-  const setupDesktopEventListener = async (): Promise<void> => {
-    // Clean up existing listener
+  const setupDesktopEventListener = (): void => {
     if (eventUnlisten) {
       eventUnlisten()
       eventUnlisten = null
     }
 
-    const { listen } = await import('@tauri-apps/api/event')
-    eventUnlisten = await listen<SpectrumEvent>('audio:spectrum', event => {
-      const { frequencyData: freqData, timeDomainData: timeData } = event.payload
-
-      // Apply smoothing and update reactive refs
-      applySmoothingAndUpdate(new Uint8Array(freqData), new Uint8Array(timeData))
+    eventUnlisten = subscribeBackendEvents(event => {
+      if (event.type !== 'AudioSpectrum') return
+      applySmoothingAndUpdate(
+        new Uint8Array(event.data.frequencyData),
+        new Uint8Array(event.data.timeDomainData),
+      )
     })
 
-    logger.debug('Spectrum event listener registered (desktop)')
+    logger.debug('Spectrum event listener registered (electron)')
   }
 
   /**
    * Web: Setup Web Audio API analyzer polling
    */
+  const clearAnalyserRetry = (): void => {
+    if (analyserRetryId === null) return
+    clearInterval(analyserRetryId)
+    analyserRetryId = null
+  }
+
   const setupWebAnalyzer = (): void => {
-    const audioPlayer = getAudioPlayer()
-    const analyserNode = audioPlayer.getAnalyserNode()
+    const attach = (): boolean => {
+      const audioPlayer = getAudioPlayer()
+      const analyserNode = audioPlayer.getAnalyserNode()
 
-    if (!analyserNode) {
-      logger.warn('Web Audio analyzer node not available')
-      return
-    }
+      if (!analyserNode) return false
 
-    // Configure analyzer to match expected format
-    analyserNode.fftSize = FFT_SIZE
-    analyserNode.smoothingTimeConstant = 0.8
+      analyserNode.fftSize = FFT_SIZE
+      analyserNode.smoothingTimeConstant = 0.8
 
-    const frequencyBuffer = new Uint8Array(analyserNode.frequencyBinCount)
-    const timeDomainBuffer = new Uint8Array(analyserNode.fftSize)
+      const frequencyBuffer = new Uint8Array(analyserNode.frequencyBinCount)
+      const timeDomainBuffer = new Uint8Array(analyserNode.fftSize)
 
-    const update = (): void => {
-      if (!isEnabled.value) return
+      const update = (): void => {
+        if (!isEnabled.value) return
 
-      analyserNode.getByteFrequencyData(frequencyBuffer)
-      analyserNode.getByteTimeDomainData(timeDomainBuffer)
+        analyserNode.getByteFrequencyData(frequencyBuffer)
+        analyserNode.getByteTimeDomainData(timeDomainBuffer)
 
-      applySmoothingAndUpdate(frequencyBuffer, timeDomainBuffer)
+        applySmoothingAndUpdate(frequencyBuffer, timeDomainBuffer)
+
+        animationFrameId = requestAnimationFrame(update)
+      }
 
       animationFrameId = requestAnimationFrame(update)
+      logger.debug('Web Audio analyzer started')
+      return true
     }
 
-    animationFrameId = requestAnimationFrame(update)
-    logger.debug('Web Audio analyzer started')
+    if (attach()) return
+
+    logger.debug('Web Audio analyzer node not ready yet, retrying')
+    clearAnalyserRetry()
+    analyserRetryId = setInterval(() => {
+      if (!isEnabled.value) {
+        clearAnalyserRetry()
+        return
+      }
+      if (attach()) clearAnalyserRetry()
+    }, 200)
   }
 
   /**
    * Start the data source based on platform
    */
   const startDataSource = async (): Promise<void> => {
-    if (isDesktop()) {
+    if (isElectron()) {
       if (!eventUnlisten) {
-        await setupDesktopEventListener()
+        setupDesktopEventListener()
       }
     } else {
       setupWebAnalyzer()
@@ -181,6 +193,7 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
     }
 
     // Web cleanup
+    clearAnalyserRetry()
     if (animationFrameId !== null) {
       cancelAnimationFrame(animationFrameId)
       animationFrameId = null
@@ -199,7 +212,7 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
       logger.debug(`setEnabled called: enabled=${enabled}`)
 
       // For desktop, notify backend
-      if (isDesktop())
+      if (isElectron())
         await runAureliaEffect(audioSetAnalyzerEnabledEffect(enabled))
 
       isEnabled.value = enabled
@@ -216,18 +229,11 @@ export const useVisualizerData = (): UseVisualizerDataReturn => {
     }
   }
 
-  // Auto-cleanup listener based on enabled state
-  watch(isEnabled, async enabled => {
-    if (enabled) {
-      await startDataSource()
-    }
-  })
-
   // Cleanup on unmount
   onUnmounted(() => {
     stopDataSource()
     // Disable analyzer when component unmounts to save CPU
-    if (isDesktop()) {
+    if (isElectron()) {
       runAureliaEffect(audioSetAnalyzerEnabledEffect(false)).catch(() => {})
     }
   })

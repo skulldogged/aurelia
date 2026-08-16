@@ -32,6 +32,7 @@ export class WebAudioPlayerImpl implements AudioPlayer {
   private mediaElement:      HTMLAudioElement | null = null
 
   private mediaSource:       MediaElementAudioSourceNode | null = null
+  private pendingEqBands:    number[] = DEFAULT_EQ_BANDS.map(band => band.gain)
   private pendingVolume:     number = 1.0
   // Event callbacks
   private positionCallbacks: AudioEventCallback[] = []
@@ -159,6 +160,11 @@ export class WebAudioPlayerImpl implements AudioPlayer {
             window.AudioContext ||
             (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext
           this.audioContext = new AudioContextClass()
+          this.gainNode = this.audioContext.createGain()
+          this.analyserNode = this.audioContext.createAnalyser()
+          this.analyserNode.fftSize = 256
+          this.gainNode.gain.value = this.pendingVolume
+          this.initializeEQ()
           logger.debug('WebAudio API initialized (context created)')
         }
         resolve(true)
@@ -220,9 +226,9 @@ export class WebAudioPlayerImpl implements AudioPlayer {
 
         if (!this.mediaSource) {
           this.mediaSource = this.audioContext.createMediaElementSource(this.mediaElement)
-          this.gainNode = this.audioContext.createGain()
-          this.analyserNode = this.audioContext.createAnalyser()
-          this.initializeEQ()
+          if (!this.gainNode) this.gainNode = this.audioContext.createGain()
+          if (!this.analyserNode) this.analyserNode = this.audioContext.createAnalyser()
+          if (this.eqNodes.length === 0) this.initializeEQ()
 
           const playerStore = usePlayerStore()
           this.eqEnabled = playerStore.eqEnabled
@@ -325,7 +331,9 @@ export class WebAudioPlayerImpl implements AudioPlayer {
     return new Promise(resolve => {
       try {
         if (!this.mediaElement) {
-          throw new Error('Audio not loaded')
+          logger.debug('Play ignored: audio not loaded yet')
+          resolve(false)
+          return
         }
 
         if (this.audioContext?.state === 'suspended') {
@@ -408,13 +416,21 @@ export class WebAudioPlayerImpl implements AudioPlayer {
   setEQBand(bandIndex: number, gainDb: number): Promise<boolean> {
     return new Promise(resolve => {
       try {
-        if (bandIndex < 0 || bandIndex >= this.eqNodes.length) {
+        if (bandIndex < 0 || bandIndex >= DEFAULT_EQ_BANDS.length) {
           logger.error(`Invalid EQ band index: ${bandIndex}`)
           resolve(false)
           return
         }
 
         const clampedGain = Math.max(-20, Math.min(20, gainDb))
+        this.pendingEqBands[bandIndex] = clampedGain
+
+        if (this.eqNodes.length === 0) {
+          logger.debug(`EQ band ${bandIndex} stored for later: ${clampedGain}`)
+          resolve(true)
+          return
+        }
+
         this.eqNodes[bandIndex].gain.value = clampedGain
 
         const playerStore = usePlayerStore()
@@ -507,11 +523,11 @@ export class WebAudioPlayerImpl implements AudioPlayer {
       this.eqNodes.forEach(node => node.disconnect())
       this.eqNodes = []
 
-      this.eqNodes = DEFAULT_EQ_BANDS.map(band => {
+      this.eqNodes = DEFAULT_EQ_BANDS.map((band, index) => {
         const filter = this.audioContext!.createBiquadFilter()
         filter.type = band.type as BiquadFilterType
         filter.frequency.value = band.frequency
-        filter.gain.value = band.gain
+        filter.gain.value = this.pendingEqBands[index] ?? band.gain
         filter.Q.value = band.Q
         return filter
       })

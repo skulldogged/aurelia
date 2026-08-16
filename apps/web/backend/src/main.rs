@@ -19,6 +19,7 @@ use tracing::{info, warn};
 use aurelia_api::Api;
 use aurelia_api::axum_impl::{AppState, AxumApiImpl};
 use aurelia_api::traits::axum_routes::build_router;
+use aurelia_core::discord_rpc::DiscordRpcState;
 use aurelia_core::lastfm_core::LastFmState;
 use aurelia_core::listenbrainz_core::ListenBrainzState;
 
@@ -33,7 +34,24 @@ struct ServerState {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", content = "data")]
 enum WsMessage {
+    AudioPosition(AudioPositionPayload),
+    AudioSpectrum(AudioSpectrumPayload),
     SyncState(aurelia_core::models::SyncStateInfo),
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioPositionPayload {
+    did_auto_advance: bool,
+    is_finished: bool,
+    position: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioSpectrumPayload {
+    frequency_data: Vec<u8>,
+    time_domain_data: Vec<u8>,
 }
 
 #[tokio::main]
@@ -71,6 +89,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app_state = Arc::new(AppState {
         app_data_dir: app_data_dir.clone(),
+        discord_rpc_state: Arc::new(DiscordRpcState::new()),
         listenbrainz_state: Arc::new(ListenBrainzState::new()),
         lastfm_state: Arc::new(LastFmState::new()),
     });
@@ -79,6 +98,8 @@ async fn main() -> anyhow::Result<()> {
         app_state: app_state.clone(),
         ws_tx: ws_tx.clone(),
     });
+
+    spawn_audio_event_loop(ws_tx.clone());
 
     // CORS for development
     let cors = CorsLayer::new()
@@ -124,6 +145,34 @@ async fn main() -> anyhow::Result<()> {
         .context("axum server terminated with error")?;
 
     Ok(())
+}
+
+fn spawn_audio_event_loop(ws_tx: broadcast::Sender<WsMessage>) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(50));
+        loop {
+            interval.tick().await;
+
+            if let Some(tick) = aurelia_core::audio_poll_position_player().await {
+                let _ = ws_tx.send(WsMessage::AudioPosition(AudioPositionPayload {
+                    did_auto_advance: tick.did_auto_advance,
+                    is_finished: tick.is_finished,
+                    position: tick.position,
+                }));
+            }
+
+            if aurelia_core::audio_is_analyzer_enabled_player()
+                .await
+                .unwrap_or(false)
+                && let Ok(snapshot) = aurelia_core::audio_get_spectrum_snapshot_player()
+            {
+                let _ = ws_tx.send(WsMessage::AudioSpectrum(AudioSpectrumPayload {
+                    frequency_data: snapshot.frequency_data,
+                    time_domain_data: snapshot.time_domain_data,
+                }));
+            }
+        }
+    });
 }
 
 // WebSocket handler

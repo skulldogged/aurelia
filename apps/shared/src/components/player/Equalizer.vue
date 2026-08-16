@@ -166,8 +166,8 @@
   >
     <!-- Header -->
     <div
-      class='h-12 flex items-center justify-between shrink-0 pl-4 pr-[142px]'
-      data-tauri-drag-region
+      class='h-12 flex items-center justify-between shrink-0 pl-4 pr-[max(1rem,var(--titlebar-area-right))]'
+      data-drag-region
     >
       <div class='flex items-center gap-3'>
         <h2 class='text-base font-semibold tracking-tight leading-tight text-muted-foreground'>

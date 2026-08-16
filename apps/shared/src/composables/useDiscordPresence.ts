@@ -18,7 +18,6 @@ import { usePlayerStore } from '../stores'
 const DISCORD_APP_ID =
   (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env?.VITE_DISCORD_APP_ID
   || '1422099270340837419'
-const hasTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 const activitySignature = (song: null | Song, isPlaying: boolean): string => {
   if (!song)
@@ -43,15 +42,13 @@ export const useDiscordPresence = (): {
 } => {
   const playerStore = usePlayerStore()
 
-  const isEnabled = ref(hasTauri && isDesktop() && DISCORD_APP_ID.length > 0)
+  const isEnabled = ref(isDesktop() && DISCORD_APP_ID.length > 0)
 
   if (!isEnabled.value) {
     const noop = async (): Promise<void> => {}
-    const reason = !hasTauri
-      ? 'Tauri runtime not detected'
-      : !isDesktop()
-        ? 'Not running on desktop platform'
-        : 'Discord application ID not configured'
+    const reason = !isDesktop()
+      ? 'Not running on desktop platform'
+      : 'Discord application ID not configured'
     logger.info('Discord Rich Presence disabled', { reason })
 
     return {

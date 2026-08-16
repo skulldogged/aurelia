@@ -11,7 +11,7 @@ import {
   reportPlaybackStopEffect,
 } from '../effect/services/api'
 import { logger } from '../lib/logger'
-import { isTauri } from '../lib/platform'
+import { getAureliaDesktop } from '../lib/desktop-shell'
 import { useAuthStore } from '../stores'
 
 interface SessionState {
@@ -53,13 +53,10 @@ const initializeSession = async (): Promise<void> => {
     let label = 'web'
     let version = '0.0.0'
 
-    // Check if running in Tauri - use dynamic import
-    if (isTauri()) {
-      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow')
-      const { getVersion } = await import('@tauri-apps/api/app')
-      const webview = getCurrentWebviewWindow()
-      label = webview.label
-      version = await getVersion()
+    const desktop = getAureliaDesktop()
+    if (desktop) {
+      label = 'electron'
+      version = desktop.appVersion || '0.0.0'
     }
 
     let deviceId = localStorage.getItem('aurelia-device-id')

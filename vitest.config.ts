@@ -19,7 +19,7 @@ const makeConfig = (projectRoot: string, name: string): UserConfig => mergeConfi
 
 const sharedProjectConfig = mergeConfig(sharedConfig, { test: { name: 'shared' } })
 const webProjectConfig = makeConfig('./apps/web/frontend', 'web')
-const desktopProjectConfig = makeConfig('./apps/desktop/tauri', 'desktop')
+const desktopProjectConfig = makeConfig('./apps/desktop/electron', 'desktop')
 
 export default defineConfig({
   test: {

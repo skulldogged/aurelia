@@ -7,7 +7,7 @@
   import { ApiError } from '../../effect/errors'
   import { runAureliaEffect } from '../../effect/runtime'
   import { authenticateEffect, detectProviderEffect, saveCredentialsEffect } from '../../effect/services/api'
-  import { isTauri } from '../../lib/platform'
+  import { isElectron } from '../../lib/platform'
   import { setActiveProfileId, type AuthProfile, upsertProfile } from '../../lib/profileStorage'
   import Button from '../ui/Button.vue'
   import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -52,7 +52,7 @@
       deviceId = `profile-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
       localStorage.setItem('aurelia-device-id', deviceId)
     }
-    const appLabel = isTauri() ? 'desktop' : 'web'
+    const appLabel = isElectron() ? 'electron' : 'web'
     return `aurelia-${appLabel}-${deviceId}`
   }
 

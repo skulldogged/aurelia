@@ -10,6 +10,7 @@
   import Carousel from '../components/shared/Carousel.vue'
   import ImageLoader from '../components/shared/ImageLoader.vue'
   import ImagePlaceholder from '../components/shared/ImagePlaceholder.vue'
+  import SongCard from '../components/shared/SongCard.vue'
   import Button from '../components/ui/Button.vue'
   import {
     ContextMenu,
@@ -321,61 +322,12 @@
             <template v-for='song in mostPlayed' v-else :key='song.id'>
               <ContextMenu>
                 <ContextMenuTrigger as-child>
-                  <div
-                    @click='playSongs(mostPlayed, song)'
-                    class='cursor-pointer group'
-                  >
-                    <div class='relative mb-3 overflow-hidden rounded-lg'>
-                      <ImageLoader
-                        :item-id='song.albumId || song.id'
-                        :server-url='serverUrl'
-                        :token='token'
-                        :width='400'
-                        alt='Album art'
-                        class='album-art-image'
-                      >
-                        <template #fallback>
-                          <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
-                        </template>
-                      </ImageLoader>
-
-                      <div
-                        class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
-                         transition-opacity duration-200 flex items-center justify-center'
-                      >
-                        <Button
-                          @click.stop='playSongs(mostPlayed, song)'
-                          class='
-                            bg-white/30 hover:bg-white/40 backdrop-blur-sm
-                            text-white border border-white/40 shadow-lg
-                          '
-                          size='icon'
-                        >
-                          <Play class='h-5 w-5 fill-current' />
-                        </Button>
-                      </div>
-                    </div>
-                    <p class='font-semibold text-sm truncate group-hover:text-accent transition-colors'>
-                      {{ song.name }}
-                    </p>
-                    <p class='text-xs text-muted-foreground truncate mt-1'>
-                      <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
-                        <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
-                          <RouterLink
-                            @click.stop
-                            :to='`/artists/${song.artistIds[index]}`'
-                            class='hover:underline'
-                          >
-                            {{ artist }}
-                          </RouterLink>
-                          <span v-if='index < song.artists.length - 1'>, </span>
-                        </template>
-                      </template>
-                      <template v-else>
-                        {{ song.artists?.join(', ') }}
-                      </template>
-                    </p>
-                  </div>
+                  <SongCard
+                    @play='playSongs(mostPlayed, song)'
+                    :server-url='serverUrl'
+                    :song='song'
+                    :token='token'
+                  />
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem @click='playSongs([song])'>
@@ -410,61 +362,12 @@
             <template v-for='song in recentlyPlayed' v-else :key='song.id'>
               <ContextMenu>
                 <ContextMenuTrigger as-child>
-                  <div
-                    @click='playSongs(recentlyPlayed, song)'
-                    class='cursor-pointer group'
-                  >
-                    <div class='relative mb-3 overflow-hidden rounded-lg'>
-                      <ImageLoader
-                        :item-id='song.albumId || song.id'
-                        :server-url='serverUrl'
-                        :token='token'
-                        :width='400'
-                        alt='Album art'
-                        class='album-art-image'
-                      >
-                        <template #fallback>
-                          <ImagePlaceholder class='album-art-image' size='large' type='album-art' />
-                        </template>
-                      </ImageLoader>
-
-                      <div
-                        class='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100
-                         transition-opacity duration-200 flex items-center justify-center'
-                      >
-                        <Button
-                          @click.stop='playSongs(recentlyPlayed, song)'
-                          class='
-                            bg-white/30 hover:bg-white/40 backdrop-blur-sm
-                            text-white border border-white/40 shadow-lg
-                          '
-                          size='icon'
-                        >
-                          <Play class='h-5 w-5 fill-current' />
-                        </Button>
-                      </div>
-                    </div>
-                    <p class='font-semibold text-sm truncate group-hover:text-accent transition-colors'>
-                      {{ song.name }}
-                    </p>
-                    <p class='text-xs text-muted-foreground truncate mt-1'>
-                      <template v-if='song.artists && song.artistIds && song.artists.length === song.artistIds.length'>
-                        <template v-for='(artist, index) in song.artists' :key='song.artistIds[index]'>
-                          <RouterLink
-                            @click.stop
-                            :to='`/artists/${song.artistIds[index]}`'
-                            class='hover:underline'
-                          >
-                            {{ artist }}
-                          </RouterLink>
-                          <span v-if='index < song.artists.length - 1'>, </span>
-                        </template>
-                      </template>
-                      <template v-else>
-                        {{ song.artists?.join(', ') }}
-                      </template>
-                    </p>
-                  </div>
+                  <SongCard
+                    @play='playSongs(recentlyPlayed, song)'
+                    :server-url='serverUrl'
+                    :song='song'
+                    :token='token'
+                  />
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   <ContextMenuItem @click='playSongs([song])'>

@@ -16,8 +16,6 @@ import { useListenBrainzStore, usePlayerStore } from '../stores'
 const SCROBBLE_THRESHOLD_SECONDS = 240
 const SCROBBLE_PERCENTAGE = 0.5
 
-const hasTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-
 export const useListenBrainz = (): {
   clearSession:   () => Promise<void>
   isEnabled:      Ref<boolean>
@@ -27,22 +25,7 @@ export const useListenBrainz = (): {
   const listenbrainzStore = useListenBrainzStore()
   const playerStore = usePlayerStore()
 
-  const isEnabled = ref(hasTauri && listenbrainzStore.isAuthenticated())
-
-  if (!hasTauri) {
-    const noop = async (): Promise<void> => {}
-    const noopValidate = async (): Promise<ListenBrainzCredentials> => ({
-      username:  null,
-      userToken: '',
-    })
-
-    return {
-      clearSession:   noop,
-      isEnabled,
-      setCredentials: noop,
-      validateToken:  noopValidate,
-    }
-  }
+  const isEnabled = ref(listenbrainzStore.isAuthenticated())
 
   if (listenbrainzStore.credentials) {
     void runAureliaEffect(listenBrainzSetCredentialsEffect(listenbrainzStore.credentials))

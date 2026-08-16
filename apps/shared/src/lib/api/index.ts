@@ -1,7 +1,6 @@
 // Aurelia Shared API - Unified API client
 //
-// This module provides the unified API client that works on both
-// desktop (via Tauri IPC) and web (via HTTP).
+// This module provides the unified API client for web and Electron (HTTP).
 
 export { setApiClient } from '../..'
 // Re-export unified API client and setup function
@@ -20,4 +19,4 @@ export type {
 } from '../../generated'
 
 // Platform detection utilities
-export { isTauri } from '../platform'
+export { isDesktop, isElectron } from '../platform'

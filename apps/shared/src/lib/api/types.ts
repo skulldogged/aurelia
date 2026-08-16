@@ -2,7 +2,7 @@
 // Generated from Api trait - DO NOT EDIT MANUALLY
 
 import type { Result } from './result'
-import type { Credentials, AuthRequest, BackendProvider, ProviderCapabilities, Song, Album, Artist, Playlist, PlaylistCreateData, PlaylistUpdateData, LibraryData, HomeViewData, SyncStateInfo, ListenBrainzCredentials, ListenBrainzListen, RpcActivity, NowPlayingPayload, LastFmCredentials } from '../../generated'
+import type { Credentials, AuthRequest, BackendProvider, ProviderCapabilities, Song, Album, Artist, Playlist, PlaylistCreateData, PlaylistUpdateData, LibraryData, HomeViewData, SyncStateInfo, ListenBrainzCredentials, ListenBrainzListen, RpcActivity, LastFmCredentials } from '../../generated'
 
 export interface ApiClient {
   detectProvider(serverUrl: string): Promise<Result<any>>
@@ -57,6 +57,17 @@ export interface ApiClient {
   listenbrainzValidateToken(userToken: string): Promise<Result<any>>
   listenbrainzSubmitListen(listen: ListenBrainzListen, timestamp: number): Promise<Result<any>>
   listenbrainzPlayingNow(artist: string, track: string, album?: string): Promise<Result<any>>
+  discordRpcStart(appId: string): Promise<Result<any>>
+  discordRpcStop(): Promise<Result<any>>
+  discordRpcIsRunning(): Promise<Result<any>>
+  discordRpcSetActivity(activity: RpcActivity): Promise<Result<any>>
+  discordRpcClearActivity(): Promise<Result<any>>
+  lastfmSetCredentials(credentials: LastFmCredentials): Promise<Result<any>>
+  lastfmClearCredentials(): Promise<Result<any>>
+  lastfmIsAuthenticated(): Promise<Result<any>>
+  lastfmAuthenticate(apiKey: string, apiSecret: string, token: string): Promise<Result<any>>
+  lastfmScrobble(artist: string, track: string, album?: string, timestamp?: number): Promise<Result<any>>
+  lastfmUpdateNowPlaying(artist: string, track: string, album?: string): Promise<Result<any>>
   audioInit(): Promise<Result<any>>
   audioPlay(url: string, token: string): Promise<Result<any>>
   audioPause(): Promise<Result<any>>
@@ -67,11 +78,6 @@ export interface ApiClient {
   audioSeek(positionSecs: number): Promise<Result<any>>
   audioGetPosition(): Promise<Result<any>>
   audioIsPlaying(): Promise<Result<any>>
-  discordRpcStart(appId: string): Promise<Result<any>>
-  discordRpcStop(): Promise<Result<any>>
-  discordRpcIsRunning(): Promise<Result<any>>
-  discordRpcSetActivity(activity: RpcActivity): Promise<Result<any>>
-  discordRpcClearActivity(): Promise<Result<any>>
   audioIsEqEnabled(): Promise<Result<any>>
   audioSetEqEnabled(enabled: boolean): Promise<Result<any>>
   audioGetEqBand(band: number): Promise<Result<any>>
@@ -83,23 +89,7 @@ export interface ApiClient {
   audioIsFinished(): Promise<Result<any>>
   audioSetAnalyzerEnabled(enabled: boolean): Promise<Result<any>>
   audioIsAnalyzerEnabled(): Promise<Result<any>>
-  audioReinit(): Promise<Result<any>>
-  mediaUpdateNowPlaying(payload: NowPlayingPayload): Promise<Result<any>>
-  mediaClearNowPlaying(): Promise<Result<any>>
-  mediaSetPlaybackStatus(isPlaying: boolean, positionSecs?: number): Promise<Result<any>>
-  mediaSetButtonEnabled(button: string, enabled: boolean): Promise<Result<any>>
-  lastfmSetCredentials(credentials: LastFmCredentials): Promise<Result<any>>
-  lastfmClearCredentials(): Promise<Result<any>>
-  lastfmIsAuthenticated(): Promise<Result<any>>
-  lastfmStartAuthServer(): Promise<Result<any>>
-  lastfmAuthenticate(apiKey: string, apiSecret: string, token: string): Promise<Result<any>>
-  lastfmScrobble(artist: string, track: string, album?: string, timestamp?: number): Promise<Result<any>>
-  lastfmUpdateNowPlaying(artist: string, track: string, album?: string): Promise<Result<any>>
-  showMainWindow(): Promise<Result<any>>
-  hideMainWindow(): Promise<Result<any>>
-  quitApplication(): Promise<Result<any>>
-  setMinimizeToTray(minimizeToTray: boolean): Promise<Result<any>>
-  setCloseToTray(closeToTray: boolean): Promise<Result<any>>}
+  audioReinit(): Promise<Result<any>>}
 
 // Re-export model types from generated
 export * from '../../generated'

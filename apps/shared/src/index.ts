@@ -1,6 +1,6 @@
 // Aurelia Shared Package - Platform-agnostic frontend code
 // This package contains all shared Vue components, composables, and stores
-// that work on both desktop (Tauri) and web (Browser) platforms
+// that work on Electron desktop and the web client
 
 // Platform detection and API injection
 import type { ApiClient } from './lib/api/types'

@@ -48,7 +48,7 @@
   >
     <div
       class='h-12 flex items-center px-4 shrink-0'
-      data-tauri-drag-region
+      data-drag-region
     >
       <h2 class='text-base font-semibold tracking-tight text-muted-foreground'>
         Up Next

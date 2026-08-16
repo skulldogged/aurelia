@@ -173,11 +173,55 @@ pub async fn audio_get_position(state: &AudioState) -> Result<f64> {
 
 /// Seek to position
 pub async fn audio_seek(state: &AudioState, position_secs: f64) -> Result<()> {
+    let mut player_guard = state.player.lock().await;
+    let player = player_guard
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    player.seek_with_fallback(position_secs).await
+}
+
+/// Read one EQ band gain
+pub async fn audio_get_eq_band(state: &AudioState, band: u32) -> Result<f32> {
     let player_guard = state.player.lock().await;
     let player = player_guard
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
-    player.seek(position_secs)
+    Ok(player.get_eq_band(band as usize))
+}
+
+/// Read all EQ band gains
+pub async fn audio_get_all_eq_bands(state: &AudioState) -> Result<Vec<f32>> {
+    let player_guard = state.player.lock().await;
+    let player = player_guard
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    Ok(player.get_all_eq_bands().to_vec())
+}
+
+#[derive(Clone, Debug)]
+pub struct AudioPositionTick {
+    pub did_auto_advance: bool,
+    pub is_finished: bool,
+    pub is_playing: bool,
+    pub position: f64,
+}
+
+/// Tick the player: maybe auto-advance, then report position if relevant.
+pub async fn audio_poll_position(state: &AudioState) -> Option<AudioPositionTick> {
+    let mut player_guard = state.player.lock().await;
+    let player = player_guard.as_mut()?;
+    let did_auto_advance = player.auto_advance_to_next();
+    let is_playing = player.is_playing();
+    let is_finished = player.is_finished();
+    if !is_playing && !is_finished && !did_auto_advance {
+        return None;
+    }
+    Some(AudioPositionTick {
+        did_auto_advance,
+        is_finished,
+        is_playing,
+        position: player.get_position(),
+    })
 }
 
 /// Prepare next track for gapless playback

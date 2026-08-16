@@ -1,10 +1,8 @@
 use aurelia_core::error::AppError;
 use aurelia_core::listenbrainz_core::{ListenBrainzCredentials, ListenBrainzListen};
-use aurelia_core::models::auth::{
-    AuthRequest, BackendProvider, Credentials, ProviderCapabilities,
-};
+use aurelia_core::models::auth::{AuthRequest, BackendProvider, Credentials, ProviderCapabilities};
 use aurelia_core::models::library::{
-    HomeViewData, LastFmCredentials, LibraryData, MobileHomeData, NowPlayingPayload, RpcActivity,
+    HomeViewData, LastFmCredentials, LibraryData, MobileHomeData, RpcActivity,
     SyncStateInfo,
 };
 use aurelia_core::models::music::{
@@ -113,10 +111,6 @@ pub fn generate_typescript_bindings(out_dir: &Path) -> Result<(), Box<dyn std::e
         (
             "rpcActivity",
             specta_typescript::export::<RpcActivity>(&config)?,
-        ),
-        (
-            "nowPlayingPayload",
-            specta_typescript::export::<NowPlayingPayload>(&config)?,
         ),
         (
             "lastFmCredentials",

@@ -113,7 +113,7 @@ pub struct HealthResponse {
 
 /* 
 
-## 1. DESKTOP CLIENT (Tauri)
+## 1. DESKTOP CLIENT (Electron)
 
 In your settings, add a field for the lyrics daemon URL:
 

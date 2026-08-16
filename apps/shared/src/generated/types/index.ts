@@ -501,11 +501,6 @@ export type AppError = { network: string } | { auth: string } | { database: stri
  */
 export type RpcActivity = { state: string | null; details: string | null; largeImageKey: string | null; largeImageText: string | null; smallImageKey: string | null; smallImageText: string | null; startTimestamp: number | null; endTimestamp: number | null }
 
-/**
- * Media controls now playing payload
- */
-export type NowPlayingPayload = { title: string; artist: string | null; album: string | null; duration: number | null; coverUrl: string | null }
-
 // LastFmCredentials depends on: Credentials
 /**
  * Last.fm credentials

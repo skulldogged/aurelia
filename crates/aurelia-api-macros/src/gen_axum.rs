@@ -8,21 +8,18 @@ pub fn generate(api_def: &ApiDefinition) -> syn::Result<TokenStream> {
     let routes: Vec<TokenStream> = api_def
         .methods
         .iter()
-        .filter(|m| !m.desktop_only)
         .map(generate_route)
         .collect::<Result<Vec<_>, _>>()?;
 
     let handlers: Vec<TokenStream> = api_def
         .methods
         .iter()
-        .filter(|m| !m.desktop_only)
         .map(generate_handler)
         .collect::<Result<Vec<_>, _>>()?;
 
     let structs: Vec<TokenStream> = api_def
         .methods
         .iter()
-        .filter(|m| !m.desktop_only)
         .map(generate_structs)
         .collect::<Result<Vec<_>, _>>()?;
 

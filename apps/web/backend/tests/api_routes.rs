@@ -2,6 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use aurelia_api::axum_impl::AppState;
 use aurelia_api::traits::axum_routes::build_router;
+use aurelia_core::discord_rpc::DiscordRpcState;
 use aurelia_core::lastfm_core::LastFmState;
 use aurelia_core::listenbrainz_core::ListenBrainzState;
 use axum::body::Body;
@@ -21,6 +22,7 @@ fn setup_state() -> Arc<AppState> {
 
     Arc::new(AppState {
         app_data_dir: path,
+        discord_rpc_state: Arc::new(DiscordRpcState::new()),
         listenbrainz_state: Arc::new(ListenBrainzState::new()),
         lastfm_state: Arc::new(LastFmState::new()),
     })
@@ -116,4 +118,52 @@ async fn get_audio_stream_url_respects_container() {
 
     assert!(url.contains("/Audio/song123/stream"));
     assert!(url.contains("static=true"));
+}
+
+#[tokio::test]
+#[serial]
+async fn get_provider_capabilities_returns_jellyfin() {
+    let app_state = setup_state();
+    let app = build_router().with_state(app_state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/auth/provider-capabilities")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    r#"{"provider":"jellyfin","serverUrl":"https://example.com"}"#,
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let json = parse_json(response).await;
+    assert_eq!(json["status"], "ok");
+}
+
+#[tokio::test]
+#[serial]
+async fn discord_is_running_starts_false() {
+    let app_state = setup_state();
+    let app = build_router().with_state(app_state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/discord/is-running")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let json = parse_json(response).await;
+    assert_eq!(json["status"], "ok");
+    assert_eq!(json["data"], false);
 }

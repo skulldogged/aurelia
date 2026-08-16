@@ -309,7 +309,7 @@
     <div
       v-if='isInSidebar'
       class='h-12 flex items-center justify-between px-4 shrink-0'
-      data-tauri-drag-region
+      data-drag-region
     >
       <h2 class='text-base font-semibold tracking-tight text-muted-foreground'>
         Lyrics

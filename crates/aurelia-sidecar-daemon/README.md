@@ -141,7 +141,7 @@ The daemon looks for lyrics files in the same directory as the audio file, with 
 ## Client Integration
 
 See `CLIENT_INTEGRATION.md` for examples of how to integrate this daemon into:
-- Desktop clients (Tauri/Rust)
+- Desktop clients (Electron/Rust)
 - Web clients (TypeScript/Vue)
 - Mobile clients (Kotlin/Swift)
 

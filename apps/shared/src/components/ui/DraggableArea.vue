@@ -9,6 +9,6 @@
 <template>
   <div
     :class='[$props.class, "absolute inset-0 z-0"]'
-    data-tauri-drag-region
+    data-drag-region
   />
 </template>

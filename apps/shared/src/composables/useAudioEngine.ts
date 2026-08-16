@@ -7,21 +7,14 @@
 
 import { computed, type ComputedRef, onUnmounted, ref, type Ref, watch } from 'vue'
 
-import type { NowPlayingPayload, Song } from '../lib/api/types'
+import type { Song } from '../lib/api/types'
 
 import { type AudioPlayer, type AudioPosition, getAudioPlayer } from '../audio'
 import { runAureliaEffect } from '../effect'
-import {
-  getAudioStreamUrlEffect,
-  mediaSetButtonEnabledEffect,
-  mediaSetPlaybackStatusEffect,
-  mediaUpdateNowPlayingEffect,
-} from '../effect/services/api'
+import { getAudioStreamUrlEffect } from '../effect/services/api'
 import { logger } from '../lib/logger'
-import { isDesktop, isTauri } from '../lib/platform'
+import { isElectron } from '../lib/platform'
 import { usePlayerStore } from '../stores'
-
-type UnlistenFn = () => void
 
 interface UseAudioEngineReturn {
   audioPlayer:             AudioPlayer
@@ -47,15 +40,10 @@ export const useAudioEngine = (
 
   // State
   const isGaplessTransition = ref(false)
-  const mediaEventUnlisteners = ref<UnlistenFn[]>([])
   const lastTrackEndedId = ref<null | string>(null)
 
   const hasNext = computed(() =>
     playerStore.canGoNext(),
-  )
-
-  const hasPrevious = computed(() =>
-    playerStore.canGoPrevious(),
   )
 
   const nextSongInQueue = computed(() => {
@@ -64,86 +52,50 @@ export const useAudioEngine = (
     return playerStore.playlist[nextIndex] ?? null
   })
 
-  // Setup media control event listeners (desktop only)
-  const setupMediaEventListeners = async (): Promise<void> => {
-    if (!isTauri()) return
+  const setupMediaSession = (): void => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
 
-    const { listen } = await import('@tauri-apps/api/event')
-
-    // Clean up existing listeners
-    mediaEventUnlisteners.value.forEach(unlisten => unlisten())
-    mediaEventUnlisteners.value = []
-
-    mediaEventUnlisteners.value.push(
-      await listen('media:play', () => {
-        logger.debug('Media key: Play')
-        playerStore.play()
-      }),
-      await listen('media:pause', () => {
-        logger.debug('Media key: Pause')
-        playerStore.pause()
-      }),
-      await listen('media:next', () => {
-        logger.debug('Media key: Next')
-        nextSong()
-      }),
-      await listen('media:previous', () => {
-        logger.debug('Media key: Previous')
-        if (playerStore.canGoPrevious()) {
-          playerStore.previousSong()
-        }
-      }),
-      await listen('media:stop', () => {
-        logger.debug('Media key: Stop')
-        playerStore.pause()
-      }),
-    )
-
-    logger.debug('Media control event listeners registered')
-  }
-
-  // Update OS Now Playing with current song metadata
-  const updateNowPlaying = async (song: Song): Promise<void> => {
-    if (!isTauri()) return
-
-    try {
-      const payload: NowPlayingPayload = {
-        album:    song.album ?? null,
-        artist:   song.artists?.join(', ') ?? null,
-        coverUrl: song.albumArtUrl ?? null,
-        duration: song.duration ?? null,
-        title:    song.name,
+    const session = navigator.mediaSession
+    session.setActionHandler('play', () => {
+      playerStore.play()
+    })
+    session.setActionHandler('pause', () => {
+      playerStore.pause()
+    })
+    session.setActionHandler('previoustrack', () => {
+      if (playerStore.canGoPrevious()) playerStore.previousSong()
+    })
+    session.setActionHandler('nexttrack', () => {
+      nextSong()
+    })
+    session.setActionHandler('seekto', details => {
+      if (typeof details.seekTime === 'number') {
+        void audioPlayer.seek(details.seekTime)
       }
-      await runAureliaEffect(mediaUpdateNowPlayingEffect(payload))
-      logger.debug(`Updated OS Now Playing: ${song.name}`)
-    } catch (error) {
-      logger.error('Failed to update Now Playing:', error)
-    }
+    })
   }
 
-  // Update OS media control button states based on queue position
-  const updateMediaButtonStates = async (): Promise<void> => {
-    if (!isTauri()) return
+  const updateMediaSession = (song: null | Song): void => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
 
-    try {
-      const canGoNext = hasNext.value || playerStore.repeatMode === 'all'
-      const canGoPrevious = hasPrevious.value
-
-      await Promise.all([
-        runAureliaEffect(mediaSetButtonEnabledEffect('next', canGoNext)),
-        runAureliaEffect(mediaSetButtonEnabledEffect('previous', canGoPrevious)),
-      ])
-      logger.debug(`Updated media buttons: next=${canGoNext}, previous=${canGoPrevious}`)
-    } catch (error) {
-      logger.error('Failed to update media button states:', error)
+    if (!song) {
+      navigator.mediaSession.metadata = null
+      navigator.mediaSession.playbackState = 'none'
+      return
     }
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      album:    song.album ?? '',
+      artist:   song.artists?.join(', ') ?? 'Unknown Artist',
+      artwork:  song.albumArtUrl ? [{ src: song.albumArtUrl }] : [],
+      title:    song.name,
+    })
+    navigator.mediaSession.playbackState = playerStore.isPlaying ? 'playing' : 'paused'
   }
 
   // Cleanup on unmount
   onUnmounted(() => {
     audioPlayer.destroy()
-    mediaEventUnlisteners.value.forEach(unlisten => unlisten())
-    mediaEventUnlisteners.value = []
   })
 
   const handleTrackEnded = async (): Promise<void> => {
@@ -160,7 +112,7 @@ export const useAudioEngine = (
       logger.debug(`[Gapless] upcomingSong: ${upcomingSong?.name}, currentIndex: ${playerStore.currentIndex}`)
 
       if (upcomingSong) {
-        if (isDesktop()) {
+        if (isElectron()) {
           isGaplessTransition.value = true
           logger.debug('[Gapless] Set isGaplessTransition = true, calling advanceGapless')
           const success = await audioPlayer.advanceGapless()
@@ -197,7 +149,7 @@ export const useAudioEngine = (
   }
 
   const prepareNextTrack = async (): Promise<void> => {
-    if (!isDesktop()) return
+    if (!isElectron()) return
 
     const next = nextSongInQueue.value
     logger.debug(`[PrepareNext] nextSongInQueue: ${next?.name}, currentIndex: ${playerStore.currentIndex}`)
@@ -249,7 +201,7 @@ export const useAudioEngine = (
   const resumeContext = async (): Promise<void> => {
     // Only reinitialize (resume AudioContext) on web.
     // On desktop, reinit is too heavy to call on every play/pause as it restarts the audio thread.
-    if (!isDesktop()) {
+    if (!isElectron()) {
       await audioPlayer.reinitialize()
     }
   }
@@ -258,6 +210,7 @@ export const useAudioEngine = (
     if (!song) {
       await audioPlayer.stop()
       playerStore.setAudioReady(false)
+      updateMediaSession(null)
       return
     }
 
@@ -285,9 +238,8 @@ export const useAudioEngine = (
         playerStore.setCurrentTime(0)
         logger.info(`Now playing: ${song.name}`)
 
-        if (isDesktop()) {
-          await updateNowPlaying(song)
-          await updateMediaButtonStates()
+        updateMediaSession(song)
+        if (isElectron()) {
           await prepareNextTrack()
         } else if (playerStore.isPlaying) {
           await audioPlayer.play()
@@ -320,7 +272,7 @@ export const useAudioEngine = (
   }
 
   const initializePlayer = async (): Promise<void> => {
-    logger.info(`Initializing audio player (${isDesktop() ? 'Desktop/Rust' : 'Web'})...`)
+    logger.info(`Initializing audio player (${isElectron() ? 'Electron/Rust' : 'Web'})...`)
 
     const initialized = await audioPlayer.initialize()
     if (!initialized) {
@@ -334,10 +286,8 @@ export const useAudioEngine = (
     await audioPlayer.setVolume(playerStore.volume)
 
     // Restore EQ settings
-    if (isDesktop()) {
-      for (let i = 0; i < playerStore.eqBands.length; i++) {
-        await audioPlayer.setEQBand(i, playerStore.eqBands[i].gain)
-      }
+    for (let i = 0; i < playerStore.eqBands.length; i++) {
+      await audioPlayer.setEQBand(i, playerStore.eqBands[i].gain)
     }
     await audioPlayer.setEQEnabled(playerStore.eqEnabled)
     logger.debug(`EQ restored: enabled=${playerStore.eqEnabled}`)
@@ -398,13 +348,9 @@ export const useAudioEngine = (
       // This callback is intentionally empty - the handler is registered for API completeness
     })
 
-    // Setup media control listeners (desktop only)
-    if (isDesktop()) {
-      await setupMediaEventListeners()
-    }
+    setupMediaSession()
 
-    // For web, restore session song as ready for lazy loading
-    if (!isDesktop() && playerStore.currentSong) {
+    if (!isElectron() && playerStore.currentSong) {
       playerStore.setAudioReady(true)
     }
   }
@@ -438,22 +384,14 @@ export const useAudioEngine = (
       await audioPlayer.pause()
     }
 
-    // Sync playback status to OS Now Playing (desktop only)
-    if (isDesktop()) {
-      runAureliaEffect(mediaSetPlaybackStatusEffect(isPlaying, playerStore.currentTime)).catch(() => {})
+    if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused'
     }
   })
 
   // Watch for EQ enabled changes
   watch(() => playerStore.eqEnabled, async enabled => {
     await audioPlayer.setEQEnabled(enabled)
-  })
-
-  // Watch for queue position changes to update media button states
-  watch([hasNext, hasPrevious, () => playerStore.repeatMode], () => {
-    if (playerStore.currentSong) {
-      updateMediaButtonStates()
-    }
   })
 
   // Watch for song changes and auto-load

@@ -175,7 +175,7 @@
     <div
       :class="['absolute z-10 top-12 pointer-events-none outer-shadow-right', shadowBottomClass]"
     />
-    <div :class="['flex', 'flex-col', 'h-full', isMacos && 'pt-10']">
+    <div :class="['flex', 'flex-col', 'h-full', isMacos && 'pt-12']">
       <!-- Search -->
       <div class='m-2 mb-2'>
         <button

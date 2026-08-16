@@ -1,17 +1,14 @@
-# Desktop Guidelines (Vue + Tauri)
+# Desktop Guidelines (Vue + Electron)
 
 ## Architecture
 
-The desktop app is a **thin shell** that imports all business logic from `apps/shared/` via `@aurelia/shared`.
+The desktop app is a **thin Electron shell** that imports all business logic from `apps/shared/` via `@aurelia/shared`. Native audio, library, and integrations run in the local Axum backend (`aurelia-web-backend`).
 
 ```
-apps/desktop/
+apps/desktop/electron/
 ├── src/              # Shell only (App.vue, router, assets)
-│   ├── components/   # Desktop-specific chrome (top bars, etc.)
-│   ├── router/
-│   └── main.ts
-└── src-tauri/        # Rust backend
-    └── src/
+├── electron/         # Main process + preload
+└── scripts/          # Dev/build helpers that spawn the Rust backend
 ```
 
 ## Coding Standards
@@ -36,14 +33,13 @@ apps/desktop/
 | UI components | `apps/shared/src/components/ui/` | `from '@aurelia/shared'` |
 | Utilities | `apps/shared/src/lib/` | `from '@aurelia/shared'` |
 | Shared pages | `apps/shared/src/pages/` | `from '@aurelia/shared'` |
-| Desktop-only components | `apps/desktop/src/components/` | Relative import |
+| Desktop-only components | `apps/desktop/electron/src/` | Relative import |
 
-### Tauri & Rust
+### Electron & Rust
 
-- **Communication**: Call Rust via `@tauri-apps/api`. Always handle errors (try/catch) with user-facing messages.
-- **Security**: Validate payloads. Follow Tauri security practices.
-- **Structure**: Rust modules in `apps/desktop/src-tauri/src`.
-- **Audio**: rodio with symphonia backend, rustfft for visualization.
+- **Communication**: Call the local Axum backend over HTTP (`/api`) and WebSocket (`/ws`). Use generated effects, not Electron IPC, for playback.
+- **Window/tray/Last.fm callback**: Electron preload bridge (`window.aureliaDesktop`).
+- **Audio**: Keep the Rust player (rodio + symphonia + rustfft). Electron uses `RustAudioPlayerImpl`; the browser uses Web Audio. Do not fall back to Web Audio in Electron.
 
 ### UX/Accessibility
 

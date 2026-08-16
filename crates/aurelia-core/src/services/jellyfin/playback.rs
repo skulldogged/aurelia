@@ -127,9 +127,9 @@ impl JellyfinClient {
             }
 
             let json: serde_json::Value = response.json().await?;
-            let items = json["Items"].as_array().ok_or_else(|| {
-                AppError::Network("Invalid favorites response".to_string())
-            })?;
+            let items = json["Items"]
+                .as_array()
+                .ok_or_else(|| AppError::Network("Invalid favorites response".to_string()))?;
 
             if items.is_empty() {
                 break;
@@ -159,9 +159,13 @@ impl JellyfinClient {
     /// The desktop player handles seeking via startTimeTicks on the raw stream.
     pub fn get_audio_stream_url(&self, item_id: &str, container: Option<&str>) -> String {
         let supports_seek = utils::supports_seeking(container);
-        tracing::info!("[get_audio_stream_url] item_id: {}, container: {:?}, supports_seeking: {}", 
-            item_id, container, supports_seek);
-        
+        tracing::info!(
+            "[get_audio_stream_url] item_id: {}, container: {:?}, supports_seeking: {}",
+            item_id,
+            container,
+            supports_seek
+        );
+
         let token = self.token.as_deref().unwrap_or("");
         if supports_seek {
             let url = format!(
@@ -169,7 +173,10 @@ impl JellyfinClient {
                 utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream", item_id)),
                 token
             );
-            tracing::info!("[get_audio_stream_url] Using seekable URL: {}", &url[..url.len().min(100)]);
+            tracing::info!(
+                "[get_audio_stream_url] Using seekable URL: {}",
+                &url[..url.len().min(100)]
+            );
             url
         } else {
             let url = format!(
@@ -180,7 +187,10 @@ impl JellyfinClient {
                 ),
                 token
             );
-            tracing::info!("[get_audio_stream_url] Using transcoded URL: {}", &url[..url.len().min(100)]);
+            tracing::info!(
+                "[get_audio_stream_url] Using transcoded URL: {}",
+                &url[..url.len().min(100)]
+            );
             url
         }
     }

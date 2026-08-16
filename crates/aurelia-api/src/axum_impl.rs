@@ -6,9 +6,10 @@
 use crate::shared::{lastfm_secret, profile_storage, session_reporting};
 use crate::{
     Album, Api, ApiResult, AppError, Artist, AuthRequest, BackendProvider, Credentials,
-    HomeViewData, LastFmCredentials, LibraryData, NowPlayingPayload, Playlist, PlaylistCreateData,
+    HomeViewData, LastFmCredentials, LibraryData, Playlist, PlaylistCreateData,
     PlaylistUpdateData, ProviderCapabilities, RpcActivity, Song, SyncStateInfo,
 };
+use aurelia_core::discord_rpc::DiscordRpcState;
 use aurelia_core::lastfm_core::{
     LastFmState, lastfm_authenticate, lastfm_clear_credentials, lastfm_is_authenticated,
     lastfm_scrobble, lastfm_set_api_secret, lastfm_set_credentials, lastfm_update_now_playing,
@@ -23,6 +24,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct AppState {
     pub app_data_dir: PathBuf,
+    pub discord_rpc_state: Arc<DiscordRpcState>,
     pub listenbrainz_state: Arc<ListenBrainzState>,
     pub lastfm_state: Arc<LastFmState>,
 }
@@ -87,7 +89,10 @@ impl Api for AxumApiImpl {
 
     async fn save_credentials(&self, credentials: Credentials) -> ApiResult<()> {
         let _ = profile_app_data_dir_for_credentials(&self.state, &credentials)?;
-        aurelia_core::save_credentials(self.state.app_data_dir.to_string_lossy().to_string(), credentials)
+        aurelia_core::save_credentials(
+            self.state.app_data_dir.to_string_lossy().to_string(),
+            credentials,
+        )
     }
 
     async fn get_saved_credentials(&self) -> ApiResult<Option<Credentials>> {
@@ -109,8 +114,7 @@ impl Api for AxumApiImpl {
     // ─── Library ─────────────────────────────────────────────────
 
     async fn get_library(&self) -> ApiResult<LibraryData> {
-        let songs =
-            aurelia_core::load_cached_songs(active_app_data_dir_string(&self.state)?)?;
+        let songs = aurelia_core::load_cached_songs(active_app_data_dir_string(&self.state)?)?;
         Ok(aurelia_core::domain::services::derive_library_data(&songs))
     }
 
@@ -131,8 +135,7 @@ impl Api for AxumApiImpl {
     }
 
     async fn get_sync_state(&self) -> ApiResult<SyncStateInfo> {
-        let state =
-            aurelia_core::get_sync_state(active_app_data_dir_string(&self.state)?)?;
+        let state = aurelia_core::get_sync_state(active_app_data_dir_string(&self.state)?)?;
         Ok(SyncStateInfo {
             last_sync_time: Some(state.last_sync_time),
             song_count: state.song_count,
@@ -145,10 +148,9 @@ impl Api for AxumApiImpl {
 
     async fn get_song(&self, song_id: String) -> ApiResult<Song> {
         // Try cache first
-        if let Ok(Some(song)) = aurelia_core::get_cached_song(
-            active_app_data_dir_string(&self.state)?,
-            song_id.clone(),
-        ) {
+        if let Ok(Some(song)) =
+            aurelia_core::get_cached_song(active_app_data_dir_string(&self.state)?, song_id.clone())
+        {
             return Ok(song);
         }
 
@@ -177,11 +179,9 @@ impl Api for AxumApiImpl {
 
     async fn get_song_share_urls(&self, item_id: String) -> ApiResult<HashMap<String, String>> {
         // Get song from cache
-        let song = aurelia_core::get_cached_song(
-            active_app_data_dir_string(&self.state)?,
-            item_id,
-        )?
-        .ok_or_else(|| AppError::General("Song not found".to_string()))?;
+        let song =
+            aurelia_core::get_cached_song(active_app_data_dir_string(&self.state)?, item_id)?
+                .ok_or_else(|| AppError::General("Song not found".to_string()))?;
 
         aurelia_core::get_song_share_urls(song).await
     }
@@ -211,19 +211,13 @@ impl Api for AxumApiImpl {
     }
 
     async fn get_related_artists(&self, artist_id: String) -> ApiResult<Vec<Artist>> {
-        aurelia_core::get_related_artists(
-            active_app_data_dir_string(&self.state)?,
-            artist_id,
-        )
-        .await
+        aurelia_core::get_related_artists(active_app_data_dir_string(&self.state)?, artist_id).await
     }
 
     async fn get_artist_share_urls(&self, artist_id: String) -> ApiResult<HashMap<String, String>> {
-        let artist = aurelia_core::get_cached_artist(
-            active_app_data_dir_string(&self.state)?,
-            artist_id,
-        )?
-        .ok_or_else(|| AppError::General("Artist not found".to_string()))?;
+        let artist =
+            aurelia_core::get_cached_artist(active_app_data_dir_string(&self.state)?, artist_id)?
+                .ok_or_else(|| AppError::General("Artist not found".to_string()))?;
 
         aurelia_core::services::MusicBrainzService::get_artist_share_urls(&artist)
             .await
@@ -256,11 +250,9 @@ impl Api for AxumApiImpl {
 
     async fn get_album_share_urls(&self, album_id: String) -> ApiResult<HashMap<String, String>> {
         // Get album from cache
-        let album = aurelia_core::get_cached_album(
-            active_app_data_dir_string(&self.state)?,
-            album_id,
-        )?
-        .ok_or_else(|| AppError::General("Album not found".to_string()))?;
+        let album =
+            aurelia_core::get_cached_album(active_app_data_dir_string(&self.state)?, album_id)?
+                .ok_or_else(|| AppError::General("Album not found".to_string()))?;
 
         // Use MusicBrainz to get share URLs
         aurelia_core::services::MusicBrainzService::get_album_share_urls(&album)
@@ -346,8 +338,7 @@ impl Api for AxumApiImpl {
     async fn get_home_view_data(&self) -> ApiResult<HomeViewData> {
         let creds = get_credentials(&self.state)?
             .ok_or_else(|| AppError::Auth("Not authenticated".to_string()))?;
-        let all_songs =
-            aurelia_core::load_cached_songs(active_app_data_dir_string(&self.state)?)?;
+        let all_songs = aurelia_core::load_cached_songs(active_app_data_dir_string(&self.state)?)?;
 
         // Get recently played from server
         let recently_played = aurelia_core::get_recently_played(
@@ -462,11 +453,7 @@ impl Api for AxumApiImpl {
     }
 
     async fn save_setting(&self, key: String, value: String) -> ApiResult<()> {
-        aurelia_core::save_setting(
-            active_app_data_dir_string(&self.state)?,
-            key,
-            value,
-        )
+        aurelia_core::save_setting(active_app_data_dir_string(&self.state)?, key, value)
     }
 
     async fn delete_setting(&self, key: String) -> ApiResult<()> {
@@ -614,134 +601,36 @@ impl Api for AxumApiImpl {
         .map_err(AppError::General)
     }
 
-    // ─── Desktop-only operations ─────────────────────────────────
-
-    async fn audio_init(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_play(&self, _url: String, _token: String) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_pause(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_resume(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_stop(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_get_volume(&self) -> ApiResult<f64> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_set_volume(&self, _volume: f64) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_seek(&self, _position_secs: f64) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_get_position(&self) -> ApiResult<f64> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_is_playing(&self) -> ApiResult<bool> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn discord_rpc_start(&self, _app_id: String) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn discord_rpc_start(&self, app_id: String) -> ApiResult<()> {
+        self.state
+            .discord_rpc_state
+            .start(app_id)
+            .map_err(|e| AppError::General(e.to_string()))
     }
 
     async fn discord_rpc_stop(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+        self.state
+            .discord_rpc_state
+            .stop()
+            .map_err(|e| AppError::General(e.to_string()))
     }
 
     async fn discord_rpc_is_running(&self) -> ApiResult<bool> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+        Ok(self.state.discord_rpc_state.is_running())
     }
 
-    async fn discord_rpc_set_activity(&self, _activity: RpcActivity) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn discord_rpc_set_activity(&self, activity: RpcActivity) -> ApiResult<()> {
+        self.state
+            .discord_rpc_state
+            .set_activity(activity)
+            .map_err(|e| AppError::General(e.to_string()))
     }
 
     async fn discord_rpc_clear_activity(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_is_eq_enabled(&self) -> ApiResult<bool> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_set_eq_enabled(&self, _enabled: bool) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_get_eq_band(&self, _band: u32) -> ApiResult<f64> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_set_eq_band(&self, _band: u32, _gain: f64) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_get_all_eq_bands(&self) -> ApiResult<Vec<f64>> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_reset_eq(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_advance_gapless(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_prepare_next(&self, _url: String, _token: String) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_is_finished(&self) -> ApiResult<bool> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_set_analyzer_enabled(&self, _enabled: bool) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_is_analyzer_enabled(&self) -> ApiResult<bool> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn audio_reinit(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn media_update_now_playing(&self, _payload: NowPlayingPayload) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn media_clear_now_playing(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn media_set_playback_status(
-        &self,
-        _is_playing: bool,
-        _position_secs: Option<f64>,
-    ) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
-    }
-
-    async fn media_set_button_enabled(&self, _button: String, _enabled: bool) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+        self.state
+            .discord_rpc_state
+            .clear_activity()
+            .map_err(|e| AppError::General(e.to_string()))
     }
 
     async fn lastfm_set_credentials(&self, credentials: LastFmCredentials) -> ApiResult<()> {
@@ -765,12 +654,6 @@ impl Api for AxumApiImpl {
     async fn lastfm_is_authenticated(&self) -> ApiResult<bool> {
         let state = self.state.lastfm_state.as_ref();
         lastfm_is_authenticated(state).map_err(AppError::General)
-    }
-
-    async fn lastfm_start_auth_server(&self) -> ApiResult<()> {
-        Err(AppError::General(
-            "Last.fm auth server is only supported on desktop".to_string(),
-        ))
     }
 
     async fn lastfm_authenticate(
@@ -814,23 +697,91 @@ impl Api for AxumApiImpl {
             .map_err(AppError::General)
     }
 
-    async fn show_main_window(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn audio_init(&self) -> ApiResult<()> {
+        aurelia_core::audio_init_player().await
     }
 
-    async fn hide_main_window(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn audio_play(&self, url: String, token: String) -> ApiResult<()> {
+        aurelia_core::audio_play_url(url, token, None).await
     }
 
-    async fn quit_application(&self) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn audio_pause(&self) -> ApiResult<()> {
+        aurelia_core::audio_pause_player().await
     }
 
-    async fn set_minimize_to_tray(&self, _minimize_to_tray: bool) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn audio_resume(&self) -> ApiResult<()> {
+        aurelia_core::audio_resume_player().await
     }
 
-    async fn set_close_to_tray(&self, _close_to_tray: bool) -> ApiResult<()> {
-        Err(AppError::General("Desktop-only feature".to_string()))
+    async fn audio_stop(&self) -> ApiResult<()> {
+        aurelia_core::audio_stop_player().await
+    }
+
+    async fn audio_get_volume(&self) -> ApiResult<f64> {
+        aurelia_core::audio_get_volume_player().await
+    }
+
+    async fn audio_set_volume(&self, volume: f64) -> ApiResult<()> {
+        aurelia_core::audio_set_volume_player(volume).await
+    }
+
+    async fn audio_seek(&self, position_secs: f64) -> ApiResult<()> {
+        aurelia_core::audio_seek_player(position_secs).await
+    }
+
+    async fn audio_get_position(&self) -> ApiResult<f64> {
+        aurelia_core::audio_get_position_secs().await
+    }
+
+    async fn audio_is_playing(&self) -> ApiResult<bool> {
+        aurelia_core::audio_is_playing_player().await
+    }
+
+    async fn audio_is_eq_enabled(&self) -> ApiResult<bool> {
+        aurelia_core::audio_is_eq_enabled_player().await
+    }
+
+    async fn audio_set_eq_enabled(&self, enabled: bool) -> ApiResult<()> {
+        aurelia_core::audio_set_eq_enabled_player(enabled).await
+    }
+
+    async fn audio_get_eq_band(&self, band: u32) -> ApiResult<f64> {
+        aurelia_core::audio_get_eq_band_player(band).await
+    }
+
+    async fn audio_set_eq_band(&self, band: u32, gain_db: f64) -> ApiResult<()> {
+        aurelia_core::audio_set_eq_band_player(band, gain_db).await
+    }
+
+    async fn audio_get_all_eq_bands(&self) -> ApiResult<Vec<f64>> {
+        aurelia_core::audio_get_all_eq_bands_player().await
+    }
+
+    async fn audio_reset_eq(&self) -> ApiResult<()> {
+        aurelia_core::audio_reset_eq_player().await
+    }
+
+    async fn audio_advance_gapless(&self) -> ApiResult<()> {
+        aurelia_core::audio_advance_gapless_player().await
+    }
+
+    async fn audio_prepare_next(&self, url: String, token: String) -> ApiResult<()> {
+        aurelia_core::audio_prepare_next_player(url, token).await
+    }
+
+    async fn audio_is_finished(&self) -> ApiResult<bool> {
+        aurelia_core::audio_is_finished_player().await
+    }
+
+    async fn audio_set_analyzer_enabled(&self, enabled: bool) -> ApiResult<()> {
+        aurelia_core::audio_set_analyzer_enabled_player(enabled).await
+    }
+
+    async fn audio_is_analyzer_enabled(&self) -> ApiResult<bool> {
+        aurelia_core::audio_is_analyzer_enabled_player().await
+    }
+
+    async fn audio_reinit(&self) -> ApiResult<()> {
+        aurelia_core::audio_reinit_player().await
     }
 }

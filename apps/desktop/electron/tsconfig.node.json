@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": "../../../target/tsbuildinfo/electron-node.tsbuildinfo",
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "types": ["node"]
+  },
+  "include": [
+    "vite.config.ts",
+    "scripts/**/*.ts",
+    "electron/**/*.ts",
+    "../../shared/src/lib/vite/index.ts"
+  ]
+}

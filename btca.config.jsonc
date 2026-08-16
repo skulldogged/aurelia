@@ -23,12 +23,11 @@
 			"specialNotes": "Tailwind CSS documentation website."
 		},
 		{
-			"name": "tauri",
+			"name": "electron",
 			"type": "git",
-			"url": "https://github.com/tauri-apps/tauri",
-			"branch": "v2",
-			"searchPath": "core/tauri",
-			"specialNotes": "Tauri v2 core."
+			"url": "https://github.com/electron/electron",
+			"branch": "main",
+			"specialNotes": "Electron desktop shell."
 		},
 		{
 			"name": "pinia",

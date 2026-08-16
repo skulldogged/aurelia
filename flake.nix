@@ -26,7 +26,7 @@
           config.android_sdk.accept_license = true;
         };
 
-        rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+        rustToolchain = pkgs.rust-bin.nightly.latest.default.override {
           extensions = ["rust-src"];
           targets =
             lib.optionals pkgs.stdenv.isDarwin [
@@ -173,13 +173,11 @@
           nativeBuildInputs = with pkgs;
             [
               pkg-config
-              gobject-introspection
-              cargo-tauri
               rustToolchain
               bun
-              wrapGAppsHook4
               jdk17
               cargo-ndk
+              electron
             ]
             ++ lib.optionals stdenv.isLinux [
               android-studio
@@ -196,12 +194,12 @@
               glib
               gtk3
               harfbuzz
+              libxkbcommon
               librsvg
-              libsoup_3
               pango
-              webkitgtk_4_1
+              vulkan-loader
+              wayland
               openssl
-              libayatana-appindicator
             ];
 
           ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
@@ -209,8 +207,10 @@
           JAVA_HOME = pkgs.jdk17.home;
           LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
           __NV_DISABLE_EXPLICIT_SYNC = 1;
+          ELECTRON_SKIP_BINARY_DOWNLOAD = "1";
+          ELECTRON_OVERRIDE_DIST_PATH = "${pkgs.electron}/libexec/electron";
+          ELECTRON_EXEC_PATH = "${pkgs.electron}/bin/electron";
           shellHook = ''
-            export XDG_DATA_DIRS="$GSETTINGS_SCHEMAS_PATH"
             export PATH="${androidSdk}/libexec/android-sdk/platform-tools:$PATH"
             export PATH="${toString ./.}/scripts:$PATH"
             ${lib.optionalString pkgs.stdenv.isDarwin ''

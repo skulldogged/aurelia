@@ -1,6 +1,6 @@
 # Rust Guidelines (aurelia-core)
 
-Shared Rust library in `crates/aurelia-core/`, exposed to Desktop (Tauri) and Android (uniffi).
+Shared Rust library in `crates/aurelia-core/`, used by the local desktop backend (Electron) and exposed to Android/iOS via uniffi.
 
 ## Module Organization
 

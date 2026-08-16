@@ -20,8 +20,8 @@
 
   import { runAureliaEffect } from '../../effect'
   import { getAlbumShareUrlsEffect, getArtistShareUrlsEffect, getSongShareUrlsEffect } from '../../effect/services/api'
+  import { openExternalUrl, writeClipboardText } from '../../lib/desktop-shell'
   import { logger } from '../../lib/logger'
-  import { isTauri } from '../../lib/platform'
   import Button from '../ui/Button.vue'
   import {
     Dialog,
@@ -153,12 +153,7 @@
 
   const copyToClipboard = async (url: string, platform: string): Promise<void> => {
     try {
-      if (isTauri()) {
-        const { writeText } = await import('@tauri-apps/plugin-clipboard-manager')
-        await writeText(url)
-      } else {
-        await navigator.clipboard.writeText(url)
-      }
+      await writeClipboardText(url)
       copiedUrl.value = platform
       setTimeout(() => {
         copiedUrl.value = null
@@ -170,12 +165,7 @@
 
   const openInBrowser = async (url: string): Promise<void> => {
     try {
-      if (isTauri()) {
-        const { openUrl } = await import('@tauri-apps/plugin-opener')
-        await openUrl(url)
-      } else {
-        window.open(url, '_blank', 'noopener,noreferrer')
-      }
+      await openExternalUrl(url)
     } catch (error) {
       logger.error('Failed to open URL:', error)
     }

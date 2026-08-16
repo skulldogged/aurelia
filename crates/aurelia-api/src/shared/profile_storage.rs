@@ -62,7 +62,9 @@ fn migrate_legacy_database(base_dir: &Path, profile_dir: &Path) -> Result<(), Ap
 }
 
 pub fn profile_data_dir(base_dir: &Path, credentials: &Credentials) -> Result<PathBuf, AppError> {
-    let profile_dir = base_dir.join("profiles").join(profile_storage_key(credentials));
+    let profile_dir = base_dir
+        .join("profiles")
+        .join(profile_storage_key(credentials));
     std::fs::create_dir_all(&profile_dir).map_err(|error| {
         AppError::FileSystem(format!(
             "Failed to create profile directory {}: {}",

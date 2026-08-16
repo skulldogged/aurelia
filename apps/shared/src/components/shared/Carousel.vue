@@ -182,7 +182,7 @@
 
 .carousel-track {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: clip;
   overscroll-behavior-x: contain;
   overscroll-behavior-y: auto;
   scroll-snap-type: x proximity;

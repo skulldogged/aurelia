@@ -5,9 +5,9 @@
 ```
 aurelia/
 ├── apps/
-│   ├── desktop/          # Desktop app (Tauri + Vue)
+│   ├── desktop/electron/ # Desktop app (Electron + Vue)
 │   │   ├── src/          # Thin shell - imports from @shared
-│   │   └── src-tauri/    # Tauri/Rust backend
+│   │   └── electron/     # Electron main/preload; Rust lives in the local backend
 │   ├── web/
 │   │   ├── frontend/     # Web frontend (Vite + Vue)
 │   │   └── backend/      # Axum server (Rust)
@@ -24,8 +24,8 @@ aurelia/
 │       │   └── pages/        # Vue Router pages
 │       └── package.json
 └── crates/
-    ├── aurelia-core/     # Shared Rust library (uniffi bindings)
-    ├── aurelia-api/      # API abstraction (Tauri/Axum impl)
+    ├── aurelia-core/     # Shared Rust library (audio, uniffi bindings)
+    ├── aurelia-api/      # HTTP API abstraction (Axum impl)
     ├── aurelia-api-macros/ # Procedural macros
     └── uniffi-bindgen/   # Binding generator
 ```
@@ -46,16 +46,17 @@ Vue code shared between **desktop and web only**. Mobile uses native Kotlin/Swif
 | Utilities | `apps/shared/src/lib` |
 | Routing | Vue Router 4 |
 
-### Desktop (Tauri)
+### Desktop (Electron)
 
-Thin shell in `apps/desktop/src/` - imports everything from `@aurelia/shared`.
+Thin shell in `apps/desktop/electron/` - imports everything from `@aurelia/shared`. Native playback runs in the local Axum backend.
 
 | Layer | Tech |
 |-------|------|
-| Shell | Tauri v2 (Rust backend in `src-tauri/src/`) |
+| Shell | Electron (frameless window, tray, Last.fm callback) |
+| Backend | Local `aurelia-web-backend` over HTTP + WebSocket |
 | Build | Vite, Bun |
-| Audio | rodio, symphonia, rustfft |
-| Extras | Discord RPC, system tray, media controls |
+| Audio | Rust player (rodio, symphonia, rustfft) — not Web Audio |
+| Extras | Discord RPC, system tray |
 
 ### Web
 
@@ -78,13 +79,14 @@ Thin shell in `apps/desktop/src/` - imports everything from `@aurelia/shared`.
 | Crate | Purpose |
 |-------|---------|
 | `aurelia-core` | Domain logic, models, services, database |
-| `aurelia-api` | API abstraction with Tauri/Axum implementations |
+| `aurelia-api` | API abstraction with Axum HTTP implementations |
 | `aurelia-api-macros` | Proc macros for generating API boilerplate |
 | `uniffi-bindgen` | Generates TypeScript/Kotlin bindings |
 
 ## Key Patterns
 
 - **Shared Package**: Vue code shared between desktop and web. Both are thin shells importing from `apps/shared/`. Mobile uses native code with uniffi bindings.
-- **API Abstraction**: `aurelia-api` provides uniform API interface with separate Tauri and Axum implementations.
+- **API Abstraction**: `aurelia-api` generates Axum routes and a TypeScript HTTP client. Electron talks to the local backend the same way the web app does.
+- **Desktop audio**: Electron uses `RustAudioPlayerImpl` (HTTP commands + `/ws` position/spectrum). The browser uses Web Audio.
 - **uniffi**: Rust core exposed to Android/iOS via generated bindings.
 - **Bun**: Package management and scripts throughout.

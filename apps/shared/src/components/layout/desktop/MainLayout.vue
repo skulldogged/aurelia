@@ -71,7 +71,7 @@
         <div
           :style='{ top: `calc(env(safe-area-inset-top))` }'
           class='absolute left-0 right-0 z-5 h-12'
-          data-tauri-drag-region
+          data-drag-region
         />
 
         <!-- Navigation buttons positioned relative to sidebar -->
@@ -124,7 +124,7 @@
             :class="[
               'top-bar-content relative w-full h-full pr-3',
               {
-                'mr-[138px]': !playerState.isQueueOpen && !playerState.isEqualizerOpen && !playerState.isLyricsOpen,
+                'mr-[var(--titlebar-area-right)]': !playerState.isQueueOpen && !playerState.isEqualizerOpen && !playerState.isLyricsOpen,
                 'mr-64 lg:mr-80 xl:mr-96 2xl:mr-[448px]':
                   playerState.isQueueOpen || playerState.isEqualizerOpen || playerState.isLyricsOpen,
               }
@@ -134,7 +134,7 @@
             <slot name='top-bar'>
               <!-- Default draggable area when no custom top bar content -->
               <div class='relative w-full h-full'>
-                <div class='absolute inset-0 z-0' data-tauri-drag-region />
+                <div class='absolute inset-0 z-0' data-drag-region />
               </div>
             </slot>
           </div>

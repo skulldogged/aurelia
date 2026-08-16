@@ -1,7 +1,7 @@
 //! Discord Rich Presence integration
 //!
 //! Provides Discord RPC functionality for showing "Now Playing" status.
-//! Only available with the `desktop` feature.
+//! Available with the `discord` feature (also enabled by `desktop`).
 
 use anyhow::Result;
 use discord_rich_presence::{

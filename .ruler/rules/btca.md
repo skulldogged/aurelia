@@ -8,7 +8,7 @@ Query framework/library source code directly instead of web searches. btca clone
 btca ask -r <resource> -q "<question>"
 
 # Multiple resources:
-btca ask -r vue -r tauri -q "How do I integrate Vue with Tauri v2?"
+btca ask -r vue -r electron -q "How do I integrate Vue with Electron?"
 ```
 
 ## Available Resources

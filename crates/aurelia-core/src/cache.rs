@@ -1,13 +1,18 @@
 use crate::db;
 use crate::models::{Album, Artist, Credentials, Song};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use redb::ReadableDatabase;
 use serde_json;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-fn init_db(app_data_dir: &PathBuf) -> Result<()> {
+fn open_db(app_data_dir: &PathBuf) -> Result<Arc<redb::Database>> {
+    db::open(app_data_dir)
+}
+
+fn activate_db(app_data_dir: &PathBuf) -> Result<Arc<redb::Database>> {
     db::init(app_data_dir)?;
-    Ok(())
+    db::open(app_data_dir)
 }
 
 pub fn sync_library(
@@ -16,17 +21,17 @@ pub fn sync_library(
     artists: &[Artist],
     albums: &[Album],
 ) -> Result<()> {
-    init_db(&app_data_dir)?;
+    let _database = activate_db(&app_data_dir)?;
     db::sync_all(songs, artists, albums)
 }
 
 pub fn get_songs(app_data_dir: PathBuf) -> Result<Vec<Song>> {
-    init_db(&app_data_dir)?;
+    let _database = activate_db(&app_data_dir)?;
     db::songs::get_all()
 }
 
 pub fn clear_cache(app_data_dir: PathBuf) -> Result<()> {
-    init_db(&app_data_dir)?;
+    let _database = activate_db(&app_data_dir)?;
     db::songs::clear()?;
     db::artists::clear()?;
     db::albums::clear()?;
@@ -41,13 +46,12 @@ pub fn update_song_favorite_status(
     song_id: &str,
     is_favorite: bool,
 ) -> Result<()> {
-    init_db(&app_data_dir)?;
+    let _database = activate_db(&app_data_dir)?;
     db::songs::update_favorite_status(song_id, is_favorite)
 }
 
 pub fn get_sync_state(app_data_dir: PathBuf) -> Result<String> {
-    init_db(&app_data_dir)?;
-    let database = db::get()?;
+    let database = activate_db(&app_data_dir)?;
     let service = crate::domain::services::LibraryService::new(database);
     let state = service
         .get_sync_state()
@@ -57,8 +61,7 @@ pub fn get_sync_state(app_data_dir: PathBuf) -> Result<String> {
 }
 
 pub fn set_sync_state(app_data_dir: PathBuf, state_json: &str) -> Result<()> {
-    init_db(&app_data_dir)?;
-    let database = db::get()?;
+    let database = activate_db(&app_data_dir)?;
     let service = crate::domain::services::LibraryService::new(database);
     let state = serde_json::from_str(state_json)?;
     service
@@ -68,8 +71,7 @@ pub fn set_sync_state(app_data_dir: PathBuf, state_json: &str) -> Result<()> {
 }
 
 pub fn save_credentials(app_data_dir: PathBuf, credentials: &Credentials) -> Result<()> {
-    init_db(&app_data_dir)?;
-    let database = db::get()?;
+    let database = open_db(&app_data_dir)?;
     let write_txn = database.begin_write()?;
     {
         let mut table = write_txn.open_table(crate::db::schema::CREDENTIALS)?;
@@ -81,8 +83,7 @@ pub fn save_credentials(app_data_dir: PathBuf, credentials: &Credentials) -> Res
 }
 
 pub fn load_credentials(app_data_dir: PathBuf) -> Result<Option<Credentials>> {
-    init_db(&app_data_dir)?;
-    let database = db::get()?;
+    let database = open_db(&app_data_dir)?;
     let read_txn = database.begin_read()?;
     let table = read_txn.open_table(crate::db::schema::CREDENTIALS)?;
     if let Some(guard) = table.get("main")? {
@@ -94,8 +95,7 @@ pub fn load_credentials(app_data_dir: PathBuf) -> Result<Option<Credentials>> {
 }
 
 pub fn clear_credentials(app_data_dir: PathBuf) -> Result<()> {
-    init_db(&app_data_dir)?;
-    let database = db::get()?;
+    let database = open_db(&app_data_dir)?;
     let write_txn = database.begin_write()?;
     {
         let mut table = write_txn.open_table(crate::db::schema::CREDENTIALS)?;
@@ -106,8 +106,7 @@ pub fn clear_credentials(app_data_dir: PathBuf) -> Result<()> {
 }
 
 pub fn save_setting(app_data_dir: PathBuf, key: &str, value: &str) -> Result<()> {
-    init_db(&app_data_dir)?;
-    let database = db::get()?;
+    let database = open_db(&app_data_dir)?;
     let write_txn = database.begin_write()?;
     {
         let mut table = write_txn.open_table(crate::db::schema::SETTINGS)?;
@@ -118,16 +117,14 @@ pub fn save_setting(app_data_dir: PathBuf, key: &str, value: &str) -> Result<()>
 }
 
 pub fn load_setting(app_data_dir: PathBuf, key: &str) -> Result<Option<String>> {
-    init_db(&app_data_dir)?;
-    let database = db::get()?;
+    let database = open_db(&app_data_dir)?;
     let read_txn = database.begin_read()?;
     let table = read_txn.open_table(crate::db::schema::SETTINGS)?;
     Ok(table.get(key)?.map(|guard| guard.value().to_string()))
 }
 
 pub fn delete_setting(app_data_dir: PathBuf, key: &str) -> Result<()> {
-    init_db(&app_data_dir)?;
-    let database = db::get()?;
+    let database = open_db(&app_data_dir)?;
     let write_txn = database.begin_write()?;
     {
         let mut table = write_txn.open_table(crate::db::schema::SETTINGS)?;
@@ -236,7 +233,9 @@ mod tests {
                 .expect("credentials table");
             let previous_json =
                 br#"{"serverUrl":"http://localhost:8096","username":"user","token":"token","userId":"user-id"}"#;
-            table.insert("main", previous_json.as_slice()).expect("insert");
+            table
+                .insert("main", previous_json.as_slice())
+                .expect("insert");
         }
         write_txn.commit().expect("commit");
 
@@ -247,5 +246,48 @@ mod tests {
         assert_eq!(loaded.username, "user");
         assert_eq!(loaded.token, "token");
         assert_eq!(loaded.user_id, "user-id");
+    }
+
+    #[test]
+    #[serial]
+    fn concurrent_base_and_profile_databases_do_not_deadlock() {
+        let base = TempDir::new().expect("base dir");
+        let profile = TempDir::new().expect("profile dir");
+        let base_path = base.path().to_path_buf();
+        let profile_path = profile.path().to_path_buf();
+
+        let creds = Credentials {
+            provider: crate::models::BackendProvider::Jellyfin,
+            server_url: "http://localhost:8096".to_string(),
+            username: "user".to_string(),
+            token: "token".to_string(),
+            user_id: "user-id".to_string(),
+        };
+
+        save_credentials(base_path.clone(), &creds).expect("save creds");
+        save_setting(profile_path.clone(), "lyrics_sidecar_enabled", "true").expect("save setting");
+
+        std::thread::scope(|scope| {
+            let base_for_thread = base_path.clone();
+            let profile_for_thread = profile_path.clone();
+            scope.spawn(move || {
+                for _ in 0..20 {
+                    load_credentials(base_for_thread.clone()).expect("load creds");
+                }
+            });
+            scope.spawn(move || {
+                for _ in 0..20 {
+                    load_setting(profile_for_thread.clone(), "lyrics_sidecar_enabled")
+                        .expect("load setting");
+                }
+            });
+        });
+
+        let loaded = load_credentials(base_path)
+            .expect("final creds")
+            .expect("present");
+        assert_eq!(loaded.username, "user");
+        let setting = load_setting(profile_path, "lyrics_sidecar_enabled").expect("final setting");
+        assert_eq!(setting.as_deref(), Some("true"));
     }
 }

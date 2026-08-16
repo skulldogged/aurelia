@@ -59,18 +59,6 @@ pub struct RpcActivity {
     pub end_timestamp: Option<i64>,
 }
 
-/// Media controls now playing payload
-#[derive(Serialize, Deserialize, Type, Clone, Debug)]
-#[specta(rename_all = "camelCase")]
-#[serde(rename_all = "camelCase")]
-pub struct NowPlayingPayload {
-    pub title: String,
-    pub artist: Option<String>,
-    pub album: Option<String>,
-    pub duration: Option<f64>,
-    pub cover_url: Option<String>,
-}
-
 /// Last.fm credentials
 #[derive(Serialize, Deserialize, Type, Clone, Debug)]
 #[specta(rename_all = "camelCase")]

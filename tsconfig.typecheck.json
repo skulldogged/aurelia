@@ -8,7 +8,7 @@
       "path": "./apps/web/frontend/tsconfig.typecheck.json"
     },
     {
-      "path": "./apps/desktop/tauri/tsconfig.typecheck.json"
+      "path": "./apps/desktop/electron/tsconfig.typecheck.json"
     }
   ]
 }

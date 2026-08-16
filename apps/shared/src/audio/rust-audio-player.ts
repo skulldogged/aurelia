@@ -1,8 +1,5 @@
 /**
- * Rust Audio Player Implementation
- *
- * Native desktop audio playback using the Rust backend via Tauri.
- * Implements the unified AudioPlayer interface.
+ * Native desktop audio playback using the Rust backend over HTTP/WebSocket.
  */
 
 import { runAureliaEffect } from '../effect'
@@ -27,10 +24,10 @@ import {
   audioSetEqEnabledEffect,
   audioSetVolumeEffect,
   audioStopEffect,
-  mediaClearNowPlayingEffect,
 } from '../effect/services/api'
+import { subscribeBackendEvents } from '../lib/backend-events'
 import { logger } from '../lib/logger'
-import { isTauri } from '../lib/platform'
+import { isElectron } from '../lib/platform'
 import {
   type AudioErrorCallback,
   type AudioEventCallback,
@@ -47,7 +44,6 @@ import {
 export class RustAudioPlayerImpl implements AudioPlayer {
   private durationCallbacks: DurationChangeCallback[] = []
   private errorCallbacks:    AudioErrorCallback[] = []
-  // Event callbacks
   private positionCallbacks: AudioEventCallback[] = []
   private trackEndCallbacks: (() => void)[] = []
   private unlisteners:       (() => void)[] = []
@@ -69,7 +65,6 @@ export class RustAudioPlayerImpl implements AudioPlayer {
       return false
     }
 
-    // Apply each band's gain
     for (let i = 0; i < preset.bands.length; i++) {
       await this.setEQBand(i, preset.bands[i].gain)
     }
@@ -79,22 +74,13 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   async destroy(): Promise<void> {
-    // Stop playback
     await this.stop()
-
-    // Cleanup Tauri listeners
     this.unlisteners.forEach(unlisten => unlisten())
     this.unlisteners = []
-
-    // Clear callbacks
     this.positionCallbacks = []
     this.errorCallbacks = []
     this.durationCallbacks = []
     this.trackEndCallbacks = []
-
-    // Clear Now Playing
-    await runAureliaEffect(mediaClearNowPlayingEffect()).catch(() => {})
-
     logger.debug('Rust audio player destroyed')
   }
 
@@ -107,7 +93,6 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   getAnalyserNode(): AnalyserNode | null {
-    // Rust backend doesn't expose an AnalyserNode
     return null
   }
 
@@ -116,8 +101,6 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   async getDuration(): Promise<number> {
-    // Rust backend doesn't expose duration directly
-    // Duration is typically managed by the player store from song metadata
     return 0
   }
 
@@ -157,15 +140,13 @@ export class RustAudioPlayerImpl implements AudioPlayer {
       return false
     }
 
-    // Setup Tauri event listeners
-    await this.setupTauriListeners()
-
+    this.setupBackendListeners()
     logger.info('Rust audio player initialized')
     return true
   }
 
   isAvailable(): boolean {
-    return isTauri()
+    return isElectron()
   }
 
   async isEQEnabled(): Promise<boolean> {
@@ -194,12 +175,7 @@ export class RustAudioPlayerImpl implements AudioPlayer {
 
   async load(url: string, token: string, metadata?: PlayMetadata): Promise<AudioLoadResult> {
     try {
-      if (!isTauri()) {
-        return { duration: 0, success: false }
-      }
-
       await runAureliaEffect(audioPlayEffect(url, token))
-
       logger.debug(`Loaded audio: ${metadata?.title || url}`)
       return { duration: 0, success: true }
     } catch (error) {
@@ -271,8 +247,6 @@ export class RustAudioPlayerImpl implements AudioPlayer {
   }
 
   async reinitialize(): Promise<boolean> {
-    if (!isTauri()) return false
-
     try {
       await runAureliaEffect(audioReinitializeEffect())
       logger.info('Rust audio player reinitialized')
@@ -343,35 +317,19 @@ export class RustAudioPlayerImpl implements AudioPlayer {
     }
   }
 
-  // Private helper methods
-
-  private async setupTauriListeners(): Promise<void> {
-    if (!isTauri()) return
-
-    const { listen } = await import('@tauri-apps/api/event')
-
-    // Listen for position updates from Rust
-    const positionUnlisten = await listen<{
-      didAutoAdvance?: boolean
-      isFinished:      boolean
-      position:        number
-    }>('audio:position', event => {
-      const { didAutoAdvance, isFinished, position } = event.payload
-      this.positionCallbacks.forEach(cb => cb({ didAutoAdvance, isFinished, position }))
-
+  private setupBackendListeners(): void {
+    const unsubscribe = subscribeBackendEvents(event => {
+      if (event.type !== 'AudioPosition') return
+      const { didAutoAdvance, isFinished, position } = event.data
+      this.positionCallbacks.forEach(callback => callback({
+        didAutoAdvance,
+        isFinished,
+        position,
+      }))
       if (isFinished) {
-        this.trackEndCallbacks.forEach(cb => cb())
+        this.trackEndCallbacks.forEach(callback => callback())
       }
     })
-    this.unlisteners.push(positionUnlisten)
-
-    // Listen for stream errors
-    const errorUnlisten = await listen<{ position: number; reason: string; }>('audio:stream-error', event => {
-      const error = new Error(event.payload.reason)
-      this.errorCallbacks.forEach(cb => cb(error))
-    })
-    this.unlisteners.push(errorUnlisten)
-
-    logger.debug('Tauri event listeners registered')
+    this.unlisteners.push(unsubscribe)
   }
 }

@@ -7,6 +7,7 @@ import { runAureliaEffect } from '../effect/runtime'
 import { getProviderCapabilitiesEffect, getSavedCredentialsEffect } from '../effect/services/api'
 import { getAuthLogout, setAuthLogout } from '../lib/auth-interceptor'
 import { logger } from '../lib/logger'
+import { isDesktop } from '../lib/platform'
 import { setActiveProfileId, upsertProfile } from '../lib/profileStorage'
 import { useAuthStore } from '../stores'
 
@@ -21,8 +22,9 @@ export type AuthErrorType = 'auth' | 'config' | 'network' | 'unknown'
 
 export type AuthStatus = 'error' | 'initializing' | 'loggedIn' | 'loggedOut' | 'pending' | 'verifying'
 
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-const STORAGE_KEY = isTauri ? 'aurelia-auth-credentials-desktop' : 'aurelia-auth-credentials-web'
+const DESKTOP_STORAGE_KEY = 'aurelia-auth-credentials-desktop'
+const WEB_STORAGE_KEY = 'aurelia-auth-credentials-web'
+const STORAGE_KEY = isDesktop() ? DESKTOP_STORAGE_KEY : WEB_STORAGE_KEY
 
 /// Load credentials from localStorage synchronously on module init
 const loadCredentialsFromStorage = (): Credentials | null => {
@@ -30,6 +32,12 @@ const loadCredentialsFromStorage = (): Credentials | null => {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       return JSON.parse(stored) as Credentials
+    }
+    if (STORAGE_KEY === DESKTOP_STORAGE_KEY) {
+      const fallback = localStorage.getItem(WEB_STORAGE_KEY)
+      if (fallback) {
+        return JSON.parse(fallback) as Credentials
+      }
     }
   } catch {
     // Ignore parse errors

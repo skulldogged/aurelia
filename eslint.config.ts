@@ -27,7 +27,6 @@ export default defineConfig(
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
-      '**/src-tauri/**',
       '**/target/**',
       '**/crates/**',
       '**/*.d.ts',
@@ -169,17 +168,6 @@ export default defineConfig(
       'vue/no-v-html':                     'off',
       'vue/no-v-text-v-html-on-component': 'off',
       'vue/script-indent':                 ['error', 2, { baseIndent: 1, switchCase: 1 }],
-    },
-  },
-
-  // Desktop-specific: Generated bindings file rules
-  {
-    files: ['apps/desktop/tauri/src/lib/api/bindings.ts'],
-    rules: {
-      '@stylistic/max-len':                               'off',
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-explicit-any':               'off',
-      '@typescript-eslint/no-unused-vars':                'off',
     },
   },
 

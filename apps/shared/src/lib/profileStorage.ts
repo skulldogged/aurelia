@@ -1,8 +1,13 @@
 import type { Credentials } from '../generated'
 
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-const PROFILES_KEY = isTauri ? 'aurelia-auth-profiles-desktop' : 'aurelia-auth-profiles-web'
-const ACTIVE_PROFILE_KEY = isTauri ? 'aurelia-auth-active-profile-desktop' : 'aurelia-auth-active-profile-web'
+import { isDesktop } from './platform'
+
+const DESKTOP_PROFILES_KEY = 'aurelia-auth-profiles-desktop'
+const WEB_PROFILES_KEY = 'aurelia-auth-profiles-web'
+const DESKTOP_ACTIVE_PROFILE_KEY = 'aurelia-auth-active-profile-desktop'
+const WEB_ACTIVE_PROFILE_KEY = 'aurelia-auth-active-profile-web'
+const PROFILES_KEY = isDesktop() ? DESKTOP_PROFILES_KEY : WEB_PROFILES_KEY
+const ACTIVE_PROFILE_KEY = isDesktop() ? DESKTOP_ACTIVE_PROFILE_KEY : WEB_ACTIVE_PROFILE_KEY
 
 export interface AuthProfile {
   credentials: Credentials
@@ -31,6 +36,7 @@ const profileLabel = (credentials: Credentials): string => {
 export const loadProfiles = (): AuthProfile[] => {
   try {
     const raw = localStorage.getItem(PROFILES_KEY)
+      ?? (PROFILES_KEY === DESKTOP_PROFILES_KEY ? localStorage.getItem(WEB_PROFILES_KEY) : null)
     if (!raw) return []
     const parsed = JSON.parse(raw) as AuthProfile[]
     if (!Array.isArray(parsed)) return []
@@ -59,7 +65,7 @@ export const upsertProfile = (credentials: Credentials): AuthProfile => {
   const nextProfile: AuthProfile = {
     credentials,
     id,
-    label: profileLabel(credentials),
+    label:     profileLabel(credentials),
     updatedAt: now,
   }
 
@@ -78,7 +84,7 @@ export const removeProfile = (id: string): AuthProfile[] => {
   return next
 }
 
-export const setActiveProfileId = (id: string | null): void => {
+export const setActiveProfileId = (id: null | string): void => {
   try {
     if (id) {
       localStorage.setItem(ACTIVE_PROFILE_KEY, id)
@@ -93,6 +99,9 @@ export const setActiveProfileId = (id: string | null): void => {
 export const getActiveProfileId = (): null | string => {
   try {
     return localStorage.getItem(ACTIVE_PROFILE_KEY)
+      ?? (ACTIVE_PROFILE_KEY === DESKTOP_ACTIVE_PROFILE_KEY
+        ? localStorage.getItem(WEB_ACTIVE_PROFILE_KEY)
+        : null)
   } catch {
     return null
   }

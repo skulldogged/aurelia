@@ -16,8 +16,6 @@ import { useLastFmStore, usePlayerStore } from '../stores'
 const SCROBBLE_THRESHOLD_SECONDS = 240 // 4 minutes
 const SCROBBLE_PERCENTAGE = 0.5 // 50% of track
 
-const hasTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-
 export const useLastFm = (): {
   authenticate:   (apiKey: string, apiSecret: string, token: string) => Promise<LastFmCredentials>
   clearSession:   () => Promise<void>
@@ -27,35 +25,7 @@ export const useLastFm = (): {
   const lastfmStore = useLastFmStore()
   const playerStore = usePlayerStore()
 
-  const isEnabled = ref(hasTauri && lastfmStore.isAuthenticated())
-
-  if (!hasTauri) {
-    logger.info('Last.fm disabled: Tauri runtime not detected')
-    const noop = async (): Promise<void> => {}
-    const noopAuth = async (): Promise<LastFmCredentials> => ({
-      apiKey:     '',
-      sessionKey: '',
-      username:   '',
-    })
-
-    return {
-      authenticate:   noopAuth,
-      clearSession:   noop,
-      isEnabled,
-      setCredentials: noop,
-    }
-  }
-
-  // Restore credentials to Rust backend on init
-  if (lastfmStore.credentials) {
-    void runAureliaEffect(lastFmSetCredentialsEffect(lastfmStore.credentials))
-      .then(() => {
-        logger.debug('Loaded Last.fm credentials from localStorage')
-      })
-      .catch(error => {
-        logger.error('Failed to restore credentials to backend:', error)
-      })
-  }
+  const isEnabled = ref(lastfmStore.isAuthenticated())
 
   let hasScrobbled = false
   let trackStartTimestamp = 0 // Unix timestamp when current track started playing

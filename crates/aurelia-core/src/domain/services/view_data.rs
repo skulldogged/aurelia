@@ -152,12 +152,7 @@ pub fn derive_home_view_data(
     for (album_key, first_song) in album_song_first {
         let song_count = album_song_counts.get(&album_key).copied().unwrap_or(0) as i64;
         albums.push(Album {
-            id: Some(
-                first_song
-                    .album_id
-                    .clone()
-                    .unwrap_or(album_key),
-            ),
+            id: Some(first_song.album_id.clone().unwrap_or(album_key)),
             name: first_song.album.clone().unwrap_or_default(),
             artist: first_song
                 .artists
@@ -239,7 +234,8 @@ pub fn derive_mobile_home_data(
     recently_played.truncate(limits.recently_played as usize);
 
     if recently_played.is_empty() {
-        recently_played = derive_recently_played_fallback(all_songs, limits.recently_played as usize);
+        recently_played =
+            derive_recently_played_fallback(all_songs, limits.recently_played as usize);
     }
 
     if most_played.is_empty() {

@@ -67,6 +67,8 @@
   --ring: #bb86fc;
   --success: #4caf50;
   --sidebar: #181818;
+  --titlebar-area-left: env(titlebar-area-x, 0px);
+  --titlebar-area-right: max(0px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)));
 }
 
 @layer base {

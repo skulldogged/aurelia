@@ -1,7 +1,0 @@
-[workspaces.lints.clippy]
-all = "warn"
-pedantic = "warn"
-nursery = "warn"
-missing_panics_doc = "allow"
-missing_errors_doc = "allow"
-significant_drop_tightening = "allow"

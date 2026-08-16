@@ -11,7 +11,6 @@ import type {
   LibraryData,
   ListenBrainzCredentials,
   ListenBrainzListen,
-  NowPlayingPayload,
   ParsedLyrics,
   Playlist,
   PlaylistCreateData,
@@ -276,26 +275,6 @@ export const audioSetVolumeEffect = (volume: number): Effect.Effect<void, ApiErr
 export const audioStopEffect = (): Effect.Effect<void, ApiError> =>
   runApiRequest<void>('audioStop', () => getApiClient().audioStop())
 
-export const mediaUpdateNowPlayingEffect = (payload: NowPlayingPayload): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('mediaUpdateNowPlaying', () => getApiClient().mediaUpdateNowPlaying(payload))
-
-export const mediaSetPlaybackStatusEffect = (
-  isPlaying: boolean,
-  positionSecs?: number,
-): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('mediaSetPlaybackStatus', () =>
-    getApiClient().mediaSetPlaybackStatus(isPlaying, positionSecs),
-  )
-
-export const mediaSetButtonEnabledEffect = (
-  button: string,
-  enabled: boolean,
-): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('mediaSetButtonEnabled', () => getApiClient().mediaSetButtonEnabled(button, enabled))
-
-export const mediaClearNowPlayingEffect = (): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('mediaClearNowPlaying', () => getApiClient().mediaClearNowPlaying())
-
 export const lastFmAuthenticateEffect = (
   apiKey: string,
   apiSecret: string,
@@ -307,9 +286,6 @@ export const lastFmAuthenticateEffect = (
 
 export const lastFmClearCredentialsEffect = (): Effect.Effect<void, ApiError> =>
   runApiRequest<void>('lastfmClearCredentials', () => getApiClient().lastfmClearCredentials())
-
-export const lastFmStartAuthServerEffect = (): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('lastfmStartAuthServer', () => getApiClient().lastfmStartAuthServer())
 
 export const lastFmScrobbleEffect = (
   artist: string,
@@ -370,21 +346,6 @@ export const listenBrainzValidateTokenEffect = (
   runApiRequest<ListenBrainzCredentials>('listenbrainzValidateToken', () =>
     getApiClient().listenbrainzValidateToken(userToken),
   )
-
-export const showMainWindowEffect = (): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('showMainWindow', () => getApiClient().showMainWindow())
-
-export const hideMainWindowEffect = (): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('hideMainWindow', () => getApiClient().hideMainWindow())
-
-export const quitApplicationEffect = (): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('quitApplication', () => getApiClient().quitApplication())
-
-export const setMinimizeToTrayEffect = (minimizeToTray: boolean): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('setMinimizeToTray', () => getApiClient().setMinimizeToTray(minimizeToTray))
-
-export const setCloseToTrayEffect = (closeToTray: boolean): Effect.Effect<void, ApiError> =>
-  runApiRequest<void>('setCloseToTray', () => getApiClient().setCloseToTray(closeToTray))
 
 export const registerClientCapabilitiesEffect = (
   serverUrl: string,

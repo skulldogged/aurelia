@@ -19,7 +19,6 @@ pub struct ApiMethod {
     pub path_params: Vec<PathParam>,
     pub query_params: Vec<QueryParam>,
     pub body_param: Option<BodyParam>,
-    pub desktop_only: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

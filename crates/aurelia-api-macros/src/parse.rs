@@ -26,7 +26,7 @@ fn parse_api_method(method: &TraitItemFn) -> syn::Result<ApiMethod> {
         .find(|attr| attr.path().is_ident("api"))
         .ok_or_else(|| syn::Error::new_spanned(&method.sig, "Missing #[api(...)] attribute"))?;
 
-    let (http_method, path, desktop_only) = parse_api_attr(api_attr)?;
+    let (http_method, path) = parse_api_attr(api_attr)?;
 
     // Parse function arguments
     let mut path_params = Vec::new();
@@ -76,15 +76,13 @@ fn parse_api_method(method: &TraitItemFn) -> syn::Result<ApiMethod> {
         path_params,
         query_params,
         body_param,
-        desktop_only,
     })
 }
 
-fn parse_api_attr(attr: &Attribute) -> syn::Result<(HttpMethod, String, bool)> {
+fn parse_api_attr(attr: &Attribute) -> syn::Result<(HttpMethod, String)> {
     struct ApiAttr {
         method: HttpMethod,
         path: syn::LitStr,
-        desktop_only: bool,
     }
 
     impl Parse for ApiAttr {
@@ -108,26 +106,15 @@ fn parse_api_attr(attr: &Attribute) -> syn::Result<(HttpMethod, String, bool)> {
             // Parse path string
             let path: syn::LitStr = input.parse()?;
 
-            // Check for desktop_only
-            let mut desktop_only = false;
-            if input.peek(syn::Token![,]) {
-                input.parse::<syn::Token![,]>()?;
-                let flag: Ident = input.parse()?;
-                if flag == "desktop_only" {
-                    desktop_only = true;
-                }
-            }
-
             Ok(ApiAttr {
                 method,
                 path,
-                desktop_only,
             })
         }
     }
 
     let parsed: ApiAttr = attr.parse_args()?;
-    Ok((parsed.method, parsed.path.value(), parsed.desktop_only))
+    Ok((parsed.method, parsed.path.value()))
 }
 
 fn extract_param_name(pat: &Pat) -> syn::Result<Ident> {
@@ -187,24 +174,6 @@ mod tests {
         assert_eq!(method.path_params.len(), 1);
         assert_eq!(method.query_params.len(), 1);
         assert!(method.query_params[0].optional);
-    }
-
-    #[test]
-    fn parses_desktop_only_flag() {
-        let input: ItemTrait = syn::parse_str(
-            r#"
-            #[aurelia_api]
-            pub trait Api {
-                #[api(POST "/audio/play", desktop_only)]
-                async fn audio_play(&self, url: String) -> ApiResult<()>;
-            }
-            "#,
-        )
-        .expect("parse");
-
-        let api = parse_api_trait(&input).expect("api");
-        let method = &api.methods[0];
-        assert!(method.desktop_only);
     }
 
     #[test]

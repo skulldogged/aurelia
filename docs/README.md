@@ -8,8 +8,7 @@ Aurelia is a multi-platform music client monorepo with first-class Jellyfin supp
 
 ## Applications
 
-- Desktop (Tauri): `apps/desktop/tauri`
-- Desktop (GPUI): `apps/desktop/gpui`
+- Desktop (Electron): `apps/desktop/electron`
 - Web frontend: `apps/web/frontend`
 - Web backend (Axum): `apps/web/backend`
 - Shared Vue/TS package: `apps/shared`
@@ -47,11 +46,8 @@ bun install
 # Web (frontend + backend)
 bun run dev:web
 
-# Desktop Tauri app
+# Desktop Electron app
 bun run dev:desktop
-
-# Desktop GPUI app
-bun run dev:gpui
 ```
 
 ## Build Commands (from repo root)
@@ -64,14 +60,10 @@ bun run build:web -- --force-bindings     # force binding generation
 bun run build:web:strict                   # typecheck + build
 bun run build:web:release                  # fully optimized Rust release profile
 
-# Desktop Tauri build
+# Desktop Electron + local Rust backend
 bun run build:desktop
 bun run build:desktop:strict               # typecheck + build
 bun run build:desktop:release              # fully optimized Rust release profile
-
-# Desktop GPUI build
-bun run build:gpui
-bun run build:gpui:release                 # optimized Rust release profile
 ```
 
 ## Typecheck Commands (from repo root)
@@ -80,7 +72,6 @@ bun run build:gpui:release                 # optimized Rust release profile
 bun run typecheck
 bun run typecheck:web
 bun run typecheck:desktop
-bun run check:gpui
 ```
 
 ## Testing Commands (from repo root)
@@ -90,7 +81,6 @@ bun run test
 bun run test:js
 bun run test:rust
 bun run test:desktop
-bun run test:gpui
 bun run test:web
 bun run test:android
 bun run test:ios
@@ -108,9 +98,7 @@ aurelia/
 │   │   ├── frontend/
 │   │   └── backend/
 │   ├── desktop/
-│   │   ├── tauri/
-│   │   │   └── src-tauri
-│   │   └── gpui/
+│   │   └── electron/
 │   └── mobile/
 │       ├── android/
 │       └── ios/

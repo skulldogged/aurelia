@@ -12,10 +12,10 @@ This guide covers development and production builds for the monorepo.
 
 ### Platform dependencies
 
-#### Windows (Tauri)
+#### Windows (Electron)
 
-- Visual Studio C++ Build Tools (Desktop development with C++)
-- WebView2 runtime
+- Visual Studio C++ Build Tools (for the Rust backend)
+- Electron is installed via Bun/Nix
 
 #### macOS
 
@@ -28,28 +28,30 @@ xcode-select --install
 ```bash
 sudo apt update
 sudo apt install -y \
-  libwebkit2gtk-4.0-dev \
   build-essential \
   curl \
   wget \
   file \
+  pkg-config \
   libssl-dev \
-  libgtk-3-dev \
-  libayatana-appindicator3-dev \
-  librsvg2-dev
+  libasound2-dev \
+  libgtk-3-dev
 ```
 
 #### Linux (Fedora)
 
 ```bash
 sudo dnf install -y \
-  webkit2gtk4.0-devel \
+  gcc \
+  gcc-c++ \
+  make \
+  pkgconf-pkg-config \
   openssl-devel \
+  alsa-lib-devel \
+  gtk3-devel \
   curl \
   wget \
-  file \
-  libappindicator-gtk3-devel \
-  librsvg2-devel
+  file
 ```
 
 ## Initial setup
@@ -79,8 +81,7 @@ bun run test
 | Command | Description |
 |---------|-------------|
 | `bun run dev:web` | Web frontend + backend |
-| `bun run dev:desktop` | Desktop (Tauri) |
-| `bun run dev:gpui` | Desktop (GPUI) |
+| `bun run dev:desktop` | Desktop (Electron + local Rust backend) |
 | `bun run dev:android` | Android app |
 | `bun run dev:ios` | iOS app (macOS only) |
 | `bun run dev:all` | All platforms |
@@ -90,8 +91,7 @@ bun run test
 | Command | Description |
 |---------|-------------|
 | `bun run build:web` | Web (frontend + Rust backend) |
-| `bun run build:desktop` | Desktop (Tauri) |
-| `bun run build:gpui` | Desktop (GPUI) |
+| `bun run build:desktop` | Desktop (Electron + local Rust backend) |
 | `bun run build:android` | Android APK |
 | `bun run build:ios` | iOS app |
 | `bun run build` | All platforms |
@@ -104,7 +104,6 @@ bun run test
 | `bun run build:web:strict` | Typecheck + build |
 | `bun run build:desktop:release` | Full release build |
 | `bun run build:desktop:strict` | Typecheck + build |
-| `bun run build:gpui:release` | Full GPUI release build |
 | `bun run build:android:release` | Release APK |
 | `bun run build:ios:ipa` | iOS IPA (requires macOS) |
 
@@ -116,8 +115,6 @@ Build commands powered by `scripts/aurelia.ts` support these flags:
 - `--skip-bindings` - Skip bindings generation
 - `--force-bindings` - Force regenerate bindings
 
-GPUI commands use `CARGO_TARGET_DIR` when it is set. On Windows with a `D:` drive, they default to `D:\aurelia-cargo-target` to avoid filling the repo drive with GPUI build artifacts.
-
 ## Testing
 
 | Command | Description |
@@ -125,7 +122,6 @@ GPUI commands use `CARGO_TARGET_DIR` when it is set. On Windows with a `D:` driv
 | `bun run test` | All tests (JS + Rust + Android) |
 | `bun run test:web` | Web frontend tests |
 | `bun run test:desktop` | Desktop frontend tests |
-| `bun run test:gpui` | GPUI desktop Rust tests |
 | `bun run test:android` | Android unit tests |
 | `bun run test:ios` | iOS tests (macOS only) |
 | `bun run test:js` | All JavaScript tests |
@@ -145,7 +141,7 @@ Generate Rust FFI bindings for TypeScript:
 
 ```bash
 bun run bindings        # TypeScript bindings + web backend
-bun run bindings:full` # + iOS Rust bindings
+bun run bindings:full   # + iOS Rust bindings
 ```
 
 The `build:*` commands auto-cache binding generation and skip it when Rust sources are unchanged. Use `--force-bindings` to bypass.
@@ -164,19 +160,4 @@ bun run lint:fix       # Auto-fix lint issues
 ```bash
 # Rust
 cargo clean
-
-# Tauri only
-cd apps/desktop/tauri/src-tauri && cargo clean
-```
-
-### Linux AppImage permissions
-
-```bash
-chmod +x apps/desktop/tauri/src-tauri/target/release/bundle/appimage/*.AppImage
-```
-
-### macOS quarantine issues
-
-```bash
-xattr -cr apps/desktop/tauri/src-tauri/target/release/bundle/macos/*.app
 ```

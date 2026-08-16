@@ -4,10 +4,10 @@
 
   import { useLastFm } from '../../composables/useLastFm'
   import { useListenBrainz } from '../../composables/useListenBrainz'
-  import { ApiError, runAureliaEffect } from '../../effect'
-  import { lastFmStartAuthServerEffect } from '../../effect/services/api'
+  import { ApiError } from '../../effect'
+  import { getAureliaDesktop, openExternalUrl } from '../../lib/desktop-shell'
   import { logger } from '../../lib/logger'
-  import { isTauri } from '../../lib/platform'
+  import { isElectron } from '../../lib/platform'
   import { useLastFmStore, useListenBrainzStore } from '../../stores'
   import Button from '../ui/Button.vue'
   import { Input } from '../ui/input'
@@ -41,12 +41,7 @@
 
   // Helper to open URL cross-platform
   const openUrlCrossPlatform = async (url: string): Promise<void> => {
-    if (isTauri()) {
-      const { openUrl } = await import('@tauri-apps/plugin-opener')
-      await openUrl(url)
-    } else {
-      window.open(url, '_blank', 'noopener,noreferrer')
-    }
+    await openExternalUrl(url)
   }
 
   // Last.fm handlers
@@ -57,7 +52,7 @@
     }
 
     // Last.fm OAuth callback only works on desktop (requires local server)
-    if (!isTauri()) {
+    if (!isElectron()) {
       lastfmError.value = 'Last.fm authentication is only available in the desktop app'
       return
     }
@@ -66,14 +61,13 @@
     isWaitingForCallback.value = true
 
     try {
-      const { listen } = await import('@tauri-apps/api/event')
-      unlisten = await listen<string>('lastfm://token-received', async event => {
+      const completeAuth = async (token: string): Promise<void> => {
         logger.info('Received token from callback event')
         isWaitingForCallback.value = false
         isLastFmAuthenticating.value = true
 
         try {
-          await authenticateLastFm(apiKey.value, apiSecret.value, event.payload)
+          await authenticateLastFm(apiKey.value, apiSecret.value, token)
           apiKey.value = ''
           apiSecret.value = ''
         } catch (err) {
@@ -81,14 +75,25 @@
         } finally {
           isLastFmAuthenticating.value = false
         }
-      })
+      }
 
-      await runAureliaEffect(lastFmStartAuthServerEffect())
+      let callbackUrl = 'http://127.0.0.1:3000'
+      if (isElectron()) {
+        const desktop = getAureliaDesktop()
+        if (!desktop?.lastFm) {
+          throw new Error('Electron Last.fm bridge is not available')
+        }
+        unlisten = desktop.lastFm.onToken(token => {
+          void completeAuth(token)
+        })
+        callbackUrl = (await desktop.lastFm.startAuth()).callbackUrl
+      } else {
+        throw new Error('Last.fm authentication is only available in the desktop app')
+      }
 
       logger.info('Started Last.fm callback server')
 
-      const callbackUrl = encodeURIComponent('http://127.0.0.1:3000')
-      const url = `https://www.last.fm/api/auth/?api_key=${apiKey.value}&cb=${callbackUrl}`
+      const url = `https://www.last.fm/api/auth/?api_key=${apiKey.value}&cb=${encodeURIComponent(callbackUrl)}`
       await openUrlCrossPlatform(url)
 
       setTimeout(() => {

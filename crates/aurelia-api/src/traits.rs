@@ -1,10 +1,10 @@
 //! API trait with macro annotations
 //!
 //! This module provides the Api trait annotated with #[aurelia_api]
-//! which generates Tauri commands, Axum routes, and TypeScript client.
+//! which generates Axum routes and the TypeScript HTTP client.
 //!
 //! IMPORTANT: This trait is the single source of truth for the API.
-//! All Tauri commands and TypeScript types are generated from it.
+//! All HTTP routes and TypeScript types are generated from it.
 
 use aurelia_api_macros::aurelia_api;
 use aurelia_core::{
@@ -14,7 +14,7 @@ use aurelia_core::{
 };
 
 // Re-export types from models for the Api trait
-pub use aurelia_core::models::{LastFmCredentials, NowPlayingPayload, RpcActivity, SyncStateInfo};
+pub use aurelia_core::models::{LastFmCredentials, RpcActivity, SyncStateInfo};
 use std::collections::HashMap;
 
 pub type ApiResult<T> = Result<T, AppError>;
@@ -262,124 +262,31 @@ pub trait Api {
         album: Option<String>,
     ) -> ApiResult<()>;
 
-    // ─── Desktop-only operations ─────────────────────────────────
-    // These are only available on desktop via Tauri
-    #[api(POST "/audio/init", desktop_only)]
-    async fn audio_init(&self) -> ApiResult<()>;
-
-    #[api(POST "/audio/play", desktop_only)]
-    async fn audio_play(&self, url: String, token: String) -> ApiResult<()>;
-
-    #[api(POST "/audio/pause", desktop_only)]
-    async fn audio_pause(&self) -> ApiResult<()>;
-
-    #[api(POST "/audio/resume", desktop_only)]
-    async fn audio_resume(&self) -> ApiResult<()>;
-
-    #[api(POST "/audio/stop", desktop_only)]
-    async fn audio_stop(&self) -> ApiResult<()>;
-
-    #[api(GET "/audio/volume", desktop_only)]
-    async fn audio_get_volume(&self) -> ApiResult<f64>;
-
-    #[api(POST "/audio/volume", desktop_only)]
-    async fn audio_set_volume(&self, volume: f64) -> ApiResult<()>;
-
-    #[api(POST "/audio/seek", desktop_only)]
-    async fn audio_seek(&self, position_secs: f64) -> ApiResult<()>;
-
-    #[api(GET "/audio/position", desktop_only)]
-    async fn audio_get_position(&self) -> ApiResult<f64>;
-
-    #[api(GET "/audio/is-playing", desktop_only)]
-    async fn audio_is_playing(&self) -> ApiResult<bool>;
-
-    #[api(POST "/discord/start", desktop_only)]
+    #[api(POST "/discord/start")]
     async fn discord_rpc_start(&self, app_id: String) -> ApiResult<()>;
 
-    #[api(POST "/discord/stop", desktop_only)]
+    #[api(POST "/discord/stop")]
     async fn discord_rpc_stop(&self) -> ApiResult<()>;
 
-    #[api(GET "/discord/is-running", desktop_only)]
+    #[api(GET "/discord/is-running")]
     async fn discord_rpc_is_running(&self) -> ApiResult<bool>;
 
-    #[api(POST "/discord/activity", desktop_only)]
+    #[api(POST "/discord/activity")]
     async fn discord_rpc_set_activity(&self, activity: RpcActivity) -> ApiResult<()>;
 
-    #[api(POST "/discord/clear-activity", desktop_only)]
+    #[api(POST "/discord/clear-activity")]
     async fn discord_rpc_clear_activity(&self) -> ApiResult<()>;
 
-    // ─── Audio - Equalizer (desktop only) ────────────────────────
-    #[api(GET "/audio/eq/enabled", desktop_only)]
-    async fn audio_is_eq_enabled(&self) -> ApiResult<bool>;
-
-    #[api(POST "/audio/eq/enabled", desktop_only)]
-    async fn audio_set_eq_enabled(&self, enabled: bool) -> ApiResult<()>;
-
-    #[api(GET "/audio/eq/band", desktop_only)]
-    async fn audio_get_eq_band(&self, band: u32) -> ApiResult<f64>;
-
-    #[api(POST "/audio/eq/band", desktop_only)]
-    async fn audio_set_eq_band(&self, band: u32, gain_db: f64) -> ApiResult<()>;
-
-    #[api(GET "/audio/eq/all-bands", desktop_only)]
-    async fn audio_get_all_eq_bands(&self) -> ApiResult<Vec<f64>>;
-
-    #[api(POST "/audio/eq/reset", desktop_only)]
-    async fn audio_reset_eq(&self) -> ApiResult<()>;
-
-    // ─── Audio - Gapless/Advanced (desktop only) ─────────────────
-    #[api(POST "/audio/advance-gapless", desktop_only)]
-    async fn audio_advance_gapless(&self) -> ApiResult<()>;
-
-    #[api(POST "/audio/prepare-next", desktop_only)]
-    async fn audio_prepare_next(&self, url: String, token: String) -> ApiResult<()>;
-
-    #[api(GET "/audio/is-finished", desktop_only)]
-    async fn audio_is_finished(&self) -> ApiResult<bool>;
-
-    // ─── Audio - Analyzer (desktop only) ─────────────────────────
-    #[api(POST "/audio/analyzer", desktop_only)]
-    async fn audio_set_analyzer_enabled(&self, enabled: bool) -> ApiResult<()>;
-
-    #[api(GET "/audio/analyzer", desktop_only)]
-    async fn audio_is_analyzer_enabled(&self) -> ApiResult<bool>;
-
-    #[api(POST "/audio/reinit", desktop_only)]
-    async fn audio_reinit(&self) -> ApiResult<()>;
-
-    // ─── Media Controls (desktop only) ───────────────────────────
-    #[api(POST "/media/update-now-playing", desktop_only)]
-    async fn media_update_now_playing(&self, payload: NowPlayingPayload) -> ApiResult<()>;
-
-    #[api(POST "/media/clear-now-playing", desktop_only)]
-    async fn media_clear_now_playing(&self) -> ApiResult<()>;
-
-    #[api(POST "/media/playback-status", desktop_only)]
-    async fn media_set_playback_status(
-        &self,
-        is_playing: bool,
-        position_secs: Option<f64>,
-    ) -> ApiResult<()>;
-
-    #[api(POST "/media/button-enabled", desktop_only)]
-    async fn media_set_button_enabled(&self, button: String, enabled: bool) -> ApiResult<()>;
-
-    // ─── Last.fm (desktop only) ──────────────────────────────────
-
-    #[api(POST "/lastfm/credentials", desktop_only)]
+    #[api(POST "/lastfm/credentials")]
     async fn lastfm_set_credentials(&self, credentials: LastFmCredentials) -> ApiResult<()>;
 
-    #[api(DELETE "/lastfm/credentials", desktop_only)]
+    #[api(DELETE "/lastfm/credentials")]
     async fn lastfm_clear_credentials(&self) -> ApiResult<()>;
 
-    #[api(GET "/lastfm/auth-status", desktop_only)]
+    #[api(GET "/lastfm/auth-status")]
     async fn lastfm_is_authenticated(&self) -> ApiResult<bool>;
 
-    #[api(POST "/lastfm/start-auth-server", desktop_only)]
-    async fn lastfm_start_auth_server(&self) -> ApiResult<()>;
-
-    #[api(POST "/lastfm/authenticate", desktop_only)]
+    #[api(POST "/lastfm/authenticate")]
     async fn lastfm_authenticate(
         &self,
         api_key: String,
@@ -387,7 +294,7 @@ pub trait Api {
         token: String,
     ) -> ApiResult<LastFmCredentials>;
 
-    #[api(POST "/lastfm/scrobble", desktop_only)]
+    #[api(POST "/lastfm/scrobble")]
     async fn lastfm_scrobble(
         &self,
         artist: String,
@@ -396,7 +303,7 @@ pub trait Api {
         timestamp: Option<i64>,
     ) -> ApiResult<()>;
 
-    #[api(POST "/lastfm/playing-now", desktop_only)]
+    #[api(POST "/lastfm/playing-now")]
     async fn lastfm_update_now_playing(
         &self,
         artist: String,
@@ -404,19 +311,69 @@ pub trait Api {
         album: Option<String>,
     ) -> ApiResult<()>;
 
-    // ─── System Tray / Window Management (desktop only) ───────────
-    #[api(POST "/window/show", desktop_only)]
-    async fn show_main_window(&self) -> ApiResult<()>;
+    #[api(POST "/audio/init")]
+    async fn audio_init(&self) -> ApiResult<()>;
 
-    #[api(POST "/window/hide", desktop_only)]
-    async fn hide_main_window(&self) -> ApiResult<()>;
+    #[api(POST "/audio/play")]
+    async fn audio_play(&self, url: String, token: String) -> ApiResult<()>;
 
-    #[api(POST "/app/quit", desktop_only)]
-    async fn quit_application(&self) -> ApiResult<()>;
+    #[api(POST "/audio/pause")]
+    async fn audio_pause(&self) -> ApiResult<()>;
 
-    #[api(POST "/settings/minimize-to-tray", desktop_only)]
-    async fn set_minimize_to_tray(&self, minimize_to_tray: bool) -> ApiResult<()>;
+    #[api(POST "/audio/resume")]
+    async fn audio_resume(&self) -> ApiResult<()>;
 
-    #[api(POST "/settings/close-to-tray", desktop_only)]
-    async fn set_close_to_tray(&self, close_to_tray: bool) -> ApiResult<()>;
+    #[api(POST "/audio/stop")]
+    async fn audio_stop(&self) -> ApiResult<()>;
+
+    #[api(GET "/audio/volume")]
+    async fn audio_get_volume(&self) -> ApiResult<f64>;
+
+    #[api(POST "/audio/volume")]
+    async fn audio_set_volume(&self, volume: f64) -> ApiResult<()>;
+
+    #[api(POST "/audio/seek")]
+    async fn audio_seek(&self, position_secs: f64) -> ApiResult<()>;
+
+    #[api(GET "/audio/position")]
+    async fn audio_get_position(&self) -> ApiResult<f64>;
+
+    #[api(GET "/audio/is-playing")]
+    async fn audio_is_playing(&self) -> ApiResult<bool>;
+
+    #[api(GET "/audio/eq/enabled")]
+    async fn audio_is_eq_enabled(&self) -> ApiResult<bool>;
+
+    #[api(POST "/audio/eq/enabled")]
+    async fn audio_set_eq_enabled(&self, enabled: bool) -> ApiResult<()>;
+
+    #[api(GET "/audio/eq/band")]
+    async fn audio_get_eq_band(&self, band: u32) -> ApiResult<f64>;
+
+    #[api(POST "/audio/eq/band")]
+    async fn audio_set_eq_band(&self, band: u32, gain_db: f64) -> ApiResult<()>;
+
+    #[api(GET "/audio/eq/all-bands")]
+    async fn audio_get_all_eq_bands(&self) -> ApiResult<Vec<f64>>;
+
+    #[api(POST "/audio/eq/reset")]
+    async fn audio_reset_eq(&self) -> ApiResult<()>;
+
+    #[api(POST "/audio/advance-gapless")]
+    async fn audio_advance_gapless(&self) -> ApiResult<()>;
+
+    #[api(POST "/audio/prepare-next")]
+    async fn audio_prepare_next(&self, url: String, token: String) -> ApiResult<()>;
+
+    #[api(GET "/audio/is-finished")]
+    async fn audio_is_finished(&self) -> ApiResult<bool>;
+
+    #[api(POST "/audio/analyzer")]
+    async fn audio_set_analyzer_enabled(&self, enabled: bool) -> ApiResult<()>;
+
+    #[api(GET "/audio/analyzer")]
+    async fn audio_is_analyzer_enabled(&self) -> ApiResult<bool>;
+
+    #[api(POST "/audio/reinit")]
+    async fn audio_reinit(&self) -> ApiResult<()>;
 }

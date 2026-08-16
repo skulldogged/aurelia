@@ -110,11 +110,7 @@ fn extract_words_from_cues(
         previous_word_end = Some(end);
     }
 
-    if words.is_empty() {
-        None
-    } else {
-        Some(words)
-    }
+    if words.is_empty() { None } else { Some(words) }
 }
 
 fn jellyfin_line_to_parsed(
