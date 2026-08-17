@@ -116,7 +116,7 @@ struct MainTabView: View {
     }
 
     private var useSidebarAdaptable: Bool {
-        UIDevice.current.userInterfaceIdiom == .pad || ProcessInfo.processInfo.isMacCatalystApp
+        UIDevice.current.userInterfaceIdiom == .pad
     }
 
     private var showsSidebarAccountMenu: Bool {

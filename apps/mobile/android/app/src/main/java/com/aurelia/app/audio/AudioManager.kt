@@ -147,7 +147,7 @@ object AudioManager {
 
     fun onPlaybackStopped(sessionStore: SessionStore) {
         isPlaybackActive = false
-        // Stop analyzer work while paused/stopped to match desktop/web behavior.
+        // Stop analyzer work while paused or stopped.
         if (visualizerManager?.state?.value?.enabled == true) {
             Log.d(TAG, "Playback stopped - disabling active visualizer capture")
             visualizerManager?.setEnabled(false)

@@ -1,13 +1,11 @@
-use crate::models::{Album, Artist, HomeViewData, LibraryData, MobileHomeData, Song};
+use crate::models::{Album, HomeViewData, MobileHomeData, Song};
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
-use specta::Type;
 use std::collections::HashMap;
 
 /// Limits used when deriving home sections from a song list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Type, uniffi::Record)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[specta(rename_all = "camelCase")]
 pub struct HomeViewLimits {
     pub featured_albums: u32,
     pub random_albums: u32,
@@ -25,9 +23,8 @@ impl Default for HomeViewLimits {
 }
 
 /// Limits used when deriving mobile home sections from a song list.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Type, uniffi::Record)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[specta(rename_all = "camelCase")]
 pub struct MobileHomeViewLimits {
     pub most_played: u32,
     pub recently_played: u32,
@@ -43,85 +40,6 @@ impl Default for MobileHomeViewLimits {
             album_section: 12,
             featured_albums: 5,
         }
-    }
-}
-
-/// Build `LibraryData` from a cached song list.
-#[must_use]
-pub fn derive_library_data(songs: &[Song]) -> LibraryData {
-    let mut album_map: HashMap<String, Vec<Song>> = HashMap::new();
-    let mut artist_map: HashMap<String, Artist> = HashMap::new();
-
-    for song in songs {
-        if let Some(album_id) = &song.album_id {
-            album_map
-                .entry(album_id.clone())
-                .or_default()
-                .push(song.clone());
-        }
-
-        if let Some(artist_ids) = &song.artist_ids {
-            for (i, artist_id) in artist_ids.iter().enumerate() {
-                if !artist_map.contains_key(artist_id) {
-                    let name = song
-                        .artists
-                        .as_ref()
-                        .and_then(|artists| artists.get(i))
-                        .cloned()
-                        .unwrap_or_else(|| "Unknown Artist".to_string());
-
-                    artist_map.insert(
-                        artist_id.clone(),
-                        Artist {
-                            name,
-                            id: artist_id.clone(),
-                            image_tags: None,
-                            image_url: None,
-                            overview: None,
-                            provider_ids: None,
-                            community_rating: None,
-                            song_count: None,
-                            date_modified: None,
-                            songs: None,
-                        },
-                    );
-                }
-            }
-        }
-    }
-
-    let albums: Vec<Album> = album_map
-        .iter()
-        .filter_map(|(album_id, album_songs)| {
-            let first_song = album_songs
-                .iter()
-                .max_by_key(|song| song.date_created.as_deref().unwrap_or(""))?;
-
-            Some(Album {
-                id: Some(album_id.clone()),
-                name: first_song
-                    .album
-                    .clone()
-                    .unwrap_or_else(|| "Unknown Album".to_string()),
-                artist: first_song.artists.as_ref()?.first()?.clone(),
-                artist_id: first_song.artist_ids.as_ref()?.first().cloned(),
-                album_art_url: first_song.album_art_url.clone(),
-                song_count: album_songs.len() as i64,
-                songs: None,
-                image_tags: None,
-                provider_ids: None,
-                date_created: first_song.date_created.clone(),
-                date_modified: None,
-            })
-        })
-        .collect();
-
-    let artists: Vec<Artist> = artist_map.into_values().collect();
-
-    LibraryData {
-        albums,
-        artists,
-        songs: songs.to_vec(),
     }
 }
 
@@ -218,7 +136,7 @@ pub fn derive_mobile_home_data(
         .filter(|song| song.play_count.unwrap_or(0) > 0)
         .cloned()
         .collect();
-    most_played.sort_by(|a, b| b.play_count.unwrap_or(0).cmp(&a.play_count.unwrap_or(0)));
+    most_played.sort_by_key(|song| std::cmp::Reverse(song.play_count.unwrap_or(0)));
     most_played.truncate(limits.most_played as usize);
 
     let mut recently_played: Vec<Song> = all_songs
@@ -267,10 +185,10 @@ pub fn derive_mobile_home_data(
 }
 
 fn album_group_key(song: &Song) -> Option<String> {
-    if let Some(album_id) = &song.album_id {
-        if !album_id.trim().is_empty() {
-            return Some(album_id.clone());
-        }
+    if let Some(album_id) = &song.album_id
+        && !album_id.trim().is_empty()
+    {
+        return Some(album_id.clone());
     }
 
     let album_name = song.album.as_deref()?.trim();
@@ -318,8 +236,7 @@ fn derive_recently_played_fallback(all_songs: &[Song], limit: usize) -> Vec<Song
 #[cfg(test)]
 mod tests {
     use super::{
-        HomeViewLimits, MobileHomeViewLimits, derive_home_view_data, derive_library_data,
-        derive_mobile_home_data,
+        HomeViewLimits, MobileHomeViewLimits, derive_home_view_data, derive_mobile_home_data,
     };
     use crate::models::Song;
     use rand::{SeedableRng, rngs::StdRng};
@@ -361,41 +278,6 @@ mod tests {
             lyrics: None,
             image_tags: None,
         }
-    }
-
-    #[test]
-    fn derive_library_data_builds_artist_and_album_collections() {
-        let songs = vec![
-            song(
-                "1",
-                Some("alb-1"),
-                Some("Album 1"),
-                Some("art-1"),
-                Some("Artist 1"),
-                Some("2025-01-01"),
-            ),
-            song(
-                "2",
-                Some("alb-1"),
-                Some("Album 1"),
-                Some("art-1"),
-                Some("Artist 1"),
-                Some("2025-01-02"),
-            ),
-            song(
-                "3",
-                Some("alb-2"),
-                Some("Album 2"),
-                Some("art-2"),
-                Some("Artist 2"),
-                Some("2025-01-03"),
-            ),
-        ];
-
-        let derived = derive_library_data(&songs);
-        assert_eq!(derived.songs.len(), 3);
-        assert_eq!(derived.artists.len(), 2);
-        assert_eq!(derived.albums.len(), 2);
     }
 
     #[test]

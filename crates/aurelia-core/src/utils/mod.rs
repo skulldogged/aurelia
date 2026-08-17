@@ -15,7 +15,7 @@ pub mod constants {
 
     /// Jellyfin client information
     pub const JELLYFIN_CLIENT: &str = "Aurelia";
-    pub const JELLYFIN_DEVICE: &str = "Desktop";
+    pub const JELLYFIN_DEVICE: &str = "Mobile";
     pub const JELLYFIN_VERSION: &str = APP_VERSION;
 
     /// `LrcLib` API endpoint

@@ -1,76 +1,39 @@
-# Testing Guide
-
-This repository has tests across Rust, shared Vue/TS, web + desktop apps, and mobile.
-
-## Quick Commands
-
-- `bun run test:js` — run all JS/TS tests (shared + web + desktop)
-- `bun run test:rust` — run all Rust tests
-- `bun run test` — JS + Rust
-- `bun run test:android` — Android JVM unit tests
-- `bun run test:android:ui` — Android instrumentation tests (requires device/emulator)
-- `bun run test:ios` — iOS Swift package tests (builds XCFramework)
-- `bun run bindings:generate` — regenerate shared + Android bindings (no iOS)
-- `bun run bindings:generate:full` — regenerate shared + Android + iOS bindings
-- `bun run bindings:verify` — fail if generated artifacts are stale (no iOS)
-- `bun run bindings:verify:full` — fail if generated artifacts are stale (includes iOS)
-
-## JS/TS (Shared + Web + Desktop)
-
-- Shared:
-  - `bun --cwd apps/shared test`
-- Web frontend:
-  - `bun --cwd apps/web/frontend test`
-- Desktop frontend:
-  - `bun --cwd apps/desktop/electron test`
-
-Each uses Vitest with the same conventions:
-- Test files live in `tests/` or alongside source as `*.spec.ts`/`*.test.ts`.
-- DOM environment: `happy-dom`.
+# Testing Aurelia
 
 ## Rust
-
-Run all Rust tests:
 
 ```bash
 cargo test --workspace
 ```
 
-Core crates contain unit tests inside modules, plus backend integration tests in `apps/web/backend/tests`.
+Run the matching package while iterating:
 
-## Web Backend (Axum)
-
-Backend API route tests live in:
-- `apps/web/backend/tests/api_routes.rs`
-
-These are included in `cargo test --workspace`.
-
-## Desktop (Electron)
-
-Desktop UI tests are Vitest-based and run with the JS test suite.
+```bash
+cargo test -p aurelia-core
+cargo test -p aurelia-lyrics
+```
 
 ## Android
 
-Unit tests (JVM):
-
 ```bash
 cd apps/mobile/android
-./gradlew test
+./gradlew ktlintCheck testDebugUnitTest
 ```
 
-UI tests (instrumentation):
+Instrumentation tests require a connected device or emulator:
 
 ```bash
-cd apps/mobile/android
-./gradlew connectedAndroidTest
+./gradlew connectedDebugAndroidTest
 ```
-
-You need a running emulator or attached device for instrumentation tests.
 
 ## iOS
 
-Use the repo script (it builds the UniFFI XCFramework first, then runs `swift test`):
+iOS validation requires macOS and Xcode:
 
 ```bash
-bun run test:ios
+./apps/mobile/ios/build-rust.sh
+cd apps/mobile/ios/AureliaCore
+swift test
 ```
+
+The CI workflow performs Rust checks on Linux, builds and tests Android on Linux, and builds and tests iOS on macOS.

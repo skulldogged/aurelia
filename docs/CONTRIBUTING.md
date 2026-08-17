@@ -1,82 +1,32 @@
-# Contributing to Aurelia
+# Contributing
 
-## Getting started
+Aurelia is a mobile-only project. Keep platform UI and playback behavior in the native apps, and put reusable Jellyfin, persistence, library, and lyrics behavior in Rust when the UniFFI boundary supports it.
 
-1. Fork and clone the repository.
-2. Install prerequisites from `BUILDING.md`.
-3. Create a branch for your work.
+## Before changing code
 
-## Development workflow
+1. Check the nearest implementation and tests.
+2. Preserve unrelated worktree changes.
+3. Make the smallest coherent Android, iOS, or shared-core change.
+4. Regenerate bindings when a UniFFI export or record changes.
 
-Run from repository root unless noted.
+## Conventions
 
-```bash
-bun install
-```
+- Android uses Kotlin, Jetpack Compose, Material 3, ViewModels, StateFlow, coroutines, and Media3.
+- iOS uses SwiftUI, observable models, structured concurrency, and AVFoundation.
+- Rust transport errors should remain structured at the UniFFI boundary.
+- Use `tracing` for Rust diagnostics.
+- Keep generated Kotlin and Swift bindings machine-generated.
+- Preserve accessibility labels, keyboard/switch behavior, and reduced-motion behavior where applicable.
 
-Common dev commands:
-
-```bash
-bun run dev:web
-bun run dev:desktop
-```
-
-## Repository structure
-
-- Shared UI/package: `apps/shared`
-- Web app:
-  - frontend: `apps/web/frontend`
-  - backend: `apps/web/backend`
-- Desktop app:
-  - Electron shell: `apps/desktop/electron`
-  - Local Rust backend: `apps/web/backend`
-- Mobile:
-  - Android: `apps/mobile/android`
-  - iOS: `apps/mobile/ios`
-- Core Rust crates: `crates`
-
-## Code style
-
-### TypeScript / Vue
-
-- Use TypeScript for new code.
-- Prefer Vue 3 Composition API with `<script setup>`.
-- Keep strict typing; avoid `any` unless justified.
-
-### Rust
-
-- Follow standard Rust style.
-- Run:
+## Validation
 
 ```bash
 cargo fmt --check
-cargo clippy --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+
+cd apps/mobile/android
+./gradlew ktlintCheck testDebugUnitTest assembleDebug
 ```
 
-### Swift (iOS)
-
-## Tests
-
-Run relevant suites before opening a PR:
-
-```bash
-bun run test:js
-bun run test:rust
-bun run test:desktop
-bun run test:web
-bun run test:android
-bun run test:ios
-```
-
-See `TESTING.md` for details.
-
-## Pull request checklist
-
-- Linting passes.
-- Tests relevant to the change pass.
-- Docs and paths are updated if structure or commands changed.
-- No generated cache artifacts are committed (`*.tsbuildinfo`, nested `apps/**/bun.lock`).
-
-## Questions
-
-Open an issue or discussion for large changes before implementation.
+On macOS, also run `./apps/mobile/ios/build-rust.sh` followed by `swift test` in `apps/mobile/ios/AureliaCore`.

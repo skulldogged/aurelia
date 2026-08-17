@@ -93,7 +93,7 @@ private enum class SettingsPage(
   Appearance("Appearance", "Theme and visual preferences", Icons.Filled.Palette),
   Audio("Audio", "Equalizer and visualizer controls", Icons.Filled.Equalizer),
   Library("Library", "Sync and local cache controls", Icons.Filled.Sync),
-  Connections("Connections", "Servers, lyrics, and profiles", Icons.Filled.Storage),
+  Connections("Connections", "Server and profiles", Icons.Filled.Storage),
   Account("Account", "Sign out and app information", Icons.Filled.ManageAccounts),
 }
 
@@ -697,52 +697,6 @@ fun SettingsScreen(
             title = "Provider",
             subtitle = provider,
           )
-          HorizontalDivider(
-            modifier = Modifier.padding(start = 56.dp),
-            color = colors.outline.copy(alpha = 0.2f),
-          )
-
-          var lyricsServerUrl by remember {
-            mutableStateOf(sessionStore.getLyricsServerUrl() ?: "")
-          }
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-          ) {
-            Icon(
-              imageVector = Icons.Filled.Storage,
-              contentDescription = null,
-              tint = colors.onSurfaceVariant,
-              modifier = Modifier.size(24.dp),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-              Text(
-                text = "Lyrics Server",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = colors.onSurface,
-              )
-              androidx.compose.material3.OutlinedTextField(
-                value = lyricsServerUrl,
-                onValueChange = {
-                  lyricsServerUrl = it
-                  sessionStore.setLyricsServerUrl(it.ifBlank { null })
-                },
-                placeholder = { Text("http://localhost:3030") },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall.copy(color = colors.onSurface),
-                modifier = Modifier.fillMaxWidth(),
-              )
-              Text(
-                text = "For synced lyrics from sidecar files (daemon URL)",
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant,
-              )
-            }
-          }
           }
 
           SettingsSection(title = "Profiles") {

@@ -6,7 +6,6 @@ struct SettingsView: View {
     @Environment(AudioPlayerController.self) private var playerController
     @State private var viewModel = SettingsViewModel()
     @State private var showLogoutConfirmation = false
-    @State private var lyricsServerUrl: String = SessionStore.shared.lyricsServerUrl ?? ""
     @State private var visualizerEnabled: Bool = SessionStore.shared.visualizerEnabled
     @State private var visualizerStyle: VisualizerStyle = .init(rawValue: SessionStore.shared.visualizerStyle) ?? .bars
     @State private var profiles: [SessionProfile] = []
@@ -140,20 +139,6 @@ struct SettingsView: View {
                 Text("Profiles")
             }
 
-            Section {
-                TextField("http://localhost:3030", text: $lyricsServerUrl)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
-                    .onChange(of: lyricsServerUrl) { _, newValue in
-                        SessionStore.shared.lyricsServerUrl = newValue.isEmpty ? nil : newValue
-                    }
-            } header: {
-                Text("Lyrics Server")
-            } footer: {
-                Text("URL of the lyrics daemon for synced lyrics from sidecar files. Leave empty to use only server-provided lyrics.")
-            }
-
             Section("About") {
                 HStack {
                     Text("Version")
@@ -167,21 +152,12 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var settingsContent: some View {
-        #if targetEnvironment(macCatalyst)
-            Form {
-                settingsSections
-            }
-            .formStyle(.grouped)
-            .frame(maxWidth: 600)
-            .frame(maxWidth: .infinity)
-        #else
-            List {
-                settingsSections
-            }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .listRowBackground(Rectangle().fill(.ultraThinMaterial))
-        #endif
+        List {
+            settingsSections
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .listRowBackground(Rectangle().fill(.ultraThinMaterial))
     }
 
     @ViewBuilder

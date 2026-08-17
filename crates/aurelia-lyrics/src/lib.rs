@@ -1,4 +1,4 @@
-//! Minimal lyrics parsing library for the sidecar daemon
+//! Shared lyrics parsing for Aurelia's mobile clients.
 //! Extracted from aurelia-core for standalone use
 
 pub mod error;

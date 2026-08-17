@@ -3,16 +3,7 @@
 //! Uses thiserror for structured error types and anyhow for ergonomic error handling
 
 /// Application-specific error type using thiserror
-#[derive(
-    thiserror::Error,
-    Debug,
-    Clone,
-    serde::Serialize,
-    serde::Deserialize,
-    uniffi::Error,
-    specta::Type,
-)]
-#[specta(rename_all = "camelCase")]
+#[derive(thiserror::Error, Debug, Clone, serde::Serialize, serde::Deserialize, uniffi::Error)]
 pub enum AppError {
     #[error("Network error: {0}")]
     Network(String),

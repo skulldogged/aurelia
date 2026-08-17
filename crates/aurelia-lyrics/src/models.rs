@@ -2,8 +2,6 @@ use serde::{Deserialize, Serialize};
 
 /// Word-level synchronized lyric entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
-#[cfg_attr(feature = "specta", specta(rename_all = "camelCase"))]
 #[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 #[serde(rename_all = "camelCase")]
 pub struct ParsedLyricsWord {
@@ -14,8 +12,6 @@ pub struct ParsedLyricsWord {
 
 /// Line-level synchronized lyric entry.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
-#[cfg_attr(feature = "specta", specta(rename_all = "camelCase"))]
 #[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 #[serde(rename_all = "camelCase")]
 pub struct ParsedLyricsLine {
@@ -31,8 +27,6 @@ pub struct ParsedLyricsLine {
 
 /// A named section of the song (e.g. Verse, Chorus, Bridge).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
-#[cfg_attr(feature = "specta", specta(rename_all = "camelCase"))]
 #[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 #[serde(rename_all = "camelCase")]
 pub struct ParsedLyricsSection {
@@ -50,8 +44,6 @@ pub struct ParsedLyricsSection {
 
 /// A singer/performer agent definition.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
-#[cfg_attr(feature = "specta", specta(rename_all = "camelCase"))]
 #[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 #[serde(rename_all = "camelCase")]
 pub struct ParsedLyricsAgent {
@@ -63,8 +55,6 @@ pub struct ParsedLyricsAgent {
 
 /// Parsed lyrics payload returned by shared parser.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
-#[cfg_attr(feature = "specta", specta(rename_all = "camelCase"))]
 #[cfg_attr(feature = "uniffi", derive(uniffi::Record))]
 #[serde(rename_all = "camelCase")]
 pub struct ParsedLyrics {

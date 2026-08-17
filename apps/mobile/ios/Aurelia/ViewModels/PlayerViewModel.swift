@@ -159,20 +159,16 @@ final class PlayerViewModel: @unchecked Sendable {
         Task { @MainActor [self] in
             let serverUrl = sessionStore.serverUrl ?? ""
             let token = sessionStore.token ?? ""
-            let lyricsServerUrl = sessionStore.lyricsServerUrl
             let itemId = songId ?? ""
 
             logger.info("[Lyrics] Fetching lyrics for '\(title)' by '\(artist)' (itemId=\(itemId), serverUrl=\(serverUrl.prefix(30))..., hasToken=\(!token.isEmpty))")
 
-            logger.info("[Lyrics] Debug: lyricsServerUrl = '\(lyricsServerUrl ?? "nil")'")
             let parsedLyrics = await getParsedLyrics(
                 serverUrl: serverUrl,
                 token: token,
                 itemId: itemId,
                 artist: artist,
-                title: title,
-                path: nil,
-                lyricsServerUrl: lyricsServerUrl
+                title: title
             )
 
             logger.info("[Lyrics] Got ParsedLyrics from core: syncedLines=\(parsedLyrics.synced.count), plainLines=\(parsedLyrics.plain.count), areFromRemote=\(parsedLyrics.areFromRemote), hasSections=\(parsedLyrics.sections != nil), hasAgents=\(parsedLyrics.agents != nil), hasSongwriters=\(parsedLyrics.songwriters != nil), language=\(parsedLyrics.language ?? "nil")")

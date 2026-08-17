@@ -15,4 +15,3 @@ pub use jellyfin::*;
 pub use library::*;
 pub use lrclib::*;
 pub use music::*;
-pub mod daemon;

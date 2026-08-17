@@ -869,7 +869,7 @@ mod tests {
 
         let (song_count, artist_count, album_count) = service.get_library_stats().expect("stats");
 
-        assert_eq!(report.full_sync, false);
+        assert!(!report.full_sync);
         assert_eq!(song_count, 3);
         assert_eq!(artist_count, 2);
         assert_eq!(album_count, 2);

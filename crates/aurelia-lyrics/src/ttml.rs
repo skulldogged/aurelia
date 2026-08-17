@@ -277,26 +277,24 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                             is_word_synced = timing_mode.as_deref() == Some("Word");
                         }
                     }
-                    "span" => {
-                        if in_p {
-                            in_span = true;
-                            current_span_start =
-                                get_attr(&attrs, "begin", &[]).and_then(parse_ttml_timestamp);
-                            current_span_end =
-                                get_attr(&attrs, "end", &[]).and_then(parse_ttml_timestamp);
-                            // Prepend any whitespace between the previous </span> and this <span>.
-                            // Normalize to a single space (real TTML uses " ", but pretty-printed
-                            // XML may have newlines/indentation).
-                            let gap = std::mem::take(&mut inter_span_text);
-                            current_span_text = if !gap.trim().is_empty() {
-                                // Non-whitespace content between spans — preserve it
-                                gap
-                            } else if !gap.is_empty() {
-                                " ".to_string()
-                            } else {
-                                String::new()
-                            };
-                        }
+                    "span" if in_p => {
+                        in_span = true;
+                        current_span_start =
+                            get_attr(&attrs, "begin", &[]).and_then(parse_ttml_timestamp);
+                        current_span_end =
+                            get_attr(&attrs, "end", &[]).and_then(parse_ttml_timestamp);
+                        // Prepend any whitespace between the previous </span> and this <span>.
+                        // Normalize to a single space (real TTML uses " ", but pretty-printed
+                        // XML may have newlines/indentation).
+                        let gap = std::mem::take(&mut inter_span_text);
+                        current_span_text = if !gap.trim().is_empty() {
+                            // Non-whitespace content between spans — preserve it
+                            gap
+                        } else if !gap.is_empty() {
+                            " ".to_string()
+                        } else {
+                            String::new()
+                        };
                     }
                     _ => {}
                 }
@@ -400,35 +398,33 @@ fn parse_ttml_inner(xml: &str) -> Option<ParsedLyrics> {
                             in_p = false;
                         }
                     }
-                    "div" => {
-                        if in_div {
-                            // Commit all lines from this section into the global list
-                            let section_lines = std::mem::take(&mut current_section_lines);
-                            for line in &section_lines {
-                                all_lines.push(line.clone());
-                            }
-
-                            // Build section if we have a name
-                            if let Some(name) = current_section_name.take() {
-                                let start_time_ms =
-                                    section_lines.first().map(|l| l.time_ms).unwrap_or(0);
-                                let end_time_ms = section_lines
-                                    .last()
-                                    .and_then(|l| l.end_time_ms)
-                                    .or_else(|| section_lines.last().map(|l| l.time_ms))
-                                    .unwrap_or(start_time_ms);
-
-                                sections.push(ParsedLyricsSection {
-                                    name,
-                                    start_time_ms,
-                                    end_time_ms,
-                                    lines: section_lines,
-                                    agent_id: current_section_agent.clone(),
-                                });
-                            }
-                            current_section_agent = None;
-                            in_div = false;
+                    "div" if in_div => {
+                        // Commit all lines from this section into the global list
+                        let section_lines = std::mem::take(&mut current_section_lines);
+                        for line in &section_lines {
+                            all_lines.push(line.clone());
                         }
+
+                        // Build section if we have a name
+                        if let Some(name) = current_section_name.take() {
+                            let start_time_ms =
+                                section_lines.first().map(|l| l.time_ms).unwrap_or(0);
+                            let end_time_ms = section_lines
+                                .last()
+                                .and_then(|l| l.end_time_ms)
+                                .or_else(|| section_lines.last().map(|l| l.time_ms))
+                                .unwrap_or(start_time_ms);
+
+                            sections.push(ParsedLyricsSection {
+                                name,
+                                start_time_ms,
+                                end_time_ms,
+                                lines: section_lines,
+                                agent_id: current_section_agent.clone(),
+                            });
+                        }
+                        current_section_agent = None;
+                        in_div = false;
                     }
                     _ => {}
                 }

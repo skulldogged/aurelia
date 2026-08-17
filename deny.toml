@@ -1,7 +1,0 @@
-[advisories]
-unmaintained = "none"
-unsound = "none"
-yanked = "deny"
-ignore = [
-  { crate = "core2@0.4.0", reason = "Transitive through image AVIF support in the native audio/image stack; remove when upstream disables ravif/core2 or updates away from yanked core2." },
-]

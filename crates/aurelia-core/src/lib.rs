@@ -2,74 +2,12 @@ pub mod cache;
 pub mod db;
 pub mod domain;
 pub mod error;
-pub mod lastfm_core;
-pub mod listenbrainz_core;
 pub mod models;
 pub mod services;
-pub mod state;
 pub mod utils;
-
-// Desktop-only modules
-#[cfg(feature = "desktop")]
-pub mod audio;
-#[cfg(feature = "desktop")]
-pub mod media_controls;
-#[cfg(feature = "discord")]
-pub mod discord_rpc;
-
-use std::sync::Once;
-
-static TRACING_INIT: Once = Once::new();
-static TRACING_GUARD: once_cell::sync::OnceCell<tracing_appender::non_blocking::WorkerGuard> =
-    once_cell::sync::OnceCell::new();
-#[cfg(feature = "desktop")]
-static AUDIO_STATE: once_cell::sync::Lazy<audio::AudioState> =
-    once_cell::sync::Lazy::new(audio::AudioState::new);
-#[cfg(feature = "desktop")]
-static MEDIA_CONTROLS_STATE: once_cell::sync::Lazy<media_controls::MediaControlsState> =
-    once_cell::sync::Lazy::new(media_controls::MediaControlsState::new);
-
-fn ensure_tracing_initialized() {
-    TRACING_INIT.call_once(|| {
-        let build_filter = || {
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
-        };
-
-        if let Ok(path) = std::env::var("AURELIA_RUST_LOG_FILE")
-            && !path.trim().is_empty()
-        {
-            match std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-            {
-                Ok(file) => {
-                    let (writer, guard) = tracing_appender::non_blocking(file);
-                    let _ = TRACING_GUARD.set(guard);
-                    let _ = tracing_subscriber::fmt()
-                        .with_env_filter(build_filter())
-                        .with_ansi(false)
-                        .with_writer(writer)
-                        .try_init();
-                    return;
-                }
-                Err(err) => {
-                    eprintln!("aurelia-core: failed to open rust log file: {err}");
-                }
-            }
-        }
-
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(build_filter())
-            .with_ansi(false)
-            .try_init();
-    });
-}
 
 #[uniffi::export]
 pub fn ping() -> String {
-    ensure_tracing_initialized();
     "pong".to_string()
 }
 
@@ -101,7 +39,6 @@ pub fn get_provider_capabilities(
         models::BackendProvider::Jellyfin => models::ProviderCapabilities {
             supports_client_capabilities_registration: true,
             supports_playback_progress_reporting: true,
-            supports_sidecar_lyrics_lookup: true,
             supports_server_lyrics: true,
             supports_instant_mix: true,
         },
@@ -219,35 +156,8 @@ pub fn get_sync_state(app_data_dir: String) -> Result<domain::SyncState, error::
     serde_json::from_str(&json).map_err(|err| error::AppError::Serialization(err.to_string()))
 }
 
-#[uniffi::export]
-pub fn build_stream_url(
-    server_url: String,
-    token: String,
-    item_id: String,
-    container: Option<String>,
-) -> String {
-    ensure_tracing_initialized();
-    tracing::info!(
-        "[build_stream_url] server_url: {}, item_id: {}, container: {:?}",
-        server_url,
-        item_id,
-        container
-    );
-
-    let result = {
-        let client = services::JellyfinClient::with_auth(server_url, token);
-        client.get_audio_stream_url(&item_id, container.as_deref())
-    };
-
-    tracing::info!(
-        "[build_stream_url] result: {}",
-        &result[..result.len().min(100)]
-    );
-    result
-}
-
 /// Build a stream URL optimized for mobile playback.
-/// Uses HLS transcoding for non-seekable containers so that Media3/ExoPlayer can seek natively.
+/// Uses progressive transcoding for non-seekable containers.
 #[uniffi::export]
 pub fn build_mobile_stream_url(
     server_url: String,
@@ -255,7 +165,6 @@ pub fn build_mobile_stream_url(
     item_id: String,
     container: Option<String>,
 ) -> String {
-    ensure_tracing_initialized();
     {
         let client = services::JellyfinClient::with_auth(server_url, token);
         client.get_mobile_audio_stream_url(&item_id, container.as_deref())
@@ -295,552 +204,9 @@ pub fn build_image_url(
     Ok(result)
 }
 
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_init_player() -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        ensure_tracing_initialized();
-        audio::audio_init(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_play_url(
-    url: String,
-    token: String,
-    start_time_secs: Option<f64>,
-) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_play(&AUDIO_STATE, url, start_time_secs, token)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = (url, token, start_time_secs);
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_pause_player() -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_pause(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_resume_player() -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_resume(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_stop_player() -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_stop(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_seek_player(position_secs: f64) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_seek(&AUDIO_STATE, position_secs)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = position_secs;
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_get_position_secs() -> Result<f64, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_get_position(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_is_playing_player() -> Result<bool, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_is_playing(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_is_finished_player() -> Result<bool, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_is_finished(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_set_volume_player(volume: f64) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_set_volume(&AUDIO_STATE, volume as f32)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = volume;
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_get_volume_player() -> Result<f64, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_get_volume(&AUDIO_STATE)
-            .await
-            .map(|v| v as f64)
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_set_analyzer_enabled_player(enabled: bool) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_set_analyzer_enabled(&AUDIO_STATE, enabled)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = enabled;
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[cfg(feature = "desktop")]
-pub use audio::SpectrumSnapshot;
-
-#[cfg(not(feature = "desktop"))]
-#[derive(Clone, Debug, uniffi::Record)]
-pub struct SpectrumSnapshot {
-    pub frequency_data: Vec<u8>,
-    pub time_domain_data: Vec<u8>,
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_set_eq_enabled_player(enabled: bool) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_set_eq_enabled(&AUDIO_STATE, enabled)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = enabled;
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_is_eq_enabled_player() -> Result<bool, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_is_eq_enabled(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_get_eq_band_player(band: u32) -> Result<f64, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_get_eq_band(&AUDIO_STATE, band)
-            .await
-            .map(|gain| gain as f64)
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = band;
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_set_eq_band_player(band: u32, gain_db: f64) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_set_eq_band(&AUDIO_STATE, band as u8, 0.0, gain_db as f32, 0.0)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = (band, gain_db);
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_get_all_eq_bands_player() -> Result<Vec<f64>, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_get_all_eq_bands(&AUDIO_STATE)
-            .await
-            .map(|bands| bands.into_iter().map(|gain| gain as f64).collect())
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_reset_eq_player() -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_reset_eq(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_prepare_next_player(url: String, token: String) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_prepare_next(&AUDIO_STATE, url, token)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = (url, token);
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_advance_gapless_player() -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_advance_gapless(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_reinit_player() -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        audio::audio_reinit(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()))?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn audio_is_analyzer_enabled_player() -> Result<bool, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_is_analyzer_enabled(&AUDIO_STATE)
-            .await
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
-#[cfg(feature = "desktop")]
-pub async fn audio_poll_position_player() -> Option<audio::AudioPositionTick> {
-    audio::audio_poll_position(&AUDIO_STATE).await
-}
-
-pub fn media_controls_init(hwnd: Option<u64>) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        let hwnd_ptr = hwnd.map(|raw| raw as usize as *mut std::ffi::c_void);
-        MEDIA_CONTROLS_STATE
-            .init(hwnd_ptr)
-            .map_err(error::AppError::General)?;
-        return Ok(());
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = hwnd;
-        Err(error::AppError::Config(
-            "Desktop media controls are not enabled".to_string(),
-        ))
-    }
-}
-
-pub fn media_controls_update_now_playing(
-    payload: models::NowPlayingPayload,
-) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        MEDIA_CONTROLS_STATE
-            .update_now_playing(payload)
-            .map_err(error::AppError::General)
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = payload;
-        Err(error::AppError::Config(
-            "Desktop media controls are not enabled".to_string(),
-        ))
-    }
-}
-
-pub fn media_controls_set_playback_status(
-    is_playing: bool,
-    position_secs: Option<f64>,
-) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        MEDIA_CONTROLS_STATE
-            .set_playback_status(is_playing, position_secs)
-            .map_err(error::AppError::General)
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = (is_playing, position_secs);
-        Err(error::AppError::Config(
-            "Desktop media controls are not enabled".to_string(),
-        ))
-    }
-}
-
-pub fn media_controls_clear_now_playing() -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        MEDIA_CONTROLS_STATE
-            .clear_now_playing()
-            .map_err(error::AppError::General)
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop media controls are not enabled".to_string(),
-        ))
-    }
-}
-
-pub fn media_controls_set_button_enabled(button: String, enabled: bool) -> Result<(), error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        MEDIA_CONTROLS_STATE
-            .set_button_enabled(&button, enabled)
-            .map_err(error::AppError::General)
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        let _ = (button, enabled);
-        Err(error::AppError::Config(
-            "Desktop media controls are not enabled".to_string(),
-        ))
-    }
-}
-
-pub fn media_controls_pop_event() -> Option<String> {
-    #[cfg(feature = "desktop")]
-    {
-        let event = MEDIA_CONTROLS_STATE.pop_event()?;
-        Some(match event {
-            media_controls::MediaEvent::Play => "play".to_string(),
-            media_controls::MediaEvent::Pause => "pause".to_string(),
-            media_controls::MediaEvent::Toggle => "toggle".to_string(),
-            media_controls::MediaEvent::Next => "next".to_string(),
-            media_controls::MediaEvent::Previous => "previous".to_string(),
-            media_controls::MediaEvent::Stop => "stop".to_string(),
-            media_controls::MediaEvent::SeekDelta(value) => format!("seek_delta:{value}"),
-            media_controls::MediaEvent::SetPosition(value) => format!("set_position:{value}"),
-        })
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        None
-    }
-}
-
-#[uniffi::export]
-pub fn audio_get_spectrum_snapshot_player() -> Result<SpectrumSnapshot, error::AppError> {
-    #[cfg(feature = "desktop")]
-    {
-        return audio::audio_get_spectrum_snapshot(&AUDIO_STATE)
-            .map_err(|err| error::AppError::General(err.to_string()));
-    }
-    #[cfg(not(feature = "desktop"))]
-    {
-        Err(error::AppError::Config(
-            "Desktop audio backend is not enabled".to_string(),
-        ))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{build_mobile_stream_url, build_stream_url};
-
-    #[test]
-    fn build_stream_url_uses_static_for_seekable() {
-        let url = build_stream_url(
-            "http://localhost:8096".to_string(),
-            "token".to_string(),
-            "song123".to_string(),
-            Some("flac".to_string()),
-        );
-        assert!(url.contains("/Audio/song123/stream"));
-        assert!(url.contains("static=true"));
-    }
-
-    #[test]
-    fn build_stream_url_transcodes_non_seekable() {
-        let url = build_stream_url(
-            "http://localhost:8096".to_string(),
-            "token".to_string(),
-            "song123".to_string(),
-            Some("alac".to_string()),
-        );
-        assert!(url.contains("/Audio/song123/stream.aac"));
-        assert!(!url.contains("static=true"));
-    }
+    use super::build_mobile_stream_url;
 
     #[test]
     fn build_mobile_stream_url_uses_universal_for_non_seekable() {
@@ -938,15 +304,17 @@ pub async fn get_lyrics(
     title: String,
 ) -> String {
     // 1. Try server lyrics for providers that support it
-    if !server_url.is_empty() && !token.is_empty() && !item_id.is_empty() {
-        if infer_provider_from_token(&token) == models::BackendProvider::Jellyfin {
-            let client = services::JellyfinClient::with_auth(server_url, token);
-            if let Ok(Some(jf_lyrics)) = client.get_lyrics(&item_id).await
-                && let Ok(lrc) = utils::lyrics::jellyfin_to_lrc(&jf_lyrics)
-                && !lrc.trim().is_empty()
-            {
-                return lrc;
-            }
+    if !server_url.is_empty()
+        && !token.is_empty()
+        && !item_id.is_empty()
+        && infer_provider_from_token(&token) == models::BackendProvider::Jellyfin
+    {
+        let client = services::JellyfinClient::with_auth(server_url, token);
+        if let Ok(Some(jf_lyrics)) = client.get_lyrics(&item_id).await
+            && let Ok(lrc) = utils::lyrics::jellyfin_to_lrc(&jf_lyrics)
+            && !lrc.trim().is_empty()
+        {
+            return lrc;
         }
     }
 
@@ -965,8 +333,6 @@ pub async fn get_parsed_lyrics(
     item_id: String,
     artist: String,
     title: String,
-    path: Option<String>,
-    lyrics_server_url: Option<String>,
 ) -> models::ParsedLyrics {
     // 1. Prefer Jellyfin's native lyrics API. Our TTML Jellyfin fork exposes
     // word timing, sections, agents, translations, language, and songwriters here.
@@ -1031,69 +397,7 @@ pub async fn get_parsed_lyrics(
         );
     }
 
-    // 2. Try sidecar sources only after native server lyrics.
-
-    // 2a. Try lyrics server (daemon) if explicitly configured.
-    if let Some(ref lyrics_url) = lyrics_server_url
-        && !lyrics_url.is_empty()
-    {
-        tracing::info!("[Lyrics] Checking lyrics server at {}", lyrics_url);
-        match fetch_lyrics_from_server(lyrics_url, &item_id).await {
-            Ok(Some(parsed)) => {
-                tracing::info!("[Lyrics] Lyrics server found lyrics");
-                return parsed;
-            }
-            Ok(_) => tracing::info!("[Lyrics] Lyrics server returned no lyrics"),
-            Err(e) => tracing::warn!("[Lyrics] Lyrics server fetch failed: {}", e),
-        }
-    }
-
-    // 2b. Try local sidecar files (.ttml, .lrc) next to the audio file
-    let resolved_path = match path {
-        Some(ref p) if !p.is_empty() => Some(p.clone()),
-        _ if !server_url.is_empty()
-            && !token.is_empty()
-            && !item_id.is_empty()
-            && infer_provider_from_token(&token) == models::BackendProvider::Jellyfin =>
-        {
-            tracing::info!("[Lyrics] No path provided, fetching from Jellyfin item metadata");
-            let client = services::JellyfinClient::with_auth(server_url.clone(), token.clone());
-            match client.get_item_path(&item_id).await {
-                Ok(Some(p)) => {
-                    tracing::info!("[Lyrics] Got path from Jellyfin: {}", p);
-                    Some(p)
-                }
-                Ok(None) => {
-                    tracing::info!("[Lyrics] Jellyfin item has no path");
-                    None
-                }
-                Err(e) => {
-                    tracing::warn!("[Lyrics] Failed to fetch item path: {}", e);
-                    None
-                }
-            }
-        }
-        _ => None,
-    };
-
-    if let Some(ref audio_path) = resolved_path {
-        tracing::info!("[Lyrics] Trying local sidecar files for: {}", audio_path);
-        if let Some(parsed) = try_read_sidecar_lyrics(audio_path) {
-            tracing::info!(
-                "[Lyrics] Local sidecar found: syncedLines={}, hasSections={}, hasWords={}",
-                parsed.synced.len(),
-                parsed.sections.is_some(),
-                parsed.synced.first().is_some_and(|l| l.words.is_some()),
-            );
-            if parsed.is_valid() {
-                return parsed;
-            }
-        } else {
-            tracing::info!("[Lyrics] No local sidecar files found");
-        }
-    }
-
-    // 3. Fall back to LrcLib
+    // 2. Fall back to LrcLib
     tracing::info!(
         "[Lyrics] Falling back to LrcLib for '{}' by '{}'",
         title,
@@ -1112,55 +416,6 @@ pub async fn get_parsed_lyrics(
         }
     };
     utils::lyrics::parse_lyrics(&raw)
-}
-
-/// Fetch sidecar lyrics for a Jellyfin item from the local filesystem.
-/// Used by the web backend's `/api/lyrics/sidecar/{item_id}` endpoint.
-pub async fn get_sidecar_lyrics(
-    server_url: String,
-    token: String,
-    item_id: String,
-) -> Result<models::ParsedLyrics, error::AppError> {
-    if infer_provider_from_token(&token) != models::BackendProvider::Jellyfin {
-        return Err(error::AppError::Config(
-            "Sidecar lyrics are unsupported for this provider".to_string(),
-        ));
-    }
-    let client = services::JellyfinClient::with_auth(server_url, token);
-    let path = client
-        .get_item_path(&item_id)
-        .await?
-        .ok_or_else(|| error::AppError::General("Item has no filesystem path".to_string()))?;
-
-    try_read_sidecar_lyrics(&path).ok_or_else(|| {
-        error::AppError::General("No sidecar lyrics found for this item".to_string())
-    })
-}
-
-/// Fetch sidecar lyrics from a lyrics server (daemon).
-/// The server should respond at `{base_url}/lyrics/{item_id}` with a `LyricsDaemonResponse`.
-async fn fetch_lyrics_from_server(
-    server_url: &str,
-    item_id: &str,
-) -> Result<Option<models::ParsedLyrics>, Box<dyn std::error::Error + Send + Sync>> {
-    let url = format!("{}/lyrics/{}", server_url.trim_end_matches('/'), item_id);
-    let client = reqwest::Client::new();
-    let resp = client
-        .get(&url)
-        .timeout(std::time::Duration::from_secs(5))
-        .send()
-        .await?;
-
-    if !resp.status().is_success() {
-        return Ok(None);
-    }
-
-    let body: models::daemon::LyricsDaemonResponse = resp.json().await?;
-    if body.found {
-        return Ok(body.lyrics);
-    }
-
-    Ok(None)
 }
 
 pub async fn register_client_capabilities(
@@ -1285,51 +540,6 @@ pub async fn report_playback_stop_event(
             .report_playback_stop(&item_id, Some(position_ticks))
             .await
     }
-}
-
-/// Try to read a sidecar lyrics file next to the given audio file path.
-///
-/// Checks for `.ttml` first (richest metadata), then `.lrc` / `.elrc`.
-fn try_read_sidecar_lyrics(audio_path: &str) -> Option<models::ParsedLyrics> {
-    let audio = std::path::Path::new(audio_path);
-    let stem = audio.file_stem()?.to_str()?;
-    let parent = audio.parent()?;
-
-    // Extensions to try, in priority order (TTML first — richest format)
-    let extensions = [".ttml", ".lrc", ".elrc", ".txt"];
-
-    for ext in &extensions {
-        let candidate = parent.join(format!("{stem}{ext}"));
-        tracing::debug!("[Lyrics] Checking sidecar: {}", candidate.display());
-        if candidate.is_file() {
-            match std::fs::read_to_string(&candidate) {
-                Ok(contents) => {
-                    tracing::info!(
-                        "[Lyrics] Reading sidecar: {} ({} bytes)",
-                        candidate.display(),
-                        contents.len()
-                    );
-                    let parsed = utils::lyrics::parse_lyrics(&contents);
-                    if parsed.is_valid() {
-                        return Some(parsed);
-                    }
-                    tracing::warn!(
-                        "[Lyrics] Sidecar {} parsed but not valid, trying next",
-                        candidate.display()
-                    );
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "[Lyrics] Failed to read sidecar {}: {}",
-                        candidate.display(),
-                        e
-                    );
-                }
-            }
-        }
-    }
-
-    None
 }
 
 #[uniffi::export(async_runtime = "tokio")]
@@ -1665,15 +875,6 @@ pub async fn get_instant_mix(
         let client = services::JellyfinClient::with_auth(server_url, token);
         client.get_instant_mix(&item_id).await
     }
-}
-
-#[uniffi::export(async_runtime = "tokio")]
-pub async fn get_song_share_urls(
-    song: models::Song,
-) -> Result<std::collections::HashMap<String, String>, error::AppError> {
-    services::MusicBrainzService::get_song_share_urls(&song)
-        .await
-        .map_err(error::AppError::UniFfi)
 }
 
 #[uniffi::export(async_runtime = "tokio")]

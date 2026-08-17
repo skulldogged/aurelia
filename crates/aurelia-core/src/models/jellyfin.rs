@@ -1,20 +1,16 @@
 //! Jellyfin API-specific data models
 
 use serde::{Deserialize, Serialize};
-use specta::Type;
 
 /// Jellyfin lyrics response (`LyricDto`).
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JellyfinLyrics {
     /// Optional metadata about the lyrics.
     #[serde(rename = "Metadata")]
-    #[specta(rename = "metadata")]
     #[serde(default)]
     pub metadata: Option<JellyfinLyricMetadata>,
     /// List of lyric lines with timestamps
     #[serde(rename = "Lyrics")]
-    #[specta(rename = "lyrics")]
     pub lyrics: Vec<JellyfinLyricLine>,
     #[serde(rename = "Songwriters")]
     #[serde(default)]
@@ -31,8 +27,7 @@ pub struct JellyfinLyrics {
 }
 
 /// Metadata about the lyrics (`LyricMetadata`).
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JellyfinLyricMetadata {
     #[serde(rename = "Artist")]
     #[serde(default)]
@@ -67,16 +62,13 @@ pub struct JellyfinLyricMetadata {
 }
 
 /// Individual lyric line with optional timestamp (`LyricLine`).
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JellyfinLyricLine {
     /// Lyric text
     #[serde(rename = "Text")]
-    #[specta(rename = "text")]
     pub text: String,
     /// Timestamp in ticks (100ns intervals from start)
     #[serde(rename = "Start")]
-    #[specta(rename = "timestamp")]
     pub timestamp: Option<f64>,
     /// End timestamp in ticks (100ns intervals).
     #[serde(rename = "End")]
@@ -104,8 +96,7 @@ pub struct JellyfinLyricLine {
 ///
 /// Holds character position indices into the parent line's `Text` and
 /// timing information for a single word/segment.
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JellyfinLyricLineCue {
     /// Start character index in the line text (inclusive).
     #[serde(rename = "Position")]
@@ -127,8 +118,7 @@ pub struct JellyfinLyricLineCue {
 }
 
 /// Singer/performer agent metadata from TTML lyrics.
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JellyfinLyricAgent {
     #[serde(rename = "Id")]
     pub id: String,
@@ -140,8 +130,7 @@ pub struct JellyfinLyricAgent {
 }
 
 /// Section metadata from TTML lyrics.
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct JellyfinLyricSection {
     #[serde(rename = "Name")]
     pub name: String,
@@ -158,8 +147,7 @@ pub struct JellyfinLyricSection {
 }
 
 /// Device profile for client capabilities
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DeviceProfile {
     /// Device profile name
     #[serde(rename = "Name")]
@@ -203,8 +191,7 @@ pub struct DeviceProfile {
 }
 
 /// Direct play profile
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct DirectPlayProfile {
     /// Container format
     #[serde(rename = "Container")]
@@ -223,8 +210,7 @@ pub struct DirectPlayProfile {
 }
 
 /// Transcoding profile
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct TranscodingProfile {
     /// Container format
     #[serde(rename = "Container")]
@@ -293,8 +279,7 @@ pub struct TranscodingProfile {
 }
 
 /// Container profile
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ContainerProfile {
     /// Profile type
     #[serde(rename = "Type")]
@@ -312,8 +297,7 @@ pub struct ContainerProfile {
 }
 
 /// Codec profile
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CodecProfile {
     /// Profile type
     #[serde(rename = "Type")]
@@ -338,8 +322,7 @@ pub struct CodecProfile {
 }
 
 /// Subtitle profile
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SubtitleProfile {
     /// Format
     #[serde(rename = "Format")]
@@ -362,8 +345,7 @@ pub struct SubtitleProfile {
 }
 
 /// Profile condition
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ProfileCondition {
     /// Condition type
     #[serde(rename = "Condition")]
@@ -380,8 +362,7 @@ pub struct ProfileCondition {
 }
 
 /// Client capabilities for session registration
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ClientCapabilities {
     /// Supported media types for playback
     #[serde(rename = "PlayableMediaTypes")]
@@ -409,8 +390,7 @@ pub struct ClientCapabilities {
 }
 
 /// Playback information for session reporting
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PlaybackInfo {
     /// Item ID being played
     #[serde(rename = "ItemId")]
@@ -451,8 +431,7 @@ pub struct PlaybackInfo {
 }
 
 /// Progress update for ongoing playback
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PlaybackProgress {
     /// Item ID being played
     #[serde(rename = "ItemId")]
@@ -499,8 +478,7 @@ pub struct PlaybackProgress {
 }
 
 /// Stop playback info
-#[derive(Serialize, Deserialize, Debug, Type)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PlaybackStop {
     /// Item ID that was playing
     #[serde(rename = "ItemId")]
@@ -520,7 +498,7 @@ pub struct PlaybackStop {
 }
 
 /// Progress update data for frontend
-#[derive(Serialize, Deserialize, Debug, Type)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PlaybackProgressData {
     pub item_id: String,
     pub position_ticks: Option<f64>,

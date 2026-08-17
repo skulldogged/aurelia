@@ -49,14 +49,6 @@ struct MainView: View {
             guard let command = notification.object as? AureliaMenuCommand else { return }
             handleMenuCommand(command)
         }
-        #if targetEnvironment(macCatalyst)
-        .onAppear {
-            configureCatalystTitlebar()
-        }
-        .onChange(of: playerPresentationProgress) { _, newValue in
-            updateCatalystTitlebarVisibility(isPlayerOpen: newValue > 0.5)
-        }
-        #endif
     }
 
     private func openPlayer(animated: Bool, panel: PlayerView.Panel = .none) {
@@ -146,40 +138,6 @@ struct MainView: View {
         }
     }
 
-    #if targetEnvironment(macCatalyst)
-        private func configureCatalystTitlebar() {
-            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                  let window = windowScene.windows.first else { return }
-            windowScene.titlebar?.titleVisibility = .visible
-
-            DispatchQueue.main.async {
-                if let splitVC = findSplitViewController(in: window.rootViewController) {
-                    splitVC.preferredDisplayMode = .oneBesideSecondary
-                    splitVC.preferredSplitBehavior = .tile
-                    splitVC.primaryBackgroundStyle = .sidebar
-                    splitVC.show(.primary)
-                }
-            }
-        }
-
-        private func updateCatalystTitlebarVisibility(isPlayerOpen: Bool) {
-            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
-            windowScene.titlebar?.titleVisibility = isPlayerOpen ? .hidden : .visible
-        }
-
-        private func findSplitViewController(in viewController: UIViewController?) -> UISplitViewController? {
-            guard let viewController else { return nil }
-            if let splitVC = viewController as? UISplitViewController {
-                return splitVC
-            }
-            for child in viewController.children {
-                if let found = findSplitViewController(in: child) {
-                    return found
-                }
-            }
-            return nil
-        }
-    #endif
 }
 
 private struct MiniPlayerInsetModifier: ViewModifier {

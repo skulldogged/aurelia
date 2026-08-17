@@ -1,28 +1,6 @@
 use super::*;
 
 impl JellyfinClient {
-    /// Fetch just the filesystem `Path` of an item from Jellyfin.
-    ///
-    /// Uses a lightweight `GET /Items/{id}?Fields=Path` request.
-    pub async fn get_item_path(&self, item_id: &str) -> AppResult<Option<String>> {
-        let url =
-            utils::build_jellyfin_url(&self.server_url, &format!("/Items/{item_id}?Fields=Path"));
-
-        let response = self
-            .client
-            .get(&url)
-            .header("Authorization", self.get_auth_header())
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            return Ok(None);
-        }
-
-        let body: serde_json::Value = response.json().await?;
-        Ok(body["Path"].as_str().map(ToString::to_string))
-    }
-
     /// Get lyrics for a song
     pub async fn get_lyrics(&self, item_id: &str) -> AppResult<Option<JellyfinLyrics>> {
         let lyrics_url = utils::build_jellyfin_url(
@@ -152,50 +130,7 @@ impl JellyfinClient {
         Ok(all_ids)
     }
 
-    /// Get audio stream URL for desktop (raw HTTP streaming with byte-range or startTimeTicks seeking).
-    ///
-    /// For seekable containers, returns a direct static stream.
-    /// For non-seekable containers (ALAC, etc.), returns a transcoded AAC stream.
-    /// The desktop player handles seeking via startTimeTicks on the raw stream.
-    pub fn get_audio_stream_url(&self, item_id: &str, container: Option<&str>) -> String {
-        let supports_seek = utils::supports_seeking(container);
-        tracing::info!(
-            "[get_audio_stream_url] item_id: {}, container: {:?}, supports_seeking: {}",
-            item_id,
-            container,
-            supports_seek
-        );
-
-        let token = self.token.as_deref().unwrap_or("");
-        if supports_seek {
-            let url = format!(
-                "{}?api_key={}&static=true",
-                utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{}/stream", item_id)),
-                token
-            );
-            tracing::info!(
-                "[get_audio_stream_url] Using seekable URL: {}",
-                &url[..url.len().min(100)]
-            );
-            url
-        } else {
-            let url = format!(
-                "{}?api_key={}",
-                utils::build_jellyfin_url(
-                    &self.server_url,
-                    &format!("/Audio/{}/stream.aac", item_id)
-                ),
-                token
-            );
-            tracing::info!(
-                "[get_audio_stream_url] Using transcoded URL: {}",
-                &url[..url.len().min(100)]
-            );
-            url
-        }
-    }
-
-    /// Get audio stream URL for mobile (ExoPlayer/Media3).
+    /// Get an audio stream URL for native mobile players.
     ///
     /// For seekable containers, returns a direct static stream.
     /// For non-seekable containers (ALAC, etc.), uses the `/universal` endpoint which

@@ -265,7 +265,7 @@ mod tests {
         };
 
         save_credentials(base_path.clone(), &creds).expect("save creds");
-        save_setting(profile_path.clone(), "lyrics_sidecar_enabled", "true").expect("save setting");
+        save_setting(profile_path.clone(), "feature_enabled", "true").expect("save setting");
 
         std::thread::scope(|scope| {
             let base_for_thread = base_path.clone();
@@ -277,7 +277,7 @@ mod tests {
             });
             scope.spawn(move || {
                 for _ in 0..20 {
-                    load_setting(profile_for_thread.clone(), "lyrics_sidecar_enabled")
+                    load_setting(profile_for_thread.clone(), "feature_enabled")
                         .expect("load setting");
                 }
             });
@@ -287,7 +287,7 @@ mod tests {
             .expect("final creds")
             .expect("present");
         assert_eq!(loaded.username, "user");
-        let setting = load_setting(profile_path, "lyrics_sidecar_enabled").expect("final setting");
+        let setting = load_setting(profile_path, "feature_enabled").expect("final setting");
         assert_eq!(setting.as_deref(), Some("true"));
     }
 }

@@ -183,18 +183,6 @@ class SessionStore(
     return true
   }
 
-  fun setLyricsServerUrl(url: String?) {
-    prefs.edit {
-      if (url.isNullOrBlank()) {
-        remove("lyricsServerUrl")
-      } else {
-        putString("lyricsServerUrl", url)
-      }
-    }
-  }
-
-  fun getLyricsServerUrl(): String? = prefs.getString("lyricsServerUrl", null)
-
   fun setOnDeviceAiModelPath(path: String?) {
     prefs.edit {
       if (path.isNullOrBlank()) {

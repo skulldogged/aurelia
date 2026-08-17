@@ -1,19 +1,10 @@
-# JavaScript / Bun dependencies
-node_modules/
-
 # Build outputs and test reports
 /target/
-dist/
-dist-electron/
-dist-ssr/
 build/
-coverage/
-*.tsbuildinfo
 
 # Tool caches and temporary files
 .cache/
 .tmp/
-.vite/
 .direnv/
 .gradle/
 .kotlin/
@@ -73,6 +64,3 @@ apps/mobile/ios/AureliaCore/AureliaCoreFFI.xcframework/
 apps/mobile/ios/AureliaCore/Sources/aurelia_core.swift
 apps/mobile/ios/AureliaCore/Sources/aurelia_coreFFI.h
 apps/mobile/ios/AureliaCore/Sources/aurelia_coreFFI.modulemap
-
-# Local design prototypes
-/docs/redesign/

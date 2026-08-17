@@ -7,68 +7,29 @@ edition = "2024"
 name = "aurelia_core"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
-[features]
-default = []
-# Discord IPC can run from a local backend (Electron / desktop) without the audio stack.
-discord = ["dep:discord-rich-presence"]
-# Desktop-only features (audio playback, discord RPC, OS media controls)
-desktop = [
-  "dep:rodio",
-  "dep:biquad",
-  "dep:rustfft",
-  "dep:souvlaki",
-  "discord",
-]
-
 [dependencies]
-aurelia-lyrics = { path = "../aurelia-lyrics", features = ["specta", "uniffi", "json"] }
+aurelia-lyrics = { path = "../aurelia-lyrics", features = ["uniffi"] }
 anyhow = "1.0"
-base64 = "0.22"
 
 chrono = { version = "0.4.38", features = ["serde"] }
-derive_more = { version = "2.1", features = ["display"] }
 dirs = "6.0"
-md5 = "0.8"
 once_cell = "1.21.3"
-quick-xml = "0.39"
 postcard = { version = "1.0", features = ["use-std"] }
-progenitor-client = "0.12"
 rand = "0.10"
 regex = "1.11"
 redb = "3.1"
 reqwest = { version = "0.12", default-features = false, features = [
-  "blocking",
   "json",
   "rustls-tls",
-  "stream",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-specta = { version = "=2.0.0-rc.22", features = ["derive", "function"] }
-stream-download = { version = "0.22", features = ["reqwest-rustls"] }
 thiserror = "2"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"], default-features = false }
-tracing-appender = "0.2"
 urlencoding = "2.1"
 uuid = { version = "1.19", features = ["v4"] }
 tokio = { version = "1.43", features = ["rt-multi-thread"] }
 uniffi = { version = "0.31.0", features = ["tokio"] }
-
-# Desktop-only dependencies
-rodio = { version = "0.21.1", default-features = false, features = ["playback", "symphonia-all"], optional = true }
-biquad = { version = "0.5.0", optional = true }
-rustfft = { version = "6.2", optional = true }
-discord-rich-presence = { version = "1", optional = true }
-souvlaki = { git = "https://github.com/skulldogged/souvlaki", optional = true }
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = [
-  "Win32_Foundation",
-  "Win32_Graphics_Gdi",
-  "Win32_System_LibraryLoader",
-  "Win32_UI_WindowsAndMessaging",
-] }
 
 [dev-dependencies]
 httpmock = "0.8"

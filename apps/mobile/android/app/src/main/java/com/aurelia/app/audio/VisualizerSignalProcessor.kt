@@ -10,7 +10,7 @@ import kotlin.math.sqrt
  * Signal processing pipeline for Android visualizer frames.
  *
  * Converts Android Visualizer FFT + waveform bytes into compact, smoothed
- * 0..255 buffers that match desktop/web visualizer semantics.
+ * 0..255 buffers suitable for the Compose visualizer.
  */
 class VisualizerSignalProcessor(
     private val attack: Float = DEFAULT_ATTACK_SMOOTHING,
@@ -141,7 +141,7 @@ class VisualizerSignalProcessor(
         }
 
         /**
-         * Android's Visualizer FFT has a noticeably elevated floor compared to web/desktop.
+         * Android's Visualizer FFT has a noticeably elevated floor.
          * Gate low-level energy, then apply a mild shaping curve so idle bars sit near bottom
          * while preserving punch on transients.
          */

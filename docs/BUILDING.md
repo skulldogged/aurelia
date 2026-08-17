@@ -1,163 +1,66 @@
 # Building Aurelia
 
-This guide covers development and production builds for the monorepo.
+## Shared prerequisites
 
-## Prerequisites
+- Rust stable
+- Java 17
+- Android SDK 36 and build tools 36.0.0
+- Android NDK 29.0.14206865
+- `cargo-ndk`
 
-### Required tools
+On NixOS, `nix develop` supplies the Rust toolchain, Java, Android SDK/NDK, and `cargo-ndk`.
 
-1. Bun (v1+)
-2. Rust stable toolchain
-3. Node.js 20+
-
-### Platform dependencies
-
-#### Windows (Electron)
-
-- Visual Studio C++ Build Tools (for the Rust backend)
-- Electron is installed via Bun/Nix
-
-#### macOS
+## Rust core
 
 ```bash
-xcode-select --install
+cargo build --workspace
 ```
 
-#### Linux (Debian/Ubuntu)
+The workspace contains `aurelia-core`, `aurelia-lyrics`, and the UniFFI binding generator used by both mobile builds.
+
+## Android
 
 ```bash
-sudo apt update
-sudo apt install -y \
-  build-essential \
-  curl \
-  wget \
-  file \
-  pkg-config \
-  libssl-dev \
-  libasound2-dev \
-  libgtk-3-dev
+cd apps/mobile/android
+./gradlew assembleDebug
 ```
 
-#### Linux (Fedora)
+Gradle builds `aurelia-core` for the Android ABIs, regenerates the Kotlin UniFFI bindings, and packages the native libraries automatically. Release builds use:
 
 ```bash
-sudo dnf install -y \
-  gcc \
-  gcc-c++ \
-  make \
-  pkgconf-pkg-config \
-  openssl-devel \
-  alsa-lib-devel \
-  gtk3-devel \
-  curl \
-  wget \
-  file
+./gradlew assembleRelease
 ```
 
-## Initial setup
+The debug APK is written under `apps/mobile/android/app/build/outputs/apk/debug/`.
+
+## iOS
+
+iOS requires macOS and Xcode. Build the Rust XCFramework and regenerate Swift UniFFI bindings with:
 
 ```bash
-git clone https://github.com/pupbrained/aurelia.git
-cd aurelia
-bun install
+./apps/mobile/ios/build-rust.sh
 ```
 
-## Quick Start
-
-Build all platforms (web + desktop + Android + iOS on macOS):
+Use `--release` for optimized Rust libraries:
 
 ```bash
-bun run build
+./apps/mobile/ios/build-rust.sh --release
 ```
 
-Run all tests:
+Then open `apps/mobile/ios/Aurelia.xcworkspace` in Xcode, or build an unsigned archive from the command line:
 
 ```bash
-bun run test
+xcodebuild archive \
+  -workspace apps/mobile/ios/Aurelia.xcworkspace \
+  -scheme Aurelia \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath build/ios.xcarchive \
+  CODE_SIGN_IDENTITY='' \
+  CODE_SIGNING_REQUIRED=NO \
+  CODE_SIGNING_ALLOWED=NO
 ```
 
-## Development
+## Generated bindings
 
-| Command | Description |
-|---------|-------------|
-| `bun run dev:web` | Web frontend + backend |
-| `bun run dev:desktop` | Desktop (Electron + local Rust backend) |
-| `bun run dev:android` | Android app |
-| `bun run dev:ios` | iOS app (macOS only) |
-| `bun run dev:all` | All platforms |
-
-## Building
-
-| Command | Description |
-|---------|-------------|
-| `bun run build:web` | Web (frontend + Rust backend) |
-| `bun run build:desktop` | Desktop (Electron + local Rust backend) |
-| `bun run build:android` | Android APK |
-| `bun run build:ios` | iOS app |
-| `bun run build` | All platforms |
-
-### Build variants
-
-| Command | Description |
-|---------|-------------|
-| `bun run build:web:release` | Full release build |
-| `bun run build:web:strict` | Typecheck + build |
-| `bun run build:desktop:release` | Full release build |
-| `bun run build:desktop:strict` | Typecheck + build |
-| `bun run build:android:release` | Release APK |
-| `bun run build:ios:ipa` | iOS IPA (requires macOS) |
-
-### Build options
-
-Build commands powered by `scripts/aurelia.ts` support these flags:
-
-- `--fast` - Use faster local-release profile (default for dev builds)
-- `--skip-bindings` - Skip bindings generation
-- `--force-bindings` - Force regenerate bindings
-
-## Testing
-
-| Command | Description |
-|---------|-------------|
-| `bun run test` | All tests (JS + Rust + Android) |
-| `bun run test:web` | Web frontend tests |
-| `bun run test:desktop` | Desktop frontend tests |
-| `bun run test:android` | Android unit tests |
-| `bun run test:ios` | iOS tests (macOS only) |
-| `bun run test:js` | All JavaScript tests |
-| `bun run test:rust` | Rust tests |
-
-## Type Checking
-
-| Command | Description |
-|---------|-------------|
-| `bun run typecheck` | Typecheck all |
-| `bun run typecheck:web` | Typecheck web frontend |
-| `bun run typecheck:desktop` | Typecheck desktop frontend |
-
-## Bindings
-
-Generate Rust FFI bindings for TypeScript:
-
-```bash
-bun run bindings        # TypeScript bindings + web backend
-bun run bindings:full   # + iOS Rust bindings
-```
-
-The `build:*` commands auto-cache binding generation and skip it when Rust sources are unchanged. Use `--force-bindings` to bypass.
-
-## Code Quality
-
-```bash
-bun run lint           # Lint all
-bun run lint:fix       # Auto-fix lint issues
-```
-
-## Troubleshooting
-
-### Clean build artifacts
-
-```bash
-# Rust
-cargo clean
-```
+Do not edit generated Kotlin or Swift UniFFI sources by hand. Android regenerates Kotlin bindings during Gradle pre-build; `apps/mobile/ios/build-rust.sh` regenerates Swift bindings and the XCFramework.

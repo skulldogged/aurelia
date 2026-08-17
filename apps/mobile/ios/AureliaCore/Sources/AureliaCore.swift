@@ -577,24 +577,6 @@ fileprivate struct FfiConverterString: FfiConverter {
     }
 }
 
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-fileprivate struct FfiConverterData: FfiConverterRustBuffer {
-    typealias SwiftType = Data
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Data {
-        let len: Int32 = try readInt(&buf)
-        return Data(try readBytes(&buf, count: Int(len)))
-    }
-
-    public static func write(_ value: Data, into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        writeBytes(&buf, value)
-    }
-}
-
 
 /**
  * Consolidated album type with all information
@@ -1066,187 +1048,6 @@ public func FfiConverterTypeCredentials_lower(_ value: Credentials) -> RustBuffe
 }
 
 
-public struct HomeViewData: Equatable, Hashable {
-    public var recentlyPlayed: [Song]
-    public var recentlyAdded: [Album]
-    public var randomAlbums: [Album]
-    public var featuredAlbums: [Album]
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(recentlyPlayed: [Song], recentlyAdded: [Album], randomAlbums: [Album], featuredAlbums: [Album]) {
-        self.recentlyPlayed = recentlyPlayed
-        self.recentlyAdded = recentlyAdded
-        self.randomAlbums = randomAlbums
-        self.featuredAlbums = featuredAlbums
-    }
-
-    
-
-    
-}
-
-#if compiler(>=6)
-extension HomeViewData: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeHomeViewData: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HomeViewData {
-        return
-            try HomeViewData(
-                recentlyPlayed: FfiConverterSequenceTypeSong.read(from: &buf), 
-                recentlyAdded: FfiConverterSequenceTypeAlbum.read(from: &buf), 
-                randomAlbums: FfiConverterSequenceTypeAlbum.read(from: &buf), 
-                featuredAlbums: FfiConverterSequenceTypeAlbum.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: HomeViewData, into buf: inout [UInt8]) {
-        FfiConverterSequenceTypeSong.write(value.recentlyPlayed, into: &buf)
-        FfiConverterSequenceTypeAlbum.write(value.recentlyAdded, into: &buf)
-        FfiConverterSequenceTypeAlbum.write(value.randomAlbums, into: &buf)
-        FfiConverterSequenceTypeAlbum.write(value.featuredAlbums, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeHomeViewData_lift(_ buf: RustBuffer) throws -> HomeViewData {
-    return try FfiConverterTypeHomeViewData.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeHomeViewData_lower(_ value: HomeViewData) -> RustBuffer {
-    return FfiConverterTypeHomeViewData.lower(value)
-}
-
-
-/**
- * Limits used when deriving home sections from a song list.
- */
-public struct HomeViewLimits: Equatable, Hashable {
-    public var featuredAlbums: UInt32
-    public var randomAlbums: UInt32
-    public var recentlyAddedAlbums: UInt32
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(featuredAlbums: UInt32, randomAlbums: UInt32, recentlyAddedAlbums: UInt32) {
-        self.featuredAlbums = featuredAlbums
-        self.randomAlbums = randomAlbums
-        self.recentlyAddedAlbums = recentlyAddedAlbums
-    }
-
-    
-
-    
-}
-
-#if compiler(>=6)
-extension HomeViewLimits: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeHomeViewLimits: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> HomeViewLimits {
-        return
-            try HomeViewLimits(
-                featuredAlbums: FfiConverterUInt32.read(from: &buf), 
-                randomAlbums: FfiConverterUInt32.read(from: &buf), 
-                recentlyAddedAlbums: FfiConverterUInt32.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: HomeViewLimits, into buf: inout [UInt8]) {
-        FfiConverterUInt32.write(value.featuredAlbums, into: &buf)
-        FfiConverterUInt32.write(value.randomAlbums, into: &buf)
-        FfiConverterUInt32.write(value.recentlyAddedAlbums, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeHomeViewLimits_lift(_ buf: RustBuffer) throws -> HomeViewLimits {
-    return try FfiConverterTypeHomeViewLimits.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeHomeViewLimits_lower(_ value: HomeViewLimits) -> RustBuffer {
-    return FfiConverterTypeHomeViewLimits.lower(value)
-}
-
-
-public struct LibraryData: Equatable, Hashable {
-    public var albums: [Album]
-    public var artists: [Artist]
-    public var songs: [Song]
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(albums: [Album], artists: [Artist], songs: [Song]) {
-        self.albums = albums
-        self.artists = artists
-        self.songs = songs
-    }
-
-    
-
-    
-}
-
-#if compiler(>=6)
-extension LibraryData: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeLibraryData: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> LibraryData {
-        return
-            try LibraryData(
-                albums: FfiConverterSequenceTypeAlbum.read(from: &buf), 
-                artists: FfiConverterSequenceTypeArtist.read(from: &buf), 
-                songs: FfiConverterSequenceTypeSong.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: LibraryData, into buf: inout [UInt8]) {
-        FfiConverterSequenceTypeAlbum.write(value.albums, into: &buf)
-        FfiConverterSequenceTypeArtist.write(value.artists, into: &buf)
-        FfiConverterSequenceTypeSong.write(value.songs, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeLibraryData_lift(_ buf: RustBuffer) throws -> LibraryData {
-    return try FfiConverterTypeLibraryData.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeLibraryData_lower(_ value: LibraryData) -> RustBuffer {
-    return FfiConverterTypeLibraryData.lower(value)
-}
-
-
 /**
  * Response from successful login
  */
@@ -1382,71 +1183,6 @@ public func FfiConverterTypeMobileHomeData_lift(_ buf: RustBuffer) throws -> Mob
 #endif
 public func FfiConverterTypeMobileHomeData_lower(_ value: MobileHomeData) -> RustBuffer {
     return FfiConverterTypeMobileHomeData.lower(value)
-}
-
-
-/**
- * Limits used when deriving mobile home sections from a song list.
- */
-public struct MobileHomeViewLimits: Equatable, Hashable {
-    public var mostPlayed: UInt32
-    public var recentlyPlayed: UInt32
-    public var albumSection: UInt32
-    public var featuredAlbums: UInt32
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(mostPlayed: UInt32, recentlyPlayed: UInt32, albumSection: UInt32, featuredAlbums: UInt32) {
-        self.mostPlayed = mostPlayed
-        self.recentlyPlayed = recentlyPlayed
-        self.albumSection = albumSection
-        self.featuredAlbums = featuredAlbums
-    }
-
-    
-
-    
-}
-
-#if compiler(>=6)
-extension MobileHomeViewLimits: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeMobileHomeViewLimits: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MobileHomeViewLimits {
-        return
-            try MobileHomeViewLimits(
-                mostPlayed: FfiConverterUInt32.read(from: &buf), 
-                recentlyPlayed: FfiConverterUInt32.read(from: &buf), 
-                albumSection: FfiConverterUInt32.read(from: &buf), 
-                featuredAlbums: FfiConverterUInt32.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: MobileHomeViewLimits, into buf: inout [UInt8]) {
-        FfiConverterUInt32.write(value.mostPlayed, into: &buf)
-        FfiConverterUInt32.write(value.recentlyPlayed, into: &buf)
-        FfiConverterUInt32.write(value.albumSection, into: &buf)
-        FfiConverterUInt32.write(value.featuredAlbums, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeMobileHomeViewLimits_lift(_ buf: RustBuffer) throws -> MobileHomeViewLimits {
-    return try FfiConverterTypeMobileHomeViewLimits.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeMobileHomeViewLimits_lower(_ value: MobileHomeViewLimits) -> RustBuffer {
-    return FfiConverterTypeMobileHomeViewLimits.lower(value)
 }
 
 
@@ -1972,16 +1708,14 @@ public func FfiConverterTypePlaylistUpdateData_lower(_ value: PlaylistUpdateData
 public struct ProviderCapabilities: Equatable, Hashable {
     public var supportsClientCapabilitiesRegistration: Bool
     public var supportsPlaybackProgressReporting: Bool
-    public var supportsSidecarLyricsLookup: Bool
     public var supportsServerLyrics: Bool
     public var supportsInstantMix: Bool
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(supportsClientCapabilitiesRegistration: Bool, supportsPlaybackProgressReporting: Bool, supportsSidecarLyricsLookup: Bool, supportsServerLyrics: Bool, supportsInstantMix: Bool) {
+    public init(supportsClientCapabilitiesRegistration: Bool, supportsPlaybackProgressReporting: Bool, supportsServerLyrics: Bool, supportsInstantMix: Bool) {
         self.supportsClientCapabilitiesRegistration = supportsClientCapabilitiesRegistration
         self.supportsPlaybackProgressReporting = supportsPlaybackProgressReporting
-        self.supportsSidecarLyricsLookup = supportsSidecarLyricsLookup
         self.supportsServerLyrics = supportsServerLyrics
         self.supportsInstantMix = supportsInstantMix
     }
@@ -2004,7 +1738,6 @@ public struct FfiConverterTypeProviderCapabilities: FfiConverterRustBuffer {
             try ProviderCapabilities(
                 supportsClientCapabilitiesRegistration: FfiConverterBool.read(from: &buf), 
                 supportsPlaybackProgressReporting: FfiConverterBool.read(from: &buf), 
-                supportsSidecarLyricsLookup: FfiConverterBool.read(from: &buf), 
                 supportsServerLyrics: FfiConverterBool.read(from: &buf), 
                 supportsInstantMix: FfiConverterBool.read(from: &buf)
         )
@@ -2013,7 +1746,6 @@ public struct FfiConverterTypeProviderCapabilities: FfiConverterRustBuffer {
     public static func write(_ value: ProviderCapabilities, into buf: inout [UInt8]) {
         FfiConverterBool.write(value.supportsClientCapabilitiesRegistration, into: &buf)
         FfiConverterBool.write(value.supportsPlaybackProgressReporting, into: &buf)
-        FfiConverterBool.write(value.supportsSidecarLyricsLookup, into: &buf)
         FfiConverterBool.write(value.supportsServerLyrics, into: &buf)
         FfiConverterBool.write(value.supportsInstantMix, into: &buf)
     }
@@ -2351,60 +2083,6 @@ public func FfiConverterTypeSong_lift(_ buf: RustBuffer) throws -> Song {
 #endif
 public func FfiConverterTypeSong_lower(_ value: Song) -> RustBuffer {
     return FfiConverterTypeSong.lower(value)
-}
-
-
-public struct SpectrumSnapshot: Equatable, Hashable {
-    public var frequencyData: Data
-    public var timeDomainData: Data
-
-    // Default memberwise initializers are never public by default, so we
-    // declare one manually.
-    public init(frequencyData: Data, timeDomainData: Data) {
-        self.frequencyData = frequencyData
-        self.timeDomainData = timeDomainData
-    }
-
-    
-
-    
-}
-
-#if compiler(>=6)
-extension SpectrumSnapshot: Sendable {}
-#endif
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public struct FfiConverterTypeSpectrumSnapshot: FfiConverterRustBuffer {
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SpectrumSnapshot {
-        return
-            try SpectrumSnapshot(
-                frequencyData: FfiConverterData.read(from: &buf), 
-                timeDomainData: FfiConverterData.read(from: &buf)
-        )
-    }
-
-    public static func write(_ value: SpectrumSnapshot, into buf: inout [UInt8]) {
-        FfiConverterData.write(value.frequencyData, into: &buf)
-        FfiConverterData.write(value.timeDomainData, into: &buf)
-    }
-}
-
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSpectrumSnapshot_lift(_ buf: RustBuffer) throws -> SpectrumSnapshot {
-    return try FfiConverterTypeSpectrumSnapshot.lift(buf)
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
-public func FfiConverterTypeSpectrumSnapshot_lower(_ value: SpectrumSnapshot) -> RustBuffer {
-    return FfiConverterTypeSpectrumSnapshot.lower(value)
 }
 
 
@@ -3353,31 +3031,6 @@ fileprivate struct FfiConverterOptionDictionaryStringDictionaryStringString: Ffi
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-fileprivate struct FfiConverterSequenceDouble: FfiConverterRustBuffer {
-    typealias SwiftType = [Double]
-
-    public static func write(_ value: [Double], into buf: inout [UInt8]) {
-        let len = Int32(value.count)
-        writeInt(&buf, len)
-        for item in value {
-            FfiConverterDouble.write(item, into: &buf)
-        }
-    }
-
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Double] {
-        let len: Int32 = try readInt(&buf)
-        var seq = [Double]()
-        seq.reserveCapacity(Int(len))
-        for _ in 0 ..< len {
-            seq.append(try FfiConverterDouble.read(from: &buf))
-        }
-        return seq
-    }
-}
-
-#if swift(>=5.8)
-@_documentation(visibility: private)
-#endif
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -3638,320 +3291,6 @@ public func addPlaylistItems(serverUrl: String, token: String, playlistId: Strin
             errorHandler: FfiConverterTypeAppError_lift
         )
 }
-public func audioAdvanceGaplessPlayer()async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_advance_gapless_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioGetAllEqBandsPlayer()async throws  -> [Double]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_get_all_eq_bands_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_aurelia_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_aurelia_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterSequenceDouble.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioGetEqBandPlayer(band: UInt32)async throws  -> Double  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_get_eq_band_player(FfiConverterUInt32.lower(band)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_f64,
-            completeFunc: ffi_aurelia_core_rust_future_complete_f64,
-            freeFunc: ffi_aurelia_core_rust_future_free_f64,
-            liftFunc: FfiConverterDouble.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioGetPositionSecs()async throws  -> Double  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_get_position_secs(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_f64,
-            completeFunc: ffi_aurelia_core_rust_future_complete_f64,
-            freeFunc: ffi_aurelia_core_rust_future_free_f64,
-            liftFunc: FfiConverterDouble.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioGetSpectrumSnapshotPlayer()throws  -> SpectrumSnapshot  {
-    return try  FfiConverterTypeSpectrumSnapshot_lift(try rustCallWithError(FfiConverterTypeAppError_lift) {
-    uniffi_aurelia_core_fn_func_audio_get_spectrum_snapshot_player($0
-    )
-})
-}
-public func audioGetVolumePlayer()async throws  -> Double  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_get_volume_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_f64,
-            completeFunc: ffi_aurelia_core_rust_future_complete_f64,
-            freeFunc: ffi_aurelia_core_rust_future_free_f64,
-            liftFunc: FfiConverterDouble.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioInitPlayer()async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_init_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioIsAnalyzerEnabledPlayer()async throws  -> Bool  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_is_analyzer_enabled_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_i8,
-            completeFunc: ffi_aurelia_core_rust_future_complete_i8,
-            freeFunc: ffi_aurelia_core_rust_future_free_i8,
-            liftFunc: FfiConverterBool.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioIsEqEnabledPlayer()async throws  -> Bool  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_is_eq_enabled_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_i8,
-            completeFunc: ffi_aurelia_core_rust_future_complete_i8,
-            freeFunc: ffi_aurelia_core_rust_future_free_i8,
-            liftFunc: FfiConverterBool.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioIsFinishedPlayer()async throws  -> Bool  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_is_finished_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_i8,
-            completeFunc: ffi_aurelia_core_rust_future_complete_i8,
-            freeFunc: ffi_aurelia_core_rust_future_free_i8,
-            liftFunc: FfiConverterBool.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioIsPlayingPlayer()async throws  -> Bool  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_is_playing_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_i8,
-            completeFunc: ffi_aurelia_core_rust_future_complete_i8,
-            freeFunc: ffi_aurelia_core_rust_future_free_i8,
-            liftFunc: FfiConverterBool.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioPausePlayer()async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_pause_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioPlayUrl(url: String, token: String, startTimeSecs: Double?)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_play_url(FfiConverterString.lower(url),FfiConverterString.lower(token),FfiConverterOptionDouble.lower(startTimeSecs)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioPrepareNextPlayer(url: String, token: String)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_prepare_next_player(FfiConverterString.lower(url),FfiConverterString.lower(token)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioReinitPlayer()async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_reinit_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioResetEqPlayer()async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_reset_eq_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioResumePlayer()async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_resume_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioSeekPlayer(positionSecs: Double)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_seek_player(FfiConverterDouble.lower(positionSecs)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioSetAnalyzerEnabledPlayer(enabled: Bool)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_set_analyzer_enabled_player(FfiConverterBool.lower(enabled)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioSetEqBandPlayer(band: UInt32, gainDb: Double)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_set_eq_band_player(FfiConverterUInt32.lower(band),FfiConverterDouble.lower(gainDb)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioSetEqEnabledPlayer(enabled: Bool)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_set_eq_enabled_player(FfiConverterBool.lower(enabled)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioSetVolumePlayer(volume: Double)async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_set_volume_player(FfiConverterDouble.lower(volume)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func audioStopPlayer()async throws   {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_audio_stop_player(
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_void,
-            completeFunc: ffi_aurelia_core_rust_future_complete_void,
-            freeFunc: ffi_aurelia_core_rust_future_free_void,
-            liftFunc: { $0 },
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
 public func authenticate(request: AuthRequest)async throws  -> LoginResponse  {
     return
         try  await uniffiRustCallAsync(
@@ -3980,21 +3319,11 @@ public func buildImageUrl(serverUrl: String, token: String, itemId: String, imag
 }
 /**
  * Build a stream URL optimized for mobile playback.
- * Uses HLS transcoding for non-seekable containers so that Media3/ExoPlayer can seek natively.
+ * Uses progressive transcoding for non-seekable containers.
  */
 public func buildMobileStreamUrl(serverUrl: String, token: String, itemId: String, container: String?) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_aurelia_core_fn_func_build_mobile_stream_url(
-        FfiConverterString.lower(serverUrl),
-        FfiConverterString.lower(token),
-        FfiConverterString.lower(itemId),
-        FfiConverterOptionString.lower(container),$0
-    )
-})
-}
-public func buildStreamUrl(serverUrl: String, token: String, itemId: String, container: String?) -> String  {
-    return try!  FfiConverterString.lift(try! rustCall() {
-    uniffi_aurelia_core_fn_func_build_stream_url(
         FfiConverterString.lower(serverUrl),
         FfiConverterString.lower(token),
         FfiConverterString.lower(itemId),
@@ -4215,11 +3544,11 @@ public func getLyrics(serverUrl: String, token: String, itemId: String, artist: 
             
         )
 }
-public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String, path: String?, lyricsServerUrl: String?)async  -> ParsedLyrics  {
+public func getParsedLyrics(serverUrl: String, token: String, itemId: String, artist: String, title: String)async  -> ParsedLyrics  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title),FfiConverterOptionString.lower(path),FfiConverterOptionString.lower(lyricsServerUrl)
+                uniffi_aurelia_core_fn_func_get_parsed_lyrics(FfiConverterString.lower(serverUrl),FfiConverterString.lower(token),FfiConverterString.lower(itemId),FfiConverterString.lower(artist),FfiConverterString.lower(title)
                 )
             },
             pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
@@ -4290,20 +3619,6 @@ public func getRelatedArtists(appDataDir: String, artistId: String)async throws 
             completeFunc: ffi_aurelia_core_rust_future_complete_rust_buffer,
             freeFunc: ffi_aurelia_core_rust_future_free_rust_buffer,
             liftFunc: FfiConverterSequenceTypeArtist.lift,
-            errorHandler: FfiConverterTypeAppError_lift
-        )
-}
-public func getSongShareUrls(song: Song)async throws  -> [String: String]  {
-    return
-        try  await uniffiRustCallAsync(
-            rustFutureFunc: {
-                uniffi_aurelia_core_fn_func_get_song_share_urls(FfiConverterTypeSong_lower(song)
-                )
-            },
-            pollFunc: ffi_aurelia_core_rust_future_poll_rust_buffer,
-            completeFunc: ffi_aurelia_core_rust_future_complete_rust_buffer,
-            freeFunc: ffi_aurelia_core_rust_future_free_rust_buffer,
-            liftFunc: FfiConverterDictionaryStringString.lift,
             errorHandler: FfiConverterTypeAppError_lift
         )
 }
@@ -4506,85 +3821,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_add_playlist_items() != 46373) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_audio_advance_gapless_player() != 51404) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_get_all_eq_bands_player() != 59378) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_get_eq_band_player() != 7835) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_get_position_secs() != 52501) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_get_spectrum_snapshot_player() != 1492) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_get_volume_player() != 37228) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_init_player() != 29341) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_is_analyzer_enabled_player() != 32225) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_is_eq_enabled_player() != 47576) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_is_finished_player() != 33404) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_is_playing_player() != 51987) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_pause_player() != 21962) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_play_url() != 50783) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_prepare_next_player() != 36463) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_reinit_player() != 30605) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_reset_eq_player() != 40910) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_resume_player() != 35269) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_seek_player() != 15002) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_set_analyzer_enabled_player() != 3796) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_set_eq_band_player() != 14180) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_set_eq_enabled_player() != 59455) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_set_volume_player() != 9428) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_audio_stop_player() != 14955) {
-        return InitializationResult.apiChecksumMismatch
-    }
     if (uniffi_aurelia_core_checksum_func_authenticate() != 43633) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_build_image_url() != 4929) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_build_mobile_stream_url() != 27250) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_build_stream_url() != 58828) {
+    if (uniffi_aurelia_core_checksum_func_build_mobile_stream_url() != 25517) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_cache_songs() != 10571) {
@@ -4641,7 +3884,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_aurelia_core_checksum_func_get_lyrics() != 56114) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 62359) {
+    if (uniffi_aurelia_core_checksum_func_get_parsed_lyrics() != 10020) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_playlist_items() != 51827) {
@@ -4657,9 +3900,6 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_related_artists() != 7847) {
-        return InitializationResult.apiChecksumMismatch
-    }
-    if (uniffi_aurelia_core_checksum_func_get_song_share_urls() != 18046) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_aurelia_core_checksum_func_get_sync_progress() != 32226) {

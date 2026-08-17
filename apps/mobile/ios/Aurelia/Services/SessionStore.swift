@@ -28,7 +28,6 @@ final class SessionStore: @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.aurelia.app", category: "SessionStore")
     private let libraryRefreshKey = "lastLibraryRefresh"
-    private let lyricsServerUrlKey = "lyricsServerUrl"
     private let activeProfileIdKey = "active_profile_id"
     private let profilesKey = "saved_profiles_json"
     private let ioQueue = DispatchQueue(label: "com.aurelia.sessionstore.io", qos: .userInitiated)
@@ -284,13 +283,6 @@ final class SessionStore: @unchecked Sendable {
 
     var provider: BackendProvider? {
         getCredentials()?.provider
-    }
-
-    // MARK: - Lyrics Server URL (for sidecar lyrics from daemon)
-
-    var lyricsServerUrl: String? {
-        get { UserDefaults.standard.string(forKey: lyricsServerUrlKey) }
-        set { UserDefaults.standard.set(newValue, forKey: lyricsServerUrlKey) }
     }
 
     // MARK: - EQ Settings

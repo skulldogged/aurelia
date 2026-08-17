@@ -1,13 +1,11 @@
 //! Music-related data models
 
 use serde::{Deserialize, Serialize};
-use specta::Type;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 /// Generic name-ID pair used for artists and other entities
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, Eq, Hash, uniffi::Record)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash, uniffi::Record)]
 pub struct NameIdPair {
     /// Display name
     pub name: String,
@@ -16,9 +14,8 @@ pub struct NameIdPair {
 }
 
 /// User data for items (play count, favorites, etc.)
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
-#[specta(rename_all = "camelCase")]
 pub struct UserData {
     #[serde(alias = "PlaybackPositionTicks")]
     pub playback_position_ticks: i64,
@@ -40,8 +37,7 @@ pub struct ItemsResponse<T> {
 }
 
 /// Song representing a music track or audio file
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 pub struct Song {
     /// Unique identifier
@@ -125,8 +121,7 @@ impl Hash for Song {
 }
 
 /// Consolidated artist type with all information
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 pub struct Artist {
     /// Artist name
@@ -161,8 +156,7 @@ impl Hash for Artist {
 }
 
 /// Consolidated album type with all information
-#[derive(Serialize, Deserialize, Debug, Clone, Type, uniffi::Record)]
-#[specta(rename_all = "camelCase")]
+#[derive(Serialize, Deserialize, Debug, Clone, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
 pub struct Album {
     /// Album ID from Jellyfin
@@ -214,9 +208,8 @@ impl Hash for Album {
 }
 
 /// Playlist item representing a Jellyfin item in a playlist
-#[derive(Serialize, Deserialize, Debug, Clone, Type)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
-#[specta(rename_all = "camelCase")]
 pub struct PlaylistItem {
     /// Item ID
     #[serde(alias = "Id")]
@@ -230,9 +223,8 @@ pub struct PlaylistItem {
 }
 
 /// Playlist representing a collection of items
-#[derive(Serialize, Deserialize, Debug, Clone, Type, PartialEq, uniffi::Record)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
-#[specta(rename_all = "camelCase")]
 pub struct Playlist {
     /// Playlist name
     #[serde(alias = "Name")]
@@ -297,9 +289,8 @@ pub struct Playlist {
 }
 
 /// Data for creating a new playlist
-#[derive(Serialize, Deserialize, Debug, Clone, Type, uniffi::Record)]
+#[derive(Serialize, Deserialize, Debug, Clone, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
-#[specta(rename_all = "camelCase")]
 pub struct PlaylistCreateData {
     /// Playlist name
     pub name: String,
@@ -313,9 +304,8 @@ pub struct PlaylistCreateData {
 }
 
 /// Data for updating a playlist
-#[derive(Serialize, Deserialize, Debug, Clone, Type, uniffi::Record)]
+#[derive(Serialize, Deserialize, Debug, Clone, uniffi::Record)]
 #[serde(rename_all = "camelCase")]
-#[specta(rename_all = "camelCase")]
 pub struct PlaylistUpdateData {
     /// New playlist name
     pub name: Option<String>,

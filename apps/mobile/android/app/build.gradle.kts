@@ -63,7 +63,7 @@ android {
   }
 
   buildToolsVersion = "36.0.0"
-  ndkVersion = "29.0.13846066"
+  ndkVersion = "29.0.14206865"
 }
 
 android.sourceSets["main"]
@@ -121,10 +121,13 @@ tasks.register<Exec>("buildRustAndroid") {
   if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { properties.load(it) }
   }
-  val ndkDir = properties.getProperty("cargo.ndk.dir")
-    ?: properties.getProperty("ndk.dir")
-    ?: System.getenv("ANDROID_NDK_HOME")
-    ?: throw GradleException("NDK not found. Set cargo.ndk.dir or ndk.dir in local.properties or ANDROID_NDK_HOME env var")
+  val ndkDir =
+    properties.getProperty("cargo.ndk.dir")
+      ?: properties.getProperty("ndk.dir")
+      ?: System.getenv("ANDROID_NDK_HOME")
+      ?: throw GradleException(
+        "NDK not found. Set cargo.ndk.dir or ndk.dir in local.properties or ANDROID_NDK_HOME env var",
+      )
 
   environment("ANDROID_NDK_HOME", ndkDir)
   workingDir = file(projectRoot)

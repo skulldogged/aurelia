@@ -224,6 +224,37 @@ pub fn jellyfin_to_parsed_lyrics(lyrics: &JellyfinLyrics) -> ParsedLyrics {
     }
 }
 
+/// Parse lyrics text using aurelia-lyrics crate, auto-detecting the format.
+#[must_use]
+pub fn parse_lyrics(text: &str) -> ParsedLyrics {
+    let mut parsed = if aurelia_lyrics::ttml::is_ttml(text) {
+        aurelia_lyrics::parse_ttml(text).unwrap_or_else(|_| ParsedLyrics {
+            plain: vec![],
+            synced: vec![],
+            sections: None,
+            agents: None,
+            songwriters: None,
+            language: None,
+            are_from_remote: false,
+        })
+    } else {
+        // Use parse_lrc for everything else (LRC and plain text)
+        aurelia_lyrics::parse_lrc(text).unwrap_or_else(|_| ParsedLyrics {
+            plain: vec![],
+            synced: vec![],
+            sections: None,
+            agents: None,
+            songwriters: None,
+            language: None,
+            are_from_remote: false,
+        })
+    };
+
+    // Ensure remote flag is set to true to match legacy behavior
+    parsed.are_from_remote = true;
+    parsed
+}
+
 #[cfg(test)]
 mod tests {
     use super::{jellyfin_to_lrc, jellyfin_to_parsed_lyrics};
@@ -478,35 +509,4 @@ mod tests {
         );
         assert_eq!(parsed.synced[0].words.as_ref().unwrap()[0].word, "Hello");
     }
-}
-
-/// Parse lyrics text using aurelia-lyrics crate, auto-detecting the format.
-#[must_use]
-pub fn parse_lyrics(text: &str) -> ParsedLyrics {
-    let mut parsed = if aurelia_lyrics::ttml::is_ttml(text) {
-        aurelia_lyrics::parse_ttml(text).unwrap_or_else(|_| ParsedLyrics {
-            plain: vec![],
-            synced: vec![],
-            sections: None,
-            agents: None,
-            songwriters: None,
-            language: None,
-            are_from_remote: false,
-        })
-    } else {
-        // Use parse_lrc for everything else (LRC and plain text)
-        aurelia_lyrics::parse_lrc(text).unwrap_or_else(|_| ParsedLyrics {
-            plain: vec![],
-            synced: vec![],
-            sections: None,
-            agents: None,
-            songwriters: None,
-            language: None,
-            are_from_remote: false,
-        })
-    };
-
-    // Ensure remote flag is set to true to match legacy behavior
-    parsed.are_from_remote = true;
-    parsed
 }

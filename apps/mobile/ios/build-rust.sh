@@ -5,7 +5,7 @@ set -eo pipefail
 # Usage: ./build-rust.sh [--release]
 #
 # Prerequisites:
-#   rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-ios-macabi x86_64-apple-ios-macabi aarch64-apple-darwin x86_64-apple-darwin
+#   rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
@@ -45,7 +45,6 @@ ensure_rust_target() {
 
 IOS_DEVICE_TARGET="aarch64-apple-ios"
 IOS_SIM_TARGETS=("aarch64-apple-ios-sim" "x86_64-apple-ios")
-CATALYST_TARGETS=("aarch64-apple-ios-macabi" "x86_64-apple-ios-macabi")
 HOST_ARCH="$(uname -m)"
 
 ensure_rust_target "$IOS_DEVICE_TARGET"
@@ -61,25 +60,6 @@ for IOS_SIM_TARGET in "${IOS_SIM_TARGETS[@]}"; do
     echo "==> Building aurelia-core for iOS simulator ($IOS_SIM_TARGET)..."
     IPHONEOS_DEPLOYMENT_TARGET=18.0 \
     cargo build -p "$CORE_CRATE" --target "$IOS_SIM_TARGET" "${CARGO_FLAGS[@]}"
-done
-
-# Build Mac Catalyst for both Apple Silicon and Intel so Xcode can build
-# "Any Mac" without missing-architecture slice failures.
-# Get SDK path for C compiler to find TargetConditionals.h
-SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
-export SDKROOT
-export CFLAGS="-isysroot $SDKROOT -mmacosx-version-min=15.0"
-export CXXFLAGS="$CFLAGS"
-# Export target-specific CFLAGS for the cc crate
-export CFLAGS_aarch64_apple_ios_macabi="$CFLAGS"
-export CFLAGS_x86_64_apple_ios_macabi="$CFLAGS"
-for CATALYST_TARGET in "${CATALYST_TARGETS[@]}"; do
-    ensure_rust_target "$CATALYST_TARGET"
-    echo "==> Building aurelia-core for Mac Catalyst ($CATALYST_TARGET)..."
-    IPHONEOS_DEPLOYMENT_TARGET=18.0 \
-    MACOSX_DEPLOYMENT_TARGET=15.0 \
-    RUSTFLAGS="-C link-arg=-mmacosx-version-min=15.0" \
-    cargo build -p "$CORE_CRATE" --target "$CATALYST_TARGET" "${CARGO_FLAGS[@]}"
 done
 
 # Build macOS target for SwiftPM tests (host architecture)
@@ -123,8 +103,6 @@ DEVICE_LIB="$TARGET_DIR/$IOS_DEVICE_TARGET/$PROFILE/libaurelia_core.a"
 SIM_ARM64_LIB="$TARGET_DIR/aarch64-apple-ios-sim/$PROFILE/libaurelia_core.a"
 SIM_X86_64_LIB="$TARGET_DIR/x86_64-apple-ios/$PROFILE/libaurelia_core.a"
 MACOS_LIB="$TARGET_DIR/$MACOS_TARGET/$PROFILE/libaurelia_core.a"
-CATALYST_ARM64_LIB="$TARGET_DIR/aarch64-apple-ios-macabi/$PROFILE/libaurelia_core.a"
-CATALYST_X86_64_LIB="$TARGET_DIR/x86_64-apple-ios-macabi/$PROFILE/libaurelia_core.a"
 
 # xcodebuild requires a single library definition per platform variant.
 # Merge arm64 + x86_64 iOS simulator static libs into one universal archive.
@@ -133,21 +111,13 @@ TEMP_DIRS+=("$SIM_UNIVERSAL_DIR")
 SIM_LIB="$SIM_UNIVERSAL_DIR/libaurelia_core.a"
 lipo -create "$SIM_ARM64_LIB" "$SIM_X86_64_LIB" -output "$SIM_LIB"
 
-# xcodebuild requires a single library definition per platform variant.
-# Merge arm64 + x86_64 Mac Catalyst static libs into one universal archive.
-CATALYST_UNIVERSAL_DIR=$(mktemp -d)
-TEMP_DIRS+=("$CATALYST_UNIVERSAL_DIR")
-CATALYST_LIB="$CATALYST_UNIVERSAL_DIR/libaurelia_core.a"
-lipo -create "$CATALYST_ARM64_LIB" "$CATALYST_X86_64_LIB" -output "$CATALYST_LIB"
-
 # Create temporary directories for headers
 DEVICE_HEADERS=$(mktemp -d)
 SIM_HEADERS=$(mktemp -d)
 MACOS_HEADERS=$(mktemp -d)
-CATALYST_HEADERS=$(mktemp -d)
-TEMP_DIRS+=("$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS" "$CATALYST_HEADERS")
+TEMP_DIRS+=("$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS")
 
-for dir in "$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS" "$CATALYST_HEADERS"; do
+for dir in "$DEVICE_HEADERS" "$SIM_HEADERS" "$MACOS_HEADERS"; do
     cp "${HEADER_FILES[@]}" "$dir/"
     for f in "${MODULEMAP_FILES[@]}"; do cat "$f" >> "$dir/module.modulemap"; echo "" >> "$dir/module.modulemap"; done
 done
@@ -155,7 +125,6 @@ done
 xcodebuild -create-xcframework \
     -library "$DEVICE_LIB" -headers "$DEVICE_HEADERS" \
     -library "$SIM_LIB" -headers "$SIM_HEADERS" \
-    -library "$CATALYST_LIB" -headers "$CATALYST_HEADERS" \
     -library "$MACOS_LIB" -headers "$MACOS_HEADERS" \
     -output "$FRAMEWORK_DIR"
 
