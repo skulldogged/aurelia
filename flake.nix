@@ -49,6 +49,25 @@
         };
 
         androidSdk = androidComposition.androidsdk;
+
+        desktopLinuxLibraries = with pkgs; [
+          fontconfig
+          freetype
+          glib
+          libdrm
+          libgbm
+          libglvnd
+          libxkbcommon
+          vulkan-loader
+          wayland
+          libx11
+          libxcomposite
+          libxdamage
+          libxext
+          libxfixes
+          libxrandr
+          libxcb
+        ];
       in {
         devShells.default = pkgs.mkShell {
           packages = with pkgs;
@@ -57,11 +76,14 @@
               jdk17
               cargo-ndk
             ]
-            ++ lib.optionals stdenv.isLinux [android-studio];
+            ++ lib.optionals stdenv.isLinux ([android-studio pkg-config] ++ desktopLinuxLibraries);
 
           ANDROID_HOME = "${androidSdk}/libexec/android-sdk";
           ANDROID_NDK_HOME = "${androidSdk}/libexec/android-sdk/ndk/29.0.14206865";
           JAVA_HOME = pkgs.jdk17.home;
+          LD_LIBRARY_PATH = lib.optionalString pkgs.stdenv.isLinux "${
+            lib.makeLibraryPath desktopLinuxLibraries
+          }:/run/opengl-driver/lib";
 
           shellHook = ''
             export PATH="${androidSdk}/libexec/android-sdk/platform-tools:$PATH"

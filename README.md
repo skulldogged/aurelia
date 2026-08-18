@@ -1,16 +1,18 @@
 # Aurelia
 
-Aurelia is a native mobile music client for Jellyfin.
+Aurelia is a native music client for Jellyfin.
 
 - Android is built with Kotlin, Jetpack Compose, and Media3.
 - iOS is built with SwiftUI and AVFoundation.
-- Shared Jellyfin, library, cache, and lyrics behavior lives in Rust and is exposed to both apps through UniFFI.
+- The desktop prototype is built in Rust with mainline GPUI and Aurelia-owned controls.
+- Shared Jellyfin, library, cache, and lyrics behavior lives in Rust. Mobile uses it through UniFFI; desktop links it directly.
 
 ## Repository layout
 
 ```text
 apps/mobile/android/      Android application
 apps/mobile/ios/          iOS application and Swift package
+apps/desktop/             GPUI desktop prototype
 crates/aurelia-core/      Shared domain, persistence, and Jellyfin logic
 crates/aurelia-lyrics/    Lyrics parsing and models
 crates/uniffi-bindgen/    Mobile binding-generation CLI wrapper
@@ -36,6 +38,16 @@ Build the Rust core and run its tests:
 ```bash
 cargo test --workspace
 ```
+
+Run the desktop prototype:
+
+```bash
+cargo run -p aurelia-desktop
+```
+
+The desktop app can authenticate with a Jellyfin server, persist the session,
+sync a profile-specific library cache, and populate the home screen from that
+cache. Playback controls remain a UI prototype and do not produce audio yet.
 
 iOS builds require macOS with Xcode:
 

@@ -1,0 +1,1995 @@
+mod state;
+mod text_input;
+mod theme;
+
+use std::{
+    borrow::Cow,
+    fs,
+    ops::Range,
+    path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
+
+use aurelia_core::models::{AuthRequest, BackendProvider, Credentials, Song};
+use gpui::{
+    Anchor, Animation, AnimationExt as _, AnyElement, App, Bounds, Context, Div, ElementId, Entity,
+    FocusHandle, FontWeight, Image, ImageFormat, IntoElement, KeyBinding, KeyDownEvent, Pixels,
+    Point, Rgba, Role, ScrollStrategy, SharedString, SpringAnimation, SpringConfig, Stateful,
+    Transformation, UniformListScrollHandle, Window, WindowBounds, WindowOptions, actions,
+    anchored, bounce, deferred, div, ease_in_out, ease_out_quint, img, percentage, point,
+    prelude::*, px, rgb, size, svg, uniform_list,
+};
+use gpui_platform::application;
+use lucide_icons::{Icon, LUCIDE_FONT_BYTES};
+use state::{DesktopState, Destination, Track};
+use text_input::TextInput;
+use theme::*;
+use url::Url;
+use uuid::Uuid;
+
+actions!(aurelia_desktop, [Tab, TabPrev, FocusSearch, ToggleSidebar]);
+
+const SIDEBAR_SPRING: SpringConfig = SpringConfig::new(400.0, 40.0, 1.0);
+const FOCUS_SPRING: SpringConfig = SpringConfig::new(320.0, 34.0, 1.0);
+const PROGRESS_SPRING: SpringConfig = SpringConfig::new(220.0, 28.0, 1.0);
+const TRACK_ROW_HEIGHT: f32 = 60.0;
+
+const LOADER_SVG: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>"#;
+
+fn sidebar_animation(target: f32) -> SpringAnimation<f32> {
+    SpringAnimation::new(SIDEBAR_SPRING)
+        .to(target)
+        .with_epsilon(0.001)
+}
+
+fn mix_color(from: Rgba, to: Rgba, phase: f32) -> Rgba {
+    let phase = phase.clamp(0.0, 1.0);
+    Rgba {
+        r: from.r + (to.r - from.r) * phase,
+        g: from.g + (to.g - from.g) * phase,
+        b: from.b + (to.b - from.b) * phase,
+        a: from.a + (to.a - from.a) * phase,
+    }
+}
+
+fn loading_spinner(id: &'static str, size_px: f32, color: Rgba) -> impl IntoElement {
+    svg()
+        .data(LOADER_SVG)
+        .size(px(size_px))
+        .text_color(color)
+        .with_animation(
+            id,
+            Animation::new(Duration::from_millis(850)).repeat(),
+            |spinner, phase| spinner.with_transformation(Transformation::rotate(percentage(phase))),
+        )
+}
+
+fn animated_loading_label() -> impl IntoElement {
+    div().with_animation(
+        "connecting-label-dots",
+        Animation::new(Duration::from_millis(900))
+            .repeat()
+            .with_max_fps(4.0),
+        |label, phase| {
+            let dots = ((phase * 4.0).floor() as usize).min(3);
+            label.child(format!("Connecting{}", ".".repeat(dots)))
+        },
+    )
+}
+
+fn icon(icon: Icon, size_px: f32) -> Div {
+    div()
+        .size(px(24.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .font_family("lucide")
+        .text_size(px(size_px))
+        .line_height(px(24.0))
+        .child(char::from(icon).to_string())
+}
+
+fn destination_icon(destination: Destination) -> Icon {
+    match destination {
+        Destination::Home => Icon::House,
+        Destination::Songs => Icon::Music2,
+        Destination::Albums => Icon::Disc3,
+        Destination::Artists => Icon::UsersRound,
+        Destination::Playlists => Icon::ListMusic,
+        Destination::Favorites => Icon::Heart,
+        Destination::RecentlyAdded => Icon::Clock3,
+    }
+}
+
+fn aurelia_logo(size_px: f32) -> impl IntoElement {
+    static LOGO: OnceLock<Arc<Image>> = OnceLock::new();
+    let image = LOGO.get_or_init(|| {
+        Arc::new(Image::from_bytes(
+            ImageFormat::Png,
+            include_bytes!(
+                "../../mobile/ios/Aurelia/Assets.xcassets/AppIcon.appiconset/ios-dark-1024@1x.png"
+            )
+            .to_vec(),
+        ))
+    });
+
+    img(image.clone()).size(px(size_px)).flex_none()
+}
+
+fn should_dismiss_account_menu(
+    account_button_bounds: Option<Bounds<Pixels>>,
+    pointer_position: Point<Pixels>,
+) -> bool {
+    !account_button_bounds.is_some_and(|bounds| bounds.contains(&pointer_position))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum AppStage {
+    Login,
+    Syncing,
+    Home,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum LoginField {
+    Server,
+    Username,
+    Password,
+}
+
+#[derive(Clone, Debug, Default)]
+struct LoginForm {
+    server_url: String,
+    username: String,
+    password: String,
+    is_connecting: bool,
+    error: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct Session {
+    server_url: String,
+    username: String,
+    token: String,
+    user_id: String,
+    library_dir: String,
+}
+
+#[derive(Clone, Debug)]
+struct SyncStatus {
+    stage: String,
+    current: u32,
+    total: u32,
+    error: Option<String>,
+}
+
+impl Default for SyncStatus {
+    fn default() -> Self {
+        Self {
+            stage: "Preparing your library".into(),
+            current: 0,
+            total: 0,
+            error: None,
+        }
+    }
+}
+
+fn normalize_server_url(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("Enter your Jellyfin server URL".into());
+    }
+
+    let lowercase = trimmed.to_ascii_lowercase();
+    let candidate = if lowercase.starts_with("http://") || lowercase.starts_with("https://") {
+        trimmed.to_string()
+    } else if trimmed.contains("://") {
+        return Err("Server URL must use http or https".into());
+    } else {
+        format!("https://{trimmed}")
+    };
+    let mut url = Url::parse(&candidate).map_err(|_| "Enter a valid server URL".to_string())?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+        return Err("Server URL must use http or https".into());
+    }
+    if url.query().is_some() || url.fragment().is_some() {
+        return Err("Server URL cannot include a query or fragment".into());
+    }
+
+    let trimmed_path = url.path().trim_end_matches('/').to_string();
+    url.set_path(&trimmed_path);
+    let normalized = url.to_string();
+    Ok(if trimmed_path.is_empty() {
+        normalized.trim_end_matches('/').to_string()
+    } else {
+        normalized
+    })
+}
+
+fn stable_checksum(value: &str) -> u64 {
+    value
+        .as_bytes()
+        .iter()
+        .fold(1_469_598_103_934_665_603, |hash, byte| {
+            (hash ^ u64::from(*byte)).wrapping_mul(1_099_511_628_211)
+        })
+}
+
+fn profile_library_dir(base_dir: &Path, server_url: &str, username: &str) -> PathBuf {
+    let profile_id = format!(
+        "jellyfin|{}|{}",
+        username.trim().to_lowercase(),
+        server_url.trim().to_lowercase()
+    );
+    base_dir
+        .join("profiles")
+        .join(format!("jellyfin-{:x}", stable_checksum(&profile_id)))
+}
+
+fn desktop_device_id(base_dir: &Path) -> Result<String, String> {
+    let path = base_dir.join("desktop-device-id");
+    if let Ok(existing) = fs::read_to_string(&path) {
+        let existing = existing.trim();
+        if !existing.is_empty() {
+            return Ok(existing.to_string());
+        }
+    }
+
+    let id = Uuid::new_v4().to_string();
+    fs::write(path, &id).map_err(|error| format!("Could not save the device ID: {error}"))?;
+    Ok(id)
+}
+
+fn session_from_credentials(base_dir: &Path, credentials: Credentials) -> Session {
+    let library_dir = profile_library_dir(base_dir, &credentials.server_url, &credentials.username);
+    Session {
+        server_url: credentials.server_url,
+        username: credentials.username,
+        token: credentials.token,
+        user_id: credentials.user_id,
+        library_dir: library_dir.to_string_lossy().into_owned(),
+    }
+}
+
+async fn authenticate_login(form: LoginForm, base_dir: PathBuf) -> Result<Session, String> {
+    let server_url = normalize_server_url(&form.server_url)?;
+    let username = form.username.trim().to_string();
+    if username.is_empty() {
+        return Err("Enter your username".into());
+    }
+    if form.password.is_empty() {
+        return Err("Enter your password".into());
+    }
+
+    let response = aurelia_core::authenticate(AuthRequest {
+        provider: BackendProvider::Jellyfin,
+        server_url: server_url.clone(),
+        username: username.clone(),
+        password: form.password,
+        device_id: desktop_device_id(&base_dir)?,
+    })
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let credentials = Credentials {
+        provider: BackendProvider::Jellyfin,
+        server_url,
+        username,
+        token: response.token,
+        user_id: response.user_id,
+    };
+    aurelia_core::save_credentials(base_dir.to_string_lossy().into_owned(), credentials.clone())
+        .map_err(|error| error.to_string())?;
+    Ok(session_from_credentials(&base_dir, credentials))
+}
+
+fn track_color(id: &str) -> u32 {
+    const COLORS: [u32; 8] = [
+        0x8068d8, 0x3f6688, 0xc16888, 0xa36145, 0x4b806d, 0x6f74a8, 0x9b6a82, 0x527d87,
+    ];
+    COLORS[stable_checksum(id) as usize % COLORS.len()]
+}
+
+fn map_song(song: Song) -> Track {
+    let artist = song
+        .artists
+        .filter(|artists| !artists.is_empty())
+        .map(|artists| artists.join(", "))
+        .unwrap_or_else(|| "Unknown artist".into());
+    Track {
+        art_color: track_color(&song.id),
+        id: song.id,
+        title: song.name,
+        artist,
+        album: song.album.unwrap_or_else(|| "Unknown album".into()),
+        duration_seconds: song.duration.unwrap_or_default().max(0.0).round() as u32,
+    }
+}
+
+async fn sync_session(session: Session) -> Result<Vec<Track>, String> {
+    fs::create_dir_all(&session.library_dir)
+        .map_err(|error| format!("Could not create the library cache: {error}"))?;
+    aurelia_core::sync_library_smart(
+        session.server_url.clone(),
+        session.token.clone(),
+        session.user_id.clone(),
+        session.library_dir.clone(),
+    )
+    .await
+    .map_err(|error| error.to_string())?;
+    aurelia_core::sync_favorites(
+        session.server_url,
+        session.token,
+        session.user_id,
+        session.library_dir.clone(),
+    )
+    .await
+    .map_err(|error| error.to_string())?;
+    aurelia_core::load_cached_songs(session.library_dir)
+        .map(|songs| songs.into_iter().map(map_song).collect())
+        .map_err(|error| error.to_string())
+}
+
+struct AureliaDesktop {
+    stage: AppStage,
+    login: LoginForm,
+    sync_status: SyncStatus,
+    session: Option<Session>,
+    base_data_dir: PathBuf,
+    state: DesktopState,
+    root_focus: FocusHandle,
+    search_input: Entity<TextInput>,
+    server_input: Entity<TextInput>,
+    username_input: Entity<TextInput>,
+    password_input: Entity<TextInput>,
+    visible_track_indices: Vec<usize>,
+    track_scroll_handle: UniformListScrollHandle,
+    account_menu_open: bool,
+    account_button_bounds: Option<Bounds<Pixels>>,
+}
+
+impl AureliaDesktop {
+    fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let root_focus = cx.focus_handle();
+        let search_input =
+            cx.new(|cx| TextInput::new("Search artists, albums, and songs", false, cx));
+        let server_input = cx.new(|cx| TextInput::new("https://music.example.com", false, cx));
+        let username_input = cx.new(|cx| TextInput::new("Your Jellyfin username", false, cx));
+        let password_input = cx.new(|cx| TextInput::new("Your Jellyfin password", true, cx));
+        let base_data_dir = aurelia_core::utils::ensure_app_data_dir()
+            .unwrap_or_else(|_| std::env::temp_dir().join("aurelia-desktop"));
+        let credentials =
+            aurelia_core::load_credentials(base_data_dir.to_string_lossy().into_owned())
+                .ok()
+                .flatten();
+        let session =
+            credentials.map(|credentials| session_from_credentials(&base_data_dir, credentials));
+        let stage = if session.is_some() {
+            AppStage::Syncing
+        } else {
+            AppStage::Login
+        };
+
+        let state = DesktopState::default();
+        let visible_track_indices = state.filtered_track_indices();
+        let mut desktop = Self {
+            stage,
+            login: LoginForm::default(),
+            sync_status: SyncStatus::default(),
+            session,
+            base_data_dir,
+            state,
+            root_focus,
+            search_input,
+            server_input,
+            username_input,
+            password_input,
+            visible_track_indices,
+            track_scroll_handle: UniformListScrollHandle::new(),
+            account_menu_open: false,
+            account_button_bounds: None,
+        };
+
+        cx.observe(&desktop.search_input, |this, input, cx| {
+            let query = input.read(cx).text();
+            if this.state.query != query {
+                this.state.query = query;
+                this.refresh_main_list();
+                cx.notify();
+            }
+        })
+        .detach();
+
+        if desktop.stage == AppStage::Syncing {
+            window.focus(&desktop.root_focus, cx);
+            desktop.start_sync(cx);
+        } else {
+            window.focus(&desktop.server_input.read(cx).focus_handle(), cx);
+        }
+        desktop
+    }
+
+    fn start_login(&mut self, cx: &mut Context<Self>) {
+        if self.login.is_connecting {
+            return;
+        }
+        self.login.server_url = self.server_input.read(cx).text();
+        self.login.username = self.username_input.read(cx).text();
+        self.login.password = self.password_input.read(cx).text();
+        if let Err(error) = normalize_server_url(&self.login.server_url) {
+            self.login.error = Some(error);
+            cx.notify();
+            return;
+        }
+        if self.login.username.trim().is_empty() {
+            self.login.error = Some("Enter your username".into());
+            cx.notify();
+            return;
+        }
+        if self.login.password.is_empty() {
+            self.login.error = Some("Enter your password".into());
+            cx.notify();
+            return;
+        }
+
+        self.login.is_connecting = true;
+        self.login.error = None;
+        let form = self.login.clone();
+        let base_dir = self.base_data_dir.clone();
+        let task = gpui_tokio::Tokio::spawn(cx, authenticate_login(form, base_dir));
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |this, cx| match result {
+                Ok(Ok(session)) => {
+                    this.login.is_connecting = false;
+                    this.login.password.clear();
+                    this.password_input.update(cx, |input, cx| input.clear(cx));
+                    this.session = Some(session);
+                    this.sync_status = SyncStatus::default();
+                    this.stage = AppStage::Syncing;
+                    this.start_sync(cx);
+                    cx.notify();
+                }
+                Ok(Err(error)) => {
+                    this.login.is_connecting = false;
+                    this.login.error = Some(error);
+                    cx.notify();
+                }
+                Err(error) => {
+                    this.login.is_connecting = false;
+                    this.login.error = Some(format!("Login task failed: {error}"));
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn refresh_main_list(&mut self) {
+        self.visible_track_indices = self.state.filtered_track_indices();
+        if !self.visible_track_indices.is_empty() {
+            self.track_scroll_handle
+                .scroll_to_item_strict(0, ScrollStrategy::Top);
+        }
+    }
+
+    fn start_sync(&mut self, cx: &mut Context<Self>) {
+        let Some(session) = self.session.clone() else {
+            self.stage = AppStage::Login;
+            return;
+        };
+
+        self.stage = AppStage::Syncing;
+        self.sync_status = SyncStatus::default();
+        let task = gpui_tokio::Tokio::spawn(cx, sync_session(session));
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |this, cx| match result {
+                Ok(Ok(tracks)) => {
+                    this.state.replace_library(tracks);
+                    this.refresh_main_list();
+                    this.stage = AppStage::Home;
+                    this.sync_status = SyncStatus {
+                        stage: "Library ready".into(),
+                        current: 0,
+                        total: 0,
+                        error: None,
+                    };
+                    cx.notify();
+                }
+                Ok(Err(error)) => {
+                    this.sync_status.error = Some(error);
+                    cx.notify();
+                }
+                Err(error) => {
+                    this.sync_status.error = Some(format!("Sync task failed: {error}"));
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
+
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(250))
+                    .await;
+                let keep_polling = this
+                    .update(cx, |this, cx| {
+                        if this.stage != AppStage::Syncing || this.sync_status.error.is_some() {
+                            return false;
+                        }
+                        let progress = aurelia_core::get_sync_progress();
+                        this.sync_status.stage = if progress.is_complete {
+                            "Finishing your library".into()
+                        } else {
+                            progress.stage
+                        };
+                        this.sync_status.current = progress.current;
+                        this.sync_status.total = progress.total;
+                        cx.notify();
+                        true
+                    })
+                    .unwrap_or(false);
+                if !keep_polling {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    fn logout(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let _ = aurelia_core::clear_credentials(self.base_data_dir.to_string_lossy().into_owned());
+        self.stage = AppStage::Login;
+        self.session = None;
+        self.login = LoginForm::default();
+        self.server_input.update(cx, |input, cx| input.clear(cx));
+        self.username_input.update(cx, |input, cx| input.clear(cx));
+        self.password_input.update(cx, |input, cx| input.clear(cx));
+        self.search_input.update(cx, |input, cx| input.clear(cx));
+        self.sync_status = SyncStatus::default();
+        self.state.replace_library(Vec::new());
+        self.refresh_main_list();
+        self.account_menu_open = false;
+        window.focus(&self.server_input.read(cx).focus_handle(), cx);
+        cx.notify();
+    }
+
+    fn input_for_login_field(&self, field: LoginField) -> Entity<TextInput> {
+        match field {
+            LoginField::Server => self.server_input.clone(),
+            LoginField::Username => self.username_input.clone(),
+            LoginField::Password => self.password_input.clone(),
+        }
+    }
+
+    fn on_login_key_down(
+        &mut self,
+        field: LoginField,
+        event: &KeyDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if event.keystroke.key != "enter" {
+            return;
+        }
+        match field {
+            LoginField::Server => window.focus(&self.username_input.read(cx).focus_handle(), cx),
+            LoginField::Username => window.focus(&self.password_input.read(cx).focus_handle(), cx),
+            LoginField::Password => self.start_login(cx),
+        }
+        self.login.error = None;
+        cx.notify();
+        cx.stop_propagation();
+    }
+
+    fn login_field(
+        &self,
+        field: LoginField,
+        label: &'static str,
+        field_icon: Icon,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let input = self.input_for_login_field(field);
+        let focus = input.read(cx).focus_handle();
+        let focused = focus.is_focused(window);
+        let click_focus = focus.clone();
+
+        div()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(label))
+            .child(
+                div()
+                    .id(("login-field", field as usize))
+                    .role(Role::TextInput)
+                    .aria_label(label)
+                    .track_focus(&focus)
+                    .on_key_down(cx.listener(move |this, event, window, cx| {
+                        this.on_login_key_down(field, event, window, cx)
+                    }))
+                    .on_click(move |_, window, cx| window.focus(&click_focus, cx))
+                    .h(px(46.0))
+                    .w_full()
+                    .px_3()
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .rounded_xl()
+                    .border_1()
+                    .bg(SURFACE)
+                    .cursor_text()
+                    .child(icon(field_icon, 18.0).text_color(if focused {
+                        PRIMARY
+                    } else {
+                        TEXT_MUTED
+                    }))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .h_full()
+                            .overflow_hidden()
+                            .child(input),
+                    )
+                    .with_spring(
+                        ("login-field-focus", field as usize),
+                        SpringAnimation::new(FOCUS_SPRING)
+                            .to(if focused { 1.0 } else { 0.0 })
+                            .with_epsilon(0.001),
+                        |field, phase| field.border_color(mix_color(OUTLINE, PRIMARY, phase)),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    fn login_screen(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        div()
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(BACKGROUND)
+            .child(
+                div()
+                    .w(px(420.0))
+                    .p_8()
+                    .flex()
+                    .flex_col()
+                    .gap_5()
+                    .rounded_xl()
+                    .border_1()
+                    .border_color(OUTLINE)
+                    .bg(SIDEBAR)
+                    .shadow_lg()
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .items_center()
+                            .gap_3()
+                            .pb_2()
+                            .child(aurelia_logo(54.0))
+                            .child(
+                                div()
+                                    .text_2xl()
+                                    .font_weight(FontWeight::BOLD)
+                                    .child("Connect to Jellyfin"),
+                            )
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .text_color(TEXT_MUTED)
+                                    .text_center()
+                                    .child("Sign in to sync your music library with Aurelia."),
+                            ),
+                    )
+                    .child(self.login_field(
+                        LoginField::Server,
+                        "Server URL",
+                        Icon::Server,
+                        window,
+                        cx,
+                    ))
+                    .child(self.login_field(
+                        LoginField::Username,
+                        "Username",
+                        Icon::UserRound,
+                        window,
+                        cx,
+                    ))
+                    .child(self.login_field(
+                        LoginField::Password,
+                        "Password",
+                        Icon::LockKeyhole,
+                        window,
+                        cx,
+                    ))
+                    .when_some(self.login.error.clone(), |card, error| {
+                        card.child(
+                            div()
+                                .p_3()
+                                .flex()
+                                .items_start()
+                                .gap_2()
+                                .rounded_lg()
+                                .bg(translucent(PINK, 0.12))
+                                .text_sm()
+                                .text_color(PINK)
+                                .child(icon(Icon::CircleAlert, 17.0))
+                                .child(div().flex_1().child(error))
+                                .with_animation(
+                                    "login-error-enter",
+                                    Animation::new(Duration::from_millis(180))
+                                        .with_easing(ease_out_quint()),
+                                    |error, phase| error.opacity(phase),
+                                ),
+                        )
+                    })
+                    .child(
+                        div()
+                            .id("login-submit")
+                            .role(Role::Button)
+                            .aria_label("Connect to Jellyfin")
+                            .focusable()
+                            .tab_stop(true)
+                            .h(px(46.0))
+                            .w_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .gap_2()
+                            .rounded_xl()
+                            .bg(PRIMARY)
+                            .text_color(BACKGROUND)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .cursor_pointer()
+                            .when(!self.login.is_connecting, |button| {
+                                button.hover(|style| style.opacity(0.86))
+                            })
+                            .when(self.login.is_connecting, |button| button.opacity(0.7))
+                            .when(self.login.is_connecting, |button| {
+                                button
+                                    .child(loading_spinner(
+                                        "login-connect-spinner",
+                                        18.0,
+                                        BACKGROUND,
+                                    ))
+                                    .child(animated_loading_label())
+                            })
+                            .when(!self.login.is_connecting, |button| button.child("Connect"))
+                            .on_click(cx.listener(|this, _, _, cx| this.start_login(cx))),
+                    )
+                    .with_animation(
+                        "login-card-enter",
+                        Animation::new(Duration::from_millis(360)).with_easing(ease_out_quint()),
+                        |card, phase| {
+                            card.opacity(phase)
+                                .mt(px(14.0 * (1.0 - phase.clamp(0.0, 1.0))))
+                        },
+                    ),
+            )
+            .into_any_element()
+    }
+
+    fn sync_progress_bar(&self, progress: f32) -> AnyElement {
+        let track = div()
+            .relative()
+            .w_full()
+            .h(px(7.0))
+            .rounded_full()
+            .overflow_hidden()
+            .bg(SURFACE_HIGH);
+
+        if self.sync_status.total == 0 {
+            track
+                .child(
+                    div()
+                        .h_full()
+                        .w(gpui::relative(0.24))
+                        .rounded_full()
+                        .bg(PRIMARY)
+                        .with_animation(
+                            "sync-indeterminate-progress",
+                            Animation::new(Duration::from_millis(1_100))
+                                .repeat()
+                                .with_easing(ease_in_out),
+                            |bar, phase| bar.ml(gpui::relative(phase * 0.76)),
+                        ),
+                )
+                .into_any_element()
+        } else {
+            track
+                .child(
+                    div().h_full().rounded_full().bg(PRIMARY).with_spring(
+                        "sync-determinate-progress",
+                        SpringAnimation::new(PROGRESS_SPRING)
+                            .to(progress)
+                            .with_epsilon(0.001),
+                        |bar, phase| bar.w(gpui::relative(phase.clamp(0.0, 1.0))),
+                    ),
+                )
+                .into_any_element()
+        }
+    }
+
+    fn sync_screen(&self, cx: &mut Context<Self>) -> AnyElement {
+        let progress = if self.sync_status.total == 0 {
+            0.12
+        } else {
+            (self.sync_status.current as f32 / self.sync_status.total as f32).clamp(0.02, 1.0)
+        };
+        let has_error = self.sync_status.error.is_some();
+
+        div()
+            .size_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(BACKGROUND)
+            .child(
+                div()
+                    .w(px(460.0))
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap_5()
+                    .child(
+                        div().child(aurelia_logo(64.0)).with_animation(
+                            "sync-logo-pulse",
+                            Animation::new(Duration::from_millis(1_400))
+                                .repeat()
+                                .with_easing(bounce(ease_in_out)),
+                            |logo, phase| logo.opacity(0.72 + phase * 0.28),
+                        ),
+                    )
+                    .child(
+                        div()
+                            .text_2xl()
+                            .font_weight(FontWeight::BOLD)
+                            .child(if has_error {
+                                "We couldn’t finish syncing"
+                            } else {
+                                "Syncing your library"
+                            }),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .text_sm()
+                            .text_center()
+                            .text_color(TEXT_MUTED)
+                            .when(!has_error, |stage| {
+                                stage.child(loading_spinner("sync-stage-spinner", 15.0, TEXT_MUTED))
+                            })
+                            .child(if let Some(error) = self.sync_status.error.clone() {
+                                error
+                            } else {
+                                self.sync_status.stage.clone()
+                            }),
+                    )
+                    .when(!has_error, |content| {
+                        content.child(self.sync_progress_bar(progress)).when(
+                            self.sync_status.total > 0,
+                            |content| {
+                                content.child(div().text_xs().text_color(TEXT_MUTED).child(
+                                    format!(
+                                        "{} of {}",
+                                        self.sync_status.current, self.sync_status.total
+                                    ),
+                                ))
+                            },
+                        )
+                    })
+                    .when(has_error, |content| {
+                        content.child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap_3()
+                                .child(
+                                    div()
+                                        .id("sync-logout")
+                                        .role(Role::Button)
+                                        .aria_label("Log out")
+                                        .focusable()
+                                        .tab_stop(true)
+                                        .h(px(42.0))
+                                        .px_5()
+                                        .flex()
+                                        .items_center()
+                                        .rounded_xl()
+                                        .border_1()
+                                        .border_color(OUTLINE)
+                                        .cursor_pointer()
+                                        .hover(|style| style.bg(SURFACE_HIGH))
+                                        .child("Log out")
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.logout(window, cx)
+                                        })),
+                                )
+                                .child(
+                                    div()
+                                        .id("sync-retry")
+                                        .role(Role::Button)
+                                        .aria_label("Retry sync")
+                                        .focusable()
+                                        .tab_stop(true)
+                                        .h(px(42.0))
+                                        .px_5()
+                                        .flex()
+                                        .items_center()
+                                        .gap_2()
+                                        .rounded_xl()
+                                        .bg(PRIMARY)
+                                        .text_color(BACKGROUND)
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .cursor_pointer()
+                                        .hover(|style| style.opacity(0.86))
+                                        .child(icon(Icon::RefreshCw, 17.0))
+                                        .child("Try again")
+                                        .on_click(
+                                            cx.listener(|this, _, _, cx| this.start_sync(cx)),
+                                        ),
+                                ),
+                        )
+                    })
+                    .with_animation(
+                        "sync-screen-enter",
+                        Animation::new(Duration::from_millis(300)).with_easing(ease_out_quint()),
+                        |content, phase| {
+                            content
+                                .opacity(phase)
+                                .mt(px(10.0 * (1.0 - phase.clamp(0.0, 1.0))))
+                        },
+                    ),
+            )
+            .into_any_element()
+    }
+
+    fn navigation_item(&self, destination: Destination, cx: &mut Context<Self>) -> Stateful<Div> {
+        let selected = self.state.destination == destination;
+        let collapsed = self.state.sidebar_collapsed;
+        let expanded_phase = if collapsed { 0.0 } else { 1.0 };
+        div()
+            .id(("nav", destination as usize))
+            .role(Role::Button)
+            .aria_label(destination.label())
+            .focusable()
+            .tab_stop(true)
+            .flex()
+            .items_center()
+            .h(px(40.0))
+            .w_full()
+            .rounded_lg()
+            .cursor_pointer()
+            .text_sm()
+            .text_color(if selected { TEXT } else { TEXT_MUTED })
+            .when(selected, |element| element.bg(PRIMARY_CONTAINER))
+            .when(!selected, |element| {
+                element.hover(|style| style.bg(translucent(SURFACE_HIGH, 0.6)))
+            })
+            .gap_3()
+            .px_3()
+            .child(
+                icon(destination_icon(destination), 18.0).text_color(if selected {
+                    PRIMARY
+                } else {
+                    TEXT_MUTED
+                }),
+            )
+            .child(
+                div()
+                    .whitespace_nowrap()
+                    .child(destination.label())
+                    .with_spring(
+                        ("nav-label", destination as usize),
+                        sidebar_animation(expanded_phase),
+                        |label, phase| label.opacity(phase.clamp(0.0, 1.0)),
+                    ),
+            )
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.state.destination = destination;
+                this.refresh_main_list();
+                cx.notify();
+            }))
+    }
+
+    fn sidebar(&self, cx: &mut Context<Self>) -> AnyElement {
+        let collapsed = self.state.sidebar_collapsed;
+        let expanded_phase = if collapsed { 0.0 } else { 1.0 };
+        let sidebar = div()
+            .relative()
+            .h_full()
+            .flex_none()
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .px_2()
+            .py_3()
+            .bg(SIDEBAR)
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .h_full()
+                    .gap_5()
+                    .child(
+                        div()
+                            .h(px(44.0))
+                            .flex()
+                            .items_center()
+                            .gap_3()
+                            .px_2()
+                            .child(aurelia_logo(32.0))
+                            .child(
+                                div()
+                                    .whitespace_nowrap()
+                                    .text_xl()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child("Aurelia")
+                                    .with_spring(
+                                        "aurelia-wordmark",
+                                        sidebar_animation(expanded_phase),
+                                        |wordmark, phase| wordmark.opacity(phase.clamp(0.0, 1.0)),
+                                    ),
+                            ),
+                    )
+                    .child(
+                        div().flex().flex_col().gap_1().children(
+                            Destination::LIBRARY
+                                .into_iter()
+                                .map(|destination| self.navigation_item(destination, cx)),
+                        ),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .pt_3()
+                            .border_t_1()
+                            .border_color(OUTLINE)
+                            .children(
+                                Destination::COLLECTION
+                                    .into_iter()
+                                    .map(|destination| self.navigation_item(destination, cx)),
+                            ),
+                    )
+                    .child(div().flex_1())
+                    .child(
+                        div()
+                            .id("toggle-sidebar")
+                            .role(Role::Button)
+                            .aria_label(if collapsed {
+                                "Expand sidebar"
+                            } else {
+                                "Collapse sidebar"
+                            })
+                            .focusable()
+                            .tab_stop(true)
+                            .h(px(40.0))
+                            .w_full()
+                            .flex()
+                            .items_center()
+                            .rounded_lg()
+                            .cursor_pointer()
+                            .text_sm()
+                            .text_color(TEXT_MUTED)
+                            .hover(|style| style.bg(translucent(SURFACE_HIGH, 0.6)))
+                            .gap_3()
+                            .px_3()
+                            .child(icon(
+                                if collapsed {
+                                    Icon::PanelLeftOpen
+                                } else {
+                                    Icon::PanelLeftClose
+                                },
+                                18.0,
+                            ))
+                            .child(
+                                div()
+                                    .whitespace_nowrap()
+                                    .child("Collapse sidebar")
+                                    .with_spring(
+                                        "collapse-sidebar-label",
+                                        sidebar_animation(expanded_phase),
+                                        |label, phase| label.opacity(phase.clamp(0.0, 1.0)),
+                                    ),
+                            )
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.state.toggle_sidebar();
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .top(px(0.0))
+                    .right(px(0.0))
+                    .bottom(px(0.0))
+                    .w(px(1.0))
+                    .bg(OUTLINE),
+            );
+
+        sidebar
+            .with_spring(
+                "sidebar-width",
+                sidebar_animation(expanded_phase),
+                |sidebar, phase| {
+                    let phase = phase.clamp(0.0, 1.0);
+                    sidebar.w(px(64.0 + 160.0 * phase))
+                },
+            )
+            .into_any_element()
+    }
+
+    fn account_button(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+        div()
+            .id("account-button")
+            .role(Role::Button)
+            .aria_label("Open account menu")
+            .focusable()
+            .tab_stop(true)
+            .size(px(40.0))
+            .rounded_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(PINK)
+            .text_color(BACKGROUND)
+            .cursor_pointer()
+            .hover(|style| style.opacity(0.86))
+            .child(icon(Icon::UserRound, 19.0))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.account_menu_open = !this.account_menu_open;
+                cx.notify();
+            }))
+    }
+
+    fn account_menu_item(
+        &self,
+        id: &'static str,
+        menu_icon: Icon,
+        label: &'static str,
+        destructive: bool,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
+        div()
+            .id(id)
+            .role(Role::MenuItem)
+            .aria_label(label)
+            .focusable()
+            .tab_stop(true)
+            .h(px(40.0))
+            .px_3()
+            .flex()
+            .items_center()
+            .gap_3()
+            .rounded_lg()
+            .text_sm()
+            .text_color(if destructive { PINK } else { TEXT })
+            .cursor_pointer()
+            .hover(|style| style.bg(SURFACE_HIGH))
+            .child(
+                div()
+                    .w(px(24.0))
+                    .text_color(if destructive { PINK } else { TEXT_MUTED })
+                    .child(icon(menu_icon, 17.0)),
+            )
+            .child(label)
+            .on_click(cx.listener(move |this, _, window, cx| {
+                if id == "account-logout" {
+                    this.logout(window, cx);
+                } else {
+                    this.account_menu_open = false;
+                    cx.notify();
+                }
+            }))
+    }
+
+    fn account_menu(&self, cx: &mut Context<Self>) -> Stateful<Div> {
+        let username = self
+            .session
+            .as_ref()
+            .map(|session| session.username.clone())
+            .unwrap_or_else(|| "Aurelia user".into());
+        let initial = username
+            .chars()
+            .next()
+            .unwrap_or('A')
+            .to_uppercase()
+            .to_string();
+        let server = self
+            .session
+            .as_ref()
+            .and_then(|session| Url::parse(&session.server_url).ok())
+            .and_then(|url| url.host_str().map(ToString::to_string))
+            .unwrap_or_else(|| "Jellyfin server".into());
+        div()
+            .id("account-menu")
+            .role(Role::Menu)
+            .aria_label("Account menu")
+            .w(px(224.0))
+            .p_2()
+            .flex()
+            .flex_col()
+            .rounded_xl()
+            .border_1()
+            .border_color(OUTLINE)
+            .bg(SURFACE)
+            .shadow_lg()
+            .child(
+                div()
+                    .p_2()
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .child(
+                        div()
+                            .size(px(40.0))
+                            .rounded_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .bg(PINK)
+                            .text_color(BACKGROUND)
+                            .font_weight(FontWeight::BOLD)
+                            .child(initial),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(username),
+                            )
+                            .child(div().text_xs().text_color(TEXT_MUTED).child(server)),
+                    ),
+            )
+            .child(div().h(px(1.0)).mx_2().my_2().bg(OUTLINE))
+            .child(self.account_menu_item(
+                "account-settings",
+                Icon::Settings,
+                "Settings",
+                false,
+                cx,
+            ))
+            .child(self.account_menu_item(
+                "account-servers",
+                Icon::Server,
+                "Manage servers",
+                false,
+                cx,
+            ))
+            .child(div().h(px(1.0)).mx_2().my_2().bg(OUTLINE))
+            .child(self.account_menu_item("account-logout", Icon::LogOut, "Log out", true, cx))
+            .on_mouse_down_out(cx.listener(|this, event: &gpui::MouseDownEvent, _, cx| {
+                if !should_dismiss_account_menu(this.account_button_bounds, event.position) {
+                    return;
+                }
+                this.account_menu_open = false;
+                cx.notify();
+            }))
+    }
+
+    fn search(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let search_input = self.search_input.clone();
+        let search_focus = search_input.read(cx).focus_handle();
+        let focused = search_focus.is_focused(window);
+        let click_focus = search_focus.clone();
+        div()
+            .id("library-search")
+            .role(Role::TextInput)
+            .aria_label("Search your library")
+            .track_focus(&search_focus)
+            .on_click(move |_, window, cx| window.focus(&click_focus, cx))
+            .w(px(340.0))
+            .h(px(40.0))
+            .px_3()
+            .flex()
+            .items_center()
+            .gap_2()
+            .rounded_xl()
+            .border_1()
+            .border_color(if focused { PRIMARY } else { OUTLINE })
+            .bg(SURFACE)
+            .cursor_text()
+            .child(icon(Icon::Search, 17.0).text_color(TEXT_MUTED))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .overflow_hidden()
+                    .child(search_input),
+            )
+            .into_any_element()
+    }
+
+    fn artwork(&self, track: &Track, size_px: f32) -> Div {
+        div()
+            .size(px(size_px))
+            .flex_none()
+            .rounded_lg()
+            .flex()
+            .items_end()
+            .p_2()
+            .bg(rgb(track.art_color))
+            .border_1()
+            .border_color(translucent(TEXT, 0.12))
+            .text_color(rgb(0xffffff))
+            .text_sm()
+            .font_weight(FontWeight::BOLD)
+            .child(track.initials())
+    }
+
+    fn album_card(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+        let track = self.state.tracks[index].clone();
+        div()
+            .id(("album-card", index))
+            .role(Role::Button)
+            .aria_label(SharedString::from(format!(
+                "Play {} by {}",
+                track.album, track.artist
+            )))
+            .focusable()
+            .tab_stop(true)
+            .w(px(144.0))
+            .rounded_xl()
+            .cursor_pointer()
+            .hover(|style| style.bg(SURFACE_HIGH))
+            .child(self.artwork(&track, 144.0))
+            .child(
+                div()
+                    .pt_3()
+                    .px_1()
+                    .text_sm()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .overflow_hidden()
+                    .child(track.album.clone()),
+            )
+            .child(
+                div()
+                    .px_1()
+                    .pt_1()
+                    .text_xs()
+                    .text_color(TEXT_MUTED)
+                    .child(track.artist.clone()),
+            )
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.state.select_track(index);
+                cx.notify();
+            }))
+            .into_any_element()
+    }
+
+    fn track_row(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+        let track = self.state.tracks[index].clone();
+        let selected = self.state.current_track == index;
+        div()
+            .id(("track-row", index))
+            .role(Role::Button)
+            .aria_label(SharedString::from(format!(
+                "Play {} by {}",
+                track.title, track.artist
+            )))
+            .focusable()
+            .tab_stop(true)
+            .h(px(56.0))
+            .w_full()
+            .px_3()
+            .flex()
+            .items_center()
+            .rounded_lg()
+            .cursor_pointer()
+            .when(selected, |element| element.bg(PRIMARY_CONTAINER))
+            .when(!selected, |element| {
+                element.hover(|style| style.bg(translucent(SURFACE_HIGH, 0.72)))
+            })
+            .child(
+                div()
+                    .w(px(34.0))
+                    .flex_none()
+                    .text_center()
+                    .text_sm()
+                    .text_color(if selected { PRIMARY } else { TEXT_MUTED })
+                    .when(selected && self.state.is_playing, |element| {
+                        element.child(icon(Icon::Music2, 16.0))
+                    })
+                    .when(!(selected && self.state.is_playing), |element| {
+                        element.child(format!("{:02}", index + 1))
+                    }),
+            )
+            .child(self.artwork(&track, 40.0))
+            .child(
+                div()
+                    .w(px(230.0))
+                    .min_w_0()
+                    .pl_3()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .overflow_hidden()
+                    .child(
+                        div()
+                            .w_full()
+                            .truncate()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(if selected { PRIMARY } else { TEXT })
+                            .child(track.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .truncate()
+                            .text_xs()
+                            .text_color(TEXT_MUTED)
+                            .child(track.artist.clone()),
+                    ),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .text_sm()
+                    .text_color(TEXT_MUTED)
+                    .child(track.album.clone()),
+            )
+            .child(
+                div()
+                    .w(px(62.0))
+                    .text_right()
+                    .text_xs()
+                    .text_color(TEXT_MUTED)
+                    .child(track.duration_label()),
+            )
+            .child(
+                div()
+                    .w(px(36.0))
+                    .flex()
+                    .justify_end()
+                    .text_color(TEXT_MUTED)
+                    .child(icon(Icon::Ellipsis, 18.0)),
+            )
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.state.select_track(index);
+                cx.notify();
+            }))
+            .into_any_element()
+    }
+
+    fn track_list_items(
+        &mut self,
+        range: Range<usize>,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        range
+            .filter_map(|visible_index| {
+                let &track_index = self.visible_track_indices.get(visible_index)?;
+                Some(
+                    div()
+                        .w_full()
+                        .h(px(TRACK_ROW_HEIGHT))
+                        .child(self.track_row(track_index, cx))
+                        .into_any_element(),
+                )
+            })
+            .collect()
+    }
+
+    fn main_content(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let destination = self.state.destination;
+        let heading = match destination {
+            Destination::Home => "Good evening",
+            _ => destination.label(),
+        };
+        let subtitle = match destination {
+            Destination::Home => "Pick up where you left off",
+            Destination::Songs => "Every song in your Jellyfin library",
+            Destination::Albums => "Albums from your library",
+            Destination::Artists => "Artists you come back to",
+            Destination::Playlists => "Your mixes and saved playlists",
+            Destination::Favorites => "Songs you have marked as favorites",
+            Destination::RecentlyAdded => "The newest music on your server",
+        };
+        let track_count = self.visible_track_indices.len();
+        let section_title = if self.state.query.is_empty() {
+            if destination == Destination::Home {
+                "Recently played".to_string()
+            } else {
+                format!("{} in your library", destination.label())
+            }
+        } else {
+            format!("{track_count} results")
+        };
+        let weak_self = cx.weak_entity();
+        let account_menu_position = point(window.viewport_size().width - px(24.0), px(64.0));
+
+        div()
+            .flex_1()
+            .h_full()
+            .min_w_0()
+            .flex()
+            .flex_col()
+            .bg(BACKGROUND)
+            .child(
+                div()
+                    .h(px(72.0))
+                    .flex_none()
+                    .px_6()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .border_b_1()
+                    .border_color(OUTLINE)
+                    .on_children_prepainted(move |child_bounds, _, cx| {
+                        weak_self
+                            .update(cx, |this, _| {
+                                this.account_button_bounds = child_bounds.get(1).copied();
+                            })
+                            .ok();
+                    })
+                    .child(self.search(window, cx))
+                    .child(self.account_button(cx))
+                    .when(self.account_menu_open, |header| {
+                        header.child(
+                            deferred(
+                                anchored()
+                                    .anchor(Anchor::TopRight)
+                                    .position(account_menu_position)
+                                    .snap_to_window_with_margin(px(16.0))
+                                    .child(self.account_menu(cx)),
+                            )
+                            .priority(1),
+                        )
+                    }),
+            )
+            .child(
+                div()
+                    .flex_none()
+                    .px_6()
+                    .pt_6()
+                    .child(
+                        div()
+                            .text_3xl()
+                            .font_weight(FontWeight::BOLD)
+                            .child(heading),
+                    )
+                    .child(
+                        div()
+                            .pt_1()
+                            .text_sm()
+                            .text_color(TEXT_MUTED)
+                            .child(subtitle),
+                    ),
+            )
+            .when(destination == Destination::Home, |content| {
+                content.child(div().flex_none().px_6().pt_6().flex().gap_4().children(
+                    (0..self.state.tracks.len().min(4)).map(|index| self.album_card(index, cx)),
+                ))
+            })
+            .child(
+                div()
+                    .flex_none()
+                    .px_6()
+                    .pt_6()
+                    .pb_3()
+                    .flex()
+                    .items_end()
+                    .justify_between()
+                    .child(
+                        div()
+                            .text_lg()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child(section_title),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(TEXT_MUTED)
+                            .child(format!("{track_count} tracks")),
+                    ),
+            )
+            .child(
+                div().flex_1().min_h_0().overflow_y_hidden().px_6().child(
+                    uniform_list(
+                        "track-list",
+                        track_count,
+                        cx.processor(Self::track_list_items),
+                    )
+                    .size_full()
+                    .pb_4()
+                    .track_scroll(&self.track_scroll_handle),
+                ),
+            )
+            .into_any_element()
+    }
+
+    fn control_button(
+        &self,
+        id: impl Into<ElementId>,
+        label: impl Into<SharedString>,
+        control_icon: Icon,
+        prominent: bool,
+    ) -> Stateful<Div> {
+        let label = label.into();
+        div()
+            .id(id)
+            .role(Role::Button)
+            .aria_label(label)
+            .focusable()
+            .tab_stop(true)
+            .size(px(if prominent { 40.0 } else { 32.0 }))
+            .rounded_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .bg(if prominent { PRIMARY } else { SURFACE_HIGH })
+            .text_color(if prominent { BACKGROUND } else { TEXT })
+            .hover(|style| style.opacity(0.82))
+            .child(icon(control_icon, if prominent { 18.0 } else { 16.0 }))
+    }
+
+    fn player_bar(&self, cx: &mut Context<Self>) -> AnyElement {
+        let track = self.state.tracks[self.state.current_track].clone();
+        let progress = if track.duration_seconds == 0 {
+            0.0
+        } else {
+            self.state.elapsed_seconds as f32 / track.duration_seconds as f32
+        };
+        let elapsed = format!(
+            "{}:{:02}",
+            self.state.elapsed_seconds / 60,
+            self.state.elapsed_seconds % 60
+        );
+
+        div()
+            .h(px(96.0))
+            .w_full()
+            .flex_none()
+            .px_5()
+            .flex()
+            .items_center()
+            .bg(SURFACE)
+            .border_t_1()
+            .border_color(OUTLINE)
+            .child(
+                div()
+                    .w(px(310.0))
+                    .flex()
+                    .items_center()
+                    .gap_3()
+                    .child(self.artwork(&track, 56.0))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_sm()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child(track.title.clone()),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(TEXT_MUTED)
+                                    .child(track.artist.clone()),
+                            ),
+                    )
+                    .child(div().pl_2().text_color(PINK).child(icon(Icon::Heart, 18.0))),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .max_w(px(590.0))
+                    .mx_auto()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(
+                                self.control_button(
+                                    "previous",
+                                    "Previous track",
+                                    Icon::SkipBack,
+                                    false,
+                                )
+                                .on_click(cx.listener(
+                                    |this, _, _, cx| {
+                                        this.state.skip_previous();
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                            .child(
+                                self.control_button(
+                                    "play-pause",
+                                    if self.state.is_playing {
+                                        "Pause"
+                                    } else {
+                                        "Play"
+                                    },
+                                    if self.state.is_playing {
+                                        Icon::Pause
+                                    } else {
+                                        Icon::Play
+                                    },
+                                    true,
+                                )
+                                .on_click(cx.listener(
+                                    |this, _, _, cx| {
+                                        this.state.toggle_playback();
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                            .child(
+                                self.control_button("next", "Next track", Icon::SkipForward, false)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.state.skip_next();
+                                        cx.notify();
+                                    })),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .text_xs()
+                            .text_color(TEXT_MUTED)
+                            .child(elapsed)
+                            .child(
+                                div()
+                                    .id("seek-track")
+                                    .role(Role::Slider)
+                                    .aria_label("Playback position")
+                                    .flex_1()
+                                    .h(px(5.0))
+                                    .rounded_full()
+                                    .bg(SURFACE_HIGH)
+                                    .cursor_pointer()
+                                    .child(
+                                        div()
+                                            .h_full()
+                                            .w(gpui::relative(progress))
+                                            .rounded_full()
+                                            .bg(PRIMARY),
+                                    )
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.state.seek_by(15);
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(track.duration_label()),
+                    ),
+            )
+            .child(
+                div()
+                    .w(px(310.0))
+                    .flex()
+                    .items_center()
+                    .justify_end()
+                    .gap_2()
+                    .text_sm()
+                    .text_color(TEXT_MUTED)
+                    .child(icon(Icon::Volume2, 17.0))
+                    .child(
+                        div()
+                            .id("volume-down")
+                            .role(Role::Button)
+                            .aria_label("Turn volume down")
+                            .focusable()
+                            .tab_stop(true)
+                            .cursor_pointer()
+                            .px_2()
+                            .child(icon(Icon::Minus, 14.0))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.state.change_volume(-10);
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        div()
+                            .w(px(84.0))
+                            .h(px(5.0))
+                            .rounded_full()
+                            .bg(SURFACE_HIGH)
+                            .child(
+                                div()
+                                    .h_full()
+                                    .w(gpui::relative(self.state.volume_percent as f32 / 100.0))
+                                    .rounded_full()
+                                    .bg(TEXT_MUTED),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .id("volume-up")
+                            .role(Role::Button)
+                            .aria_label("Turn volume up")
+                            .focusable()
+                            .tab_stop(true)
+                            .cursor_pointer()
+                            .px_2()
+                            .child(icon(Icon::Plus, 14.0))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.state.change_volume(10);
+                                cx.notify();
+                            })),
+                    )
+                    .child(format!("{}%", self.state.volume_percent)),
+            )
+            .into_any_element()
+    }
+}
+
+impl Render for AureliaDesktop {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let stage_content = match self.stage {
+            AppStage::Login => self.login_screen(window, cx),
+            AppStage::Syncing => self.sync_screen(cx),
+            AppStage::Home => div()
+                .relative()
+                .size_full()
+                .flex()
+                .flex_col()
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .flex()
+                        .child(self.sidebar(cx))
+                        .child(self.main_content(window, cx)),
+                )
+                .when(!self.state.tracks.is_empty(), |app| {
+                    app.child(self.player_bar(cx))
+                })
+                .child(div().absolute().inset_0().bg(BACKGROUND).with_animation(
+                    "home-stage-reveal",
+                    Animation::new(Duration::from_millis(260)).with_easing(ease_out_quint()),
+                    |overlay, phase| overlay.opacity(1.0 - phase),
+                ))
+                .into_any_element(),
+        };
+
+        div()
+            .id("aurelia-desktop")
+            .role(Role::Application)
+            .aria_label("Aurelia desktop music player")
+            .track_focus(&self.root_focus)
+            .on_action(cx.listener(|_, _: &Tab, window, cx| window.focus_next(cx)))
+            .on_action(cx.listener(|_, _: &TabPrev, window, cx| window.focus_prev(cx)))
+            .on_action(cx.listener(|this, _: &FocusSearch, window, cx| {
+                window.focus(&this.search_input.read(cx).focus_handle(), cx)
+            }))
+            .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
+                this.state.toggle_sidebar();
+                cx.notify();
+            }))
+            .size_full()
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .bg(BACKGROUND)
+            .text_color(TEXT)
+            .font_family("Inter")
+            .child(stage_content)
+    }
+}
+
+fn main() {
+    application().run(|cx: &mut App| {
+        gpui_tokio::init(cx);
+        cx.text_system()
+            .add_fonts(vec![Cow::Borrowed(LUCIDE_FONT_BYTES)])
+            .expect("failed to load the Lucide icon font");
+
+        cx.bind_keys([
+            KeyBinding::new("tab", Tab, None),
+            KeyBinding::new("shift-tab", TabPrev, None),
+            KeyBinding::new("secondary-f", FocusSearch, None),
+            KeyBinding::new("secondary-b", ToggleSidebar, None),
+        ]);
+        cx.bind_keys(text_input::key_bindings());
+
+        let bounds = Bounds::centered(None, size(px(1180.0), px(760.0)), cx);
+        cx.open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                titlebar: Some(gpui::TitlebarOptions {
+                    title: Some("Aurelia".into()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            |window, cx| cx.new(|cx| AureliaDesktop::new(window, cx)),
+        )
+        .expect("failed to open Aurelia desktop window");
+
+        cx.activate(true);
+    });
+}
+
+#[cfg(test)]
+mod view_tests {
+    use super::*;
+
+    #[test]
+    fn account_button_click_does_not_count_as_outside_menu_click() {
+        let button_bounds = Bounds::new(point(px(100.0), px(16.0)), size(px(40.0), px(40.0)));
+
+        assert!(!should_dismiss_account_menu(
+            Some(button_bounds),
+            point(px(120.0), px(36.0)),
+        ));
+        assert!(should_dismiss_account_menu(
+            Some(button_bounds),
+            point(px(80.0), px(36.0)),
+        ));
+        assert!(should_dismiss_account_menu(
+            None,
+            point(px(120.0), px(36.0)),
+        ));
+    }
+
+    #[test]
+    fn server_urls_are_normalized_like_the_mobile_clients() {
+        assert_eq!(
+            normalize_server_url(" music.example.com/ "),
+            Ok("https://music.example.com".into())
+        );
+        assert_eq!(
+            normalize_server_url("http://localhost:8096/jellyfin///"),
+            Ok("http://localhost:8096/jellyfin".into())
+        );
+        assert_eq!(
+            normalize_server_url("HTTPS://music.example.com/"),
+            Ok("https://music.example.com".into())
+        );
+        assert!(normalize_server_url("ftp://music.example.com").is_err());
+        assert!(normalize_server_url("https://music.example.com?token=nope").is_err());
+    }
+
+    #[test]
+    fn profile_cache_path_is_stable_and_account_specific() {
+        let base = Path::new("/tmp/aurelia-test");
+        let first = profile_library_dir(base, "https://music.example.com", "Marshall");
+        let repeated = profile_library_dir(base, "https://music.example.com", "Marshall");
+        let other = profile_library_dir(base, "https://music.example.com", "Someone Else");
+        let profiles_dir = base.join("profiles");
+
+        assert_eq!(first, repeated);
+        assert_ne!(first, other);
+        assert_eq!(first.parent(), Some(profiles_dir.as_path()));
+    }
+}

@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["crates/aurelia-core", "crates/aurelia-lyrics", "crates/uniffi-bindgen"]
+members = [
+  "apps/desktop",
+  "crates/aurelia-core",
+  "crates/aurelia-lyrics",
+  "crates/uniffi-bindgen",
+]
 
 [profile.dev]
 opt-level = 2
