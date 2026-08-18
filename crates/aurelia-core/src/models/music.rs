@@ -29,6 +29,17 @@ pub struct UserData {
     pub last_played_date: Option<String>,
 }
 
+/// Metadata projected to desktop operating-system media controls.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct NowPlayingPayload {
+    pub title: String,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub duration: Option<f64>,
+    pub cover_url: Option<String>,
+}
+
 /// Wrapper for API responses that contain an Items array
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ItemsResponse<T> {

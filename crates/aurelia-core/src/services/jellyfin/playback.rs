@@ -130,6 +130,31 @@ impl JellyfinClient {
         Ok(all_ids)
     }
 
+    /// Get an audio stream URL for Aurelia's desktop streaming engine.
+    ///
+    /// Seekable formats are served directly. Other formats use Jellyfin's AAC
+    /// transcoder so Rodio receives a progressive stream that can be restarted
+    /// with `startTimeTicks` when native seeking is unavailable.
+    pub fn get_desktop_audio_stream_url(&self, item_id: &str, container: Option<&str>) -> String {
+        let token = self.token.as_deref().unwrap_or("");
+        if utils::supports_seeking(container) {
+            format!(
+                "{}?api_key={}&static=true",
+                utils::build_jellyfin_url(&self.server_url, &format!("/Audio/{item_id}/stream")),
+                token
+            )
+        } else {
+            format!(
+                "{}?api_key={}",
+                utils::build_jellyfin_url(
+                    &self.server_url,
+                    &format!("/Audio/{item_id}/stream.aac")
+                ),
+                token
+            )
+        }
+    }
+
     /// Get an audio stream URL for native mobile players.
     ///
     /// For seekable containers, returns a direct static stream.

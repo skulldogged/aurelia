@@ -51,6 +51,8 @@
         androidSdk = androidComposition.androidsdk;
 
         desktopLinuxLibraries = with pkgs; [
+          alsa-lib
+          dbus
           fontconfig
           freetype
           glib

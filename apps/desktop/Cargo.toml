@@ -9,11 +9,14 @@ name = "aurelia-desktop"
 path = "src/main.rs"
 
 [dependencies]
-aurelia-core = { path = "../../crates/aurelia-core" }
+anyhow = "1.0"
+aurelia-core = { path = "../../crates/aurelia-core", features = ["desktop"] }
 gpui = { git = "https://github.com/zed-industries/zed", rev = "aa3718614b3ade75524be6f8b2e101bd1166e02c" }
 gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "aa3718614b3ade75524be6f8b2e101bd1166e02c", features = ["font-kit", "wayland", "x11"] }
 gpui_tokio = { git = "https://github.com/zed-industries/zed", rev = "aa3718614b3ade75524be6f8b2e101bd1166e02c" }
 lucide-icons = "1.31.0"
+reqwest_client = { git = "https://github.com/zed-industries/zed", rev = "aa3718614b3ade75524be6f8b2e101bd1166e02c" }
+tracing = "0.1"
 url = "2.5"
 uuid = { version = "1.19", features = ["v4"] }
 unicode-segmentation = "1.12"

@@ -40,6 +40,9 @@ pub struct Track {
     pub title: String,
     pub artist: String,
     pub album: String,
+    pub album_id: Option<String>,
+    pub artwork_id: Option<String>,
+    pub container: Option<String>,
     pub duration_seconds: u32,
     pub art_color: u32,
 }
@@ -127,10 +130,6 @@ impl DesktopState {
             self.elapsed_seconds = 0;
             self.is_playing = true;
         }
-    }
-
-    pub fn toggle_playback(&mut self) {
-        self.is_playing = !self.is_playing;
     }
 
     pub fn skip_next(&mut self) {
@@ -223,6 +222,9 @@ fn mock_tracks() -> Vec<Track> {
             title: title.into(),
             artist: artist.into(),
             album: album.into(),
+            album_id: None,
+            artwork_id: None,
+            container: Some("flac".into()),
             duration_seconds,
             art_color,
         },

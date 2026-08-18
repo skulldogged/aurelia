@@ -1,3 +1,5 @@
+mod artwork;
+mod playback;
 mod state;
 mod text_input;
 mod theme;
@@ -11,17 +13,20 @@ use std::{
     time::Duration,
 };
 
+use artwork::{ArtworkCache, DEFAULT_ARTWORK_CACHE_CAPACITY};
 use aurelia_core::models::{AuthRequest, BackendProvider, Credentials, Song};
 use gpui::{
     Anchor, Animation, AnimationExt as _, AnyElement, App, Bounds, Context, Div, ElementId, Entity,
-    FocusHandle, FontWeight, Image, ImageFormat, IntoElement, KeyBinding, KeyDownEvent, Pixels,
-    Point, Rgba, Role, ScrollStrategy, SharedString, SpringAnimation, SpringConfig, Stateful,
-    Transformation, UniformListScrollHandle, Window, WindowBounds, WindowOptions, actions,
-    anchored, bounce, deferred, div, ease_in_out, ease_out_quint, img, percentage, point,
-    prelude::*, px, rgb, size, svg, uniform_list,
+    FocusHandle, FontWeight, Image, ImageFormat, IntoElement, KeyBinding, KeyDownEvent, ObjectFit,
+    Pixels, Point, Rgba, Role, ScrollStrategy, SharedString, SpringAnimation, SpringConfig,
+    Stateful, StyledImage as _, Transformation, UniformListScrollHandle, Window, WindowBounds,
+    WindowOptions, actions, anchored, bounce, deferred, div, ease_in_out, ease_out_quint, img,
+    percentage, point, prelude::*, px, rgb, size, svg, uniform_list,
 };
 use gpui_platform::application;
 use lucide_icons::{Icon, LUCIDE_FONT_BYTES};
+use playback::{PlaybackController, PlaybackItem};
+use reqwest_client::ReqwestClient;
 use state::{DesktopState, Destination, Track};
 use text_input::TextInput;
 use theme::*;
@@ -293,6 +298,10 @@ fn track_color(id: &str) -> u32 {
 }
 
 fn map_song(song: Song) -> Track {
+    let artwork_id = song
+        .album_art_url
+        .as_ref()
+        .map(|_| song.album_id.clone().unwrap_or_else(|| song.id.clone()));
     let artist = song
         .artists
         .filter(|artists| !artists.is_empty())
@@ -304,6 +313,9 @@ fn map_song(song: Song) -> Track {
         title: song.name,
         artist,
         album: song.album.unwrap_or_else(|| "Unknown album".into()),
+        album_id: song.album_id,
+        artwork_id,
+        container: song.container,
         duration_seconds: song.duration.unwrap_or_default().max(0.0).round() as u32,
     }
 }
@@ -346,6 +358,11 @@ struct AureliaDesktop {
     password_input: Entity<TextInput>,
     visible_track_indices: Vec<usize>,
     track_scroll_handle: UniformListScrollHandle,
+    artwork_cache: Entity<ArtworkCache>,
+    playback: PlaybackController,
+    playback_loading: bool,
+    playback_error: Option<String>,
+    playback_request_id: u64,
     account_menu_open: bool,
     account_button_bounds: Option<Bounds<Pixels>>,
 }
@@ -372,8 +389,16 @@ impl AureliaDesktop {
             AppStage::Login
         };
 
-        let state = DesktopState::default();
+        let mut state = DesktopState::default();
+        if let Ok(Some(saved_volume)) = aurelia_core::load_setting(
+            base_data_dir.to_string_lossy().into_owned(),
+            "desktop-volume".into(),
+        ) && let Ok(saved_volume) = saved_volume.parse::<f32>()
+        {
+            state.volume_percent = (saved_volume.clamp(0.0, 1.0) * 100.0).round() as u8;
+        }
         let visible_track_indices = state.filtered_track_indices();
+        let artwork_cache = cx.new(|_| ArtworkCache::new(DEFAULT_ARTWORK_CACHE_CAPACITY));
         let mut desktop = Self {
             stage,
             login: LoginForm::default(),
@@ -388,6 +413,11 @@ impl AureliaDesktop {
             password_input,
             visible_track_indices,
             track_scroll_handle: UniformListScrollHandle::new(),
+            artwork_cache,
+            playback: PlaybackController::new(),
+            playback_loading: false,
+            playback_error: None,
+            playback_request_id: 0,
             account_menu_open: false,
             account_button_bounds: None,
         };
@@ -401,6 +431,8 @@ impl AureliaDesktop {
             }
         })
         .detach();
+        cx.observe(&desktop.artwork_cache, |_, _, cx| cx.notify())
+            .detach();
 
         if desktop.stage == AppStage::Syncing {
             window.focus(&desktop.root_focus, cx);
@@ -408,6 +440,7 @@ impl AureliaDesktop {
         } else {
             window.focus(&desktop.server_input.read(cx).focus_handle(), cx);
         }
+        desktop.start_playback_poller(cx);
         desktop
     }
 
@@ -475,6 +508,253 @@ impl AureliaDesktop {
             self.track_scroll_handle
                 .scroll_to_item_strict(0, ScrollStrategy::Top);
         }
+    }
+
+    fn playback_item(&self, index: usize) -> Option<PlaybackItem> {
+        let session = self.session.as_ref()?;
+        let track = self.state.tracks.get(index)?;
+        Some(PlaybackItem {
+            server_url: session.server_url.clone(),
+            token: session.token.clone(),
+            user_id: session.user_id.clone(),
+            id: track.id.clone(),
+            title: track.title.clone(),
+            artist: track.artist.clone(),
+            album: track.album.clone(),
+            album_id: track.album_id.clone(),
+            container: track.container.clone(),
+            duration_seconds: track.duration_seconds,
+        })
+    }
+
+    fn start_track(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some(item) = self.playback_item(index) else {
+            self.playback_error = Some("Playback requires an active Jellyfin session".into());
+            cx.notify();
+            return;
+        };
+
+        self.playback_request_id = self.playback_request_id.wrapping_add(1);
+        let request_id = self.playback_request_id;
+        self.state.select_track(index);
+        self.state.is_playing = false;
+        self.state.elapsed_seconds = 0;
+        self.playback_loading = true;
+        self.playback_error = None;
+        let volume = f32::from(self.state.volume_percent) / 100.0;
+        let playback = self.playback.clone();
+        let task = gpui_tokio::Tokio::spawn(cx, async move { playback.play(item, volume).await });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |this, cx| {
+                if this.playback_request_id != request_id {
+                    return;
+                }
+                this.playback_loading = false;
+                match result {
+                    Ok(Ok(())) => this.state.is_playing = true,
+                    Ok(Err(error)) => {
+                        this.state.is_playing = false;
+                        this.playback_error = Some(error.to_string());
+                    }
+                    Err(error) => {
+                        this.state.is_playing = false;
+                        this.playback_error = Some(format!("Playback task failed: {error}"));
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn set_playing(&mut self, should_play: bool, cx: &mut Context<Self>) {
+        if self.playback_loading || self.state.tracks.is_empty() {
+            return;
+        }
+        if !self.state.is_playing && should_play && self.state.elapsed_seconds == 0 {
+            self.start_track(self.state.current_track, cx);
+            return;
+        }
+
+        self.state.is_playing = should_play;
+        self.playback_error = None;
+        let playback = self.playback.clone();
+        let task = gpui_tokio::Tokio::spawn(cx, async move {
+            if should_play {
+                playback.resume().await
+            } else {
+                playback.pause().await
+            }
+        });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |this, cx| {
+                if let Ok(Err(error)) = result {
+                    this.state.is_playing = !should_play;
+                    this.playback_error = Some(error.to_string());
+                } else if let Err(error) = result {
+                    this.state.is_playing = !should_play;
+                    this.playback_error = Some(format!("Playback task failed: {error}"));
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn toggle_playback(&mut self, cx: &mut Context<Self>) {
+        self.set_playing(!self.state.is_playing, cx);
+    }
+
+    fn next_track(&mut self, cx: &mut Context<Self>) {
+        if self.state.tracks.is_empty() {
+            return;
+        }
+        self.state.skip_next();
+        self.start_track(self.state.current_track, cx);
+    }
+
+    fn previous_track(&mut self, cx: &mut Context<Self>) {
+        if self.state.tracks.is_empty() {
+            return;
+        }
+        if self.state.elapsed_seconds > 3 {
+            self.seek_by(
+                -i32::try_from(self.state.elapsed_seconds).unwrap_or(i32::MAX),
+                cx,
+            );
+        } else {
+            self.state.skip_previous();
+            self.start_track(self.state.current_track, cx);
+        }
+    }
+
+    fn seek_by(&mut self, seconds: i32, cx: &mut Context<Self>) {
+        self.state.seek_by(seconds);
+        let position = f64::from(self.state.elapsed_seconds);
+        let playback = self.playback.clone();
+        let task = gpui_tokio::Tokio::spawn(cx, async move { playback.seek(position).await });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |this, cx| {
+                if let Ok(Err(error)) = result {
+                    this.playback_error = Some(error.to_string());
+                } else if let Err(error) = result {
+                    this.playback_error = Some(format!("Seek task failed: {error}"));
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn change_volume(&mut self, delta: i8, cx: &mut Context<Self>) {
+        self.state.change_volume(delta);
+        let volume_percent = self.state.volume_percent;
+        let volume = f32::from(volume_percent) / 100.0;
+        let _ = aurelia_core::save_setting(
+            self.base_data_dir.to_string_lossy().into_owned(),
+            "desktop-volume".into(),
+            volume.to_string(),
+        );
+        let playback = self.playback.clone();
+        let task = gpui_tokio::Tokio::spawn(cx, async move { playback.set_volume(volume).await });
+        cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |this, cx| {
+                if let Ok(Err(error)) = result {
+                    this.playback_error = Some(error.to_string());
+                } else if let Err(error) = result {
+                    this.playback_error = Some(format!("Volume task failed: {error}"));
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
+    fn stop_playback(&mut self, cx: &mut Context<Self>) {
+        self.playback_request_id = self.playback_request_id.wrapping_add(1);
+        self.playback_loading = false;
+        self.state.is_playing = false;
+        self.state.elapsed_seconds = 0;
+        let playback = self.playback.clone();
+        gpui_tokio::Tokio::spawn(cx, async move { playback.stop().await }).detach();
+        cx.notify();
+    }
+
+    fn start_playback_poller(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(250))
+                    .await;
+                let Some(playback) = this.read_with(cx, |this, _| this.playback.clone()).ok()
+                else {
+                    break;
+                };
+                let task = gpui_tokio::Tokio::spawn(cx, async move { playback.poll().await });
+                let result = task.await;
+                let keep_polling = this
+                    .update(cx, |this, cx| {
+                        if let Ok(Ok(snapshot)) = result {
+                            let next_second = snapshot.position_seconds.max(0.0).round() as u32;
+                            if this.state.elapsed_seconds != next_second {
+                                this.state.elapsed_seconds = next_second;
+                                cx.notify();
+                            }
+                            if !this.playback_loading
+                                && this.state.is_playing != snapshot.is_playing
+                            {
+                                this.state.is_playing = snapshot.is_playing;
+                                cx.notify();
+                            }
+                            if snapshot.is_finished && !this.playback_loading {
+                                this.next_track(cx);
+                            }
+                        }
+
+                        while let Some(event) = this.playback.pop_media_event() {
+                            use aurelia_core::media_controls::MediaEvent;
+                            match event {
+                                MediaEvent::Play => this.set_playing(true, cx),
+                                MediaEvent::Pause => this.set_playing(false, cx),
+                                MediaEvent::Toggle => this.toggle_playback(cx),
+                                MediaEvent::Next => this.next_track(cx),
+                                MediaEvent::Previous => this.previous_track(cx),
+                                MediaEvent::Stop => this.stop_playback(cx),
+                                MediaEvent::SeekDelta(delta) => {
+                                    this.seek_by(delta.round() as i32, cx)
+                                }
+                                MediaEvent::SetPosition(position) => {
+                                    let delta = position.round() as i64
+                                        - i64::from(this.state.elapsed_seconds);
+                                    this.seek_by(
+                                        delta.clamp(i64::from(i32::MIN), i64::from(i32::MAX))
+                                            as i32,
+                                        cx,
+                                    );
+                                }
+                            }
+                        }
+                        true
+                    })
+                    .unwrap_or(false);
+                if !keep_polling {
+                    break;
+                }
+            }
+        })
+        .detach();
     }
 
     fn start_sync(&mut self, cx: &mut Context<Self>) {
@@ -545,6 +825,7 @@ impl AureliaDesktop {
     }
 
     fn logout(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.stop_playback(cx);
         let _ = aurelia_core::clear_credentials(self.base_data_dir.to_string_lossy().into_owned());
         self.stage = AppStage::Login;
         self.session = None;
@@ -555,6 +836,7 @@ impl AureliaDesktop {
         self.search_input.update(cx, |input, cx| input.clear(cx));
         self.sync_status = SyncStatus::default();
         self.state.replace_library(Vec::new());
+        self.artwork_cache.update(cx, |cache, cx| cache.clear(cx));
         self.refresh_main_list();
         self.account_menu_open = false;
         window.focus(&self.server_input.read(cx).focus_handle(), cx);
@@ -1322,24 +1604,74 @@ impl AureliaDesktop {
             .into_any_element()
     }
 
-    fn artwork(&self, track: &Track, size_px: f32) -> Div {
+    fn artwork_placeholder(&self, track: &Track, size_px: f32) -> Div {
         div()
             .size(px(size_px))
             .flex_none()
             .rounded_lg()
-            .flex()
-            .items_end()
-            .p_2()
+            .overflow_hidden()
             .bg(rgb(track.art_color))
             .border_1()
             .border_color(translucent(TEXT, 0.12))
+            .flex()
+            .items_end()
+            .p_2()
             .text_color(rgb(0xffffff))
             .text_sm()
             .font_weight(FontWeight::BOLD)
             .child(track.initials())
     }
 
-    fn album_card(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+    fn artwork(
+        &self,
+        track: &Track,
+        size_px: f32,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let requested_width = (size_px * window.scale_factor()).ceil().max(1.0) as u32;
+        let Some(session) = self.session.as_ref() else {
+            return self.artwork_placeholder(track, size_px).into_any_element();
+        };
+        let Some(artwork_id) = track.artwork_id.as_ref() else {
+            return self.artwork_placeholder(track, size_px).into_any_element();
+        };
+        let Some(url) = aurelia_core::build_image_url(
+            session.server_url.clone(),
+            session.token.clone(),
+            artwork_id.clone(),
+            "Primary".into(),
+            Some(requested_width),
+            Some(90),
+        )
+        .ok()
+        .flatten() else {
+            return self.artwork_placeholder(track, size_px).into_any_element();
+        };
+
+        let image = self
+            .artwork_cache
+            .update(cx, |cache, cx| cache.get_or_load(url.clone(), cx));
+        let Some(image) = image else {
+            return self.artwork_placeholder(track, size_px).into_any_element();
+        };
+
+        img(image)
+            .size(px(size_px))
+            .flex_none()
+            .rounded_lg()
+            .border_1()
+            .border_color(translucent(TEXT, 0.12))
+            .object_fit(ObjectFit::Cover)
+            .with_animation(
+                ("artwork-fade", gpui::hash(&url)),
+                Animation::new(Duration::from_millis(180)).with_easing(ease_out_quint()),
+                |image, phase| image.opacity(phase),
+            )
+            .into_any_element()
+    }
+
+    fn album_card(&self, index: usize, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let track = self.state.tracks[index].clone();
         div()
             .id(("album-card", index))
@@ -1354,7 +1686,7 @@ impl AureliaDesktop {
             .rounded_xl()
             .cursor_pointer()
             .hover(|style| style.bg(SURFACE_HIGH))
-            .child(self.artwork(&track, 144.0))
+            .child(self.artwork(&track, 144.0, window, cx))
             .child(
                 div()
                     .pt_3()
@@ -1373,13 +1705,12 @@ impl AureliaDesktop {
                     .child(track.artist.clone()),
             )
             .on_click(cx.listener(move |this, _, _, cx| {
-                this.state.select_track(index);
-                cx.notify();
+                this.start_track(index, cx);
             }))
             .into_any_element()
     }
 
-    fn track_row(&self, index: usize, cx: &mut Context<Self>) -> AnyElement {
+    fn track_row(&self, index: usize, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let track = self.state.tracks[index].clone();
         let selected = self.state.current_track == index;
         div()
@@ -1416,7 +1747,7 @@ impl AureliaDesktop {
                         element.child(format!("{:02}", index + 1))
                     }),
             )
-            .child(self.artwork(&track, 40.0))
+            .child(self.artwork(&track, 40.0, window, cx))
             .child(
                 div()
                     .w(px(230.0))
@@ -1470,8 +1801,7 @@ impl AureliaDesktop {
                     .child(icon(Icon::Ellipsis, 18.0)),
             )
             .on_click(cx.listener(move |this, _, _, cx| {
-                this.state.select_track(index);
-                cx.notify();
+                this.start_track(index, cx);
             }))
             .into_any_element()
     }
@@ -1479,7 +1809,7 @@ impl AureliaDesktop {
     fn track_list_items(
         &mut self,
         range: Range<usize>,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
         range
@@ -1489,7 +1819,7 @@ impl AureliaDesktop {
                     div()
                         .w_full()
                         .h(px(TRACK_ROW_HEIGHT))
-                        .child(self.track_row(track_index, cx))
+                        .child(self.track_row(track_index, window, cx))
                         .into_any_element(),
                 )
             })
@@ -1583,9 +1913,12 @@ impl AureliaDesktop {
                     ),
             )
             .when(destination == Destination::Home, |content| {
-                content.child(div().flex_none().px_6().pt_6().flex().gap_4().children(
-                    (0..self.state.tracks.len().min(4)).map(|index| self.album_card(index, cx)),
-                ))
+                content.child(
+                    div().flex_none().px_6().pt_6().flex().gap_4().children(
+                        (0..self.state.tracks.len().min(4))
+                            .map(|index| self.album_card(index, window, cx)),
+                    ),
+                )
             })
             .child(
                 div()
@@ -1650,12 +1983,19 @@ impl AureliaDesktop {
             .child(icon(control_icon, if prominent { 18.0 } else { 16.0 }))
     }
 
-    fn player_bar(&self, cx: &mut Context<Self>) -> AnyElement {
+    fn player_bar(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let track = self.state.tracks[self.state.current_track].clone();
         let progress = if track.duration_seconds == 0 {
             0.0
         } else {
-            self.state.elapsed_seconds as f32 / track.duration_seconds as f32
+            (self.state.elapsed_seconds as f32 / track.duration_seconds as f32).clamp(0.0, 1.0)
+        };
+        let (playback_detail, playback_detail_color) = if let Some(error) = &self.playback_error {
+            (error.clone(), PINK)
+        } else if self.playback_loading {
+            ("Loading audio…".into(), PRIMARY)
+        } else {
+            (track.artist.clone(), TEXT_MUTED)
         };
         let elapsed = format!(
             "{}:{:02}",
@@ -1679,7 +2019,7 @@ impl AureliaDesktop {
                     .flex()
                     .items_center()
                     .gap_3()
-                    .child(self.artwork(&track, 56.0))
+                    .child(self.artwork(&track, 56.0, window, cx))
                     .child(
                         div()
                             .min_w_0()
@@ -1695,8 +2035,9 @@ impl AureliaDesktop {
                             .child(
                                 div()
                                     .text_xs()
-                                    .text_color(TEXT_MUTED)
-                                    .child(track.artist.clone()),
+                                    .truncate()
+                                    .text_color(playback_detail_color)
+                                    .child(playback_detail),
                             ),
                     )
                     .child(div().pl_2().text_color(PINK).child(icon(Icon::Heart, 18.0))),
@@ -1724,8 +2065,7 @@ impl AureliaDesktop {
                                 )
                                 .on_click(cx.listener(
                                     |this, _, _, cx| {
-                                        this.state.skip_previous();
-                                        cx.notify();
+                                        this.previous_track(cx);
                                     },
                                 )),
                             )
@@ -1746,16 +2086,14 @@ impl AureliaDesktop {
                                 )
                                 .on_click(cx.listener(
                                     |this, _, _, cx| {
-                                        this.state.toggle_playback();
-                                        cx.notify();
+                                        this.toggle_playback(cx);
                                     },
                                 )),
                             )
                             .child(
                                 self.control_button("next", "Next track", Icon::SkipForward, false)
                                     .on_click(cx.listener(|this, _, _, cx| {
-                                        this.state.skip_next();
-                                        cx.notify();
+                                        this.next_track(cx);
                                     })),
                             ),
                     )
@@ -1786,8 +2124,7 @@ impl AureliaDesktop {
                                             .bg(PRIMARY),
                                     )
                                     .on_click(cx.listener(|this, _, _, cx| {
-                                        this.state.seek_by(15);
-                                        cx.notify();
+                                        this.seek_by(15, cx);
                                     })),
                             )
                             .child(track.duration_label()),
@@ -1814,8 +2151,7 @@ impl AureliaDesktop {
                             .px_2()
                             .child(icon(Icon::Minus, 14.0))
                             .on_click(cx.listener(|this, _, _, cx| {
-                                this.state.change_volume(-10);
-                                cx.notify();
+                                this.change_volume(-10, cx);
                             })),
                     )
                     .child(
@@ -1843,8 +2179,7 @@ impl AureliaDesktop {
                             .px_2()
                             .child(icon(Icon::Plus, 14.0))
                             .on_click(cx.listener(|this, _, _, cx| {
-                                this.state.change_volume(10);
-                                cx.notify();
+                                this.change_volume(10, cx);
                             })),
                     )
                     .child(format!("{}%", self.state.volume_percent)),
@@ -1872,7 +2207,7 @@ impl Render for AureliaDesktop {
                         .child(self.main_content(window, cx)),
                 )
                 .when(!self.state.tracks.is_empty(), |app| {
-                    app.child(self.player_bar(cx))
+                    app.child(self.player_bar(window, cx))
                 })
                 .child(div().absolute().inset_0().bg(BACKGROUND).with_animation(
                     "home-stage-reveal",
@@ -1910,6 +2245,9 @@ impl Render for AureliaDesktop {
 fn main() {
     application().run(|cx: &mut App| {
         gpui_tokio::init(cx);
+        let http_client =
+            ReqwestClient::user_agent("Aurelia/0.1").expect("failed to initialize HTTP client");
+        cx.set_http_client(Arc::new(http_client));
         cx.text_system()
             .add_fonts(vec![Cow::Borrowed(LUCIDE_FONT_BYTES)])
             .expect("failed to load the Lucide icon font");

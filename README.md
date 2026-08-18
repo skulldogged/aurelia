@@ -47,7 +47,9 @@ cargo run -p aurelia-desktop
 
 The desktop app can authenticate with a Jellyfin server, persist the session,
 sync a profile-specific library cache, and populate the home screen from that
-cache. Playback controls remain a UI prototype and do not produce audio yet.
+cache. It streams audio through Rodio, reports playback progress to Jellyfin,
+and publishes metadata and transport controls through the operating system's
+media-session interface.
 
 iOS builds require macOS with Xcode:
 

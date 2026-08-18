@@ -6,6 +6,11 @@ pub mod models;
 pub mod services;
 pub mod utils;
 
+#[cfg(feature = "desktop")]
+pub mod audio;
+#[cfg(feature = "desktop")]
+pub mod media_controls;
+
 #[uniffi::export]
 pub fn ping() -> String {
     "pong".to_string()
@@ -169,6 +174,18 @@ pub fn build_mobile_stream_url(
         let client = services::JellyfinClient::with_auth(server_url, token);
         client.get_mobile_audio_stream_url(&item_id, container.as_deref())
     }
+}
+
+/// Build a progressive stream URL for the desktop Rodio engine.
+#[cfg(feature = "desktop")]
+pub fn build_desktop_stream_url(
+    server_url: String,
+    token: String,
+    item_id: String,
+    container: Option<String>,
+) -> String {
+    let client = services::JellyfinClient::with_auth(server_url, token);
+    client.get_desktop_audio_stream_url(&item_id, container.as_deref())
 }
 
 #[uniffi::export]

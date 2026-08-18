@@ -49,8 +49,9 @@ cargo run -p aurelia-desktop
 The desktop app authenticates directly through `aurelia-core`, stores its
 session in Aurelia's application-data directory, and performs the same smart
 library and favorites sync used by mobile. The home screen is populated from a
-profile-specific cache after sync completes. Playback controls are still a UI
-prototype and do not produce audio yet.
+profile-specific cache after sync completes. Desktop playback uses Rodio for
+streaming and Souvlaki for system media-session integration, including metadata,
+media keys, and transport controls.
 
 ## iOS
 
