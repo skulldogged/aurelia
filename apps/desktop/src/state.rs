@@ -1,3 +1,5 @@
+use crate::queue::PlaybackQueue;
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Destination {
     #[default]
@@ -71,7 +73,7 @@ pub struct DesktopState {
     pub destination: Destination,
     pub sidebar_collapsed: bool,
     pub query: String,
-    pub current_track: usize,
+    pub queue: PlaybackQueue,
     pub is_playing: bool,
     pub elapsed_seconds: u32,
     pub volume_percent: u8,
@@ -84,9 +86,9 @@ impl Default for DesktopState {
             destination: Destination::Home,
             sidebar_collapsed: false,
             query: String::new(),
-            current_track: 0,
-            is_playing: true,
-            elapsed_seconds: 96,
+            queue: PlaybackQueue::default(),
+            is_playing: false,
+            elapsed_seconds: 0,
             volume_percent: 72,
             tracks: mock_tracks(),
         }
@@ -96,7 +98,7 @@ impl Default for DesktopState {
 impl DesktopState {
     pub fn replace_library(&mut self, tracks: Vec<Track>) {
         self.tracks = tracks;
-        self.current_track = 0;
+        self.queue.clear();
         self.elapsed_seconds = 0;
         self.is_playing = false;
         self.query.clear();
@@ -124,36 +126,11 @@ impl DesktopState {
             .collect()
     }
 
-    pub fn select_track(&mut self, index: usize) {
-        if index < self.tracks.len() {
-            self.current_track = index;
-            self.elapsed_seconds = 0;
-            self.is_playing = true;
-        }
-    }
-
-    pub fn skip_next(&mut self) {
-        if !self.tracks.is_empty() {
-            self.current_track = (self.current_track + 1) % self.tracks.len();
-            self.elapsed_seconds = 0;
-        }
-    }
-
-    pub fn skip_previous(&mut self) {
-        if !self.tracks.is_empty() {
-            self.current_track = self
-                .current_track
-                .checked_sub(1)
-                .unwrap_or(self.tracks.len() - 1);
-            self.elapsed_seconds = 0;
-        }
-    }
-
     pub fn seek_by(&mut self, seconds: i32) {
-        if self.tracks.is_empty() {
+        let Some(track) = self.queue.current().map(|entry| &entry.track) else {
             return;
-        }
-        let duration = self.tracks[self.current_track].duration_seconds as i32;
+        };
+        let duration = track.duration_seconds as i32;
         self.elapsed_seconds = (self.elapsed_seconds as i32 + seconds).clamp(0, duration) as u32;
     }
 
@@ -252,24 +229,22 @@ mod tests {
     }
 
     #[test]
-    fn selecting_and_skipping_tracks_resets_playback_position() {
+    fn queue_selection_drives_seek_bounds() {
         let mut state = DesktopState::default();
-        state.select_track(3);
-        assert_eq!(state.current_track, 3);
-        assert!(state.is_playing);
-        assert_eq!(state.elapsed_seconds, 0);
-
-        state.skip_previous();
-        assert_eq!(state.current_track, 2);
-        state.skip_next();
-        assert_eq!(state.current_track, 3);
+        state.queue.replace(state.tracks.clone(), 3);
+        state.seek_by(10_000);
+        assert_eq!(state.elapsed_seconds, state.tracks[3].duration_seconds);
     }
 
     #[test]
     fn seek_and_volume_are_clamped() {
         let mut state = DesktopState::default();
+        state.queue.replace(state.tracks.clone(), 0);
         state.seek_by(10_000);
-        assert_eq!(state.elapsed_seconds, state.tracks[0].duration_seconds);
+        assert_eq!(
+            state.elapsed_seconds,
+            state.queue.current().unwrap().track.duration_seconds
+        );
         state.seek_by(-10_000);
         assert_eq!(state.elapsed_seconds, 0);
 

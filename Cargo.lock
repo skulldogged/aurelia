@@ -639,6 +639,7 @@ dependencies = [
  "gpui_tokio",
  "lucide-icons",
  "reqwest_client",
+ "tokio",
  "tracing",
  "unicode-segmentation",
  "url",

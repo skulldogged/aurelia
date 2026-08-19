@@ -233,6 +233,16 @@ pub async fn audio_prepare_next(state: &AudioState, url: String, token: String) 
     player.prepare_next(&url, &token).await
 }
 
+/// Discard a previously prepared next track while leaving current playback alone.
+pub async fn audio_clear_prepared_next(state: &AudioState) -> Result<()> {
+    let mut player_guard = state.player.lock().await;
+    let player = player_guard
+        .as_mut()
+        .ok_or_else(|| anyhow::anyhow!("Audio player not initialized"))?;
+    player.clear_prepared_next();
+    Ok(())
+}
+
 /// Advance to next prepared track
 pub async fn audio_advance_gapless(state: &AudioState) -> Result<()> {
     let mut player_guard = state.player.lock().await;

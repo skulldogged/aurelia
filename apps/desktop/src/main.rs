@@ -1,5 +1,6 @@
 mod artwork;
 mod playback;
+mod queue;
 mod state;
 mod text_input;
 mod theme;
@@ -17,15 +18,17 @@ use artwork::{ArtworkCache, DEFAULT_ARTWORK_CACHE_CAPACITY};
 use aurelia_core::models::{AuthRequest, BackendProvider, Credentials, Song};
 use gpui::{
     Anchor, Animation, AnimationExt as _, AnyElement, App, Bounds, Context, Div, ElementId, Entity,
-    FocusHandle, FontWeight, Image, ImageFormat, IntoElement, KeyBinding, KeyDownEvent, ObjectFit,
-    Pixels, Point, Rgba, Role, ScrollStrategy, SharedString, SpringAnimation, SpringConfig,
-    Stateful, StyledImage as _, Transformation, UniformListScrollHandle, Window, WindowBounds,
-    WindowOptions, actions, anchored, bounce, deferred, div, ease_in_out, ease_out_quint, img,
-    percentage, point, prelude::*, px, rgb, size, svg, uniform_list,
+    FocusHandle, FontWeight, Image, ImageFormat, IntoElement, KeyBinding, KeyDownEvent,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, Pixels, Point, Rgba,
+    Role, ScrollStrategy, SharedString, SpringAnimation, SpringConfig, Stateful, StyledImage as _,
+    Transformation, UniformListScrollHandle, Window, WindowBounds, WindowOptions, actions,
+    anchored, bounce, deferred, div, ease_in_out, ease_out_quint, img, percentage, point,
+    prelude::*, px, rgb, size, svg, uniform_list,
 };
 use gpui_platform::application;
 use lucide_icons::{Icon, LUCIDE_FONT_BYTES};
 use playback::{PlaybackController, PlaybackItem};
+use queue::{AdvanceReason, QueueEntryId, RemoveOutcome, RepeatMode};
 use reqwest_client::ReqwestClient;
 use state::{DesktopState, Destination, Track};
 use text_input::TextInput;
@@ -128,6 +131,48 @@ fn should_dismiss_account_menu(
     pointer_position: Point<Pixels>,
 ) -> bool {
     !account_button_bounds.is_some_and(|bounds| bounds.contains(&pointer_position))
+}
+
+#[derive(Clone)]
+struct DraggedQueueEntry {
+    id: QueueEntryId,
+    source_index: usize,
+    title: SharedString,
+    artist: SharedString,
+}
+
+impl Render for DraggedQueueEntry {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .w(px(260.0))
+            .h(px(52.0))
+            .px_3()
+            .flex()
+            .items_center()
+            .gap_3()
+            .rounded_xl()
+            .border_1()
+            .border_color(PRIMARY)
+            .bg(SURFACE)
+            .shadow_lg()
+            .text_color(TEXT_MUTED)
+            .child(icon(Icon::GripVertical, 17.0))
+            .child(
+                div()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .child(
+                        div()
+                            .truncate()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(TEXT)
+                            .child(self.title.clone()),
+                    )
+                    .child(div().truncate().text_xs().child(self.artist.clone())),
+            )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -358,6 +403,7 @@ struct AureliaDesktop {
     password_input: Entity<TextInput>,
     visible_track_indices: Vec<usize>,
     track_scroll_handle: UniformListScrollHandle,
+    queue_scroll_handle: UniformListScrollHandle,
     artwork_cache: Entity<ArtworkCache>,
     playback: PlaybackController,
     playback_loading: bool,
@@ -365,6 +411,11 @@ struct AureliaDesktop {
     playback_request_id: u64,
     account_menu_open: bool,
     account_button_bounds: Option<Bounds<Pixels>>,
+    queue_open: bool,
+    seek_bounds: Option<Bounds<Pixels>>,
+    seek_dragging: bool,
+    seek_in_flight: bool,
+    seek_request_id: u64,
 }
 
 impl AureliaDesktop {
@@ -413,6 +464,7 @@ impl AureliaDesktop {
             password_input,
             visible_track_indices,
             track_scroll_handle: UniformListScrollHandle::new(),
+            queue_scroll_handle: UniformListScrollHandle::new(),
             artwork_cache,
             playback: PlaybackController::new(),
             playback_loading: false,
@@ -420,6 +472,11 @@ impl AureliaDesktop {
             playback_request_id: 0,
             account_menu_open: false,
             account_button_bounds: None,
+            queue_open: false,
+            seek_bounds: None,
+            seek_dragging: false,
+            seek_in_flight: false,
+            seek_request_id: 0,
         };
 
         cx.observe(&desktop.search_input, |this, input, cx| {
@@ -510,9 +567,8 @@ impl AureliaDesktop {
         }
     }
 
-    fn playback_item(&self, index: usize) -> Option<PlaybackItem> {
+    fn playback_item(&self, track: &Track) -> Option<PlaybackItem> {
         let session = self.session.as_ref()?;
-        let track = self.state.tracks.get(index)?;
         Some(PlaybackItem {
             server_url: session.server_url.clone(),
             token: session.token.clone(),
@@ -528,21 +584,145 @@ impl AureliaDesktop {
     }
 
     fn start_track(&mut self, index: usize, cx: &mut Context<Self>) {
-        let Some(item) = self.playback_item(index) else {
+        if index >= self.state.tracks.len() {
+            return;
+        }
+
+        let queue_indices = if self.visible_track_indices.contains(&index) {
+            self.visible_track_indices.clone()
+        } else {
+            (0..self.state.tracks.len()).collect()
+        };
+        let start_index = queue_indices
+            .iter()
+            .position(|candidate| *candidate == index)
+            .unwrap_or(0);
+        let tracks = queue_indices
+            .into_iter()
+            .filter_map(|index| self.state.tracks.get(index).cloned())
+            .collect();
+        self.state.queue.replace(tracks, start_index);
+        self.start_current_queue_entry(cx);
+    }
+
+    fn play_track_next(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some(track) = self.state.tracks.get(index).cloned() else {
+            return;
+        };
+        let should_start = self.state.queue.is_empty();
+        self.state.queue.play_next(track);
+        if should_start {
+            self.start_current_queue_entry(cx);
+        } else {
+            self.refresh_prepared_next(cx);
+            cx.notify();
+        }
+    }
+
+    fn add_track_to_queue(&mut self, index: usize, cx: &mut Context<Self>) {
+        let Some(track) = self.state.tracks.get(index).cloned() else {
+            return;
+        };
+        let should_start = self.state.queue.is_empty();
+        self.state.queue.add_to_end(track);
+        if should_start {
+            self.start_current_queue_entry(cx);
+        } else {
+            self.refresh_prepared_next(cx);
+            cx.notify();
+        }
+    }
+
+    fn start_queue_entry(&mut self, id: QueueEntryId, cx: &mut Context<Self>) {
+        if self.state.queue.select(id) {
+            self.start_current_queue_entry(cx);
+        }
+    }
+
+    fn toggle_queue(&mut self, cx: &mut Context<Self>) {
+        self.queue_open = !self.queue_open;
+        if self.queue_open
+            && let Some(index) = self.state.queue.current_index()
+        {
+            self.queue_scroll_handle
+                .scroll_to_item_strict(index, ScrollStrategy::Center);
+        }
+        cx.notify();
+    }
+
+    fn move_queue_entry(&mut self, id: QueueEntryId, target_index: usize, cx: &mut Context<Self>) {
+        if self.state.queue.move_entry(id, target_index) {
+            self.refresh_prepared_next(cx);
+            cx.notify();
+        }
+    }
+
+    fn move_queue_entry_by(&mut self, id: QueueEntryId, delta: isize, cx: &mut Context<Self>) {
+        let Some(index) = self
+            .state
+            .queue
+            .entries()
+            .iter()
+            .position(|entry| entry.id == id)
+        else {
+            return;
+        };
+        let target = index
+            .saturating_add_signed(delta)
+            .min(self.state.queue.len().saturating_sub(1));
+        self.move_queue_entry(id, target, cx);
+    }
+
+    fn remove_queue_entry(&mut self, id: QueueEntryId, cx: &mut Context<Self>) {
+        match self.state.queue.remove(id) {
+            RemoveOutcome::NotFound => {}
+            RemoveOutcome::Removed => {
+                self.refresh_prepared_next(cx);
+                cx.notify();
+            }
+            RemoveOutcome::CurrentChanged(Some(_)) => self.start_current_queue_entry(cx),
+            RemoveOutcome::CurrentChanged(None) => {
+                self.queue_open = false;
+                self.stop_playback(cx);
+            }
+        }
+    }
+
+    fn clear_upcoming(&mut self, cx: &mut Context<Self>) {
+        if self.state.queue.clear_upcoming() > 0 {
+            self.refresh_prepared_next(cx);
+            cx.notify();
+        }
+    }
+
+    fn start_current_queue_entry(&mut self, cx: &mut Context<Self>) {
+        let Some(track) = self.state.queue.current().map(|entry| entry.track.clone()) else {
+            return;
+        };
+        if self.queue_open
+            && let Some(index) = self.state.queue.current_index()
+        {
+            self.queue_scroll_handle
+                .scroll_to_item_strict(index, ScrollStrategy::Center);
+        }
+        let Some(item) = self.playback_item(&track) else {
             self.playback_error = Some("Playback requires an active Jellyfin session".into());
             cx.notify();
             return;
         };
 
         self.playback_request_id = self.playback_request_id.wrapping_add(1);
+        self.seek_request_id = self.seek_request_id.wrapping_add(1);
+        self.seek_in_flight = false;
         let request_id = self.playback_request_id;
-        self.state.select_track(index);
         self.state.is_playing = false;
         self.state.elapsed_seconds = 0;
         self.playback_loading = true;
         self.playback_error = None;
         let volume = f32::from(self.state.volume_percent) / 100.0;
         let playback = self.playback.clone();
+        playback.begin_prepare();
+        playback.begin_seek();
         let task = gpui_tokio::Tokio::spawn(cx, async move { playback.play(item, volume).await });
         cx.spawn(async move |this, cx| {
             let result = task.await;
@@ -552,7 +732,10 @@ impl AureliaDesktop {
                 }
                 this.playback_loading = false;
                 match result {
-                    Ok(Ok(())) => this.state.is_playing = true,
+                    Ok(Ok(())) => {
+                        this.state.is_playing = true;
+                        this.refresh_prepared_next(cx);
+                    }
                     Ok(Err(error)) => {
                         this.state.is_playing = false;
                         this.playback_error = Some(error.to_string());
@@ -570,12 +753,34 @@ impl AureliaDesktop {
         cx.notify();
     }
 
+    fn refresh_prepared_next(&mut self, cx: &mut Context<Self>) {
+        if self.playback_loading {
+            return;
+        }
+        let prepared = self
+            .state
+            .queue
+            .next_for(AdvanceReason::TrackFinished)
+            .and_then(|entry| {
+                self.playback_item(&entry.track)
+                    .map(|item| (entry.id.raw(), item))
+            });
+        let playback = self.playback.clone();
+        let generation = playback.begin_prepare();
+        gpui_tokio::Tokio::spawn(cx, async move {
+            if let Err(error) = playback.prepare_next(prepared, generation).await {
+                tracing::warn!("Could not prepare the next queue item: {error}");
+            }
+        })
+        .detach();
+    }
+
     fn set_playing(&mut self, should_play: bool, cx: &mut Context<Self>) {
-        if self.playback_loading || self.state.tracks.is_empty() {
+        if self.playback_loading || self.state.queue.is_empty() {
             return;
         }
         if !self.state.is_playing && should_play && self.state.elapsed_seconds == 0 {
-            self.start_track(self.state.current_track, cx);
+            self.start_current_queue_entry(cx);
             return;
         }
 
@@ -612,15 +817,13 @@ impl AureliaDesktop {
     }
 
     fn next_track(&mut self, cx: &mut Context<Self>) {
-        if self.state.tracks.is_empty() {
-            return;
+        if self.state.queue.advance(AdvanceReason::Manual).is_some() {
+            self.start_current_queue_entry(cx);
         }
-        self.state.skip_next();
-        self.start_track(self.state.current_track, cx);
     }
 
     fn previous_track(&mut self, cx: &mut Context<Self>) {
-        if self.state.tracks.is_empty() {
+        if self.state.queue.is_empty() {
             return;
         }
         if self.state.elapsed_seconds > 3 {
@@ -629,23 +832,66 @@ impl AureliaDesktop {
                 cx,
             );
         } else {
-            self.state.skip_previous();
-            self.start_track(self.state.current_track, cx);
+            if self.state.queue.previous().is_some() {
+                self.start_current_queue_entry(cx);
+            } else {
+                self.seek_by(
+                    -i32::try_from(self.state.elapsed_seconds).unwrap_or(i32::MAX),
+                    cx,
+                );
+            }
         }
     }
 
     fn seek_by(&mut self, seconds: i32, cx: &mut Context<Self>) {
         self.state.seek_by(seconds);
-        let position = f64::from(self.state.elapsed_seconds);
+        self.request_seek(self.state.elapsed_seconds, cx);
+    }
+
+    fn preview_seek_to_fraction(
+        &mut self,
+        pointer_position: Point<Pixels>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(bounds) = self.seek_bounds else {
+            return;
+        };
+        let Some(duration) = self
+            .state
+            .queue
+            .current()
+            .map(|entry| entry.track.duration_seconds)
+        else {
+            return;
+        };
+        let fraction = ((pointer_position.x - bounds.origin.x) / bounds.size.width).clamp(0.0, 1.0);
+        let position = (duration as f32 * fraction).round() as u32;
+        self.state.elapsed_seconds = position;
+        cx.notify();
+    }
+
+    fn request_seek(&mut self, position: u32, cx: &mut Context<Self>) {
+        self.seek_request_id = self.seek_request_id.wrapping_add(1);
+        let request_id = self.seek_request_id;
+        self.seek_in_flight = true;
+        let position = f64::from(position);
         let playback = self.playback.clone();
-        let task = gpui_tokio::Tokio::spawn(cx, async move { playback.seek(position).await });
+        let generation = playback.begin_seek();
+        let task =
+            gpui_tokio::Tokio::spawn(cx, async move { playback.seek(position, generation).await });
         cx.spawn(async move |this, cx| {
             let result = task.await;
             this.update(cx, |this, cx| {
-                if let Ok(Err(error)) = result {
-                    this.playback_error = Some(error.to_string());
-                } else if let Err(error) = result {
-                    this.playback_error = Some(format!("Seek task failed: {error}"));
+                if this.seek_request_id != request_id {
+                    return;
+                }
+                this.seek_in_flight = false;
+                match result {
+                    Ok(Ok(())) => this.refresh_prepared_next(cx),
+                    Ok(Err(error)) => this.playback_error = Some(error.to_string()),
+                    Err(error) => {
+                        this.playback_error = Some(format!("Seek task failed: {error}"));
+                    }
                 }
                 cx.notify();
             })
@@ -684,10 +930,14 @@ impl AureliaDesktop {
 
     fn stop_playback(&mut self, cx: &mut Context<Self>) {
         self.playback_request_id = self.playback_request_id.wrapping_add(1);
+        self.seek_request_id = self.seek_request_id.wrapping_add(1);
+        self.seek_in_flight = false;
+        self.seek_dragging = false;
         self.playback_loading = false;
         self.state.is_playing = false;
         self.state.elapsed_seconds = 0;
         let playback = self.playback.clone();
+        playback.begin_seek();
         gpui_tokio::Tokio::spawn(cx, async move { playback.stop().await }).detach();
         cx.notify();
     }
@@ -706,7 +956,46 @@ impl AureliaDesktop {
                 let result = task.await;
                 let keep_polling = this
                     .update(cx, |this, cx| {
-                        if let Ok(Ok(snapshot)) = result {
+                        if let Ok(Ok(snapshot)) = result
+                            && !this.seek_dragging
+                            && !this.seek_in_flight
+                        {
+                            if snapshot.did_auto_advance {
+                                let prepared_id = snapshot.auto_advanced_token.and_then(|token| {
+                                    this.state
+                                        .queue
+                                        .entries()
+                                        .iter()
+                                        .find(|entry| entry.id.raw() == token)
+                                        .map(|entry| entry.id)
+                                });
+                                if prepared_id.is_some_and(|id| this.state.queue.select(id)) {
+                                    this.state.elapsed_seconds = 0;
+                                    this.state.is_playing = true;
+                                    this.playback_error = None;
+                                    if this.queue_open
+                                        && let Some(index) = this.state.queue.current_index()
+                                    {
+                                        this.queue_scroll_handle
+                                            .scroll_to_item_strict(index, ScrollStrategy::Center);
+                                    }
+                                    this.refresh_prepared_next(cx);
+                                    cx.notify();
+                                    return true;
+                                }
+
+                                if this
+                                    .state
+                                    .queue
+                                    .advance(AdvanceReason::TrackFinished)
+                                    .is_some()
+                                {
+                                    this.start_current_queue_entry(cx);
+                                } else {
+                                    this.stop_playback(cx);
+                                }
+                                return true;
+                            }
                             let next_second = snapshot.position_seconds.max(0.0).round() as u32;
                             if this.state.elapsed_seconds != next_second {
                                 this.state.elapsed_seconds = next_second;
@@ -719,7 +1008,17 @@ impl AureliaDesktop {
                                 cx.notify();
                             }
                             if snapshot.is_finished && !this.playback_loading {
-                                this.next_track(cx);
+                                if this
+                                    .state
+                                    .queue
+                                    .advance(AdvanceReason::TrackFinished)
+                                    .is_some()
+                                {
+                                    this.start_current_queue_entry(cx);
+                                } else {
+                                    this.state.is_playing = false;
+                                    cx.notify();
+                                }
                             }
                         }
 
@@ -1712,9 +2011,14 @@ impl AureliaDesktop {
 
     fn track_row(&self, index: usize, window: &Window, cx: &mut Context<Self>) -> AnyElement {
         let track = self.state.tracks[index].clone();
-        let selected = self.state.current_track == index;
+        let selected = self
+            .state
+            .queue
+            .current()
+            .is_some_and(|entry| entry.track.id == track.id);
         div()
             .id(("track-row", index))
+            .group("library-track")
             .role(Role::Button)
             .aria_label(SharedString::from(format!(
                 "Play {} by {}",
@@ -1794,11 +2098,47 @@ impl AureliaDesktop {
             )
             .child(
                 div()
-                    .w(px(36.0))
+                    .w(px(76.0))
                     .flex()
                     .justify_end()
+                    .gap_1()
                     .text_color(TEXT_MUTED)
-                    .child(icon(Icon::Ellipsis, 18.0)),
+                    .invisible()
+                    .group_hover("library-track", |style| style.visible())
+                    .child(
+                        div()
+                            .id(("play-next", index))
+                            .role(Role::Button)
+                            .aria_label(SharedString::from(format!("Play {} next", track.title)))
+                            .size(px(32.0))
+                            .rounded_lg()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .hover(|style| style.bg(SURFACE_HIGH).text_color(TEXT))
+                            .child(icon(Icon::ListStart, 16.0))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                cx.stop_propagation();
+                                this.play_track_next(index, cx);
+                            })),
+                    )
+                    .child(
+                        div()
+                            .id(("add-to-queue", index))
+                            .role(Role::Button)
+                            .aria_label(SharedString::from(format!("Add {} to queue", track.title)))
+                            .size(px(32.0))
+                            .rounded_lg()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .hover(|style| style.bg(SURFACE_HIGH).text_color(TEXT))
+                            .child(icon(Icon::ListPlus, 16.0))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                cx.stop_propagation();
+                                this.add_track_to_queue(index, cx);
+                            })),
+                    ),
             )
             .on_click(cx.listener(move |this, _, _, cx| {
                 this.start_track(index, cx);
@@ -1957,6 +2297,338 @@ impl AureliaDesktop {
             .into_any_element()
     }
 
+    fn queue_row(&self, index: usize, window: &Window, cx: &mut Context<Self>) -> AnyElement {
+        let Some(entry) = self.state.queue.entries().get(index).cloned() else {
+            return div().into_any_element();
+        };
+        let id = entry.id;
+        let track = entry.track;
+        let is_current = self.state.queue.current_id() == Some(id);
+        let can_move_up = index > 0;
+        let can_move_down = index + 1 < self.state.queue.len();
+        let drag = DraggedQueueEntry {
+            id,
+            source_index: index,
+            title: track.title.clone().into(),
+            artist: track.artist.clone().into(),
+        };
+
+        div()
+            .id(("queue-row", id.raw()))
+            .role(Role::ListItem)
+            .aria_label(SharedString::from(format!(
+                "{} by {}, queue position {}",
+                track.title,
+                track.artist,
+                index + 1
+            )))
+            .group("queue-row")
+            .h(px(64.0))
+            .w_full()
+            .px_2()
+            .flex()
+            .items_center()
+            .gap_2()
+            .rounded_lg()
+            .cursor_pointer()
+            .when(is_current, |row| row.bg(PRIMARY_CONTAINER))
+            .when(!is_current, |row| {
+                row.hover(|style| style.bg(translucent(SURFACE_HIGH, 0.72)))
+            })
+            .drag_over::<DraggedQueueEntry>(move |row, dragged, _, _| {
+                if dragged.id == id {
+                    row
+                } else if dragged.source_index < index {
+                    row.border_b_2().border_color(PRIMARY)
+                } else {
+                    row.border_t_2().border_color(PRIMARY)
+                }
+            })
+            .on_drop(
+                cx.listener(move |this, dragged: &DraggedQueueEntry, _, cx| {
+                    this.move_queue_entry(dragged.id, index, cx);
+                }),
+            )
+            .child(
+                div()
+                    .id(("queue-drag", id.raw()))
+                    .role(Role::Button)
+                    .aria_label(SharedString::from(format!("Reorder {}", track.title)))
+                    .size(px(28.0))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_move()
+                    .text_color(TEXT_MUTED)
+                    .child(icon(Icon::GripVertical, 16.0))
+                    .on_drag(drag, |dragged, _, _, cx| cx.new(|_| dragged.clone()))
+                    .on_click(|_, _, cx| cx.stop_propagation()),
+            )
+            .child(self.artwork(&track, 44.0, window, cx))
+            .child(
+                div()
+                    .min_w_0()
+                    .flex_1()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(
+                        div()
+                            .w_full()
+                            .truncate()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(if is_current { PRIMARY } else { TEXT })
+                            .child(track.title.clone()),
+                    )
+                    .child(
+                        div()
+                            .w_full()
+                            .truncate()
+                            .text_xs()
+                            .text_color(TEXT_MUTED)
+                            .child(track.artist.clone()),
+                    ),
+            )
+            .child(
+                div()
+                    .flex_none()
+                    .text_xs()
+                    .text_color(TEXT_MUTED)
+                    .child(if is_current {
+                        "Playing".to_string()
+                    } else {
+                        track.duration_label()
+                    }),
+            )
+            .child(
+                div()
+                    .w(px(88.0))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_end()
+                    .gap_0p5()
+                    .invisible()
+                    .group_hover("queue-row", |style| style.visible())
+                    .child(
+                        div()
+                            .id(("queue-up", id.raw()))
+                            .role(Role::Button)
+                            .aria_label(SharedString::from(format!("Move {} up", track.title)))
+                            .size(px(28.0))
+                            .rounded_md()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_color(TEXT_MUTED)
+                            .when(!can_move_up, |button| button.opacity(0.28))
+                            .when(can_move_up, |button| {
+                                button
+                                    .cursor_pointer()
+                                    .hover(|style| style.bg(SURFACE_HIGH).text_color(TEXT))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        cx.stop_propagation();
+                                        this.move_queue_entry_by(id, -1, cx);
+                                    }))
+                            })
+                            .child(icon(Icon::ChevronUp, 15.0)),
+                    )
+                    .child(
+                        div()
+                            .id(("queue-down", id.raw()))
+                            .role(Role::Button)
+                            .aria_label(SharedString::from(format!("Move {} down", track.title)))
+                            .size(px(28.0))
+                            .rounded_md()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .text_color(TEXT_MUTED)
+                            .when(!can_move_down, |button| button.opacity(0.28))
+                            .when(can_move_down, |button| {
+                                button
+                                    .cursor_pointer()
+                                    .hover(|style| style.bg(SURFACE_HIGH).text_color(TEXT))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        cx.stop_propagation();
+                                        this.move_queue_entry_by(id, 1, cx);
+                                    }))
+                            })
+                            .child(icon(Icon::ChevronDown, 15.0)),
+                    )
+                    .child(
+                        div()
+                            .id(("queue-remove", id.raw()))
+                            .role(Role::Button)
+                            .aria_label(SharedString::from(format!(
+                                "Remove {} from queue",
+                                track.title
+                            )))
+                            .size(px(28.0))
+                            .rounded_md()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .cursor_pointer()
+                            .text_color(TEXT_MUTED)
+                            .hover(|style| style.bg(SURFACE_HIGH).text_color(PINK))
+                            .child(icon(Icon::X, 15.0))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                cx.stop_propagation();
+                                this.remove_queue_entry(id, cx);
+                            })),
+                    ),
+            )
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.start_queue_entry(id, cx);
+            }))
+            .into_any_element()
+    }
+
+    fn queue_list_items(
+        &mut self,
+        range: Range<usize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        range
+            .map(|index| {
+                div()
+                    .h(px(68.0))
+                    .w_full()
+                    .child(self.queue_row(index, window, cx))
+                    .into_any_element()
+            })
+            .collect()
+    }
+
+    fn queue_drawer(&self, cx: &mut Context<Self>) -> AnyElement {
+        let count = self.state.queue.len();
+        let upcoming = self
+            .state
+            .queue
+            .current_index()
+            .map_or(0, |index| count.saturating_sub(index + 1));
+
+        div()
+            .id("playback-queue")
+            .role(Role::List)
+            .aria_label("Playback queue")
+            .absolute()
+            .top(px(88.0))
+            .right(px(16.0))
+            .bottom(px(112.0))
+            .w(px(470.0))
+            .min_h(px(240.0))
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .rounded_xl()
+            .border_1()
+            .border_color(OUTLINE)
+            .bg(SURFACE)
+            .shadow_lg()
+            .occlude()
+            .child(
+                div()
+                    .h(px(68.0))
+                    .px_4()
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .border_b_1()
+                    .border_color(OUTLINE)
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap_1()
+                            .child(
+                                div()
+                                    .text_lg()
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .child("Queue"),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(TEXT_MUTED)
+                                    .child(format!("{count} tracks · {upcoming} upcoming")),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .when(upcoming > 0, |actions| {
+                                actions.child(
+                                    div()
+                                        .id("clear-upcoming")
+                                        .role(Role::Button)
+                                        .aria_label("Clear upcoming tracks")
+                                        .h(px(32.0))
+                                        .px_3()
+                                        .rounded_lg()
+                                        .flex()
+                                        .items_center()
+                                        .gap_2()
+                                        .cursor_pointer()
+                                        .text_xs()
+                                        .text_color(TEXT_MUTED)
+                                        .hover(|style| style.bg(SURFACE_HIGH).text_color(TEXT))
+                                        .child(icon(Icon::ListX, 15.0))
+                                        .child("Clear")
+                                        .on_click(cx.listener(|this, _, _, cx| {
+                                            this.clear_upcoming(cx);
+                                        })),
+                                )
+                            })
+                            .child(
+                                div()
+                                    .id("close-queue")
+                                    .role(Role::Button)
+                                    .aria_label("Close queue")
+                                    .size(px(32.0))
+                                    .rounded_lg()
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .cursor_pointer()
+                                    .text_color(TEXT_MUTED)
+                                    .hover(|style| style.bg(SURFACE_HIGH).text_color(TEXT))
+                                    .child(icon(Icon::X, 17.0))
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.queue_open = false;
+                                        cx.notify();
+                                    })),
+                            ),
+                    ),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_hidden()
+                    .px_2()
+                    .py_2()
+                    .child(
+                        uniform_list("queue-list", count, cx.processor(Self::queue_list_items))
+                            .size_full()
+                            .track_scroll(&self.queue_scroll_handle),
+                    ),
+            )
+            .with_animation(
+                "queue-drawer-in",
+                Animation::new(Duration::from_millis(150)).with_easing(ease_out_quint()),
+                |drawer, phase| drawer.opacity(phase).right(px(16.0 - (1.0 - phase) * 16.0)),
+            )
+            .into_any_element()
+    }
+
     fn control_button(
         &self,
         id: impl Into<ElementId>,
@@ -1984,7 +2656,13 @@ impl AureliaDesktop {
     }
 
     fn player_bar(&self, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let track = self.state.tracks[self.state.current_track].clone();
+        let track = self
+            .state
+            .queue
+            .current()
+            .expect("player bar requires a current queue item")
+            .track
+            .clone();
         let progress = if track.duration_seconds == 0 {
             0.0
         } else {
@@ -2002,6 +2680,14 @@ impl AureliaDesktop {
             self.state.elapsed_seconds / 60,
             self.state.elapsed_seconds % 60
         );
+        let repeat_mode = self.state.queue.repeat_mode();
+        let shuffle_enabled = self.state.queue.shuffle_enabled();
+        let repeat_label = match repeat_mode {
+            RepeatMode::Off => "Repeat is off",
+            RepeatMode::All => "Repeat queue",
+            RepeatMode::One => "Repeat current track",
+        };
+        let weak_self = cx.weak_entity();
 
         div()
             .h(px(96.0))
@@ -2015,10 +2701,14 @@ impl AureliaDesktop {
             .border_color(OUTLINE)
             .child(
                 div()
+                    .id("now-playing-summary")
+                    .role(Role::Button)
+                    .aria_label("Show playback queue")
                     .w(px(310.0))
                     .flex()
                     .items_center()
                     .gap_3()
+                    .cursor_pointer()
                     .child(self.artwork(&track, 56.0, window, cx))
                     .child(
                         div()
@@ -2040,7 +2730,10 @@ impl AureliaDesktop {
                                     .child(playback_detail),
                             ),
                     )
-                    .child(div().pl_2().text_color(PINK).child(icon(Icon::Heart, 18.0))),
+                    .child(div().pl_2().text_color(PINK).child(icon(Icon::Heart, 18.0)))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.toggle_queue(cx);
+                    })),
             )
             .child(
                 div()
@@ -2056,6 +2749,28 @@ impl AureliaDesktop {
                             .flex()
                             .items_center()
                             .gap_2()
+                            .child(
+                                self.control_button(
+                                    "shuffle",
+                                    if shuffle_enabled {
+                                        "Disable shuffle"
+                                    } else {
+                                        "Enable shuffle"
+                                    },
+                                    Icon::Shuffle,
+                                    false,
+                                )
+                                .when(shuffle_enabled, |button| {
+                                    button.bg(PRIMARY_CONTAINER).text_color(PRIMARY)
+                                })
+                                .on_click(cx.listener(
+                                    |this, _, _, cx| {
+                                        this.state.queue.toggle_shuffle();
+                                        this.refresh_prepared_next(cx);
+                                        cx.notify();
+                                    },
+                                )),
+                            )
                             .child(
                                 self.control_button(
                                     "previous",
@@ -2095,6 +2810,28 @@ impl AureliaDesktop {
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.next_track(cx);
                                     })),
+                            )
+                            .child(
+                                self.control_button(
+                                    "repeat",
+                                    repeat_label,
+                                    if repeat_mode == RepeatMode::One {
+                                        Icon::Repeat1
+                                    } else {
+                                        Icon::Repeat
+                                    },
+                                    false,
+                                )
+                                .when(repeat_mode != RepeatMode::Off, |button| {
+                                    button.bg(PRIMARY_CONTAINER).text_color(PRIMARY)
+                                })
+                                .on_click(cx.listener(
+                                    |this, _, _, cx| {
+                                        this.state.queue.cycle_repeat_mode();
+                                        this.refresh_prepared_next(cx);
+                                        cx.notify();
+                                    },
+                                )),
                             ),
                     )
                     .child(
@@ -2108,24 +2845,78 @@ impl AureliaDesktop {
                             .child(elapsed)
                             .child(
                                 div()
-                                    .id("seek-track")
-                                    .role(Role::Slider)
-                                    .aria_label("Playback position")
                                     .flex_1()
-                                    .h(px(5.0))
-                                    .rounded_full()
-                                    .bg(SURFACE_HIGH)
-                                    .cursor_pointer()
+                                    .h(px(18.0))
+                                    .flex()
+                                    .items_center()
+                                    .on_children_prepainted(move |child_bounds, _, cx| {
+                                        if let Some(bounds) = child_bounds.first().copied() {
+                                            weak_self
+                                                .update(cx, |this, _| {
+                                                    this.seek_bounds = Some(bounds);
+                                                })
+                                                .ok();
+                                        }
+                                    })
                                     .child(
                                         div()
-                                            .h_full()
-                                            .w(gpui::relative(progress))
+                                            .id("seek-track")
+                                            .role(Role::Slider)
+                                            .aria_label("Playback position")
+                                            .w_full()
+                                            .h(px(5.0))
                                             .rounded_full()
-                                            .bg(PRIMARY),
-                                    )
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.seek_by(15, cx);
-                                    })),
+                                            .bg(SURFACE_HIGH)
+                                            .cursor_pointer()
+                                            .child(
+                                                div()
+                                                    .h_full()
+                                                    .w(gpui::relative(progress))
+                                                    .rounded_full()
+                                                    .bg(PRIMARY),
+                                            )
+                                            .on_mouse_down(
+                                                MouseButton::Left,
+                                                cx.listener(
+                                                    |this, event: &MouseDownEvent, _, cx| {
+                                                        this.seek_dragging = true;
+                                                        this.preview_seek_to_fraction(
+                                                            event.position,
+                                                            cx,
+                                                        );
+                                                        cx.stop_propagation();
+                                                    },
+                                                ),
+                                            )
+                                            .on_mouse_move(cx.listener(
+                                                |this, event: &MouseMoveEvent, _, cx| {
+                                                    if this.seek_dragging {
+                                                        this.preview_seek_to_fraction(
+                                                            event.position,
+                                                            cx,
+                                                        );
+                                                        cx.stop_propagation();
+                                                    }
+                                                },
+                                            ))
+                                            .on_mouse_up(
+                                                MouseButton::Left,
+                                                cx.listener(|this, event: &MouseUpEvent, _, cx| {
+                                                    if this.seek_dragging {
+                                                        this.preview_seek_to_fraction(
+                                                            event.position,
+                                                            cx,
+                                                        );
+                                                        this.seek_dragging = false;
+                                                        this.request_seek(
+                                                            this.state.elapsed_seconds,
+                                                            cx,
+                                                        );
+                                                        cx.stop_propagation();
+                                                    }
+                                                }),
+                                            ),
+                                    ),
                             )
                             .child(track.duration_label()),
                     ),
@@ -2139,6 +2930,30 @@ impl AureliaDesktop {
                     .gap_2()
                     .text_sm()
                     .text_color(TEXT_MUTED)
+                    .child(
+                        div()
+                            .id("toggle-queue")
+                            .role(Role::Button)
+                            .aria_label(if self.queue_open {
+                                "Close playback queue"
+                            } else {
+                                "Show playback queue"
+                            })
+                            .size(px(34.0))
+                            .rounded_lg()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .cursor_pointer()
+                            .when(self.queue_open, |button| {
+                                button.bg(PRIMARY_CONTAINER).text_color(PRIMARY)
+                            })
+                            .hover(|style| style.bg(SURFACE_HIGH).text_color(TEXT))
+                            .child(icon(Icon::ListMusic, 17.0))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.toggle_queue(cx);
+                            })),
+                    )
                     .child(icon(Icon::Volume2, 17.0))
                     .child(
                         div()
@@ -2206,7 +3021,7 @@ impl Render for AureliaDesktop {
                         .child(self.sidebar(cx))
                         .child(self.main_content(window, cx)),
                 )
-                .when(!self.state.tracks.is_empty(), |app| {
+                .when(!self.state.queue.is_empty(), |app| {
                     app.child(self.player_bar(window, cx))
                 })
                 .child(div().absolute().inset_0().bg(BACKGROUND).with_animation(
@@ -2214,6 +3029,9 @@ impl Render for AureliaDesktop {
                     Animation::new(Duration::from_millis(260)).with_easing(ease_out_quint()),
                     |overlay, phase| overlay.opacity(1.0 - phase),
                 ))
+                .when(self.queue_open && !self.state.queue.is_empty(), |app| {
+                    app.child(self.queue_drawer(cx))
+                })
                 .into_any_element(),
         };
 

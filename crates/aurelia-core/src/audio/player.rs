@@ -18,6 +18,11 @@ use tracing::{debug, info, trace, warn};
 /// Type alias for a boxed audio source
 type BoxedSource = Box<dyn Source<Item = f32> + Send + 'static>;
 
+fn relative_seek_position(position_seconds: f64, offset_seconds: f64) -> Option<f64> {
+    let relative = position_seconds - offset_seconds;
+    (position_seconds.is_finite() && position_seconds >= 0.0 && relative >= 0.0).then_some(relative)
+}
+
 /// Prepared audio source ready for gapless transition
 struct PreparedSource {
     url: String,
@@ -53,6 +58,8 @@ pub struct AudioPlayer {
     current_url: Option<String>,
     // Track info for seek restart
     current_track: Option<CurrentTrack>,
+    // Rodio reports positions relative to a stream restarted with StartTimeTicks.
+    position_offset_seconds: f64,
 }
 
 impl AudioPlayer {
@@ -113,6 +120,7 @@ impl AudioPlayer {
             is_playing: Arc::new(AtomicBool::new(false)),
             current_url: None,
             current_track: None,
+            position_offset_seconds: 0.0,
         })
     }
 
@@ -182,6 +190,7 @@ impl AudioPlayer {
             url: url.to_string(),
             token: token.to_string(),
         });
+        self.position_offset_seconds = start_position_secs.unwrap_or(0.0).max(0.0);
         self.is_playing.store(true, Ordering::SeqCst);
 
         info!("Audio playback started");
@@ -317,6 +326,7 @@ impl AudioPlayer {
             url: url.clone(),
             token,
         });
+        self.position_offset_seconds = 0.0;
         self.is_playing.store(true, Ordering::SeqCst);
 
         trace!("Gapless auto-advance completed");
@@ -346,6 +356,7 @@ impl AudioPlayer {
             url: url.clone(),
             token,
         });
+        self.position_offset_seconds = 0.0;
         self.is_playing.store(true, Ordering::SeqCst);
 
         info!("Gapless transition completed");
@@ -375,10 +386,19 @@ impl AudioPlayer {
         if let Some(sink) = self.sink.take() {
             sink.stop();
         }
+        self.clear_prepared_next();
         self.is_playing.store(false, Ordering::SeqCst);
         self.current_url = None;
         self.current_track = None;
+        self.position_offset_seconds = 0.0;
         debug!("Playback stopped");
+    }
+
+    /// Drop any pre-decoded next track without interrupting the current one.
+    pub fn clear_prepared_next(&mut self) {
+        if let Some(next) = self.next_source.take() {
+            next.sink.stop();
+        }
     }
 
     /// Set volume (0.0 to 1.0)
@@ -417,7 +437,7 @@ impl AudioPlayer {
     /// Get current playback position in seconds
     pub fn get_position(&self) -> f64 {
         if let Some(sink) = &self.sink {
-            sink.get_pos().as_secs_f64()
+            self.position_offset_seconds + sink.get_pos().as_secs_f64()
         } else {
             0.0
         }
@@ -427,7 +447,11 @@ impl AudioPlayer {
     /// Note: Rodio's try_seek may not work for all source types
     pub fn seek(&self, position_secs: f64) -> Result<()> {
         if let Some(sink) = &self.sink {
-            let duration = std::time::Duration::from_secs_f64(position_secs);
+            let relative_position =
+                relative_seek_position(position_secs, self.position_offset_seconds).ok_or_else(
+                    || anyhow::anyhow!("Cannot seek before the beginning of the restarted stream"),
+                )?;
+            let duration = std::time::Duration::from_secs_f64(relative_position);
             sink.try_seek(duration)
                 .map_err(|e| anyhow::anyhow!("Failed to seek: {:?}", e))?;
             debug!("Seeked to {} seconds", position_secs);
@@ -443,16 +467,25 @@ impl AudioPlayer {
     /// in streaming audio), falls back to restarting the stream from the
     /// target position using Jellyfin's startTimeTicks parameter.
     pub async fn seek_with_fallback(&mut self, position_secs: f64) -> Result<()> {
+        if !position_secs.is_finite() || position_secs < 0.0 {
+            return Err(anyhow::anyhow!("Invalid seek position"));
+        }
+        let was_paused = self.sink.as_ref().is_some_and(Sink::is_paused);
+
         // First, try native seek
         if let Some(sink) = &self.sink {
-            let duration = std::time::Duration::from_secs_f64(position_secs);
-            match sink.try_seek(duration) {
-                Ok(()) => {
-                    debug!("Native seek to {} seconds succeeded", position_secs);
-                    return Ok(());
-                }
-                Err(e) => {
-                    warn!("Native seek failed ({}), falling back to stream restart", e);
+            if let Some(relative_position) =
+                relative_seek_position(position_secs, self.position_offset_seconds)
+            {
+                let duration = std::time::Duration::from_secs_f64(relative_position);
+                match sink.try_seek(duration) {
+                    Ok(()) => {
+                        debug!("Native seek to {} seconds succeeded", position_secs);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        warn!("Native seek failed ({}), falling back to stream restart", e);
+                    }
                 }
             }
         } else {
@@ -470,6 +503,9 @@ impl AudioPlayer {
         // Restart playback from the target position
         self.play_url_from_position(&track.url, &track.token, Some(position_secs))
             .await?;
+        if was_paused {
+            self.pause();
+        }
 
         debug!("Stream restart seek to {} seconds completed", position_secs);
         Ok(())
@@ -564,6 +600,7 @@ impl AudioPlayer {
         self.is_playing.store(false, Ordering::SeqCst);
         self.current_url = None;
         self.current_track = None;
+        self.position_offset_seconds = 0.0;
 
         info!("Audio output stream reinitialized");
         Ok(())
@@ -573,5 +610,24 @@ impl AudioPlayer {
 impl Default for AudioPlayer {
     fn default() -> Self {
         Self::new().expect("Failed to create default audio player")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::relative_seek_position;
+
+    #[test]
+    fn restarted_stream_seeks_are_relative_to_the_absolute_offset() {
+        assert_eq!(relative_seek_position(90.0, 60.0), Some(30.0));
+        assert_eq!(relative_seek_position(60.0, 60.0), Some(0.0));
+        assert_eq!(relative_seek_position(30.0, 60.0), None);
+    }
+
+    #[test]
+    fn invalid_seek_positions_are_rejected() {
+        assert_eq!(relative_seek_position(-1.0, 0.0), None);
+        assert_eq!(relative_seek_position(f64::NAN, 0.0), None);
+        assert_eq!(relative_seek_position(f64::INFINITY, 0.0), None);
     }
 }
